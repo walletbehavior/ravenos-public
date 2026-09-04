@@ -712,6 +712,34 @@
     "all_activation_controls_default_off": true,
     "production_activation_completed": false
   },
+  "privy_wallets": {
+    "implementation_status": "local_feature_flagged_spike",
+    "authenticated_surface": "https://app.ravenos.xyz/account/",
+    "raven_identity_remains_canonical": true,
+    "existing_users_migrated_automatically": false,
+    "wallet_creation_requires_user_action": true,
+    "embedded_wallets": ["solana", "evm"],
+    "one_evm_address_across_supported_evm_chains": true,
+    "external_wallets_remain_supported": true,
+    "private_key_material_stored_by_ravenos": false,
+    "custom_auth_token_lifetime_seconds": 300,
+    "identity_token_verified_server_side": true,
+    "csrf_required_for_mutations": true,
+    "delegated_signing_enabled": false,
+    "manual_signing_enabled": false,
+    "default_wallet_onboarding": false,
+    "production_activation_completed": false,
+    "activation_controls": [
+      "RAVENOS_PRIVY_ENABLED",
+      "RAVENOS_PRIVY_WALLETS_ENABLED",
+      "RAVENOS_PRIVY_SOLANA_ENABLED",
+      "RAVENOS_PRIVY_EVM_ENABLED",
+      "RAVENOS_PRIVY_MANUAL_SIGNING_ENABLED",
+      "RAVENOS_PRIVY_DELEGATED_SIGNING_ENABLED",
+      "RAVENOS_PRIVY_DEFAULT_WALLET_ONBOARDING"
+    ],
+    "all_activation_controls_default_off": true
+  },
   "wallet_challenge_policy": {
     "evm_standard": "ERC-4361",
     "solana_standard": "Wallet Standard SIWS",
@@ -769,7 +797,9 @@
     "docs/ravenos_wallet_copy_v1.md",
     "docs/ravenos_shared_wallet_observer_v1.md",
     "docs/ravenos_community_v1.md",
-    "docs/ravenos_referrals_v1.md"
+    "docs/ravenos_referrals_v1.md",
+    "docs/ravenos_privy_wallets_v1.md",
+    "docs/wallets/privy-recovery.md"
   ],
   "verification_scenarios": [
     { "id": "SEC-SES-001", "name": "session fixation and rotation", "gate": "stage_a", "status": "verified_current", "evidence": "tests/customer_identity.test.mjs; isolated release preview" },
@@ -795,6 +825,8 @@
     { "id": "SEC-COPY-001", "name": "owner-bound authenticated wallet research and copy watches, Pro-only advanced projections, CSRF, quotas and private subscriber relationships", "gate": "wallet_copy_local_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_wallet_copy.test.mjs; tests/browser/wallet-copy.spec.mjs" },
     { "id": "SEC-COPY-002", "name": "source and follower evidence separation with live copy, signing, broadcasting and fee collection source-disabled", "gate": "wallet_copy_local_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_trade_wallet_copy.test.mjs; tests/customer_wallet_copy.test.mjs; public no-leak and Worker-response validation" },
     { "id": "SEC-COPY-003", "name": "privacy-thresholded aggregate follower-demand stress with no allocation, fill, identity, or execution claim", "gate": "wallet_copy_local_candidate", "status": "verified_local_candidate", "evidence": "tests/source_wallet_copy_crowding.test.mjs; customer-migrations/0022_source_wallet_copy_crowding.sql; public no-leak validation" },
+    { "id": "SEC-PRIVY-001", "name": "optional Privy identity binds only to the authenticated Raven user and remains idempotent", "gate": "privy_wallet_local_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_privy_wallets.test.mjs; customer-migrations/0032_privy_embedded_wallets.sql" },
+    { "id": "SEC-PRIVY-002", "name": "Privy wallet metadata contains no private or recovery material and all signing controls remain default-off", "gate": "privy_wallet_local_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_privy_wallets.test.mjs; docs/wallets/privy-recovery.md" },
     { "id": "SEC-WAL-001", "name": "wallet nonce replay", "gate": "stage_b", "status": "required_not_implemented" },
     { "id": "SEC-WAL-002", "name": "wrong wallet domain", "gate": "stage_b", "status": "required_not_implemented" },
     { "id": "SEC-WAL-003", "name": "wrong wallet chain", "gate": "stage_b", "status": "required_not_implemented" },

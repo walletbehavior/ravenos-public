@@ -67,6 +67,21 @@ assert.equal(config.referrals.referral_is_investment_endorsement, false);
 assert.equal(config.referrals.csrf_required_for_mutations, true);
 assert.equal(config.referrals.execution_authority, false);
 assert.equal(config.referrals.production_activation_completed, false);
+assert.equal(config.privy_wallets.implementation_status, "local_feature_flagged_spike");
+assert.equal(config.privy_wallets.raven_identity_remains_canonical, true);
+assert.equal(config.privy_wallets.existing_users_migrated_automatically, false);
+assert.equal(config.privy_wallets.wallet_creation_requires_user_action, true);
+assert.deepEqual(config.privy_wallets.embedded_wallets, ["solana", "evm"]);
+assert.equal(config.privy_wallets.external_wallets_remain_supported, true);
+assert.equal(config.privy_wallets.private_key_material_stored_by_ravenos, false);
+assert.equal(config.privy_wallets.custom_auth_token_lifetime_seconds, 300);
+assert.equal(config.privy_wallets.identity_token_verified_server_side, true);
+assert.equal(config.privy_wallets.csrf_required_for_mutations, true);
+assert.equal(config.privy_wallets.delegated_signing_enabled, false);
+assert.equal(config.privy_wallets.manual_signing_enabled, false);
+assert.equal(config.privy_wallets.default_wallet_onboarding, false);
+assert.equal(config.privy_wallets.production_activation_completed, false);
+assert.equal(config.privy_wallets.all_activation_controls_default_off, true);
 for (const method of ["GoogleOAuth", "Password", "MagicAuth"]) {
   assert(config.identity_provider.requested_methods.includes(method), `missing active authentication method: ${method}`);
 }

@@ -37,6 +37,7 @@ const sourceAssets = [
   "ravenos-terminal-live.css",
   "ravenos-terminal-live.js",
   "ravenos-wallet-execution.js",
+  "ravenos-privy-wallet.js",
   "ravenos-workspace.css",
   "ravenos-discover.css",
   "ravenos-discover-intelligence.js",
@@ -146,7 +147,7 @@ if (wranglerConfig.preview_urls !== true) fail("Version preview URLs must be ena
 if (wranglerConfig.keep_vars !== true) fail("Wrangler must preserve existing server bindings and variables");
 if (wranglerConfig.version_metadata?.binding !== "CF_VERSION_METADATA") fail("Worker version metadata binding is required");
 if (packageJson.engines?.node !== "22.x") fail('package.json must pin Node 22 via "22.x"');
-if (packageJson.devDependencies?.wrangler !== "4.104.0") fail("package.json must pin wrangler 4.104.0 exactly");
+if (packageJson.devDependencies?.wrangler !== "4.129.0") fail("package.json must pin wrangler 4.129.0 exactly");
 
 if (release.schema_version !== releaseConfig.release_contract_version) fail("Release schema version mismatch");
 if (assetManifest.schema_version !== releaseConfig.asset_manifest_version) fail("Static asset schema version mismatch");

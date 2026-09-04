@@ -153,6 +153,7 @@ import {
   validateDiscoverRadarProjection,
 } from "./lib/discover_radar.mjs";
 import { authorizeCustomerApiRequest, routeCustomerIdentity } from "./lib/customer_identity.mjs";
+import { routeCustomerPrivyWallets } from "./lib/customer_privy_wallets.mjs";
 import {
   CUSTOMER_COMMUNITY_ROUTE,
   routeCustomerCommunity,
@@ -11085,6 +11086,8 @@ async function routeApi(request, env, executionContext = null) {
   }
   const identityResponse = await routeCustomerIdentity(request, env);
   if (identityResponse) return identityResponse;
+  const privyWalletResponse = await routeCustomerPrivyWallets(request, env);
+  if (privyWalletResponse) return privyWalletResponse;
   const communityResponse = await routeCustomerCommunity(request, env);
   if (communityResponse) return communityResponse;
   const referralResponse = await routeCustomerReferrals(request, env);
