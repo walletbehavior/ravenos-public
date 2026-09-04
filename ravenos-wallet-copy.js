@@ -21,7 +21,7 @@ const state = {
   deep_poll_token: 0,
   deep_poll_attempts: 0,
   events: [],
-  activity: { filter: "all", next_cursor: null, has_more: false, matching_event_count: 0, loading: false, on_demand_only: false },
+  activity: { filter: "all", next_cursor: null, has_more: false, provider_has_more: false, matching_event_count: 0, loading: false, on_demand_only: false },
   on_demand_events: [],
   watches: [],
   decisions: [],
@@ -361,6 +361,7 @@ function renderWalletActivity(activity, { append = false } = {}) {
     filter,
     next_cursor: activity?.pagination?.next_cursor || null,
     has_more: activity?.pagination?.has_more === true,
+    provider_has_more: activity?.pagination?.provider_has_more === true,
     matching_event_count: Math.max(0, Number(activity?.pagination?.matching_event_count ?? merged.length)),
     loading: false,
     on_demand_only: onDemandOnly,
@@ -374,6 +375,8 @@ function renderWalletActivity(activity, { append = false } = {}) {
   setText("copyEventCount", `${merged.length.toLocaleString()} of ${total.toLocaleString()} retained`);
   setText("copyActivityStatus", state.activity.has_more
     ? "Older evidence available."
+    : state.activity.provider_has_more
+      ? "Bounded provider window shown. More transfers may exist."
     : total
       ? "End of retained index."
       : "No retained evidence matches this filter.");
@@ -718,9 +721,11 @@ function renderProfile(payload, { scroll = true, from_poll: fromPoll = false } =
     ? "Create a Raven Copy policy"
     : state.activation.shadow_copy ? "Exact entry + exit routing required." : "Copy is free; live shadow activation remains safety-gated.";
   const saveButton = document.getElementById("copySaveProfile");
-  saveButton.disabled = onDemandOnly;
-  saveButton.textContent = onDemandOnly ? "On-demand scan" : "Save wallet";
-  saveButton.title = onDemandOnly ? "Persistent indexing for this chain is not active yet." : "Save this wallet to a research list.";
+  saveButton.disabled = false;
+  saveButton.dataset.action = onDemandOnly ? "refresh" : "save";
+  saveButton.dataset.idleLabel = onDemandOnly ? "Refresh scan" : "Save wallet";
+  saveButton.textContent = saveButton.dataset.idleLabel;
+  saveButton.title = onDemandOnly ? "Refresh this bounded on-demand provider scan." : "Save this wallet to a research list.";
   document.getElementById("copyProfileProGate").hidden = state.access.advanced_wallet_intelligence;
   renderDeepHistory(payload.deep_history);
   setText("copyProfileAddress", shortAddress(state.address));
@@ -836,14 +841,22 @@ function renderProfile(payload, { scroll = true, from_poll: fromPoll = false } =
   const providerBalances = Array.isArray(profile.positions?.provider_reported_token_balances) ? profile.positions.provider_reported_token_balances : [];
   const native = capital.native || capital.sol || null;
   const nativeSymbol = native?.symbol || (profileChain === "solana" ? "SOL" : "Native");
-  document.getElementById("copyCapitalMetrics").replaceChildren(
+  const providerBalance = profile.provider_balance_summary || {};
+  const capitalMetrics = [
     fact(`Last observed ${nativeSymbol}`, native?.amount === null || native?.amount === undefined ? "Unavailable" : `${decimal(native.amount)} ${nativeSymbol}`),
     fact(`${nativeSymbol} observed`, when(native?.observed_at)),
     fact("Last observed USDC", capital.canonical_usdc?.amount === null || capital.canonical_usdc?.amount === undefined ? "Unavailable" : money(capital.canonical_usdc.amount)),
     fact("USDC observed", when(capital.canonical_usdc?.observed_at)),
     fact("Known-cost open", profile.positions?.known_cost_open_position_count ?? "Unavailable"),
     fact("Indexed tokens", capital.provider_reported_token_count ?? "Unavailable"),
+  ];
+  if (profileChain !== "solana") capitalMetrics.push(
+    fact("Visible provider mark", providerBalance.visible_provider_mark_value_usd === null || providerBalance.visible_provider_mark_value_usd === undefined ? "Unavailable" : money(providerBalance.visible_provider_mark_value_usd)),
+    fact("Priced token rows", providerBalance.visible_priced_rows ?? "Unavailable"),
+    fact("Unpriced token rows", providerBalance.visible_unpriced_rows ?? "Unavailable"),
+    fact("Largest visible weight", providerBalance.largest_visible_provider_mark_weight_pct === null || providerBalance.largest_visible_provider_mark_weight_pct === undefined ? "Unavailable" : `${pct(providerBalance.largest_visible_provider_mark_weight_pct)} · ${providerBalance.largest_visible_provider_mark_symbol || "token"}`),
   );
+  document.getElementById("copyCapitalMetrics").replaceChildren(...capitalMetrics);
   const openHost = document.getElementById("copyOpenPositions");
   const positionRows = openPositions.length ? openPositions.slice(0, 8).map((position) => ({
     identity: position.mint,
@@ -1564,16 +1577,17 @@ async function inspectWalletAddress(address, button) {
   state.prospective_copyability = null;
   state.deep_history = null;
   state.events = [];
-  state.activity = { filter: "all", next_cursor: null, has_more: false, matching_event_count: 0, loading: false, on_demand_only: false };
+  state.activity = { filter: "all", next_cursor: null, has_more: false, provider_has_more: false, matching_event_count: 0, loading: false, on_demand_only: false };
   state.on_demand_events = [];
   profileNode.hidden = true;
   policyNode.hidden = true;
+  const idleLabel = button.dataset.idleLabel || button.textContent || "Analyze wallet";
   button.disabled = true;
   button.textContent = "Analyzing…";
   setText("copySearchStatus", state.inspect_chain === "solana" ? "Reconstructing trades…" : "Reading balances and transfers…");
   const result = await api(`${API}/inspect`, { method: "POST", body: JSON.stringify({ address: state.address, chain: state.inspect_chain }) });
   button.disabled = false;
-  button.textContent = "Analyze wallet";
+  button.textContent = idleLabel;
   if (!result.response.ok) {
     setText("copySearchStatus", result.payload?.error === "wallet_history_unavailable" ? "Public history unavailable." : "Inspection unavailable. Nothing inferred.");
     return;
@@ -1673,7 +1687,14 @@ bindAuthStartForms();
 document.querySelectorAll("[data-copy-view]").forEach((button) => button.addEventListener("click", () => switchView(button.dataset.copyView)));
 document.getElementById("copyWalletSearch").addEventListener("submit", inspectWallet);
 document.getElementById("copyWalletChain").addEventListener("change", (event) => setInspectChain(event.currentTarget.value));
-document.getElementById("copySaveProfile").addEventListener("click", (event) => saveResearchWallet(state.source_wallet_id, shortAddress(state.address), event.currentTarget));
+document.getElementById("copySaveProfile").addEventListener("click", async (event) => {
+  const button = event.currentTarget;
+  if (button.dataset.action === "refresh") {
+    await inspectWalletAddress(state.address, button);
+    return;
+  }
+  await saveResearchWallet(state.source_wallet_id, shortAddress(state.address), button);
+});
 document.getElementById("copyStartSetup").addEventListener("click", () => { policyNode.hidden = false; policyNode.scrollIntoView({ behavior: "smooth", block: "start" }); });
 document.getElementById("copyCancelSetup").addEventListener("click", () => { policyNode.hidden = true; });
 document.getElementById("copyPolicy").addEventListener("submit", savePolicy);

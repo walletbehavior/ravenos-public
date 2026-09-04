@@ -112,6 +112,18 @@ test("bounded Base lookup exposes balances and transfers without inventing trade
   assert.equal(result.profile.source_performance.realized_pnl_usdc, null);
   assert.equal(result.profile.source_performance.roi_pct, null);
   assert.equal(result.profile.capital_observations.native.amount, "1.25");
+  assert.deepEqual(result.profile.provider_balance_summary, {
+    visible_balance_rows: 1,
+    visible_priced_rows: 1,
+    visible_unpriced_rows: 0,
+    visible_provider_mark_value_usd: 2.5025,
+    largest_visible_provider_mark_symbol: "USDC",
+    largest_visible_provider_mark_weight_pct: 100,
+    visible_rows_only: true,
+    all_assets_enumerated: null,
+    executable_value_claimed: false,
+    portfolio_value_claimed: false,
+  });
   assert.equal(result.profile.positions.provider_reported_token_balances[0].balance_display, "2.5");
   assert.equal(result.profile.positions.provider_reported_token_balances[0].provider_mark_value_usd, 2.5025);
   assert.equal(result.profile.positions.provider_reported_token_balances[0].executable_value_usd, null);

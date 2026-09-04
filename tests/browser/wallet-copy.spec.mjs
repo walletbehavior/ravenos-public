@@ -114,6 +114,7 @@ function evmProfile() {
     source_performance: { state: "insufficient_evidence", realized_pnl_usdc: null, realized_pnl_sol: null, roi_pct: null, win_rate_pct: null, closed_lots: null, closed_observations: null, profit_factor: null, windows: null, limitations: ["Recent transfers are not classified as trades."] },
     behavior: { active_days: 1, trade_count: null, first_trade_at: null, last_trade_at: null, tokens_traded: null, token_assets_observed: 1, buy_count: null, sell_count: null, median_hold_seconds: null, trade_rate_per_active_day: null, classifications: { TRANSFER_IN: 1 } },
     provider_activity: { state: "transfer_activity_observed", observed_transfer_rows: 1, inbound_transfer_rows: 1, outbound_transfer_rows: 0, internal_movement_rows: 0, unique_token_contracts: 1, most_recent_transfer_at: "2026-09-04T12:00:00.000Z", trade_activity_claimed: false, economic_flow_claimed: false, direction_is_transfer_direction_only: true },
+    provider_balance_summary: { visible_balance_rows: 1, visible_priced_rows: 1, visible_unpriced_rows: 0, visible_provider_mark_value_usd: 2.5025, largest_visible_provider_mark_symbol: "USDC", largest_visible_provider_mark_weight_pct: 100, visible_rows_only: true, all_assets_enumerated: null, executable_value_claimed: false, portfolio_value_claimed: false },
     research_thesis: null,
     profit_quality: { state: "insufficient_evidence" },
     positions: { known_cost_open_positions: [], known_cost_open_position_count: 0, unresolved_cost_basis_event_count: 1, provider_reported_token_balances: [{ contract: EVM_TOKEN, symbol: "USDC", balance_display: "2.5", provider_mark_price_usd: 1.001, provider_mark_value_usd: 2.5025, executable_value_usd: null, cost_basis_usd: null, pnl_usd: null }] },
@@ -709,10 +710,17 @@ test("BNB lookup renders provider balances and transfer evidence without pretend
   await expect(page.locator("#copyBehaviorMetrics")).toContainText("Inbound transfers");
   await expect(page.locator("#copyBehaviorMetrics")).toContainText("Trade interpretation");
   await expect(page.locator("#copyBehaviorMetrics")).toContainText("Not decoded");
+  await expect(page.locator("#copyCapitalMetrics")).toContainText("Visible provider mark");
+  await expect(page.locator("#copyCapitalMetrics")).toContainText("$2.50");
+  await expect(page.locator("#copyCapitalMetrics")).toContainText("100.00% · USDC");
+  await expect(page.locator("#copySaveProfile")).toHaveText("Refresh scan");
+  await expect(page.locator("#copySaveProfile")).toBeEnabled();
+  await page.locator("#copySaveProfile").click();
+  await expect(page.locator("#copySaveProfile")).toHaveText("Refresh scan");
+  await expect(page.locator("#copySearchStatus")).toContainText("On-demand evidence ready");
   await expect(page.locator("#copyOpenPositions")).toContainText("2.5 held · $1.00 provider mark · basis unavailable");
   await expect(page.getByText("Transfer In", { exact: true })).toBeVisible();
   await expect(page.getByText("2.5 USDC", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "On-demand scan" })).toBeDisabled();
   await expect(page.getByRole("button", { name: "Route proof pending" })).toBeDisabled();
   const inspectRequest = shared.requests.find((row) => row.path.endsWith("/inspect"));
   expect(JSON.parse(inspectRequest.body)).toEqual({ address: EVM_WALLET, chain: "bsc" });
