@@ -113,7 +113,7 @@ function evmProfile() {
     coverage: { first_observed_at: "2026-09-04T12:00:00.000Z", last_observed_at: "2026-09-04T12:00:00.000Z", transactions_observed: 0, transactions_reported_by_provider: 123, normalized_events: 1, token_transfers_observed: 1, token_transfers_reported_by_provider: 456, trade_events: null, known_cost_basis_pct: null, provider_history_exhausted: false },
     source_performance: { state: "insufficient_evidence", realized_pnl_usdc: null, realized_pnl_sol: null, roi_pct: null, win_rate_pct: null, closed_lots: null, closed_observations: null, profit_factor: null, windows: null, limitations: ["Recent transfers are not classified as trades."] },
     behavior: { active_days: 1, trade_count: null, first_trade_at: null, last_trade_at: null, tokens_traded: null, token_assets_observed: 1, buy_count: null, sell_count: null, median_hold_seconds: null, trade_rate_per_active_day: null, classifications: { TRANSFER_IN: 1 } },
-    provider_activity: { state: "transfer_activity_observed", observed_transfer_rows: 1, inbound_transfer_rows: 1, outbound_transfer_rows: 0, internal_movement_rows: 0, unique_token_contracts: 1, most_recent_transfer_at: "2026-09-04T12:00:00.000Z", trade_activity_claimed: false, economic_flow_claimed: false, direction_is_transfer_direction_only: true },
+    provider_activity: { state: "transfer_activity_observed", observed_transfer_rows: 1, inbound_transfer_rows: 1, outbound_transfer_rows: 0, internal_movement_rows: 0, unique_token_contracts: 1, most_recent_transfer_at: "2026-09-04T12:00:00.000Z", trade_activity_claimed: false, economic_flow_claimed: false, direction_is_transfer_direction_only: true, route_decode_candidate_transactions: 0, route_decode_candidate_definition: "opposing_different_token_transfers_in_one_transaction", route_decode_candidate_is_trade_claimed: false },
     provider_balance_summary: { visible_balance_rows: 1, visible_priced_rows: 1, visible_unpriced_rows: 0, visible_provider_mark_value_usd: 2.5025, largest_visible_provider_mark_symbol: "USDC", largest_visible_provider_mark_weight_pct: 100, visible_rows_only: true, all_assets_enumerated: null, executable_value_claimed: false, portfolio_value_claimed: false },
     research_thesis: null,
     profit_quality: { state: "insufficient_evidence" },
@@ -710,6 +710,7 @@ test("BNB lookup renders provider balances and transfer evidence without pretend
   await expect(page.locator("#copyBehaviorMetrics")).toContainText("Inbound transfers");
   await expect(page.locator("#copyBehaviorMetrics")).toContainText("Trade interpretation");
   await expect(page.locator("#copyBehaviorMetrics")).toContainText("Not decoded");
+  await expect(page.locator("#copyBehaviorMetrics")).toContainText("Route-decode candidates");
   await expect(page.locator("#copyCapitalMetrics")).toContainText("Visible provider mark");
   await expect(page.locator("#copyCapitalMetrics")).toContainText("$2.50");
   await expect(page.locator("#copyCapitalMetrics")).toContainText("100.00% · USDC");

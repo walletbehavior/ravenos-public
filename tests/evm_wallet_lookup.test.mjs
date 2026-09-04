@@ -12,6 +12,7 @@ import { routeCustomerWalletCopy } from "../lib/customer_wallet_copy.mjs";
 const ADDRESS = `0x${"12".repeat(20)}`;
 const OTHER = `0x${"34".repeat(20)}`;
 const TOKEN = `0x${"56".repeat(20)}`;
+const TOKEN_TWO = `0x${"ab".repeat(20)}`;
 const TX = `0x${"78".repeat(32)}`;
 const BLOCK = `0x${"9a".repeat(32)}`;
 const KEY = "proapi_server_only";
@@ -108,6 +109,9 @@ test("bounded Base lookup exposes balances and transfers without inventing trade
     trade_activity_claimed: false,
     economic_flow_claimed: false,
     direction_is_transfer_direction_only: true,
+    route_decode_candidate_transactions: 0,
+    route_decode_candidate_definition: "opposing_different_token_transfers_in_one_transaction",
+    route_decode_candidate_is_trade_claimed: false,
   });
   assert.equal(result.profile.source_performance.realized_pnl_usdc, null);
   assert.equal(result.profile.source_performance.roi_pct, null);
@@ -136,6 +140,46 @@ test("bounded Base lookup exposes balances and transfers without inventing trade
   assert(source.urls.every((url) => url.searchParams.get("apikey") === KEY));
   assert(!JSON.stringify(result).includes(KEY));
   assert(Object.isFrozen(result));
+});
+
+test("opposing token transfers only create a route-decode candidate, never a trade signal", async () => {
+  const source = provider();
+  const original = source.fetch;
+  source.fetch = async (url) => {
+    if (!url.includes("/token-transfers?")) return original(url);
+    return json({ items: [{
+      block_hash: BLOCK,
+      block_number: 1234,
+      from: { hash: OTHER },
+      to: { hash: ADDRESS },
+      log_index: 7,
+      timestamp: "2026-09-04T12:00:00.000Z",
+      token: { address_hash: TOKEN, type: "ERC-20", decimals: "6", symbol: "USDC" },
+      total: { decimals: "6", value: "2500000" },
+      transaction_hash: TX,
+    }, {
+      block_hash: BLOCK,
+      block_number: 1234,
+      from: { hash: ADDRESS },
+      to: { hash: OTHER },
+      log_index: 8,
+      timestamp: "2026-09-04T12:00:00.000Z",
+      token: { address_hash: TOKEN_TWO, type: "ERC-20", decimals: "18", symbol: "TOKEN" },
+      total: { decimals: "18", value: "1000000000000000000" },
+      transaction_hash: TX,
+    }], next_page_params: null });
+  };
+  const result = await inspectEvmWallet({
+    chain: "robinhood",
+    address: ADDRESS,
+    env: { RAVENOS_EVM_WALLET_LOOKUP_ENABLED: "1", BLOCKSCOUT_API_KEY: KEY },
+    fetchImpl: source.fetch,
+    now: "2026-09-04T12:01:00.000Z",
+  });
+  assert.equal(result.profile.provider_activity.route_decode_candidate_transactions, 1);
+  assert.equal(result.profile.provider_activity.route_decode_candidate_is_trade_claimed, false);
+  assert.equal(result.profile.behavior.trade_count, null);
+  assert(result.activity.events.every((event) => event.copy_signal.eligible_buy_signal === false));
 });
 
 test("lookup refuses a provider response for another wallet", async () => {

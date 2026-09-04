@@ -815,6 +815,7 @@ function renderProfile(payload, { scroll = true, from_poll: fromPoll = false } =
     fact("Outbound transfers", providerActivity.outbound_transfer_rows ?? "Unavailable"),
     fact("Internal movements", providerActivity.internal_movement_rows ?? "Unavailable"),
     fact("Token contracts", providerActivity.unique_token_contracts ?? "Unavailable"),
+    fact("Route-decode candidates", providerActivity.route_decode_candidate_transactions ?? "Unavailable"),
     fact("Most recent", when(providerActivity.most_recent_transfer_at)),
     fact("Trade interpretation", "Not decoded"),
     fact("Economic flow", "Not claimed"),
