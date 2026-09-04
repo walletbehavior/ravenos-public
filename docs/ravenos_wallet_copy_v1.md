@@ -1,14 +1,14 @@
 # RavenOS Wallet Intelligence and Raven Copy v1
 
-Status: read-only intelligence and screener release authorized; copy execution remains dormant
+Status: wallet intelligence, screener, and user-reviewed Raven Copy beta authorized
 Reviewed: 2026-09-04
-Production activation: Solana + Robinhood intelligence/screener only
+Production activation: Solana + Robinhood intelligence/screener; manual Solana Copy review
 
 ## Product boundary
 
 Wallet lookup, the basic wallet screener, private saves, and Raven Copy are included with every authenticated RavenOS account. Raven Pro unlocks the expensive analytical layers: cohort analysis, behavioral reconstruction, profit quality, deep history, advanced filters, and prospective copyability evidence. The internal `wallet.copy` grant is retained as the transitional advanced-intelligence entitlement key; it is not a subscription requirement for Raven Copy.
 
-This model does not introduce custody, a copy-bot wallet, or a live execution path. The first production subset supports bounded Raven-indexed Solana and Robinhood source wallets. Real-money automatic copying, signing, broadcasting, custody, and fee collection remain disabled independently of subscription access.
+This model does not introduce custody or a copy-bot wallet. The first production subset supports bounded Raven-indexed Solana and Robinhood source wallets. Approved Solana decisions may open a fresh native-Terminal review; the user's connected wallet remains the only signer. Real-money automatic copying, server signing, custody, and copy-specific fee collection remain disabled independently of subscription access.
 
 Raven keeps these statements distinct:
 
@@ -21,7 +21,7 @@ Raven keeps these statements distinct:
 - The user’s policy accepted the evidence.
 - A shadow position was recorded.
 
-None of those statements represents a fill, an asset held, a transaction prepared, or a fee collected.
+None of those statements represents a fill, an asset held, or a fee collected. A separate Terminal review must obtain a new quote, pass the live manual-trading gates, and receive an explicit user-wallet signature.
 
 ## Reused Raven architecture
 
@@ -45,7 +45,8 @@ Shared public-chain source evidence is stored once per Solana address. Customer 
 12. A later exact source-wallet sell is mapped only to Raven-created lots belonging to the same source wallet, watch, and mint. Raven never adopts source inventory that predates the watch.
 13. A partial source sell proposes the same transaction-observed fraction against each mapped follower lot. The fraction is based only on source token accounts touched by that transaction and is never labeled as the wallet’s complete token balance. One current read-only token-to-canonical-USDC quote is shared for each exact policy and mapped quantity; unavailable or stale routes remain visible refusals and leave the lot unchanged.
 14. A complete source sell closes only the remaining mapped quantity. Current position state is derived from append-only allocation evidence as `SHADOW_OPEN`, `SHADOW_PARTIAL_EXIT`, or `SHADOW_CLOSED`.
-15. Source-sell evidence remains hypothetical: no live asset is held, no fee is collected, and no transaction is constructed, signed, or broadcast.
+15. Source-sell evidence remains hypothetical: no live asset is assumed, no fee is collected, and no transaction is signed or broadcast by Raven Copy.
+16. An approved Solana buy decision may open the exact pool in Terminal with the policy amount prefilled. The retained shadow quote is never reused as executable authority; Terminal obtains a fresh route and the user reviews and signs it.
 
 ## Storage and mutability
 
@@ -61,7 +62,7 @@ The activity explorer reads only Raven's retained normalized-event ledger. Each 
 
 ## Activation and authority
 
-All controls default off:
+The controls remain independent. The production release enables intelligence, screener, and bounded manual Raven Copy watches; continuous observation, automatic copy execution, and copy-specific fee collection remain off:
 
 - `RAVENOS_ENTITLEMENT_RESOLUTION_ENABLE`
 - `RAVENOS_WALLET_INTELLIGENCE_ENABLED`
@@ -72,7 +73,9 @@ All controls default off:
 - `RAVENOS_LIVE_COPY_ENABLED`
 - `RAVENOS_COPY_FEE_COLLECTION_ENABLED`
 
-The intelligence, screener, shadow, observer, and deep-history controls can eventually expose their read-only surfaces after migration validation. The last two cannot enable live authority: live copy, signing, broadcasting, custody, transaction submission, and fee collection remain hard false in source code.
+The production beta enables bounded, account-private Raven Copy watches and manual refresh. An approved Solana decision can hand its exact pool, token, quote asset, side, and policy size to the native Terminal. The Terminal always obtains a new quote and requires the user's connected wallet to review and sign. Raven Copy does not construct a reusable authorization, sign, broadcast, retry, or execute unattended.
+
+The shadow control exposes policy-bound watches, manual refresh, retained approvals/refusals, and the Terminal handoff. It cannot enable unattended authority: live automatic copy, server signing, custody, automatic transaction submission, and copy-specific fee collection remain hard false in source code.
 
 ## Public benchmark, 2026-08-29
 

@@ -6078,7 +6078,9 @@ async function loadSolanaWalletCopySignalContext(env, event) {
     source_notional_basis: sourceNotionalBasis,
     liquidity_usd: liquidityUsd,
     market_context: {
+      chain: "solana",
       token_mint: tokenMint,
+      quote_address: selectedMarket?.quoteTokenAddress || null,
       observed_at: marketObservedAt,
       provider: selectedMarket ? "dexscreener" : null,
       pair_address: selectedMarket?.pairAddress || null,

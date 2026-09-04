@@ -74,9 +74,9 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .copy-wallet-search label { font-size: clamp(24px, 4vw, 44px); font-weight: 600; letter-spacing: -.045em; }
 .copy-wallet-search > div { display: grid; grid-template-columns: minmax(0, 1fr) auto; }
 .copy-wallet-search input { min-width: 0; height: 54px; border: 1px solid var(--copy-line-strong); border-right: 0; border-radius: 5px 0 0 5px; padding: 0 14px; background: #060b11; color: var(--copy-text); font: 700 12px var(--copy-mono); }
-.copy-wallet-search button, .copy-profile > header button, .copy-policy button, .copy-watch-actions button { min-height: 42px; border: 1px solid rgba(111, 218, 166, .48); padding: 0 16px; background: rgba(111, 218, 166, .11); color: var(--copy-green); cursor: pointer; font-weight: 760; }
+.copy-wallet-search button, .copy-profile > header button, .copy-policy button, .copy-watch-actions button, .copy-watch-actions a { min-height: 42px; border: 1px solid rgba(111, 218, 166, .48); padding: 0 16px; background: rgba(111, 218, 166, .11); color: var(--copy-green); cursor: pointer; font-weight: 760; }
 .copy-wallet-search button { min-width: 150px; height: 54px; border-radius: 0 5px 5px 0; }
-.copy-wallet-search button:hover, .copy-profile > header button:hover, .copy-policy button:hover, .copy-watch-actions button:hover { background: rgba(111, 218, 166, .18); }
+.copy-wallet-search button:hover, .copy-profile > header button:hover, .copy-policy button:hover, .copy-watch-actions button:hover, .copy-watch-actions a:hover { background: rgba(111, 218, 166, .18); }
 .copy-wallet-search p { margin: 2px 0 0; color: var(--copy-muted); font-size: 10px; line-height: 1.5; }
 .copy-proof-card { display: grid; align-content: center; gap: 14px; background: linear-gradient(150deg, rgba(81, 122, 154, .08), transparent 55%), var(--copy-panel-2); }
 .copy-proof-card ol { display: grid; gap: 1px; margin: 0; padding: 0; list-style: none; background: var(--copy-line); }
@@ -317,7 +317,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .copy-card-main > p { margin: 0; color: var(--copy-muted); font: 9px/1.45 var(--copy-mono); overflow-wrap: anywhere; }
 .copy-card dl { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .copy-watch-actions { display: grid; gap: 6px; }
-.copy-watch-actions button { min-height: 36px; white-space: nowrap; font-size: 9px; }
+.copy-watch-actions button, .copy-watch-actions a { min-height: 36px; white-space: nowrap; font-size: 9px; display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
 .copy-watch-actions button[data-action="delete"] { border-color: rgba(227, 127, 145, .4); background: rgba(227, 127, 145, .06); color: var(--copy-red); }
 .copy-empty { min-height: 180px; display: grid; place-content: center; justify-items: center; gap: 7px; padding: 28px; background: var(--copy-panel); text-align: center; }
 .copy-empty strong { font-size: 15px; }

@@ -1529,6 +1529,20 @@ test("mobile spot Terminal keeps the live chart in context while trade review op
   await expect(page.locator(".terminal-live")).toHaveAttribute("data-terminal-pane", "chart");
 });
 
+test("Raven Copy handoff opens the exact Solana trade pane with its policy size", async ({ page }) => {
+  await mockTerminalLiveApis(page, { spotQuotePreview: true, bullishSpotPlan: true, velocitySpotContext: true });
+  const decisionId = `scd_${"a".repeat(40)}`;
+  await page.goto(`/terminal/?instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&token_address=fixture-token-address&quote_address=fixture-quote-address&panel=trade&copy_review=1&copy_decision_id=${decisionId}&copy_amount_usdc=123`);
+  await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1h" });
+
+  await expect(page.locator(".terminal-live")).toHaveAttribute("data-terminal-pane", "trade");
+  await expect(page.locator("#terminalSpotBuy")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator('[data-spot-asset-preference="canonical_usdc"]')).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("#terminalSpotAmount")).toHaveValue("123");
+  await expect(page.locator("#terminalSpotQuoteMessage")).toContainText("Raven Copy review loaded");
+  await expect(page.locator("#terminalSpotQuoteMessage")).toContainText("Request a fresh route before signing");
+});
+
 test("Solana spot ticket keeps quick sizing, plans, fees, and wallet-backed sells explicit without signing", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.addInitScript(() => {

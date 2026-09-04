@@ -369,6 +369,19 @@ function decision(state = "EXIT_UNAVAILABLE") {
     watch_id: WATCH_ID,
     source_wallet: { chain: "solana", network: "mainnet", address: WALLET },
     destination_asset: { mint: TOKEN },
+    terminal_handoff: state === "SHADOW_EXECUTABLE" ? {
+      state: "user_review_available",
+      chain: "solana",
+      instrument_id: `solana:pool:${WALLET}`,
+      identity_scope: "exact_pool",
+      pair_address: WALLET,
+      token_address: TOKEN,
+      quote_address: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      side: "buy",
+      amount_usdc: 100,
+      wallet_signature_required: true,
+      automatic_submission: false,
+    } : { state: "exact_market_unavailable", wallet_signature_required: true, automatic_submission: false },
     timing: { source_chain_event_at: "2026-08-29T12:00:01.000Z", detection_delay_ms: 1_270 },
     follower_reality: {
       follower_order_usdc: 100,
@@ -610,9 +623,9 @@ test("Pro user inspects source evidence, saves a private policy, and establishes
   await expect(page.getByText("Deep history queued", { exact: true })).toBeVisible();
   await expect(page.getByText("700 signatures · 694 decoded · 7 pages", { exact: true })).toBeVisible();
   await expect(page.getByText("Transfer In")).toBeVisible();
-  await page.getByRole("button", { name: "Shadow this wallet" }).click();
-  await page.getByRole("button", { name: "Start shadowing" }).click();
-  await expect(page.getByRole("heading", { name: "Shadowed wallets" })).toBeVisible();
+  await page.getByRole("button", { name: "Copy this wallet" }).click();
+  await page.getByRole("button", { name: "Start Raven Copy" }).click();
+  await expect(page.getByRole("heading", { name: "Copied wallets" })).toBeVisible();
   await expect(page.getByText("First check needed")).toBeVisible();
   await expect(page.locator(".copy-card img, .copy-card script")).toHaveCount(0);
   expect(await page.evaluate(() => window.__copyExecuted === true)).toBe(false);
@@ -633,6 +646,7 @@ test("Pro user inspects source evidence, saves a private policy, and establishes
     schemaVersion: "ravenos.wallet_copy_surface.v1",
     accessModel: { authenticatedBasics: true, copySubscriptionRequired: false, advancedIntelligence: "raven_pro" },
     liveCopy: false,
+    manualCopy: true,
     signing: false,
     broadcasting: false,
     feeCollection: false,
@@ -808,6 +822,23 @@ test("mobile shadow feed keeps refusals visible, separates positions, and never 
     .map((node) => `${node.tagName.toLowerCase()}.${node.className || ""}`));
   expect(overflow).toEqual([]);
   expect(await page.evaluate(() => window.__copyExecuted === true)).toBe(false);
-  await expect(page.locator(".copy-boundary").getByText("Disabled", { exact: true })).toBeVisible();
+  await expect(page.locator(".copy-boundary").getByText("User confirms", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: /start live|copy now|execute/i })).toHaveCount(0);
+});
+
+test("an approved Raven Copy decision opens an exact prefilled terminal review", async ({ page }) => {
+  const shared = { watch: watch(true), decision: decision("SHADOW_EXECUTABLE"), position: position(), requests: [] };
+  await install(page, shared);
+  await page.goto("/account/copy/");
+  await page.getByRole("tab", { name: /Shadow feed/ }).click();
+  const review = page.getByRole("link", { name: "Review copy in Terminal" });
+  await expect(review).toBeVisible();
+  const href = await review.getAttribute("href");
+  const url = new URL(href, "https://app.ravenos.xyz");
+  expect(url.pathname).toBe("/terminal/");
+  expect(url.searchParams.get("instrument_id")).toBe(`solana:pool:${WALLET}`);
+  expect(url.searchParams.get("token_address")).toBe(TOKEN);
+  expect(url.searchParams.get("copy_amount_usdc")).toBe("100");
+  expect(url.searchParams.get("copy_decision_id")).toBe("scd_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+  expect(url.searchParams.get("panel")).toBe("trade");
 });

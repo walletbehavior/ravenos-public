@@ -308,7 +308,7 @@
     "screener_claims_all_solana_wallets": false,
     "read_only_intelligence_release_enabled": true,
     "read_only_screener_release_enabled": true,
-    "shadow_copy_release_enabled": false,
+    "shadow_copy_release_enabled": true,
     "shared_source_observation": true,
     "shared_observer_queue_implemented": true,
     "shared_observer_transport_contracts": ["rpc_poll", "geyser_grpc", "shredstream", "replay"],
@@ -460,7 +460,7 @@
     "fee_collection_source_level_disabled": true,
     "continuous_observer_active": false,
     "scheduler_active": false,
-    "all_activation_controls_default_off": true,
+    "all_activation_controls_default_off": false,
     "activation_controls": [
       "RAVENOS_ENTITLEMENT_RESOLUTION_ENABLE",
       "RAVENOS_WALLET_INTELLIGENCE_ENABLED",
@@ -482,7 +482,7 @@
       "RAVENOS_LIVE_COPY_ENABLED",
       "RAVENOS_COPY_FEE_COLLECTION_ENABLED"
     ],
-    "production_activation_completed": false
+    "production_activation_completed": true
   },
   "public_holder_lists": {
     "implementation_status": "production_provider_validated",

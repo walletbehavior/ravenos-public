@@ -215,7 +215,7 @@ test("release packaging carries the versioned on-chain provider gate without har
   assert.match(source, /RAVENOS_ENTITLEMENT_RESOLUTION_ENABLE/);
   assert.match(source, /RAVENOS_WALLET_INTELLIGENCE_ENABLED/);
   assert.match(source, /RAVENOS_WALLET_SCREENER_ENABLED/);
-  assert.match(source, /RAVENOS_SHADOW_COPY_ENABLED: "0"/);
+  assert.match(source, /RAVENOS_SHADOW_COPY_ENABLED: customerSecurity\.wallet_copy\?\.shadow_copy_release_enabled === true \? "1" : "0"/);
   assert.match(source, /RAVENOS_LIVE_COPY_ENABLED: "0"/);
   assert.match(source, /dexch_discovery_provider: releaseConfig\.dexch_discovery_provider/);
   assert.match(source, /RAVENOS_SHADOW_LEDGER_ENABLED/);

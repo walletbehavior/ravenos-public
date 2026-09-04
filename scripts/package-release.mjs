@@ -139,7 +139,7 @@ const releaseWrangler = {
     RAVENOS_WALLET_INTELLIGENCE_ENABLED: walletIntelligenceActive ? "1" : "0",
     RAVENOS_WALLET_COPY_ROUTES_ENABLED: walletIntelligenceActive ? "1" : "0",
     RAVENOS_WALLET_SCREENER_ENABLED: walletScreenerActive ? "1" : "0",
-    RAVENOS_SHADOW_COPY_ENABLED: "0",
+    RAVENOS_SHADOW_COPY_ENABLED: customerSecurity.wallet_copy?.shadow_copy_release_enabled === true ? "1" : "0",
     RAVENOS_WALLET_OBSERVER_ENABLED: "0",
     RAVENOS_WALLET_BACKFILL_ENABLED: "0",
     RAVENOS_LIVE_COPY_ENABLED: "0",

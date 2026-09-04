@@ -662,7 +662,7 @@ function renderProfile(payload, { scroll = true, from_poll: fromPoll = false } =
   const shadowButton = document.getElementById("copyStartSetup");
   const shadowAvailable = state.activation.shadow_copy === true && profileChain === "solana";
   shadowButton.disabled = !shadowAvailable;
-  shadowButton.textContent = shadowAvailable ? "Shadow this wallet" : state.activation.shadow_copy ? "Route proof pending" : "Raven Copy opening soon";
+  shadowButton.textContent = shadowAvailable ? "Copy this wallet" : state.activation.shadow_copy ? "Route proof pending" : "Raven Copy opening soon";
   shadowButton.title = shadowAvailable
     ? "Create a Raven Copy policy"
     : state.activation.shadow_copy ? "Exact entry + exit routing required." : "Copy is free; live shadow activation remains safety-gated.";
@@ -908,6 +908,27 @@ function decisionCard(decision) {
   evidence.textContent = `Hypothetical Raven fee · ${bpsAsPercent(decision.hypothetical_raven_fee.scenario_bps)}`;
   evidence.title = "Not collected.";
   actions.append(evidence);
+  const handoff = decision.terminal_handoff || {};
+  if (decision.decision.state === "SHADOW_EXECUTABLE" && handoff.state === "user_review_available") {
+    const review = document.createElement("a");
+    const url = new URL("/terminal/", location.origin);
+    url.searchParams.set("chain", handoff.chain);
+    url.searchParams.set("market", "spot");
+    url.searchParams.set("instrument_type", "exact_pool");
+    url.searchParams.set("instrument_scope", "exact_pool");
+    url.searchParams.set("instrument_id", handoff.instrument_id);
+    url.searchParams.set("pair_address", handoff.pair_address);
+    url.searchParams.set("token_address", handoff.token_address);
+    url.searchParams.set("quote_address", handoff.quote_address);
+    url.searchParams.set("panel", "trade");
+    url.searchParams.set("copy_review", "1");
+    url.searchParams.set("copy_decision_id", decision.decision_id);
+    url.searchParams.set("copy_amount_usdc", String(handoff.amount_usdc));
+    review.href = `${url.pathname}${url.search}`;
+    review.textContent = "Review copy in Terminal";
+    review.title = "Loads a fresh quote. Your wallet must confirm the transaction.";
+    actions.append(review);
+  }
   card.append(main, facts, actions);
   return card;
 }
@@ -1411,8 +1432,8 @@ async function boot() {
   setText("copyWorkspaceState", state.access.advanced_wallet_intelligence ? "Pro intelligence ready" : "Wallet tools ready");
   setText("copyWatchingDescription", state.activation.continuous_observer
     ? "Nexus observer active."
-    : state.activation.shadow_copy ? "Manual checks in preview." : "Free access · activation pending.");
-  setText("copyWatchingBadge", state.activation.continuous_observer ? "Nexus observing" : state.activation.shadow_copy ? "Live copy off" : "Opening soon");
+    : state.activation.shadow_copy ? "Check wallets, then review approved copies in Terminal." : "Free access · activation pending.");
+  setText("copyWatchingBadge", state.activation.continuous_observer ? "Nexus observing" : state.activation.shadow_copy ? "Manual copy live" : "Opening soon");
   if (state.activation.shadow_copy) await loadWorkspace();
   if (state.activation.wallet_screener) {
     document.getElementById("copyScreener").hidden = false;
@@ -1485,6 +1506,7 @@ window.RavenOSWalletCopy = Object.freeze({
   schemaVersion: "ravenos.wallet_copy_surface.v1",
   accessModel: Object.freeze({ authenticatedBasics: true, copySubscriptionRequired: false, advancedIntelligence: "raven_pro" }),
   liveCopy: false,
+  manualCopy: true,
   signing: false,
   broadcasting: false,
   feeCollection: false,

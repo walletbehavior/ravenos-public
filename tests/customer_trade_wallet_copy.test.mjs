@@ -119,6 +119,14 @@ function evidence(overrides = {}) {
     source_notional_usdc: 25,
     source_notional_basis: "source_wallet_canonical_usdc_delta",
     liquidity_usd: 250_000,
+    market_context: {
+      chain: "solana",
+      pair_address: bs58.encode(Buffer.alloc(32, 21)),
+      token_mint: TOKEN,
+      quote_address: SOLANA_CANONICAL_USDC_MINT,
+      venue: "pumpswap",
+      observed_at: "2026-08-29T12:00:01.050Z",
+    },
     asset_evidence: {
       identity_resolved: true,
       token_standard: "spl",
@@ -189,6 +197,11 @@ test("a fresh exact entry plus reverse exit produces an appendable shadow decisi
   assert.equal(decision.execution_boundary.transaction_hash, null);
   assert.equal(decision.execution_boundary.signing_available, false);
   assert.equal(decision.execution_boundary.broadcasting_available, false);
+  assert.equal(decision.terminal_handoff.state, "user_review_available");
+  assert.equal(decision.terminal_handoff.token_address, TOKEN);
+  assert.equal(decision.terminal_handoff.amount_usdc, 100);
+  assert.equal(decision.terminal_handoff.wallet_signature_required, true);
+  assert.equal(decision.terminal_handoff.automatic_submission, false);
   const position = createShadowCopyPosition(decision);
   assert.equal(position.live_assets_held, false);
   assert.equal(position.transaction_hash, null);
