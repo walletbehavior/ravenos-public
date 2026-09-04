@@ -135,6 +135,23 @@ test("chain identity preserves existing Solana IDs and gives Robinhood an explic
   assert.equal(robinhood.controller_identity_claimed, false);
 });
 
+test("EVM wallet identities remain distinct across Robinhood, BNB, Base, and Ethereum", () => {
+  const rows = [
+    ["robinhood", 4663, "rh"],
+    ["bsc", 56, "bsc"],
+    ["base", 8453, "base"],
+    ["ethereum", 1, "eth"],
+  ].map(([chain, chainId, namespace]) => {
+    const identity = normalizeSourceWalletChainIdentity({ chain, network: "mainnet", chain_id: chainId, address: ACTOR });
+    assert.match(identity.source_wallet_id, new RegExp(`^sw_${namespace}_[a-f0-9]{40}$`));
+    assert.equal(identity.chain_id, chainId);
+    assert.equal(identity.vm_family, "evm");
+    return identity.source_wallet_id;
+  });
+  assert.equal(new Set(rows).size, rows.length);
+  assert.equal(normalizeSourceWalletTransactionReference({ chain: "base", transaction_reference: TX_HASH }), TX_HASH);
+});
+
 test("identity and transaction references reject ticker-like, wrong-chain, and malformed values", () => {
   assert.throws(
     () => normalizeSourceWalletChainIdentity({ chain: "robinhood", network: "mainnet", chain_id: 1, address: ACTOR }),

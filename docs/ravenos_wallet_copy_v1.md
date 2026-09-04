@@ -3,12 +3,13 @@
 Status: wallet intelligence, screener, and user-reviewed Raven Copy beta authorized
 Reviewed: 2026-09-04
 Production activation: Solana + Robinhood intelligence/screener; manual Solana Copy review
+Candidate addition: bounded on-demand Robinhood, BNB, Base, and Ethereum wallet lookup
 
 ## Product boundary
 
 Wallet lookup, the basic wallet screener, private saves, and Raven Copy are included with every authenticated RavenOS account. Raven Pro unlocks the expensive analytical layers: cohort analysis, behavioral reconstruction, profit quality, deep history, advanced filters, and prospective copyability evidence. The internal `wallet.copy` grant is retained as the transitional advanced-intelligence entitlement key; it is not a subscription requirement for Raven Copy.
 
-This model does not introduce custody or a copy-bot wallet. The first production subset supports bounded Raven-indexed Solana and Robinhood source wallets. Approved Solana decisions may open a fresh native-Terminal review; the user's connected wallet remains the only signer. Real-money automatic copying, server signing, custody, and copy-specific fee collection remain disabled independently of subscription access.
+This model does not introduce custody or a copy-bot wallet. Raven persistently indexes bounded Solana and Robinhood source-wallet sets. A separate candidate lookup can read current balances, provider transaction counters, and up to 50 recent ERC-20 transfers for one exact Robinhood, BNB, Base, or Ethereum address through the server-only Blockscout key. Those transfer rows are never relabeled as trades, cost basis, P&L, or copy signals. Approved Solana decisions may open a fresh native-Terminal review; the user's connected wallet remains the only signer. Real-money automatic copying, server signing, custody, and copy-specific fee collection remain disabled independently of subscription access.
 
 Raven keeps these statements distinct:
 
@@ -47,6 +48,7 @@ Shared public-chain source evidence is stored once per Solana address. Customer 
 14. A complete source sell closes only the remaining mapped quantity. Current position state is derived from append-only allocation evidence as `SHADOW_OPEN`, `SHADOW_PARTIAL_EXIT`, or `SHADOW_CLOSED`.
 15. Source-sell evidence remains hypothetical: no live asset is assumed, no fee is collected, and no transaction is signed or broadcast by Raven Copy.
 16. An approved Solana buy decision may open the exact pool in Terminal with the policy amount prefilled. The retained shadow quote is never reused as executable authority; Terminal obtains a fresh route and the user reviews and signs it.
+17. Bounded EVM lookup is on-demand only. It returns provider-qualified current token balances and recent transfer participation, never persists a copy watch, and keeps bought price, realized P&L, trade count, and executable liquidation value unavailable until Raven has decoded swap and lot evidence. Identical chain-and-wallet reads may reuse a validated 60-second Cache API record; the server key is absent from the key and payload, and no isolate-local response cache exists.
 
 ## Storage and mutability
 
@@ -75,6 +77,8 @@ The controls remain independent. The production release enables intelligence, sc
 - `RAVENOS_WALLET_COPYABILITY_PROBES_ENABLED`
 - `RAVENOS_WALLET_COPYABILITY_CHECKPOINTS_ENABLED`
 - `RAVENOS_WALLET_BACKFILL_ENABLED`
+- `RAVENOS_EVM_WALLET_LOOKUP_ENABLED`
+- `BLOCKSCOUT_API_KEY` (server-only)
 - `RAVENOS_LIVE_COPY_ENABLED`
 - `RAVENOS_COPY_FEE_COLLECTION_ENABLED`
 
@@ -122,6 +126,6 @@ The same event was probed again after 642.939 seconds. Its entry and reverse-exi
 
 The current screener covers only exact public wallets already requested or observed by Raven. It supports paginated retained activity, event-kind filtering, trade count, active days, cost-basis coverage, closed lots, win rate, ROI, performance-evidence state, and deterministic sorting. Deep history is bounded at 10,000 signatures, and each current profile snapshot openly discloses its 2,000-event analysis ceiling. It does not publish a global profitability or copyability score. Copyability is separated into $25, $100, $500, $1,000, and $5,000 follower-size evidence; unsampled sizes remain explicitly not sampled.
 
-The following are not claimed by v1: chain-wide wallet coverage, unbounded lifetime history, full Token-2022 extension simulation, reliable historical liquidity, wallet relationship attribution, EVM wallets, an activated continuous provider connection, automatic alerts, checkpoint servicing beyond retained exit evidence, crowding allocation, live funding balances, transaction construction, signing, broadcasting, fee collection, treasury reconciliation, or live-copy performance.
+The following are not claimed by v1: chain-wide wallet coverage, unbounded lifetime history, full Token-2022 extension simulation, reliable historical liquidity, automatic EVM trade decoding or P&L, persistent Base/BNB/Ethereum screening, an activated continuous provider connection for those chains, automatic alerts, crowding allocation, live funding balances, transaction construction, signing, broadcasting, copy-specific fee collection, treasury reconciliation, or live-copy performance.
 
 The shared Solana observer contract, durable queue, Constant-K Nexus transport, exact 25,000-wallet manifest, retry/restart semantics, latency ledger, deep-history backfill, and source-sell lot mapping are implemented but dormant. The next move is one controlled public-wallet cohort measuring detection, decoding, entry/exit proof, partial-exit mapping, reconstruction coverage, storage growth, and provider cost before Raven publishes any speed or follower-capture claim.

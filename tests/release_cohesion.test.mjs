@@ -221,6 +221,8 @@ test("release packaging carries the versioned on-chain provider gate without har
   assert.match(source, /RAVENOS_WALLET_COPYABILITY_PROBES_ENABLED: walletCopyabilityActive \? "1" : "0"/);
   assert.match(source, /RAVENOS_WALLET_COPYABILITY_CHECKPOINTS_ENABLED: walletCopyabilityCheckpointsActive \? "1" : "0"/);
   assert.match(source, /RAVENOS_WALLET_BACKFILL_ENABLED: walletBackfillActive \? "1" : "0"/);
+  assert.match(source, /RAVENOS_EVM_WALLET_LOOKUP_ENABLED: evmWalletLookupActive \? "1" : "0"/);
+  assert.match(source, /publicEvmHolderListsActive \|\| evmWalletLookupActive \? \["BLOCKSCOUT_API_KEY"\] : \[\]/);
   assert.match(source, /RAVENOS_LIVE_COPY_ENABLED: "0"/);
   assert.match(source, /dexch_discovery_provider: releaseConfig\.dexch_discovery_provider/);
   assert.match(source, /RAVENOS_SHADOW_LEDGER_ENABLED/);

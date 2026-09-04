@@ -30,6 +30,8 @@ const entitlementResolutionActive = customerSecurity.entitlement_foundation?.res
 const walletIntelligenceActive = customerSecurity.wallet_copy?.read_only_intelligence_release_enabled === true;
 const walletScreenerActive = walletIntelligenceActive
   && customerSecurity.wallet_copy?.read_only_screener_release_enabled === true;
+const evmWalletLookupActive = walletIntelligenceActive
+  && customerSecurity.wallet_copy?.bounded_on_demand_evm_lookup_release_enabled === true;
 const walletObserverActive = walletIntelligenceActive
   && customerSecurity.wallet_copy?.continuous_observer_active === true;
 const walletRpcPollActive = walletObserverActive
@@ -157,6 +159,7 @@ const releaseWrangler = {
     RAVENOS_WALLET_COPYABILITY_PROBES_ENABLED: walletCopyabilityActive ? "1" : "0",
     RAVENOS_WALLET_COPYABILITY_CHECKPOINTS_ENABLED: walletCopyabilityCheckpointsActive ? "1" : "0",
     RAVENOS_WALLET_BACKFILL_ENABLED: walletBackfillActive ? "1" : "0",
+    RAVENOS_EVM_WALLET_LOOKUP_ENABLED: evmWalletLookupActive ? "1" : "0",
     RAVENOS_LIVE_COPY_ENABLED: "0",
     RAVENOS_COPY_FEE_COLLECTION_ENABLED: "0",
     RAVENOS_PUBLIC_SOLANA_HOLDERS_ENABLED: publicHolderListsActive ? "1" : "0",
@@ -185,6 +188,7 @@ const packageManifest = {
   onchain_chart_provider: releaseConfig.onchain_chart_provider,
   dexch_discovery_provider: releaseConfig.dexch_discovery_provider,
   public_evm_holder_lists_enabled: publicEvmHolderListsActive,
+  evm_wallet_lookup_enabled: evmWalletLookupActive,
   worker_name: baseWrangler.name,
   cron_schedules: Array.isArray(baseWrangler.triggers?.crons) ? baseWrangler.triggers.crons : [],
   required_server_secret_bindings: [
@@ -193,7 +197,7 @@ const packageManifest = {
     chartProviderConfig.provider_secret_binding || "ONCHAIN_CHART_PROVIDER_SECRET",
     "JUPITER_API_KEY",
     ...(publicHolderListsActive ? ["RAVENOS_PUBLIC_SOLANA_HOLDERS_RPC_URL"] : []),
-    ...(publicEvmHolderListsActive ? ["BLOCKSCOUT_API_KEY"] : []),
+    ...(publicEvmHolderListsActive || evmWalletLookupActive ? ["BLOCKSCOUT_API_KEY"] : []),
     ...(customerSecurity.customer_capabilities_enabled === true
       ? ["WORKOS_API_KEY", "WORKOS_CLIENT_ID", "RAVENOS_AUTH_HASH_PEPPER"]
       : []),

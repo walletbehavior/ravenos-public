@@ -5,6 +5,9 @@ const WALLET = "7KxQmTi5W4rP8Y2hD9cV6nF3aS1uEoLzJbGkNqMpfHrt";
 const TOKEN = "4M7YQqGfRWfBpcA7mN5uY3z8Jj6Hk2VtD9sLxEePoaBn";
 const WATCH_ID = "wcw_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const SOURCE_ID = `sw_sol_${"a".repeat(40)}`;
+const EVM_WALLET = `0x${"12".repeat(20)}`;
+const EVM_TOKEN = `0x${"56".repeat(20)}`;
+const EVM_SOURCE_ID = `sw_evm_bsc_${"b".repeat(40)}`;
 
 function researchThesis() {
   return {
@@ -100,6 +103,35 @@ function profile() {
     data_quality: { history_scope: "bounded_partial_history", provider_history_exhausted: false, cost_basis_coverage_pct: 71.4, trade_decode_coverage_pct: 91.7, classification_coverage_pct: 100, reconstruction_confidence_pct: 87.7, analysis_events: 700, analysis_event_limit: 2_000, analysis_truncated: false, analysis_scope: "all_retained_normalized_events", historical_price_evidence_coverage_pct: null, full_data_confidence_pct: null },
     positions: { known_cost_open_position_count: 1, unresolved_cost_basis_event_count: 2, known_cost_open_positions: [{ mint: TOKEN, basis: "usdc", lot_count: 1, remaining_cost: 25 }] },
     capital_observations: { current_balance_claimed: false, sol: { amount: 8.2, observed_at: "2026-08-29T11:59:58.000Z" }, canonical_usdc: { amount: 412.5, observed_at: "2026-08-29T11:59:58.000Z" } },
+  };
+}
+
+function evmProfile() {
+  return {
+    schema_version: "ravenos.evm_wallet_basic_profile.v1",
+    source_wallet: { chain: "bsc", network: "mainnet", chain_id: 56, vm_family: "evm", address: EVM_WALLET },
+    coverage: { transactions_observed: 0, transactions_reported_by_provider: 123, normalized_events: 1, token_transfers_observed: 1, token_transfers_reported_by_provider: 456, trade_events: null, known_cost_basis_pct: null, provider_history_exhausted: false },
+    source_performance: { state: "insufficient_evidence", realized_pnl_usdc: null, realized_pnl_sol: null, roi_pct: null, win_rate_pct: null, closed_lots: null, closed_observations: null, profit_factor: null, windows: null, limitations: ["Recent transfers are not classified as trades."] },
+    behavior: { active_days: 1, trade_count: null, first_trade_at: null, last_trade_at: null, tokens_traded: null, token_assets_observed: 1, buy_count: null, sell_count: null, median_hold_seconds: null, trade_rate_per_active_day: null, classifications: { TRANSFER_IN: 1 } },
+    research_thesis: null,
+    profit_quality: { state: "insufficient_evidence" },
+    positions: { known_cost_open_positions: [], known_cost_open_position_count: 0, unresolved_cost_basis_event_count: 1, provider_reported_token_balances: [{ contract: EVM_TOKEN, symbol: "USDC", balance_display: "2.5", provider_mark_price_usd: 1.001, provider_mark_value_usd: 2.5025, executable_value_usd: null, cost_basis_usd: null, pnl_usd: null }] },
+    capital_observations: { scope: "blockscout_indexed_snapshot", current_balance_claimed: false, native: { symbol: "BNB", amount: "1.25", observed_at: "2026-09-04T12:01:00.000Z", state: "provider_indexed" }, canonical_usdc: { amount: null, observed_at: null, state: "not_aggregated" }, provider_reported_token_count: 1 },
+    data_quality: { history_scope: "bounded_current_balances_and_recent_transfers", history_complete: false, provider_history_exhausted: false, provider: "blockscout_pro_v2", trade_decode_coverage_pct: null, classification_coverage_pct: null, cost_basis_coverage_pct: null, reconstruction_confidence_pct: null, full_data_confidence_pct: null, analysis_events: 1, analysis_scope: "recent_erc20_transfers_only" },
+  };
+}
+
+function evmTransfer() {
+  return {
+    schema_version: "ravenos.wallet_activity_event.v1",
+    event_id: `swe_${"c".repeat(40)}`,
+    source_wallet: { chain: "bsc", network: "mainnet", chain_id: 56, vm_family: "evm", address: EVM_WALLET },
+    chain_evidence: { transaction_reference: `0x${"78".repeat(32)}`, block_number: 1234, block_hash: `0x${"9a".repeat(32)}`, block_time: "2026-09-04T12:00:00.000Z", provider: "Blockscout Pro", finality: "confirmed" },
+    timing: { observation_mode: "bounded_indexed_transfer_lookup", raven_received_at: "2026-09-04T12:01:00.000Z", detection_delay_ms: null },
+    classification: { kind: "TRANSFER_IN", confidence: "direct_transfer_participant", reasons: ["exact_wallet_transfer_participant", "transfer_is_not_assumed_to_be_a_trade"], ambiguous: false },
+    economic: { source_asset: null, destination_asset: { contract: EVM_TOKEN, symbol: "USDC", amount_base_units: "2500000", decimals: 6 }, transaction_fee_lamports: null, cost_basis_state: "unresolved_transfer_context" },
+    route_evidence: { program_ids: [], swap_route_observed: false, route_shape: "not_proven_from_transfer_index" },
+    copy_signal: { eligible_buy_signal: false, eligible_sell_signal: false, reason: "erc20_transfer_is_not_a_copy_trade_signal" },
   };
 }
 
@@ -540,6 +572,12 @@ async function install(page, shared, { authenticated = true, entitled = true } =
       return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, deleted: shared.saved.length < before }) });
     }
     if (url.pathname.endsWith("/inspect") && request.method() === "POST") {
+      const inspectBody = JSON.parse(request.postData() || "{}");
+      if (inspectBody.chain && inspectBody.chain !== "solana") {
+        const transfer = evmTransfer();
+        const activity = { ...activityPage([transfer]), scope: { on_demand_only: true, evidence_mode: "bounded_blockscout_index", provider_request_performed: true, history_complete_claimed: false, current_balance_claimed: false } };
+        return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, state: "available", source_wallet_id: EVM_SOURCE_ID, profile: evmProfile(), recent_events: [transfer], activity, prospective_copyability: null, deep_history: { state: "not_enabled", history_complete_claimed: false }, persistence: { state: "on_demand_only", saved_to_raven_index: false, copy_eligible: false } }) });
+      }
       const activity = activityPage([event("SWAP_BUY"), event("TRANSFER_IN", 1)], { total: 26, hasMore: true, nextCursor: `123~swe_${"a".repeat(40)}` });
       return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, state: "available", source_wallet_id: SOURCE_ID, profile: profile(), prospective_copyability: prospectiveCopyability(), recent_events: activity.events, activity, deep_history: deepHistory() }) });
     }
@@ -586,16 +624,16 @@ test("signed-out visitors see auth while free accounts receive the basic wallet 
   });
   await page.route("https://api.workos.com/**", (route) => route.fulfill({ status: 200, contentType: "text/html", body: "<!doctype html><title>Secure sign-in</title>" }));
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/account/copy/");
+  await page.goto(`/account/copy/?wallet=${EVM_WALLET}&chain=bsc`);
   await expect(page.locator(".copy-page")).toHaveAttribute("data-copy-state", "signed-out");
-  await expect(page.getByRole("heading", { name: "Sign in to inspect and shadow wallets." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Sign in to inspect wallets." })).toBeVisible();
   expect(signedOut.requests).toHaveLength(0);
   await page.getByRole("button", { name: /Email, password, or code/ }).click();
   await page.waitForURL(/^https:\/\/api\.workos\.com\/user_management\/authorize/);
   expect(downloaded).toBe(false);
   expect(authRequests).toEqual([{
     method: "POST",
-    body: { intent: "sign_in", provider: "managed", return_to: "/account/copy/" },
+    body: { intent: "sign_in", provider: "managed", return_to: `/account/copy/?wallet=${EVM_WALLET}&chain=bsc` },
   }]);
 
   const privatePage = await page.context().newPage();
@@ -652,6 +690,30 @@ test("Pro user inspects source evidence, saves a private policy, and establishes
     feeCollection: false,
   });
   await captureVisual(page, "wallet-copy-desktop-1440");
+});
+
+test("BNB lookup renders provider balances and transfer evidence without pretending it is copy-ready", async ({ page }) => {
+  const shared = { watch: null, decision: null, position: null, requests: [] };
+  await install(page, shared);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/account/copy/");
+  await page.locator("#copyWalletChain").selectOption("bsc");
+  await expect(page.getByLabel("Paste an address")).toHaveAttribute("maxlength", "42");
+  await page.getByLabel("Paste an address").fill(EVM_WALLET);
+  await page.getByRole("button", { name: "Analyze wallet" }).click();
+  await expect(page.locator("#copySourcePnl")).toHaveText("Insufficient evidence");
+  await expect(page.locator("#copyProfileCoverage")).toContainText("123 tx reported · trades not decoded");
+  await expect(page.locator("#copyOpenPositions")).toContainText("2.5 held · $1.00 provider mark · basis unavailable");
+  await expect(page.getByText("Transfer In", { exact: true })).toBeVisible();
+  await expect(page.getByText("2.5 USDC", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "On-demand scan" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Route proof pending" })).toBeDisabled();
+  const inspectRequest = shared.requests.find((row) => row.path.endsWith("/inspect"));
+  expect(JSON.parse(inspectRequest.body)).toEqual({ address: EVM_WALLET, chain: "bsc" });
+  const overflow = await page.evaluate(() => [...document.querySelectorAll("body *")]
+    .filter((node) => node.getBoundingClientRect().right > innerWidth + 1)
+    .map((node) => `${node.tagName.toLowerCase()}.${node.className || ""}`));
+  expect(overflow).toEqual([]);
 });
 
 test("Raven-indexed screener exposes honest evidence and opens a retained profile without another live lookup", async ({ page }) => {

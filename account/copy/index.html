@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Wallet Intelligence + Raven Copy · RavenOS</title>
-  <meta name="description" content="Discover and analyze Solana and Robinhood Chain wallets with evidence-bound activity, performance quality, and prospective Raven Copy research." />
+  <meta name="description" content="Multichain wallet evidence and Raven Copy research." />
   <link rel="stylesheet" href="/ravenos-shell.css" />
   <link rel="stylesheet" href="/ravenos-wallet-copy.css" />
 </head>
@@ -15,7 +15,7 @@
         <a href="/account/">← Account</a>
         <span>Wallet intelligence + Raven Copy</span>
         <h1>Find repeatable edge.<br />See the evidence.</h1>
-        <p>Solana + Robinhood wallet intelligence.</p>
+        <p>Multichain intelligence.</p>
       </div>
       <aside class="copy-mode-card" aria-live="polite">
         <div><span>Workspace</span><strong>Research + Shadow</strong></div>
@@ -28,8 +28,8 @@
     <section class="copy-signin" id="copySignIn" hidden>
       <div>
         <span>RavenOS account</span>
-        <h2>Sign in to inspect and shadow wallets.</h2>
-        <p>Public sources. Private research.</p>
+        <h2>Sign in to inspect wallets.</h2>
+        <p>Private research.</p>
       </div>
       <div class="copy-signin-actions">
         <form method="get" action="/account/" data-auth-start>
@@ -71,10 +71,10 @@
       <section class="copy-panel" data-copy-panel="find">
         <div class="copy-find-grid">
           <form class="copy-wallet-search" id="copyWalletSearch">
-            <span>Direct Solana lookup</span>
+            <span>Direct wallet lookup</span>
             <label for="copyWalletAddress">Paste an address</label>
-            <div><input id="copyWalletAddress" name="address" inputmode="text" autocomplete="off" spellcheck="false" placeholder="7Kx…9qP" maxlength="44" required /><button type="submit">Analyze wallet</button></div>
-            <p id="copySearchStatus" aria-live="polite">Classifying activity…</p>
+            <div class="copy-wallet-query"><select id="copyWalletChain" aria-label="Wallet chain"><option value="solana">Solana</option><option value="robinhood">Robinhood</option><option value="bsc">BNB</option><option value="base">Base</option><option value="ethereum">Ethereum</option></select><input id="copyWalletAddress" name="address" inputmode="text" autocomplete="off" spellcheck="false" placeholder="7Kx…9qP" maxlength="44" required /><button type="submit">Analyze wallet</button></div>
+            <p id="copySearchStatus" aria-live="polite">Choose chain and wallet.</p>
           </form>
           <aside class="copy-proof-card">
             <span>Evidence stack</span>
@@ -179,7 +179,7 @@
           </header>
           <section class="copy-profile-pro-gate" id="copyProfileProGate" hidden>
             <div><span>Raven Pro</span><strong>Unlock the full wallet record</strong></div>
-            <p>Cohorts, behavior, profit quality, deep history, and copyability evidence.</p>
+            <p>Cohorts, behavior, deep history, and copyability.</p>
           </section>
           <section class="copy-history-state copy-pro-only" id="copyDeepHistory" hidden aria-live="polite">
             <div><span>History reconstruction</span><strong id="copyDeepHistoryHeadline">Deep history queued</strong><p id="copyDeepHistoryDetail">Indexing history…</p></div>
