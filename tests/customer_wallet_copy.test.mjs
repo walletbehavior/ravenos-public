@@ -485,14 +485,62 @@ test("chain-neutral migration preserves Solana evidence and accepts exact Robinh
   db.close();
 });
 
-test("authenticated Pro route rejects cross-origin and unentitled access", async () => {
+test("wallet workspace rejects cross-origin but gives signed-in accounts free basic access", async () => {
   const store = memoryStore();
   const provider = { async loadHistory() { return { events: [walletEvent()] }; } };
   const cross = await routeCustomerWalletCopy(request("/api/v1/wallet-copy", { suppliedOrigin: "https://evil.example" }), env(), deps(store, provider));
   assert.equal(cross.status, 403);
-  const denied = await routeCustomerWalletCopy(request("/api/v1/wallet-copy"), env(), deps(store, provider, []));
-  assert.equal(denied.status, 403);
-  assert.equal((await json(denied)).error, "capability_not_authorized");
+  const basic = await routeCustomerWalletCopy(request("/api/v1/wallet-copy"), env(), deps(store, provider, []));
+  assert.equal(basic.status, 200);
+  const payload = await json(basic);
+  assert.equal(payload.access.tier, "free");
+  assert.equal(payload.access.basic_wallet_lookup, true);
+  assert.equal(payload.access.raven_copy_subscription_required, false);
+  assert.equal(payload.access.advanced_wallet_intelligence, false);
+});
+
+test("free wallet lookup exposes headline facts but withholds deep intelligence and backfill", async () => {
+  const store = memoryStore();
+  const provider = { async loadHistory() { return { events: [walletEvent()] }; } };
+  let backfillCalls = 0;
+  const response = await routeCustomerWalletCopy(
+    request("/api/v1/wallet-copy/inspect", { method: "POST", body: { address: WALLET } }),
+    env({ RAVENOS_WALLET_BACKFILL_ENABLED: "1" }),
+    { ...deps(store, provider, []), sourceWalletBackfillStore: { async enqueueJob() { backfillCalls += 1; } } },
+  );
+  assert.equal(response.status, 200);
+  const payload = await json(response);
+  assert.equal(payload.access.tier, "free");
+  assert.equal(payload.profile.coverage.transactions_observed, 1);
+  assert.equal(payload.profile.behavior.trade_count, 1);
+  assert.equal(payload.profile.source_performance.profit_factor, null);
+  assert.equal(payload.profile.profit_quality, null);
+  assert.equal(payload.profile.research_thesis, null);
+  assert.equal(payload.prospective_copyability, null);
+  assert.equal(payload.deep_history.state, "pro_required");
+  assert.equal(backfillCalls, 0);
+});
+
+test("free screener accepts bounded activity filters and rejects advanced behavior filters", async () => {
+  const store = memoryStore();
+  const provider = { async loadHistory() { return { events: [walletEvent()] }; } };
+  await routeCustomerWalletCopy(request("/api/v1/wallet-copy/inspect", { method: "POST", body: { address: WALLET } }), env(), deps(store, provider));
+  const activeEnv = env({ RAVENOS_WALLET_SCREENER_ENABLED: "1" });
+  const basic = await routeCustomerWalletCopy(request("/api/v1/wallet-copy/screener", {
+    method: "POST",
+    body: { chain: "solana", filters: { active_within_hours: 720, min_trade_count: 1, min_active_days: 1, performance_state: "any" }, clauses: [], preset: null, sort: "last_trade_desc", page: 1, page_size: 12 },
+  }), activeEnv, deps(store, provider, []));
+  assert.equal(basic.status, 200);
+  const basicPayload = await json(basic);
+  assert.equal(basicPayload.access.tier, "free");
+  assert.equal(basicPayload.rows[0].profit_quality, undefined);
+  assert.equal(basicPayload.rows[0].behavior.median_hold_seconds, undefined);
+  const advanced = await routeCustomerWalletCopy(request("/api/v1/wallet-copy/screener", {
+    method: "POST",
+    body: { chain: "solana", filters: { performance_state: "any" }, clauses: [{ field: "median_hold_seconds", operator: "gte", value: 3600 }], sort: "last_trade_desc", page: 1, page_size: 12 },
+  }), activeEnv, deps(store, provider, []));
+  assert.equal(advanced.status, 403);
+  assert.equal((await json(advanced)).error, "advanced_wallet_intelligence_required");
 });
 
 test("inspect builds evidence-bound source performance without creating a watch", async () => {

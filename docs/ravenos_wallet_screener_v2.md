@@ -2,12 +2,12 @@
 
 Status: post-migration staging candidate, dormant by default
 Reviewed: 2026-09-01
-Entitlement: existing RavenOS Pro (`wallet.copy`)
+Access: authenticated basics; Raven Pro (`wallet.copy`) for advanced intelligence
 Live execution changed: no
 
 ## Product boundary
 
-This milestone makes the existing authenticated Wallet Intelligence surface independently useful for research. It does not add a second subscription, another wallet database, another quote engine, live copying, transaction construction, signing, broadcasting, custody, or fee collection.
+This milestone makes the authenticated Wallet Intelligence surface independently useful for research. Basic activity screening and headline performance are included with every account. Raven Pro adds cohorts, reconstructed behavior, profit quality, deep history, advanced filtering, and prospective copyability evidence. Raven Copy itself does not require a Pro subscription. This does not add another wallet database, quote engine, live copying, transaction construction, signing, broadcasting, custody, or fee collection.
 
 The universe is explicitly `raven_indexed_solana_wallets`: exact public addresses that Raven has requested, observed, or admitted after independent hydration from a qualified provider candidate. It is not presented as every Solana wallet. An interactive lookup still returns a fast 24-transaction evidence window, then a shared resumable backfill can index up to 10,000 signatures for that exact source wallet in 100-signature pages. The job is shared across every researcher and follower, retries an incomplete page without advancing its cursor, and becomes `complete` only after provider exhaustion. A 10,000-signature ceiling is labeled `bounded_partial`; neither state is presented as verified lifetime history without a separately reconciled current head.
 

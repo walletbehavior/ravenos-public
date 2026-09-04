@@ -468,11 +468,15 @@ async function install(page, shared, { authenticated = true, entitled = true } =
     shared.requests.push(record);
     if (url.pathname === "/api/v1/wallet-copy" && request.method() === "GET") {
       return route.fulfill({
-        status: entitled ? 200 : 403,
+        status: 200,
         contentType: "application/json",
-        body: JSON.stringify(entitled
-          ? { ok: true, state: "available", activation: { wallet_intelligence: true, wallet_screener: true, shadow_copy: true, live_copy: false }, execution_boundary: { signing: false, broadcasting: false, custody: false, live_copy: false, fee_collection: false } }
-          : { ok: false, state: "not_granted", error: "capability_not_authorized" }),
+        body: JSON.stringify({
+          ok: true,
+          state: "available",
+          access: { tier: entitled ? "pro" : "free", advanced_wallet_intelligence: entitled, basic_wallet_lookup: true, basic_wallet_screener: true, raven_copy_subscription_required: false },
+          activation: { wallet_intelligence: true, wallet_screener: true, shadow_copy: true, live_copy: false },
+          execution_boundary: { signing: false, broadcasting: false, custody: false, live_copy: false, fee_collection: false },
+        }),
       });
     }
     if (url.pathname.endsWith("/screener") && request.method() === "POST") {
@@ -553,7 +557,7 @@ async function install(page, shared, { authenticated = true, entitled = true } =
   });
 }
 
-test("signed-out and unentitled visitors receive an honest private-workspace boundary", async ({ page }) => {
+test("signed-out visitors see auth while free accounts receive the basic wallet workspace", async ({ page }) => {
   const signedOut = { watch: null, decision: null, position: null, requests: [] };
   await install(page, signedOut, { authenticated: false });
   const authRequests = [];
@@ -585,9 +589,11 @@ test("signed-out and unentitled visitors receive an honest private-workspace bou
   const denied = { watch: null, decision: null, position: null, requests: [] };
   await install(privatePage, denied, { authenticated: true, entitled: false });
   await privatePage.goto("/account/copy/");
-  await expect(privatePage.locator(".copy-page")).toHaveAttribute("data-copy-state", "unavailable");
-  await expect(privatePage.getByRole("heading", { name: "Raven Copy is not open for this account yet." })).toBeVisible();
-  await expect(privatePage.getByText("Raven Copy requires Pro access.")).toBeVisible();
+  await expect(privatePage.locator(".copy-page")).toHaveAttribute("data-copy-state", "active");
+  await expect(privatePage.locator(".copy-page")).toHaveAttribute("data-access-tier", "free");
+  await expect(privatePage.getByText("Wallet lookup + Raven Copy", { exact: true })).toBeVisible();
+  await expect(privatePage.getByText("Headline wallet screening and Raven Copy are free.")).toBeVisible();
+  await expect(privatePage.locator("#copyPresetRail")).not.toBeVisible();
 });
 
 test("Pro user inspects source evidence, saves a private policy, and establishes a non-executable baseline", async ({ page }) => {
@@ -595,7 +601,7 @@ test("Pro user inspects source evidence, saves a private policy, and establishes
   await install(page, shared);
   await page.goto("/account/copy/");
   await expect(page.locator(".copy-page")).toHaveAttribute("data-copy-state", "active");
-  await expect(page.getByText("Shadow workspace ready")).toBeVisible();
+  await expect(page.getByText("Pro intelligence ready")).toBeVisible();
   await page.getByLabel("Paste an address").fill(WALLET);
   await page.getByRole("button", { name: "Analyze wallet" }).click();
   await expect(page.getByText("Source performance", { exact: true })).toBeVisible();
@@ -623,7 +629,14 @@ test("Pro user inspects source evidence, saves a private policy, and establishes
   const refresh = shared.requests.find((row) => row.path.endsWith("/refresh"));
   expect(refresh.headers["x-ravenos-csrf"]).toBe("csrf_wallet_copy");
   expect(refresh.body).toBe("{}");
-  expect(await page.evaluate(() => window.RavenOSWalletCopy)).toEqual({ schemaVersion: "ravenos.wallet_copy_surface.v1", liveCopy: false, signing: false, broadcasting: false, feeCollection: false });
+  expect(await page.evaluate(() => window.RavenOSWalletCopy)).toEqual({
+    schemaVersion: "ravenos.wallet_copy_surface.v1",
+    accessModel: { authenticatedBasics: true, copySubscriptionRequired: false, advancedIntelligence: "raven_pro" },
+    liveCopy: false,
+    signing: false,
+    broadcasting: false,
+    feeCollection: false,
+  });
   await captureVisual(page, "wallet-copy-desktop-1440");
 });
 

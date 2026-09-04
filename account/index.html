@@ -27,7 +27,7 @@
         <div class="account-auth-copy">
           <span class="workspace-label">RavenOS account</span>
           <h2>Secure sign-in.<br />You stay in control.</h2>
-          <p>Google or email. Never share wallet keys.</p>
+          <p>Google or email.</p>
         </div>
 
         <div class="account-mode-switch" role="tablist" aria-label="Account action">
@@ -49,8 +49,8 @@
             <input type="hidden" name="return_to" value="/account/" />
             <button class="account-managed-action" type="submit"><span class="account-provider-mark">R</span><span>Email, password, or code</span><span aria-hidden="true">→</span></button>
           </form>
-          <p class="account-auth-status" id="accountAuthStatus" aria-live="polite">No wallet connection.</p>
-          <p class="account-auth-legal">By continuing, you agree to the <a href="https://ravenos.xyz/terms/">Terms</a> and acknowledge the <a href="https://ravenos.xyz/privacy/">Privacy Policy</a>.</p>
+          <p class="account-auth-status" id="accountAuthStatus" aria-live="polite">Wallet disconnected.</p>
+          <p class="account-auth-legal"><a href="https://ravenos.xyz/terms/">Terms</a> and <a href="https://ravenos.xyz/privacy/">Privacy</a> apply.</p>
         </div>
 
         <section class="account-activation" id="accountActivation" hidden>
@@ -93,7 +93,7 @@
             <div class="account-username-entry"><span aria-hidden="true">@</span><input id="accountUsername" name="username" type="text" inputmode="text" autocomplete="username" autocapitalize="none" spellcheck="false" minlength="3" maxlength="24" pattern="[A-Za-z][A-Za-z0-9_]{2,23}" placeholder="your_username" required /></div>
             <button id="accountUsernameSave" type="submit">Save username</button>
           </form>
-          <p>3–24 characters. Start with a letter; use letters, numbers, or underscores. Your sign-in name is never displayed.</p>
+          <p>3–24 letters, numbers, or underscores.</p>
           <span class="account-username-status" id="accountUsernameStatus" aria-live="polite"></span>
         </section>
 
@@ -128,7 +128,7 @@
               <article><span>Rewards</span><strong id="accountReferralRewards">Not configured</strong></article>
             </div>
           </div>
-          <footer class="account-referral-boundary">Subscription attribution only. A referral is not an investment endorsement.</footer>
+          <footer class="account-referral-boundary">Referral ≠ investment endorsement.</footer>
         </section>
 
         <section class="account-security-panel">

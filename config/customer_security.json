@@ -274,9 +274,9 @@
     "production_activation_completed": false
   },
   "wallet_copy": {
-    "implementation_status": "production_read_only_screener_authorized_pending_promotion",
+    "implementation_status": "authenticated_free_basics_and_pro_advanced_candidate",
     "surface": "https://app.ravenos.xyz/account/copy/",
-    "capability": "wallet.copy",
+    "advanced_intelligence_capability": "wallet.copy",
     "routes": [
       "GET /api/v1/wallet-copy",
       "POST /api/v1/wallet-copy/inspect",
@@ -293,7 +293,11 @@
     ],
     "authenticated_origin_only": true,
     "csrf_required_for_mutations": true,
-    "server_owned_pro_entitlement_required": true,
+    "server_owned_pro_entitlement_required": false,
+    "basic_wallet_lookup_included": true,
+    "basic_wallet_screener_included": true,
+    "raven_copy_subscription_required": false,
+    "pro_required_for_advanced_cohorts_behavior_profit_quality_deep_history_and_copyability": true,
     "supported_chains": ["solana", "robinhood"],
     "maximum_watches_per_account": 25,
     "maximum_history_transactions_per_refresh": 24,
@@ -774,7 +778,7 @@
     { "id": "SEC-WOBS-001", "name": "shared wallet observer exact identity, one-decode dedupe, lease recovery, retry bounds and prohibited-data boundary", "gate": "wallet_observer_staging_candidate", "status": "verified_local_candidate", "evidence": "tests/source_wallet_observer.test.mjs; tests/source_wallet_transports.test.mjs; customer-migrations/0010_source_wallet_observer.sql; artifacts/ravenos_wallet_observer_live_validation_2026-08-30.json; public no-leak validation" },
     { "id": "SEC-WOBS-002", "name": "Nexus machine ingress exact-host, HMAC freshness, manifest binding, replay safety and checkpoint-after-ack", "gate": "wallet_observer_staging_candidate", "status": "verified_local_candidate", "evidence": "tests/source_wallet_ingress.test.mjs; tests/constant_k_nexus_wallet_ingress_client.test.mjs; customer-migrations/0013_source_wallet_ingress.sql; public no-leak validation" },
     { "id": "SEC-WOBS-003", "name": "Nexus reviewed-program discovery coverage, short-lived provider acknowledgement, durable candidate receipt, cursor replay safety, privacy and exact-watch claim separation", "gate": "wallet_observer_staging_candidate", "status": "verified_local_candidate", "evidence": "tests/constant_k_nexus_discovery_coverage.test.mjs; tests/constant_k_nexus_discovery_manifest_cli.test.mjs; tests/constant_k_nexus_wallet_discovery_receiver.test.mjs; scripts/run-constant-k-wallet-discovery-receiver.mjs; public no-leak validation" },
-    { "id": "SEC-COPY-001", "name": "owner-bound Pro wallet watches, CSRF, quotas and private subscriber relationships", "gate": "wallet_copy_local_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_wallet_copy.test.mjs; tests/browser/wallet-copy.spec.mjs" },
+    { "id": "SEC-COPY-001", "name": "owner-bound authenticated wallet research and copy watches, Pro-only advanced projections, CSRF, quotas and private subscriber relationships", "gate": "wallet_copy_local_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_wallet_copy.test.mjs; tests/browser/wallet-copy.spec.mjs" },
     { "id": "SEC-COPY-002", "name": "source and follower evidence separation with live copy, signing, broadcasting and fee collection source-disabled", "gate": "wallet_copy_local_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_trade_wallet_copy.test.mjs; tests/customer_wallet_copy.test.mjs; public no-leak and Worker-response validation" },
     { "id": "SEC-COPY-003", "name": "privacy-thresholded aggregate follower-demand stress with no allocation, fill, identity, or execution claim", "gate": "wallet_copy_local_candidate", "status": "verified_local_candidate", "evidence": "tests/source_wallet_copy_crowding.test.mjs; customer-migrations/0022_source_wallet_copy_crowding.sql; public no-leak validation" },
     { "id": "SEC-WAL-001", "name": "wallet nonce replay", "gate": "stage_b", "status": "required_not_implemented" },

@@ -1,4 +1,4 @@
-# RavenOS Pro Wallet Intelligence and Raven Copy v1
+# RavenOS Wallet Intelligence and Raven Copy v1
 
 Status: read-only intelligence and screener release authorized; copy execution remains dormant
 Reviewed: 2026-09-04
@@ -6,7 +6,9 @@ Production activation: Solana + Robinhood intelligence/screener only
 
 ## Product boundary
 
-Wallet Intelligence and Raven Copy are part of the existing RavenOS Pro entitlement. They do not introduce a second subscription, custody, a copy-bot wallet, or a live execution path. The first production subset supports bounded Raven-indexed Solana and Robinhood source wallets. Watch, Shadow, live Raven Copy, background observers, and copy execution remain disabled.
+Wallet lookup, the basic wallet screener, private saves, and Raven Copy are included with every authenticated RavenOS account. Raven Pro unlocks the expensive analytical layers: cohort analysis, behavioral reconstruction, profit quality, deep history, advanced filters, and prospective copyability evidence. The internal `wallet.copy` grant is retained as the transitional advanced-intelligence entitlement key; it is not a subscription requirement for Raven Copy.
+
+This model does not introduce custody, a copy-bot wallet, or a live execution path. The first production subset supports bounded Raven-indexed Solana and Robinhood source wallets. Real-money automatic copying, signing, broadcasting, custody, and fee collection remain disabled independently of subscription access.
 
 Raven keeps these statements distinct:
 
@@ -29,20 +31,21 @@ Shared public-chain source evidence is stored once per Solana address. Customer 
 
 ## Current workflow
 
-1. A Raven Pro user can enter an exact Solana public address or screen the bounded set of wallets Raven has already normalized. The screener never claims every Solana wallet and never substitutes source performance for follower performance.
-2. Raven returns an immediate 24-transaction evidence window, then can enqueue one shared resumable deep-history job for the exact source wallet. The dormant worker reads 100 signatures per page and indexes up to 10,000 signatures without duplicating work per subscriber.
-3. Net wallet balance changes are normalized into explicit economic events. Opposing balance changes are not called swaps without swap-route evidence.
-4. Transfers, airdrops, failed transactions, liquidity operations, ambiguous activity, and unsupported activity remain separate from buys and sells. The wallet profile exposes this retained evidence through bounded cursor pages with explicit trade, buy, sell, transfer, unresolved, and other-activity filters.
-5. FIFO source P&L uses exact canonical-USDC or native SOL/wSOL settlement lots. SOL returns remain SOL-denominated; Raven never converts them with a current price and calls it historical USD performance. Unknown inbound cost basis never becomes zero-cost profit.
-6. The first watch refresh establishes a historical baseline and cursor. It cannot create a shadow trade.
-7. A later source-wallet buy may request an exact canonical-USDC entry quote and immediate token-to-canonical-USDC reverse quote.
-8. Raven checks exact mint identity, token program, quote age, latency, liquidity, price impact, round-trip friction, funding assumption, and user policy.
-9. Raven records either `SHADOW_EXECUTABLE` or a named refusal. Refusals are retained and are not counted as zero-return trades.
-10. Only `SHADOW_EXECUTABLE` creates a shadow position. It has no transaction hash and holds no live assets.
-11. A later exact source-wallet sell is mapped only to Raven-created lots belonging to the same source wallet, watch, and mint. Raven never adopts source inventory that predates the watch.
-12. A partial source sell proposes the same transaction-observed fraction against each mapped follower lot. The fraction is based only on source token accounts touched by that transaction and is never labeled as the wallet’s complete token balance. One current read-only token-to-canonical-USDC quote is shared for each exact policy and mapped quantity; unavailable or stale routes remain visible refusals and leave the lot unchanged.
-13. A complete source sell closes only the remaining mapped quantity. Current position state is derived from append-only allocation evidence as `SHADOW_OPEN`, `SHADOW_PARTIAL_EXIT`, or `SHADOW_CLOSED`.
-14. Source-sell evidence remains hypothetical: no live asset is held, no fee is collected, and no transaction is constructed, signed, or broadcast.
+1. Any signed-in RavenOS user can enter an exact supported public address or screen the bounded set of wallets Raven has already normalized. Free projections include identity, observed activity, headline performance, saves, and the Raven Copy workspace. The screener never claims every wallet on a chain and never substitutes source performance for follower performance.
+2. A Raven Pro grant expands that same record with cohorts, behavior, profit quality, deep-history reconstruction, advanced filters, and prospective follower evidence. The free projection never receives those withheld fields and unavailable data is not converted to zero.
+3. Pro deep-history demand can enqueue one shared resumable job for the exact source wallet. The dormant worker reads 100 signatures per page and indexes up to 10,000 signatures without duplicating work per subscriber. Free interactive lookup remains bounded and does not trigger that expensive backfill.
+4. Net wallet balance changes are normalized into explicit economic events. Opposing balance changes are not called swaps without swap-route evidence.
+5. Transfers, airdrops, failed transactions, liquidity operations, ambiguous activity, and unsupported activity remain separate from buys and sells. The wallet profile exposes retained evidence through bounded cursor pages with explicit trade, buy, sell, transfer, unresolved, and other-activity filters.
+6. FIFO source P&L uses exact canonical-USDC or native SOL/wSOL settlement lots. SOL returns remain SOL-denominated; Raven never converts them with a current price and calls it historical USD performance. Unknown inbound cost basis never becomes zero-cost profit.
+7. The first watch refresh establishes a historical baseline and cursor. It cannot create a shadow trade.
+8. A later source-wallet buy may request an exact canonical-USDC entry quote and immediate token-to-canonical-USDC reverse quote.
+9. Raven checks exact mint identity, token program, quote age, latency, liquidity, price impact, round-trip friction, funding assumption, and user policy.
+10. Raven records either `SHADOW_EXECUTABLE` or a named refusal. Refusals are retained and are not counted as zero-return trades.
+11. Only `SHADOW_EXECUTABLE` creates a shadow position. It has no transaction hash and holds no live assets.
+12. A later exact source-wallet sell is mapped only to Raven-created lots belonging to the same source wallet, watch, and mint. Raven never adopts source inventory that predates the watch.
+13. A partial source sell proposes the same transaction-observed fraction against each mapped follower lot. The fraction is based only on source token accounts touched by that transaction and is never labeled as the wallet’s complete token balance. One current read-only token-to-canonical-USDC quote is shared for each exact policy and mapped quantity; unavailable or stale routes remain visible refusals and leave the lot unchanged.
+14. A complete source sell closes only the remaining mapped quantity. Current position state is derived from append-only allocation evidence as `SHADOW_OPEN`, `SHADOW_PARTIAL_EXIT`, or `SHADOW_CLOSED`.
+15. Source-sell evidence remains hypothetical: no live asset is held, no fee is collected, and no transaction is constructed, signed, or broadcast.
 
 ## Storage and mutability
 

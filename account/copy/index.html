@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Wallet Intelligence · RavenOS Pro</title>
+  <title>Wallet Intelligence + Raven Copy · RavenOS</title>
   <meta name="description" content="Discover and analyze Solana and Robinhood Chain wallets with evidence-bound activity, performance quality, and prospective Raven Copy research." />
   <link rel="stylesheet" href="/ravenos-shell.css" />
   <link rel="stylesheet" href="/ravenos-wallet-copy.css" />
@@ -13,21 +13,21 @@
     <header class="copy-hero">
       <div class="copy-hero-copy">
         <a href="/account/">← Account</a>
-        <span>RavenOS Pro · Wallet intelligence</span>
+        <span>Wallet intelligence + Raven Copy</span>
         <h1>Find repeatable edge.<br />See the evidence.</h1>
         <p>Solana + Robinhood wallet intelligence.</p>
       </div>
       <aside class="copy-mode-card" aria-live="polite">
         <div><span>Workspace</span><strong>Research + Shadow</strong></div>
         <p>Research only. Shadow moves no funds.</p>
-        <strong id="copyWorkspaceState">Checking Pro access</strong>
+        <strong id="copyWorkspaceState">Checking access</strong>
         <small id="copyWorkspaceIdentity">Waiting for sign-in</small>
       </aside>
     </header>
 
     <section class="copy-signin" id="copySignIn" hidden>
       <div>
-        <span>RavenOS Pro account required</span>
+        <span>RavenOS account</span>
         <h2>Sign in to inspect and shadow wallets.</h2>
         <p>Public sources. Private research.</p>
       </div>
@@ -50,13 +50,17 @@
     </section>
 
     <section class="copy-unavailable" id="copyUnavailable" hidden>
-      <span>Private beta</span>
-      <h2>Raven Copy is not open for this account yet.</h2>
+      <span>Workspace unavailable</span>
+      <h2>Wallet Intelligence could not open.</h2>
       <p id="copyUnavailableReason">Wallet intelligence unavailable.</p>
       <div><a href="/discover/">Open Discover</a><a href="/terminal/">Open Terminal</a></div>
     </section>
 
     <section class="copy-workspace" id="copyWorkspace" hidden>
+      <section class="copy-access-band" id="copyAccessBand" aria-live="polite">
+        <div><span id="copyAccessLabel">Included</span><strong id="copyAccessHeadline">Wallet lookup + Raven Copy</strong></div>
+        <p id="copyAccessDetail">Advanced cohorts, behavior, and evidence depth are available with Raven Pro.</p>
+      </section>
       <nav class="copy-tabs" role="tablist" aria-label="Raven Copy workspace">
         <button type="button" role="tab" aria-selected="true" data-copy-view="find">Find a wallet</button>
         <button type="button" role="tab" aria-selected="false" data-copy-view="watching">Watching <span id="copyWatchCount">0</span></button>
@@ -84,7 +88,7 @@
 
         <section class="copy-screener" id="copyScreener" hidden>
           <header class="copy-screener-head">
-            <div><span>Raven Pro wallet screener</span><h2>Find reconstructable edge.</h2></div>
+            <div><span>Wallet screener</span><h2 id="copyScreenerHeadline">Find active wallets.</h2></div>
             <div class="copy-screener-scope">
               <div class="copy-chain-rail" role="group" aria-label="Wallet chain">
                 <button type="button" data-screen-chain="all" aria-pressed="false">All</button>
@@ -94,7 +98,7 @@
               <strong id="copyScreenerCount">0 indexed</strong>
             </div>
           </header>
-          <div class="copy-preset-rail" id="copyPresetRail" aria-label="Wallet screener presets">
+          <div class="copy-preset-rail copy-pro-only" id="copyPresetRail" aria-label="Raven Pro wallet screener presets">
             <button type="button" data-screen-preset="evidence_first">Evidence first<small>Strong reconstruction</small></button>
             <button type="button" data-screen-preset="consistent_winners">Consistent winners<small>Profit quality</small></button>
             <button type="button" data-screen-preset="broad_edge">Broad edge<small>Less one-hit dependence</small></button>
@@ -110,11 +114,11 @@
             <label><span>Active within</span><select id="copyScreenActive"><option value="">Any retained date</option><option value="24">24 hours</option><option value="168">7 days</option><option value="720" selected>30 days</option><option value="2160">90 days</option></select></label>
             <label><span>Minimum trades</span><input id="copyScreenTrades" type="number" min="0" max="2000" step="1" value="1" /></label>
             <label><span>Minimum active days</span><input id="copyScreenDays" type="number" min="0" max="3650" step="1" value="1" /></label>
-            <label><span>Known cost basis</span><select id="copyScreenBasis"><option value="" selected>Any coverage</option><option value="50">50%+</option><option value="75">75%+</option><option value="90">90%+</option></select></label>
-            <label><span>Performance evidence</span><select id="copyScreenEvidence"><option value="any">Any state</option><option value="available">Available</option><option value="partial">Partial</option><option value="insufficient_evidence">Insufficient</option></select></label>
+            <label class="copy-pro-only"><span>Known cost basis</span><select id="copyScreenBasis"><option value="" selected>Any coverage</option><option value="50">50%+</option><option value="75">75%+</option><option value="90">90%+</option></select></label>
+            <label class="copy-pro-only"><span>Performance evidence</span><select id="copyScreenEvidence"><option value="any">Any state</option><option value="available">Available</option><option value="partial">Partial</option><option value="insufficient_evidence">Insufficient</option></select></label>
             <label><span>Sort</span><select id="copyScreenSort"><option value="last_trade_desc">Recently active</option><option value="follower_capture_desc">Most source alpha retained</option><option value="follower_return_desc">Best +1h follower return</option><option value="follower_route_persistence_desc">Best +1h route persistence</option><option value="copyability_score_desc">Copyability at $100</option><option value="policy_pass_desc">Follower pass rate</option><option value="exit_executable_desc">Exit verified rate</option><option value="round_trip_friction_asc">Lowest round-trip friction</option><option value="copyability_sample_desc">Most follower tests</option><option value="detected_liquidity_desc">Highest detected liquidity</option><option value="detected_market_cap_asc">Lowest detected market cap</option><option value="detected_pair_age_asc">Newest selected pairs</option><option value="source_liquidity_footprint_asc">Smallest source footprint</option><option value="reconstruction_confidence_desc">Best reconstruction</option><option value="profit_factor_desc">Profit factor</option><option value="profit_concentration_asc">Lowest winner concentration</option><option value="weekly_consistency_desc">Weekly consistency</option><option value="trade_count_desc">Most trades</option><option value="active_days_desc">Most active days</option><option value="trade_rate_desc">Trade rate</option><option value="known_cost_basis_desc">Best cost basis</option><option value="closed_lots_desc">Most closed lots</option><option value="win_rate_desc">Win rate</option><option value="roi_desc">ROI</option><option value="median_trade_roi_desc">Median trade ROI</option><option value="median_hold_asc">Shortest hold</option><option value="median_hold_desc">Longest hold</option><option value="realized_pnl_usdc_desc">USDC P&amp;L</option><option value="realized_pnl_sol_desc">SOL P&amp;L</option><option value="maximum_drawdown_usdc_asc">Lowest USDC drawdown</option><option value="maximum_drawdown_sol_asc">Lowest SOL drawdown</option></select></label>
             <div class="copy-screener-actions"><button type="button" id="copyScreenReset">Reset</button><button type="submit">Apply filters</button></div>
-            <details class="copy-screener-more">
+            <details class="copy-screener-more copy-pro-only">
               <summary>Follower reality, detected markets, profit quality, and behavior</summary>
               <div>
                 <label><span>Minimum follower tests</span><input id="copyScreenCopySample" type="number" min="0" max="1000000" step="1" placeholder="Any" /></label>
@@ -152,11 +156,15 @@
             <div><span>Wallet profile</span><h2 id="copyProfileAddress">Wallet</h2><p id="copyProfileCoverage">Loading evidence…</p></div>
             <div class="copy-profile-actions"><button id="copySaveProfile" type="button">Save wallet</button><button id="copyStartSetup" type="button">Shadow this wallet</button></div>
           </header>
-          <section class="copy-history-state" id="copyDeepHistory" hidden aria-live="polite">
+          <section class="copy-profile-pro-gate" id="copyProfileProGate" hidden>
+            <div><span>Raven Pro</span><strong>Unlock the full wallet record</strong></div>
+            <p>Cohorts, behavior, profit quality, deep history, and copyability evidence.</p>
+          </section>
+          <section class="copy-history-state copy-pro-only" id="copyDeepHistory" hidden aria-live="polite">
             <div><span>History reconstruction</span><strong id="copyDeepHistoryHeadline">Deep history queued</strong><p id="copyDeepHistoryDetail">Indexing history…</p></div>
             <div class="copy-history-progress"><progress id="copyDeepHistoryProgress" max="100" value="0">0%</progress><small id="copyDeepHistoryCount">0 signatures indexed</small></div>
           </section>
-          <section class="copy-profile-thesis" id="copyProfileThesis" hidden aria-label="Raven wallet research thesis">
+          <section class="copy-profile-thesis copy-pro-only" id="copyProfileThesis" hidden aria-label="Raven wallet research thesis">
             <header><span>Raven research thesis</span><strong id="copyThesisState">Evidence forming</strong></header>
             <div class="copy-thesis-lead"><h3 id="copyThesisHeadline">Source record forming</h3><p id="copyThesisSummary">More known-cost closes needed.</p></div>
             <div class="copy-thesis-grid">
@@ -166,7 +174,7 @@
             </div>
             <p>Source ≠ follower.</p>
           </section>
-          <section class="copy-playbook" id="copyPlaybook" hidden aria-label="Raven Copy prospective playbook">
+          <section class="copy-playbook copy-pro-only" id="copyPlaybook" hidden aria-label="Raven Copy prospective playbook">
             <header>
               <div><span>Raven Copy playbook</span><strong id="copyPlaybookState">Evidence forming</strong></div>
               <p>Prospective evidence.</p>
@@ -188,10 +196,10 @@
               <span>Source performance</span>
               <strong id="copySourcePnl">Insufficient evidence</strong>
               <dl id="copySourceMetrics"></dl>
-              <div class="copy-window-rail" id="copyPerformanceWindows" aria-label="Realized performance by observation window"></div>
+              <div class="copy-window-rail copy-pro-only" id="copyPerformanceWindows" aria-label="Realized performance by observation window"></div>
               <p id="copySourceLimits"></p>
             </article>
-            <article>
+            <article class="copy-pro-only">
               <span>Follower reality</span>
               <strong id="copyFollowerHeadline">Prospective evidence forming</strong>
               <dl id="copyFollowerMetrics"></dl>
@@ -216,7 +224,7 @@
               <p id="copyFollowerLimit">Source returns ≠ follower fills.</p>
             </article>
           </div>
-          <section class="copy-market-fit" id="copyMarketFit" hidden aria-label="Prospective follower fit by detected market regime">
+          <section class="copy-market-fit copy-pro-only" id="copyMarketFit" hidden aria-label="Prospective follower fit by detected market regime">
             <header>
               <div><span>Follower fit by market</span><strong>Where the route survives</strong></div>
               <p id="copyMarketFitScope">Prospective $100 routes only</p>
@@ -224,7 +232,7 @@
             <div id="copyMarketFitGrid"></div>
             <p>Detection-time context; not source fill.</p>
           </section>
-          <section class="copy-research-grid" aria-label="Deep wallet research">
+          <section class="copy-research-grid copy-pro-only" aria-label="Deep wallet research">
             <article><header><span>Profit quality</span><strong>How returns were made</strong></header><dl id="copyProfitQuality"></dl></article>
             <article><header><span>Behavior</span><strong>How the wallet trades</strong></header><dl id="copyBehaviorMetrics"></dl><p id="copyBehaviorLimit"></p></article>
             <article><header><span>Evidence quality</span><strong>How much Raven knows</strong></header><dl id="copyEvidenceMetrics"></dl><p id="copyEvidenceLimit"></p></article>
