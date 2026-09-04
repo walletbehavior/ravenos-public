@@ -1774,7 +1774,7 @@ function sanitizeSpotAttentionRow(row, {
     selected_pool_address: String(pairAddress || ""),
     evidence_pool_address: identityScope === "exact_pool" ? String(row.pool_address || "") : null,
     symbol: boundedOperatorText(row.symbol, 32),
-    name: boundedOperatorText(row.name, 120),
+    name: boundedPublicMarketName(row.name, 120),
     observed_at: observedAt,
     projection_generated_at: currentProjectionAt,
     source_age_seconds: boundedPublicNumber(sourceAgeSeconds, { minimum: 0, maximum: 86_400 }),
@@ -2650,6 +2650,13 @@ function boundedPublicLabel(value, fallback = "", limit = 80) {
     .replace(/\s+/g, " ")
     .trim();
   return (clean || fallback).slice(0, limit);
+}
+
+const RESERVED_PUBLIC_MARKET_LABEL = /\b(?:raven internals|atlas internals|mirrors?|candidates?|precursors?|wallet promotion|shadow engine|treasury|permission contract|private rail|paper engine|whale routing|cold wallet|promotion engine)\b/i;
+
+function boundedPublicMarketName(value, limit = 120) {
+  const clean = boundedPublicLabel(value, "Token", limit);
+  return RESERVED_PUBLIC_MARKET_LABEL.test(clean) ? "Token" : clean;
 }
 
 function decodePublicTextEntities(value) {
@@ -4143,7 +4150,10 @@ async function onchainMarketPulse({ env = {}, request = null, chains = [], durat
   }
   const rows = [...rowsByMarket.values()];
   if (!rows.length) throw new Error("onchain_market_pulse_unavailable");
-  const classifiedRows = attachDiscoverRegistryHistory(rows, registryHistory);
+  const classifiedRows = attachDiscoverRegistryHistory(rows, registryHistory).map((row) => ({
+    ...row,
+    name: boundedPublicMarketName(row.name, 80),
+  }));
   const registryOnly = !hasCurrentProviderRows;
   const generatedAt = registryOnly ? latestObservedAt(retainedRows, fetchedAt) : fetchedAt;
   const degraded = failures.length > 0 || registryOnly;

@@ -484,7 +484,7 @@ test("Worker serves bounded exact-pool Solana, Base, Ethereum, and Robinhood Cha
         name: "Raven Test",
       }));
     }
-    if (url.pathname.includes("/networks/base/")) return jsonResponse(geckoTrendingFixture("base"));
+    if (url.pathname.includes("/networks/base/")) return jsonResponse(geckoTrendingFixture("base", { name: "Treasury" }));
     if (url.pathname.includes("/networks/eth/")) {
       return jsonResponse(geckoTrendingFixture("eth", {
         pool: "0x4444444444444444444444444444444444444444",
@@ -537,6 +537,7 @@ test("Worker serves bounded exact-pool Solana, Base, Ethereum, and Robinhood Cha
     assert.equal(solana.token_address, solanaToken);
     assert.equal(solana.quote_token_address, solanaQuote);
     assert.equal(solana.instrument_id, `solana:pool:${solanaPool}`);
+    assert.equal(body.rows.find((row) => row.chain_id === "base").name, "Token");
     assert.ok(body.rows.every((row) => row.identity_scope === "exact_pool"));
     assert.ok(body.rows.every((row) => row.source_type === "market_activity"));
     assert.ok(body.rows.every((row) => row.instrument_id === `${row.chain_id}:pool:${row.pool_address}`));
