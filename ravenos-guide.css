@@ -151,6 +151,20 @@ a { color: inherit; text-decoration: none; }
 .policy-copy h3 { margin: 24px 0 7px; color: #dce3e6; font-size: 13px; }
 .policy-copy p { margin: 0 0 13px; }
 .policy-copy p:last-child { margin-bottom: 0; }
+.policy-copy ul { margin: 10px 0 16px; padding-left: 20px; }
+.policy-copy li { margin: 0 0 7px; }
+.policy-copy a { color: #c7d5da; text-decoration: underline; text-underline-offset: 2px; }
+.legal-review-banner { margin-top: 12px; padding: 16px 18px; display: grid; grid-template-columns: minmax(180px, .35fr) minmax(0, 1fr); gap: 16px; border: 1px solid rgba(217,173,88,.42); background: rgba(217,173,88,.05); }
+.legal-review-banner strong { color: var(--guide-amber); font: 800 10px/1.45 var(--guide-mono); text-transform: uppercase; }
+.legal-review-banner p { margin: 0; color: #b4ad9d; font-size: 11px; line-height: 1.55; }
+.legal-definition { margin: 16px 0; padding: 13px 15px; border-left: 2px solid var(--guide-cyan); background: rgba(119,183,201,.045); color: #bbc7cc; }
+.legal-definition strong { color: #e1e7e9; }
+.legal-document-index { margin-top: 12px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; border: 1px solid var(--guide-line); background: var(--guide-line); }
+.legal-document-index a { min-height: 112px; display: grid; align-content: space-between; gap: 16px; padding: 16px; background: #090d10; }
+.legal-document-index a:hover { background: #0d1215; }
+.legal-document-index span { color: var(--guide-cyan); font: 800 8px var(--guide-mono); text-transform: uppercase; }
+.legal-document-index strong { color: #e4e9eb; font-size: 15px; }
+.legal-document-index small { color: var(--guide-muted); font-size: 10px; line-height: 1.5; }
 
 @media (min-width: 761px) {
   body :is(small, time, dt, th) { font-size: 11px !important; }
@@ -204,6 +218,8 @@ a { color: inherit; text-decoration: none; }
   .guide-section { padding: 28px 18px; }
   .guide-section-head { grid-template-columns: 1fr; gap: 8px; }
   .policy-document .guide-section-head { grid-template-columns: 1fr; }
+  .legal-review-banner { grid-template-columns: 1fr; }
+  .legal-document-index { grid-template-columns: 1fr; }
   .guide-adapter { grid-template-columns: 1fr; }
   .guide-adapter > * { border-right: 0; border-bottom: 1px solid var(--guide-line); }
   .guide-adapter > *:last-child { border-bottom: 0; }

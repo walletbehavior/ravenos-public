@@ -24,6 +24,24 @@ assert.equal(config.customer_username.user_selected, true);
 assert.equal(config.customer_username.normalized_lowercase_ascii, true);
 assert.equal(config.customer_username.globally_unique_case_insensitive, true);
 assert.equal(config.customer_username.csrf_required_for_mutations, true);
+assert.equal(config.legal_acceptance.implementation_status, "counsel_review_candidate");
+assert.equal(config.legal_acceptance.all_activation_controls_default_off, true);
+assert.equal(config.legal_acceptance.release_activation_enabled, false);
+assert.equal(config.legal_acceptance.counsel_approved, false);
+assert.equal(config.legal_acceptance.exact_document_version_and_hash_required, true);
+assert.equal(config.legal_acceptance.server_validates_account_creation_assent, true);
+assert.equal(config.legal_acceptance.acceptance_append_only, true);
+assert.equal(config.legal_acceptance.ip_address_collected_for_acceptance, false);
+assert.equal(config.legal_acceptance.client_supplied_user_id_accepted, false);
+assert.equal(config.legal_acceptance.account_access_blocked_by_update, false);
+assert.equal(config.legal_acceptance.withdrawal_blocked_by_update, false);
+assert.equal(config.legal_acceptance.wallet_export_blocked_by_update, false);
+assert.equal(config.legal_acceptance.wallet_recovery_blocked_by_update, false);
+assert.equal(config.legal_acceptance.informational_predecessor_equivalence_must_be_explicit, true);
+assert.deepEqual(config.legal_acceptance.activation_controls, [
+  "RAVENOS_LEGAL_ACCEPTANCE_ENABLED",
+  "RAVENOS_LEGAL_COUNSEL_APPROVED",
+]);
 assert.equal(config.community.implementation_status, "production_release_authorized_pending_promotion");
 assert.equal(config.community.activation_default_off, true);
 assert.equal(config.community.release_activation_enabled, true);

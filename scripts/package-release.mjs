@@ -21,6 +21,8 @@ const deploy = JSON.parse(readFileSync(join(repoRoot, ".deploy-public/ravenos_de
 const baseWrangler = JSON.parse(readFileSync(join(repoRoot, "wrangler.jsonc"), "utf8"));
 const releaseConfig = JSON.parse(readFileSync(join(repoRoot, "config/release.json"), "utf8"));
 const customerSecurity = JSON.parse(readFileSync(join(repoRoot, "config/customer_security.json"), "utf8"));
+const legalAcceptanceActive = customerSecurity.legal_acceptance?.release_activation_enabled === true
+  && customerSecurity.legal_acceptance?.counsel_approved === true;
 const publicHolderListsActive = customerSecurity.public_holder_lists?.production_activation_completed === true;
 const publicEvmHolderListsActive = customerSecurity.public_holder_lists?.evm_candidate_ready_for_activation === true
   && customerSecurity.public_holder_lists?.evm_release_activation_enabled === true;
@@ -158,6 +160,8 @@ const releaseWrangler = {
     RAVENOS_DEXCH_DISCOVERY_ENABLED: productionDexchProvider ? "1" : "0",
     RAVENOS_DEXCH_COMMERCIAL_USE_ACKNOWLEDGED: productionDexchProvider ? "1" : "0",
     RAVENOS_CUSTOMER_ACCOUNTS_ENABLE: customerSecurity.customer_capabilities_enabled === true ? "1" : "0",
+    RAVENOS_LEGAL_ACCEPTANCE_ENABLED: legalAcceptanceActive ? "1" : "0",
+    RAVENOS_LEGAL_COUNSEL_APPROVED: legalAcceptanceActive ? "1" : "0",
     RAVENOS_COMMUNITY_ENABLED: communityActive ? "1" : "0",
     RAVENOS_REFERRALS_ENABLED: referralsActive ? "1" : "0",
     RAVENOS_REFERRAL_BILLING_RECONCILIATION_ENABLED: "0",
@@ -212,6 +216,7 @@ const packageManifest = {
   evm_wallet_lookup_enabled: evmWalletLookupActive,
   privy_jwks_bootstrap_enabled: privyJwksBootstrapActive,
   privy_evm_wallet_canary_enabled: privyEvmWalletCanaryActive,
+  legal_acceptance_enabled: legalAcceptanceActive,
   worker_name: baseWrangler.name,
   cron_schedules: Array.isArray(baseWrangler.triggers?.crons) ? baseWrangler.triggers.crons : [],
   required_server_secret_bindings: [

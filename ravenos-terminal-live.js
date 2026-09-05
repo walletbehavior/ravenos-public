@@ -7,6 +7,7 @@ import {
 } from "./ravenos-chart-data-plane.js";
 import { customerFacingText } from "./ravenos-intelligence-contract.js";
 import { mountTradingViewChart } from "./ravenos-tradingview-adapter.js";
+import { requestLegalAcceptance } from "./ravenos-legal-client.js";
 
 document.body.classList.add("ros-terminal-live-shell");
 
@@ -5047,6 +5048,16 @@ async function fetchJson(url, init = {}) {
   return { response, payload: unwrap(payload) };
 }
 
+async function fetchTradingActivationRequest(url, init, { interactive = true } = {}) {
+  const first = await fetchJson(url, init);
+  if (first.response.status !== 428 || first.payload?.error !== "legal_acceptance_required") return first;
+  if (!interactive || !await requestLegalAcceptance(first.payload, {
+    capability: "trading_activation",
+    csrfToken: state.liveAuth?.csrf_token,
+  })) return first;
+  return fetchJson(url, init);
+}
+
 function exactInstrumentMatch(left, right) {
   const a = String(left || "").trim().toLowerCase();
   const b = String(right || "").trim().toLowerCase();
@@ -7074,6 +7085,8 @@ function spotQuoteReason(reason) {
     ethereum_accounting_asset_identity_unresolved: "Ethereum USDC identity could not be verified.",
     insufficient_native_gas_balance: `Add ${nativeCurrencyForChain(currentSpotChain())} for this trade and its maximum network fee.`,
     recent_authentication_required: "Sign in again before preparing a live route.",
+    legal_acceptance_required: "Review and accept the current trading disclosures before preparing a live route.",
+    legal_activation_unavailable: "Trading disclosures are not currently available. No transaction was prepared.",
     live_execution_not_configured: "Wallet trading is not active for this session.",
     robinhood_live_execution_disabled: "Robinhood Chain trading is temporarily off.",
   };
@@ -7352,12 +7365,12 @@ async function requestSpotQuote({ automatic = false, expectedFingerprint = "" } 
   const timeout = setTimeout(() => controller.abort(), evmProfile ? 12_000 : 8_000);
   try {
     const endpoint = evmProfile ? `/api/trade/live/${chain}/prepare` : "/api/trade/spot-quote-preview";
-    const { payload: rawPayload } = await fetchJson(endpoint, {
+    const { payload: rawPayload } = await fetchTradingActivationRequest(endpoint, {
       method: "POST",
       headers: evmProfile ? liveExecutionRequestHeaders() : { "content-type": "application/json" },
       body: JSON.stringify(snapshot),
       signal: controller.signal,
-    });
+    }, { interactive: evmProfile && !automatic });
     const payload = evmProfile ? normalizeEvmSpotPreparePayload(rawPayload, snapshot) : rawPayload;
     if (generation !== state.spotQuoteGeneration || fingerprint !== state.spotQuoteFingerprint || fingerprint !== spotTicketFingerprint()) return;
     if (evmProfile && payload?.ok) {
@@ -7388,7 +7401,7 @@ async function prepareSolanaLiveTrade() {
   state.spotLiveUnsignedTransaction = null;
   renderSpotLiveExecution();
   try {
-    const { response, payload } = await fetchJson("/api/trade/live/solana/prepare", {
+    const { response, payload } = await fetchTradingActivationRequest("/api/trade/live/solana/prepare", {
       method: "POST",
       headers: liveExecutionRequestHeaders(),
       body: JSON.stringify({
@@ -8001,7 +8014,7 @@ async function prepareHyperliquidLiveOrder() {
   renderLiveExecution();
   try {
     const { body } = currentOrderPlanRequest();
-    const { response, payload } = await fetchJson("/api/trade/live/hyperliquid/prepare", {
+    const { response, payload } = await fetchTradingActivationRequest("/api/trade/live/hyperliquid/prepare", {
       method: "POST",
       headers: liveExecutionRequestHeaders(),
       body: JSON.stringify({ ...body, address: state.walletAddress, wallet_address: state.walletAddress }),

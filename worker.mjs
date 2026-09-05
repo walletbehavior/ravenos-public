@@ -154,6 +154,13 @@ import {
   validateDiscoverRadarProjection,
 } from "./lib/discover_radar.mjs";
 import { authorizeCustomerApiRequest, routeCustomerIdentity } from "./lib/customer_identity.mjs";
+import {
+  CUSTOMER_LEGAL_ACCEPTANCES_ROUTE,
+  CUSTOMER_LEGAL_DOCUMENTS_ROUTE,
+  CUSTOMER_LEGAL_STATUS_ROUTE,
+  requireCustomerLegalCapability,
+  routeCustomerLegal,
+} from "./lib/customer_legal.mjs";
 import { routeCustomerPrivyWallets } from "./lib/customer_privy_wallets.mjs";
 import {
   CUSTOMER_COMMUNITY_ROUTE,
@@ -328,6 +335,7 @@ const AUTHENTICATED_APP_STATIC_PATHS = new Set([
   "/ravenos-community.js",
   "/ravenos-shell.css",
   "/ravenos-shell.js",
+  "/ravenos-legal-client.js",
   "/ravenos-workspace.css",
   "/ravenos-terminal-live.css",
   "/ravenos-terminal-live.js",
@@ -433,6 +441,9 @@ function authenticatedAppBoundary(request) {
     || url.pathname === "/api/v1/account/username"
     || url.pathname === "/api/v1/sessions"
     || url.pathname.startsWith("/api/v1/sessions/");
+  const legalApi = url.pathname === CUSTOMER_LEGAL_DOCUMENTS_ROUTE
+    || url.pathname === CUSTOMER_LEGAL_STATUS_ROUTE
+    || url.pathname === CUSTOMER_LEGAL_ACCEPTANCES_ROUTE;
   const privyWalletApi = url.pathname === "/api/v1/wallets/privy/config"
     || url.pathname === "/api/v1/wallets/privy/jwks"
     || url.pathname === "/api/v1/wallets/privy"
@@ -489,7 +500,7 @@ function authenticatedAppBoundary(request) {
   ]).has(url.pathname);
   const releaseProbe = readRequest && url.pathname === "/api/build";
   const immutableAsset = readRequest && (url.pathname.startsWith("/assets/") || AUTHENTICATED_APP_STATIC_PATHS.has(url.pathname));
-  if ((readRequest && (accountPath || terminalPath || agentsPath || communityPath || proIntelligencePath || walletCopyPath || monitorPath)) || identityApi || privyWalletApi || portfolioPreviewApi || researchStateApi || entitlementApi || monitorAlertsApi || walletCopyApi || walletObserverIngressApi || liveExecutionApi || agenticApi || communityApi || referralApi || terminalReadApi || terminalReviewApi || releaseProbe || immutableAsset) return { allowed: true, response: null };
+  if ((readRequest && (accountPath || terminalPath || agentsPath || communityPath || proIntelligencePath || walletCopyPath || monitorPath)) || identityApi || legalApi || privyWalletApi || portfolioPreviewApi || researchStateApi || entitlementApi || monitorAlertsApi || walletCopyApi || walletObserverIngressApi || liveExecutionApi || agenticApi || communityApi || referralApi || terminalReadApi || terminalReviewApi || releaseProbe || immutableAsset) return { allowed: true, response: null };
 
   const firstSegment = url.pathname.split("/").filter(Boolean)[0] || "";
   if (readRequest && firstSegment === "brief") {
@@ -11124,6 +11135,8 @@ async function routeApi(request, env, executionContext = null) {
   }
   const identityResponse = await routeCustomerIdentity(request, env);
   if (identityResponse) return identityResponse;
+  const legalResponse = await routeCustomerLegal(request, env);
+  if (legalResponse) return legalResponse;
   const privyWalletResponse = await routeCustomerPrivyWallets(request, env);
   if (privyWalletResponse) return privyWalletResponse;
   const communityResponse = await routeCustomerCommunity(request, env);
@@ -11131,6 +11144,18 @@ async function routeApi(request, env, executionContext = null) {
   const referralResponse = await routeCustomerReferrals(request, env);
   if (referralResponse) return referralResponse;
   if (url.pathname === "/api/trade/live/session" && request.method === "GET") return handleTradeLiveSession(request, env);
+  const livePreparePaths = new Set([
+    "/api/trade/live/hyperliquid/prepare",
+    "/api/trade/live/solana/prepare",
+    "/api/trade/live/robinhood/prepare",
+    "/api/trade/live/bsc/prepare",
+    "/api/trade/live/base/prepare",
+    "/api/trade/live/ethereum/prepare",
+  ]);
+  if (request.method === "POST" && livePreparePaths.has(url.pathname)) {
+    const legal = await requireCustomerLegalCapability(request, env, "trading_activation", {}, { require_csrf: true });
+    if (!legal.allowed) return legal.response;
+  }
   if (url.pathname === "/api/trade/live/hyperliquid/prepare" && request.method === "POST") return handleTradeLiveHyperliquidPrepare(request, env);
   if (url.pathname === "/api/trade/live/hyperliquid/report" && request.method === "POST") return handleTradeLiveHyperliquidReport(request, env);
   if (url.pathname === "/api/trade/live/solana/prepare" && request.method === "POST") return handleTradeLiveSolanaPrepare(request, env);

@@ -151,6 +151,44 @@ test("choosing a username does not publish a profile and opt-in requires that us
   assert.equal(h.calls.at(-1).require_csrf, true);
 });
 
+test("Community assent gates only increased public exposure and never blocks making a profile private", async () => {
+  const h = harness();
+  user(h.db, "usr_one", "private_first");
+  const legalEnv = { ...h.env, RAVENOS_LEGAL_ACCEPTANCE_ENABLED: "1" };
+  const deny = async () => ({
+    allowed: false,
+    response: new Response(JSON.stringify({ error: "legal_acceptance_required" }), {
+      status: 428,
+      headers: { "content-type": "application/json" },
+    }),
+  });
+  let response = await routeCustomerCommunity(request("/api/v1/community/me", {
+    method: "PUT",
+    body: { settings: publicSettings, expected_revision: 0 },
+  }), legalEnv, { ...h.deps, requireLegalCapability: deny });
+  assert.equal(response.status, 428);
+  const unchanged = await payload(await routeCustomerCommunity(request("/api/v1/community/me"), legalEnv, h.deps));
+  assert.equal(unchanged.profile.settings.public_profile_enabled, false);
+
+  await h.store.saveOwnProfile({
+    user_id: "usr_one",
+    settings: publicSettings,
+    settings_digest: "p".repeat(43),
+    expected_revision: 0,
+    now: NOW,
+  });
+  assert.equal(h.db.sqlite.prepare("SELECT profile_revision FROM ravenos_community_profiles WHERE user_id = 'usr_one'").get().profile_revision, 1);
+  response = await routeCustomerCommunity(request("/api/v1/community/me", {
+    method: "PUT",
+    body: { settings: defaultCommunitySettings(), expected_revision: 1 },
+  }), legalEnv, {
+    ...h.deps,
+    requireLegalCapability: async () => { throw new Error("privacy_reduction_must_not_be_regated"); },
+  });
+  assert.equal(response.status, 200, JSON.stringify(await response.clone().json()));
+  assert.equal((await payload(response)).profile.settings.public_profile_enabled, false);
+});
+
 test("a public profile discloses only opted-in public-safe fields", async () => {
   const h = harness();
   user(h.db, "usr_one", "chart_witch");

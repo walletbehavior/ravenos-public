@@ -49,8 +49,12 @@
             <input type="hidden" name="return_to" value="/account/" />
             <button class="account-managed-action" type="submit"><span class="account-provider-mark">R</span><span>Email, password, or code</span><span aria-hidden="true">→</span></button>
           </form>
+          <label class="account-auth-assent" id="accountLegalAssent" hidden>
+            <input id="accountLegalAssentCheckbox" type="checkbox" />
+            <span>I agree to the <a data-legal-document="terms" href="https://ravenos.xyz/terms/" target="_blank" rel="noopener">Terms of Service</a> and acknowledge the <a data-legal-document="privacy" href="https://ravenos.xyz/privacy/" target="_blank" rel="noopener">Privacy Policy</a>.</span>
+          </label>
           <p class="account-auth-status" id="accountAuthStatus" aria-live="polite">Wallet disconnected.</p>
-          <p class="account-auth-legal"><a href="https://ravenos.xyz/terms/">Terms</a> and <a href="https://ravenos.xyz/privacy/">Privacy</a> apply.</p>
+          <p class="account-auth-legal">Review the <a data-legal-document="terms" href="https://ravenos.xyz/terms/">Terms</a>, <a data-legal-document="privacy" href="https://ravenos.xyz/privacy/">Privacy Policy</a>, and <a href="https://ravenos.xyz/legal/">legal disclosures</a>.</p>
         </div>
 
         <section class="account-activation" id="accountActivation" hidden>

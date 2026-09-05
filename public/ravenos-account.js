@@ -1,3 +1,5 @@
+import { requestLegalAcceptance } from "./ravenos-legal-client.js";
+
 const page = document.querySelector(".account-page");
 const authWorkspace = document.getElementById("accountAuthWorkspace");
 const dashboard = document.getElementById("accountDashboard");
@@ -14,6 +16,8 @@ const proPanel = document.getElementById("accountProPanel");
 const proCapabilities = document.getElementById("accountProCapabilities");
 const referralPanel = document.getElementById("accountReferralPanel");
 const referralControls = document.getElementById("accountReferralControls");
+const legalAssent = document.getElementById("accountLegalAssent");
+const legalAssentCheckbox = document.getElementById("accountLegalAssentCheckbox");
 const state = {
   config: null,
   session: null,
@@ -24,6 +28,7 @@ const state = {
   referral: null,
   privy: { config: null, client: null, wallets: [] },
   pendingReferral: "",
+  legal: { manifest: null },
   browserWallet: { chain: null, address: null, provider: null, listenersBound: false },
 };
 
@@ -103,11 +108,11 @@ async function createPrivyWallets() {
   status.textContent = "Creating secure wallets…";
   try {
     const factory = await loadPrivyFactory();
-    const session = await getJson("/api/v1/wallets/privy/session", {
+    const session = await getJsonWithLegalAcceptance("/api/v1/wallets/privy/session", {
       method: "POST",
       headers: { "content-type": "application/json", "x-ravenos-csrf": state.csrf },
       body: "{}",
-    });
+    }, "embedded_wallet_activation");
     if (!session.response.ok || !session.payload?.token) throw new Error(session.payload?.error || "privy_session_unavailable");
     const client = state.privy.client || factory.create({
       appId: state.privy.config.app_id,
@@ -117,7 +122,7 @@ async function createPrivyWallets() {
     await client.sync(session.payload.token);
     await client.provision(session.payload.wallets || {});
     const identityToken = await client.identityToken();
-    const linked = await getJson("/api/v1/wallets/privy/link", {
+    const linked = await getJsonWithLegalAcceptance("/api/v1/wallets/privy/link", {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -125,7 +130,7 @@ async function createPrivyWallets() {
         "privy-id-token": identityToken,
       },
       body: "{}",
-    });
+    }, "embedded_wallet_activation");
     if (!linked.response.ok || !linked.payload?.linked) throw new Error(linked.payload?.error || "privy_link_failed");
     renderPrivyState({ ...state.privy.config, ...linked.payload, available: true });
   } catch (error) {
@@ -150,6 +155,13 @@ async function getJson(url, init = {}) {
   const response = await fetch(url, { cache: "no-store", credentials: "same-origin", ...rest, headers: { accept: "application/json", ...headers } });
   const payload = await response.json().catch(() => null);
   return { response, payload };
+}
+
+async function getJsonWithLegalAcceptance(url, init, capability) {
+  const first = await getJson(url, init);
+  if (first.response.status !== 428 || first.payload?.error !== "legal_acceptance_required") return first;
+  const accepted = await requestLegalAcceptance(first.payload, { capability, csrfToken: state.csrf });
+  return accepted ? getJson(url, init) : first;
 }
 
 function initial(value) {
@@ -940,6 +952,46 @@ function setIntent(intent) {
   document.querySelectorAll('.account-auth-actions input[name="intent"]').forEach((input) => { input.value = state.intent; });
   const action = state.intent === "sign_up" ? "Create your account" : "Sign in to your desk";
   serviceState.textContent = state.config?.available ? action : serviceState.textContent;
+  renderLegalAssent();
+}
+
+function accountCreationAcceptances() {
+  const documents = Array.isArray(state.legal.manifest?.documents) ? state.legal.manifest.documents : [];
+  const byType = new Map(documents.map((document) => [document.document_type, document]));
+  return [
+    { ...byType.get("terms"), acknowledgement: "agreed" },
+    { ...byType.get("privacy"), acknowledgement: "acknowledged" },
+  ].map((document) => ({
+    document_type: document.document_type,
+    version: document.version,
+    content_hash: document.content_hash,
+    acknowledgement: document.acknowledgement,
+  }));
+}
+
+function renderLegalAssent() {
+  if (!legalAssent || !state.config) return;
+  const signup = state.intent === "sign_up";
+  const required = Boolean(state.config.legal?.account_creation_acceptance_required);
+  const blocked = Boolean(state.config.legal?.account_creation_blocked);
+  const documents = Array.isArray(state.legal.manifest?.documents) ? state.legal.manifest.documents : [];
+  for (const legalDocument of documents) {
+    if (!["terms", "privacy"].includes(legalDocument.document_type)) continue;
+    document.querySelectorAll(`[data-legal-document="${legalDocument.document_type}"]`).forEach((anchor) => {
+      anchor.href = new URL(legalDocument.canonical_path, "https://ravenos.xyz").toString();
+    });
+  }
+  legalAssent.hidden = !signup || !required;
+  document.querySelectorAll(".account-auth-actions form button").forEach((button) => {
+    button.disabled = signup && blocked;
+  });
+  if (signup && blocked) {
+    authStatus.dataset.tone = "error";
+    authStatus.textContent = "Account creation is paused while the legal documents are finalized. Existing users can still sign in.";
+  } else if (state.intent === "sign_in" && authStatus.textContent.includes("legal documents")) {
+    authStatus.dataset.tone = "";
+    authStatus.textContent = "Ready for secure sign-in.";
+  }
 }
 
 function renderActivationPending() {
@@ -1087,11 +1139,27 @@ async function submitAuth(form) {
     return;
   }
   const button = form.querySelector('button[type="submit"]');
+  if (state.intent === "sign_up" && state.config.legal?.account_creation_blocked) {
+    renderLegalAssent();
+    return;
+  }
+  if (state.intent === "sign_up" && state.config.legal?.account_creation_acceptance_required) {
+    if (!state.legal.manifest || !legalAssentCheckbox.checked) {
+      legalAssent.hidden = false;
+      legalAssentCheckbox.focus();
+      authStatus.dataset.tone = "error";
+      authStatus.textContent = "Agree to the Terms and acknowledge the Privacy Policy to create an account.";
+      return;
+    }
+  }
   button.disabled = true;
   authStatus.dataset.tone = "";
   authStatus.textContent = "Opening secure sign-in…";
   try {
     const values = Object.fromEntries(new FormData(form));
+    if (state.intent === "sign_up" && state.config.legal?.account_creation_acceptance_required) {
+      values.acceptances = accountCreationAcceptances();
+    }
     const { response, payload } = await getJson("/api/v1/auth/start", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -1158,6 +1226,12 @@ async function initialize() {
   serviceState.textContent = state.intent === "sign_up" ? "Ready to create your account" : "Ready to sign in";
   actions.hidden = false;
   activation.hidden = true;
+  if (payload.legal?.account_creation_acceptance_required) {
+    const legal = await getJson(payload.legal.documents_endpoint || "/api/v1/legal/documents");
+    if (legal.response.ok && legal.payload?.acceptance_enforced) state.legal.manifest = legal.payload;
+    else state.config.legal.account_creation_blocked = true;
+  }
+  renderLegalAssent();
   if (!payload.on_authenticated_origin) return;
 
   const session = await getJson("/api/v1/auth/session");

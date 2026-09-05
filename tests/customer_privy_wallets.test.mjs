@@ -117,6 +117,49 @@ test("Privy wallet creation is limited to an explicit Raven user allowlist", asy
   assert.equal((await response.json()).error, "privy_wallet_not_available");
 });
 
+test("first embedded-wallet setup requires legal assent while an existing linked wallet remains recoverable", async () => {
+  const keys = await keyMaterial("raven-wallet-auth");
+  const store = new MemoryStore();
+  const calls = [];
+  const legalEnv = { ...env(keys, keys.publicJwk), RAVENOS_LEGAL_ACCEPTANCE_ENABLED: "1" };
+  const denied = await routeCustomerPrivyWallets(
+    new Request(`${ORIGIN}/api/v1/wallets/privy/session`, { method: "POST" }),
+    legalEnv,
+    {
+      authorize: authorize(),
+      store,
+      requireLegalCapability: async (_request, _env, capability, _deps, options) => {
+        calls.push({ capability, options });
+        return {
+          allowed: false,
+          response: new Response(JSON.stringify({ error: "legal_acceptance_required" }), {
+            status: 428,
+            headers: { "content-type": "application/json" },
+          }),
+        };
+      },
+    },
+  );
+  assert.equal(denied.status, 428);
+  assert.deepEqual(calls, [{ capability: "embedded_wallet_activation", options: { require_csrf: true } }]);
+
+  store.identities.set(TEST_USER_ID, {
+    raven_user_id: TEST_USER_ID,
+    privy_user_id: "did:privy:existing",
+    state: "active",
+  });
+  const existing = await routeCustomerPrivyWallets(
+    new Request(`${ORIGIN}/api/v1/wallets/privy/session`, { method: "POST" }),
+    legalEnv,
+    {
+      authorize: authorize(),
+      store,
+      requireLegalCapability: async () => { throw new Error("existing_wallet_must_not_be_regated"); },
+    },
+  );
+  assert.equal(existing.status, 200);
+});
+
 test("Privy publishes only Raven's public custom-auth verification key", async () => {
   const keys = await keyMaterial("raven-wallet-auth");
   const bootstrap = {

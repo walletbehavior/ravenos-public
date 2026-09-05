@@ -33,7 +33,12 @@
 .account-method-divider::after { content: ""; flex: 1; height: 1px; background: var(--ws-border); }
 .account-auth-status { color: var(--ws-dim); font: 8px/1.55 var(--ws-mono); }
 .account-auth-status[data-tone="error"] { color: #e18491; }
-.account-auth-legal { margin-top: -2px; color: var(--ws-dim); font: 8px/1.55 var(--ws-mono); }
+.account-auth-assent { display: grid; grid-template-columns: 18px minmax(0, 1fr); align-items: start; gap: 9px; border: 1px solid var(--ws-border); border-radius: 7px; padding: 12px; background: rgba(9, 14, 22, .72); color: var(--ws-muted); font-size: 11px; line-height: 1.55; }
+.account-auth-assent[hidden] { display: none; }
+.account-auth-assent input { width: 16px; height: 16px; margin: 1px 0 0; accent-color: var(--ws-positive); }
+.account-auth-assent:focus-within { border-color: var(--ws-border-strong); }
+.account-auth-assent a { color: var(--ws-text); text-decoration: underline; text-underline-offset: 2px; }
+.account-auth-legal { margin-top: -2px; color: var(--ws-dim); font: 10px/1.55 var(--ws-mono); }
 .account-auth-legal a { color: var(--ws-muted); text-decoration: underline; text-underline-offset: 2px; }
 .account-auth-legal a:hover { color: var(--ws-text); }
 .account-activation { max-width: 560px; display: grid; gap: 8px; margin-top: 24px; border: 1px solid rgba(229, 184, 92, .28); border-radius: 8px; padding: 17px; background: rgba(229, 184, 92, .035); }

@@ -26,6 +26,12 @@ const internalTerms = [
   "promotion engine",
 ];
 
+const legalReviewTerms = new Set(["mirror", "mirrors", "candidate", "candidates"]);
+
+function allowedLegalReviewTerm(file, term) {
+  return /^(?:legal\/)/.test(file) && legalReviewTerms.has(term);
+}
+
 const highRiskTextPatterns = [
   ["private_benchmark_provider", /\bgmgn\b/i],
   ["private_filesystem_path", /(?:\/srv\/raven\/app|\/root\/|\/home\/[A-Za-z0-9_.-]+\/|\/etc\/(?:systemd|cloudflared|raven))/i],
@@ -85,6 +91,7 @@ function scanVisibleHtml(text, file) {
     .replace(/\s+/g, " ");
   const findings = [];
   for (const term of internalTerms) {
+    if (allowedLegalReviewTerm(file, term)) continue;
     if (wordPattern(term).test(visible)) findings.push({ file, path: "visible_html", term });
   }
   return findings;

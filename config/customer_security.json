@@ -56,6 +56,29 @@
     "maximum_changes_per_day": 5,
     "raw_username_logged_in_security_events": false
   },
+  "legal_acceptance": {
+    "implementation_status": "counsel_review_candidate",
+    "document_registry": "lib/customer_legal_registry.mjs",
+    "migration": "customer-migrations/0033_customer_legal.sql",
+    "review_hub": "https://ravenos.xyz/legal/",
+    "activation_controls": [
+      "RAVENOS_LEGAL_ACCEPTANCE_ENABLED",
+      "RAVENOS_LEGAL_COUNSEL_APPROVED"
+    ],
+    "all_activation_controls_default_off": true,
+    "release_activation_enabled": false,
+    "counsel_approved": false,
+    "exact_document_version_and_hash_required": true,
+    "server_validates_account_creation_assent": true,
+    "acceptance_append_only": true,
+    "ip_address_collected_for_acceptance": false,
+    "client_supplied_user_id_accepted": false,
+    "account_access_blocked_by_update": false,
+    "withdrawal_blocked_by_update": false,
+    "wallet_export_blocked_by_update": false,
+    "wallet_recovery_blocked_by_update": false,
+    "informational_predecessor_equivalence_must_be_explicit": true
+  },
   "community": {
     "implementation_status": "production_release_authorized_pending_promotion",
     "public_surface": "https://ravenos.xyz/community/",
@@ -828,7 +851,10 @@
     "docs/ravenos_community_v1.md",
     "docs/ravenos_referrals_v1.md",
     "docs/ravenos_privy_wallets_v1.md",
-    "docs/wallets/privy-recovery.md"
+    "docs/wallets/privy-recovery.md",
+    "docs/legal/LEGAL_PRODUCT_INVENTORY.md",
+    "docs/legal/LEGAL_ACCEPTANCE_ARCHITECTURE.md",
+    "docs/legal/COUNSEL_REVIEW_CHECKLIST.md"
   ],
   "verification_scenarios": [
     { "id": "SEC-SES-001", "name": "session fixation and rotation", "gate": "stage_a", "status": "verified_current", "evidence": "tests/customer_identity.test.mjs; isolated release preview" },
@@ -856,6 +882,8 @@
     { "id": "SEC-COPY-003", "name": "privacy-thresholded aggregate follower-demand stress with no allocation, fill, identity, or execution claim", "gate": "wallet_copy_local_candidate", "status": "verified_local_candidate", "evidence": "tests/source_wallet_copy_crowding.test.mjs; customer-migrations/0022_source_wallet_copy_crowding.sql; public no-leak validation" },
     { "id": "SEC-PRIVY-001", "name": "optional Privy identity binds only to the authenticated Raven user and remains idempotent", "gate": "privy_wallet_local_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_privy_wallets.test.mjs; customer-migrations/0032_privy_embedded_wallets.sql" },
     { "id": "SEC-PRIVY-002", "name": "Privy wallet metadata contains no private or recovery material and all signing controls remain default-off", "gate": "privy_wallet_local_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_privy_wallets.test.mjs; docs/wallets/privy-recovery.md" },
+    { "id": "SEC-LEGAL-001", "name": "account creation and protected activation assent is server-bound to an immutable document version and content hash", "gate": "legal_counsel_review_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_legal.test.mjs; tests/customer_identity.test.mjs; customer-migrations/0033_customer_legal.sql" },
+    { "id": "SEC-LEGAL-002", "name": "terms reacceptance cannot block sign-in, privacy reduction, receipt reconciliation, withdrawal, wallet export, or wallet recovery", "gate": "legal_counsel_review_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_legal.test.mjs; tests/legal_documents.test.mjs; docs/legal/LEGAL_ACCEPTANCE_ARCHITECTURE.md" },
     { "id": "SEC-WAL-001", "name": "wallet nonce replay", "gate": "stage_b", "status": "required_not_implemented" },
     { "id": "SEC-WAL-002", "name": "wrong wallet domain", "gate": "stage_b", "status": "required_not_implemented" },
     { "id": "SEC-WAL-003", "name": "wrong wallet chain", "gate": "stage_b", "status": "required_not_implemented" },

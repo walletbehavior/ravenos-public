@@ -167,6 +167,7 @@ for (const asset of [
   "ravenos-funnel.css",
   "ravenos-shell.css",
   "ravenos-shell.js",
+  "ravenos-legal-client.js",
   "ravenos-context-store.js",
   "ravenos-intelligence-contract.js",
   "ravenos-chart-data-plane.js",

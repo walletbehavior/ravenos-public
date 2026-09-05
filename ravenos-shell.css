@@ -43,6 +43,45 @@ body.ros-shell-active select,
 body.ros-shell-active input { font: inherit; letter-spacing: 0; }
 body.ros-shell-active button { cursor: pointer; }
 
+.ravenos-legal-dialog {
+  width: min(560px, calc(100vw - 24px));
+  max-height: min(760px, calc(100dvh - 24px));
+  margin: auto;
+  overflow: auto;
+  border: 1px solid var(--ros-line-strong);
+  border-radius: 16px;
+  background: #0b1017;
+  color: var(--ros-text);
+  padding: 0;
+  box-shadow: 0 28px 90px rgba(0, 0, 0, .72);
+}
+.ravenos-legal-dialog::backdrop { background: rgba(2, 5, 9, .82); backdrop-filter: blur(8px); }
+.ravenos-legal-dialog > header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px; border-bottom: 1px solid var(--ros-line); }
+.ravenos-legal-dialog > header span { display: block; color: var(--ros-warning); font: 800 10px/1.2 var(--ros-mono); letter-spacing: .08em; text-transform: uppercase; }
+.ravenos-legal-dialog > header h2 { margin: 5px 0 0; color: var(--ros-text); font-size: 23px; letter-spacing: -.02em; }
+.ravenos-legal-dialog > header button,
+.ravenos-legal-dialog > footer button { border: 1px solid var(--ros-line-strong); border-radius: 9px; background: transparent; color: var(--ros-text); padding: 10px 13px; font-size: 12px; font-weight: 750; }
+.ravenos-legal-dialog > p { margin: 0; padding: 18px 20px 8px; color: var(--ros-muted); font-size: 13px; line-height: 1.55; }
+.ravenos-legal-links { display: grid; gap: 1px; margin: 10px 20px; border: 1px solid var(--ros-line); background: var(--ros-line); }
+.ravenos-legal-links a { display: flex; min-height: 44px; align-items: center; justify-content: space-between; gap: 12px; background: var(--ros-surface); color: var(--ros-text); padding: 11px 13px; font-size: 12px; font-weight: 750; text-decoration: none; }
+.ravenos-legal-links a::after { content: "Open ↗"; color: var(--ros-accent); font: 800 9px/1.2 var(--ros-mono); text-transform: uppercase; }
+.ravenos-legal-links a:hover,
+.ravenos-legal-links a:focus-visible { background: var(--ros-surface-raised); outline: 1px solid var(--ros-accent); }
+.ravenos-legal-assent { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 10px; margin: 16px 20px; border: 1px solid var(--ros-line-strong); border-radius: 10px; background: rgba(143, 164, 186, .06); padding: 14px; color: var(--ros-text); font-size: 13px; line-height: 1.45; }
+.ravenos-legal-assent input { width: 17px; height: 17px; margin: 1px 0 0; accent-color: var(--ros-positive); }
+.ravenos-legal-dialog > .ravenos-legal-error { margin: 0 20px; border-left: 2px solid var(--ros-negative); padding: 8px 10px; color: #f1a6b0; }
+.ravenos-legal-dialog > footer { display: flex; justify-content: flex-end; gap: 8px; padding: 4px 20px 20px; }
+.ravenos-legal-dialog > footer .ravenos-legal-accept { border-color: rgba(63, 166, 117, .55); background: rgba(63, 166, 117, .14); color: #dff7ec; }
+.ravenos-legal-dialog button:disabled { cursor: not-allowed; opacity: .48; }
+
+@media (max-width: 560px) {
+  .ravenos-legal-dialog > header,
+  .ravenos-legal-dialog > p { padding-left: 16px; padding-right: 16px; }
+  .ravenos-legal-links,
+  .ravenos-legal-assent { margin-left: 16px; margin-right: 16px; }
+  .ravenos-legal-dialog > footer { display: grid; grid-template-columns: 1fr 1fr; padding-left: 16px; padding-right: 16px; }
+}
+
 .ros-topbar {
   position: fixed;
   z-index: 1000;

@@ -81,6 +81,54 @@ test("account actions create state on the authenticated origin before navigating
   expect(page.url()).not.toContain("email");
 });
 
+test("account creation requires unchecked exact-version legal assent while sign-in remains available", async ({ page, baseURL }) => {
+  const documents = [
+    { document_type: "terms", title: "Terms of Service", version: "2026-09-05.effective-1", canonical_path: "/legal/terms/", content_hash: "a".repeat(64), status: "effective" },
+    { document_type: "privacy", title: "Privacy Policy", version: "2026-09-05.effective-1", canonical_path: "/legal/privacy/", content_hash: "b".repeat(64), status: "effective" },
+  ];
+  let startRequest = null;
+  await page.route("**/api/v1/auth/config", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({
+      ...configPayload(baseURL),
+      legal: { account_creation_acceptance_required: true, account_creation_blocked: false, documents_endpoint: "/api/v1/legal/documents" },
+    }),
+  }));
+  await page.route("**/api/v1/legal/documents", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({ ok: true, acceptance_enforced: true, documents }),
+  }));
+  await page.route("**/api/v1/auth/session", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, authenticated: false }) }));
+  await page.route("**/api/v1/auth/start", async (route) => {
+    startRequest = route.request().postDataJSON();
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ authorization_url: "https://api.workos.com/user_management/authorize?state=legal_browser_test" }),
+    });
+  });
+  await page.route("https://api.workos.com/**", (route) => route.fulfill({ status: 200, contentType: "text/html", body: "<!doctype html><title>Managed sign-up</title>" }));
+
+  await page.goto("/account/");
+  const assent = page.getByRole("checkbox");
+  await expect(assent).toBeVisible();
+  await expect(assent).not.toBeChecked();
+  await expect(page.locator('[data-legal-document="terms"]').first()).toHaveAttribute("href", "https://ravenos.xyz/legal/terms/");
+  await page.getByRole("button", { name: /Continue with Google/ }).click();
+  await expect(page.getByText("Agree to the Terms and acknowledge the Privacy Policy to create an account.")).toBeVisible();
+  expect(startRequest).toBeNull();
+
+  await assent.check();
+  await page.getByRole("button", { name: /Continue with Google/ }).click();
+  await expect(page).toHaveURL(/^https:\/\/api\.workos\.com\/user_management\/authorize/);
+  expect(startRequest.acceptances).toEqual([
+    { document_type: "terms", version: "2026-09-05.effective-1", content_hash: "a".repeat(64), acknowledgement: "agreed" },
+    { document_type: "privacy", version: "2026-09-05.effective-1", content_hash: "b".repeat(64), acknowledgement: "acknowledged" },
+  ]);
+});
+
 test("authenticated account desk renders profile and revocable session inventory", async ({ page, baseURL }) => {
   let usernameRequest = null;
   await page.route("**/api/v1/auth/config", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(configPayload(baseURL)) }));

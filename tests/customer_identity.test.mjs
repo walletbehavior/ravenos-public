@@ -11,9 +11,18 @@ import {
   routeCustomerIdentity,
   sha256,
 } from "../lib/customer_identity.mjs";
+import {
+  CustomerLegalDocuments,
+  currentLegalAcceptanceSubmission,
+} from "../lib/customer_legal_registry.mjs";
 
 const ORIGIN = "https://app.ravenos.xyz";
 const NOW_MS = Date.parse("2026-08-26T15:00:00.000Z");
+const EFFECTIVE_LEGAL_DOCUMENTS = CustomerLegalDocuments.map((document) => Object.freeze({
+  ...document,
+  status: "effective",
+  effective_at: "2026-09-05T00:00:00.000Z",
+}));
 
 function configuredEnv() {
   return {
@@ -33,6 +42,7 @@ class MemoryIdentityStore {
     this.identities = new Map();
     this.sessions = new Map();
     this.events = [];
+    this.legalAcceptances = [];
     this.rateAttempts = 0;
   }
 
@@ -57,10 +67,11 @@ class MemoryIdentityStore {
     if (row) row.code_verifier = "";
   }
 
-  async resolveOrCreateIdentity(identity) {
+  async resolveOrCreateIdentity(identity, { allowCreate = true } = {}) {
     const key = `${identity.issuer}:${identity.provider_subject}`;
     let row = this.identities.get(key);
     if (!row) {
+      if (!allowCreate) throw new Error("identity_resolution_failed");
       row = {
         user_id: `usr_${"a".repeat(32)}`,
         credential_id: `crd_${"b".repeat(24)}`,
@@ -74,6 +85,24 @@ class MemoryIdentityStore {
       this.identities.set(key, row);
     }
     return { ...row };
+  }
+
+  async recordLegalAcceptances(userId, acceptances, now, acceptanceMethod) {
+    for (const acceptance of acceptances) {
+      if (this.legalAcceptances.some((row) => row.user_id === userId
+        && row.document_type === acceptance.document_type
+        && row.document_version === acceptance.version
+        && row.content_hash === acceptance.content_hash)) continue;
+      this.legalAcceptances.push({
+        user_id: userId,
+        document_type: acceptance.document_type,
+        document_version: acceptance.version,
+        content_hash: acceptance.content_hash,
+        acknowledgement: acceptance.acknowledgement,
+        accepted_at: now,
+        acceptance_method: acceptanceMethod,
+      });
+    }
   }
 
   async createSession(record) {
@@ -167,7 +196,13 @@ async function startFlow(store, { provider = "google", intent = "sign_up", retur
   return response;
 }
 
-async function startJsonFlow(store, { provider = "google", intent = "sign_up" } = {}) {
+async function startJsonFlow(store, {
+  provider = "google",
+  intent = "sign_up",
+  acceptances = undefined,
+  env = configuredEnv(),
+  documents = undefined,
+} = {}) {
   return routeCustomerIdentity(request("/api/v1/auth/start", {
     method: "POST",
     headers: {
@@ -176,8 +211,8 @@ async function startJsonFlow(store, { provider = "google", intent = "sign_up" } 
       "content-type": "application/json",
       "cf-connecting-ip": "203.0.113.4",
     },
-    body: JSON.stringify({ provider, intent, return_to: "/account/" }),
-  }), configuredEnv(), { store, nowMs: NOW_MS });
+    body: JSON.stringify({ provider, intent, return_to: "/account/", ...(acceptances ? { acceptances } : {}) }),
+  }), env, { store, nowMs: NOW_MS, ...(documents ? { documents } : {}) });
 }
 
 async function finishFlow(store, start, fetchImpl = async () => new Response(JSON.stringify({
@@ -191,8 +226,9 @@ async function finishFlow(store, start, fetchImpl = async () => new Response(JSO
   authentication_method: "GoogleOAuth",
   access_token: "must_be_discarded",
   refresh_token: "must_be_discarded",
-}), { headers: { "content-type": "application/json" } }), existingSession = "") {
-  const location = new URL(start.headers.get("location"));
+}), { headers: { "content-type": "application/json" } }), existingSession = "", options = {}) {
+  const redirectTarget = start.headers.get("location") || (await start.clone().json()).authorization_url;
+  const location = new URL(redirectTarget);
   const state = location.searchParams.get("state");
   const cookieHeader = [
     `__Host-ravenos_auth_state=${stateCookie(start)}`,
@@ -200,7 +236,12 @@ async function finishFlow(store, start, fetchImpl = async () => new Response(JSO
   ].filter(Boolean).join("; ");
   return routeCustomerIdentity(request(`/api/v1/auth/callback?code=one_time_code&state=${encodeURIComponent(state)}`, {
     headers: { cookie: cookieHeader, "user-agent": "Mozilla/5.0 (Macintosh) AppleWebKit Safari/605.1.15" },
-  }), configuredEnv(), { store, nowMs: NOW_MS + 1_000, fetchImpl });
+  }), options.env || configuredEnv(), {
+    store,
+    nowMs: NOW_MS + 1_000,
+    fetchImpl,
+    ...(options.documents ? { documents: options.documents } : {}),
+  });
 }
 
 test("managed account configuration is fail closed and keeps wallets separate", () => {
@@ -217,6 +258,52 @@ test("managed account configuration is fail closed and keeps wallets separate", 
   assert.equal(CustomerIdentityContract.idle_timeout_seconds, 1800);
   assert.equal(CustomerIdentityContract.absolute_timeout_seconds, 43200);
   assert.equal(CustomerIdentityContract.wallet_connection_is_authentication, false);
+});
+
+test("account creation records exact versioned legal assent while ordinary sign-in remains available", async () => {
+  const env = {
+    ...configuredEnv(),
+    RAVENOS_LEGAL_ACCEPTANCE_ENABLED: "1",
+    RAVENOS_LEGAL_COUNSEL_APPROVED: "1",
+  };
+  const store = new MemoryIdentityStore();
+  const config = publicCustomerIdentityConfig(env, `${ORIGIN}/account/`, { documents: EFFECTIVE_LEGAL_DOCUMENTS });
+  assert.equal(config.legal.state, "enforced");
+  assert.equal(config.legal.account_creation_acceptance_required, true);
+
+  const missing = await startJsonFlow(store, { env, documents: EFFECTIVE_LEGAL_DOCUMENTS });
+  assert.equal(missing.status, 428);
+  assert.equal((await missing.json()).error, "legal_acceptance_required");
+
+  const changed = currentLegalAcceptanceSubmission("account_creation", { documents: EFFECTIVE_LEGAL_DOCUMENTS }).map((acceptance, index) => (
+    index === 0 ? { ...acceptance, content_hash: "0".repeat(64) } : acceptance
+  ));
+  const stale = await startJsonFlow(store, { env, acceptances: changed, documents: EFFECTIVE_LEGAL_DOCUMENTS });
+  assert.equal(stale.status, 409);
+  assert.equal((await stale.json()).error, "legal_document_changed");
+
+  const signIn = await startJsonFlow(store, { env, intent: "sign_in", documents: EFFECTIVE_LEGAL_DOCUMENTS });
+  assert.equal(signIn.status, 200);
+  const unknownSignIn = await finishFlow(store, signIn, undefined, "", { env, documents: EFFECTIVE_LEGAL_DOCUMENTS });
+  assert.equal(unknownSignIn.status, 303);
+  assert.equal(new URL(unknownSignIn.headers.get("location")).searchParams.get("auth"), "failed");
+  assert.equal(store.identities.size, 0);
+
+  const acceptances = currentLegalAcceptanceSubmission("account_creation", { documents: EFFECTIVE_LEGAL_DOCUMENTS });
+  const start = await startJsonFlow(store, { env, acceptances, documents: EFFECTIVE_LEGAL_DOCUMENTS });
+  assert.equal(start.status, 200);
+  const pending = [...store.authStates.values()].find((row) => row.intent === "sign_up");
+  assert(pending);
+  assert.deepEqual(JSON.parse(pending.legal_acceptance_json), acceptances);
+  assert(!pending.legal_acceptance_json.includes("raven@example.com"));
+  assert(!pending.legal_acceptance_json.includes("203.0.113"));
+
+  const callback = await finishFlow(store, start, undefined, "", { env, documents: EFFECTIVE_LEGAL_DOCUMENTS });
+  assert.equal(callback.status, 303);
+  assert.equal(store.legalAcceptances.length, 2);
+  assert.deepEqual(store.legalAcceptances.map((row) => row.document_type).sort(), ["privacy", "terms"]);
+  assert(store.legalAcceptances.every((row) => row.acceptance_method === "account_creation"));
+  assert(store.legalAcceptances.every((row) => row.accepted_at === NOW_MS / 1000 + 1));
 });
 
 test("Raven usernames are normalized, bounded, and reserve trusted labels", () => {

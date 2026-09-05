@@ -211,6 +211,10 @@ test("release packaging carries the versioned on-chain provider gate without har
   assert.match(source, /RAVENOS_DEXCH_DISCOVERY_ENABLED/);
   assert.match(source, /RAVENOS_DEXCH_COMMERCIAL_USE_ACKNOWLEDGED/);
   assert.match(source, /RAVENOS_COMMUNITY_ENABLED/);
+  assert.match(source, /legalAcceptanceActive/);
+  assert.match(source, /RAVENOS_LEGAL_ACCEPTANCE_ENABLED: legalAcceptanceActive \? "1" : "0"/);
+  assert.match(source, /RAVENOS_LEGAL_COUNSEL_APPROVED: legalAcceptanceActive \? "1" : "0"/);
+  assert.match(source, /legal_acceptance_enabled: legalAcceptanceActive/);
   assert.match(source, /RAVENOS_REFERRALS_ENABLED/);
   assert.match(source, /RAVENOS_REFERRAL_BILLING_RECONCILIATION_ENABLED: "0"/);
   assert.match(source, /RAVENOS_ENTITLEMENT_RESOLUTION_ENABLE/);
@@ -363,4 +367,5 @@ test("generated build manifest advertises the browser context contract actually 
   assert.equal(build.api_schema_versions?.chart_candle_series, "ravenos.chart_candle_series.v1");
   assert.equal(build.api_schema_versions?.chart_capability_registry, "ravenos.chart_capability_registry.v1");
   assert.equal(build.api_schema_versions?.onchain_chart_provider_registry, "ravenos.onchain_chart_provider_registry.v1");
+  assert.equal(build.api_schema_versions?.customer_legal, "ravenos.customer_legal.v1");
 });

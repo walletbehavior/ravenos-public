@@ -1,3 +1,5 @@
+import { requestLegalAcceptance } from "./ravenos-legal-client.js";
+
 const state = {
   session: null,
   csrf: "",
@@ -44,6 +46,13 @@ async function getJson(path, options = {}) {
   const response = await fetch(path, { credentials: "same-origin", ...options });
   const payload = await response.json().catch(() => null);
   return { response, payload };
+}
+
+async function getJsonWithLegalAcceptance(path, options, capability) {
+  const first = await getJson(path, options);
+  if (first.response.status !== 428 || first.payload?.error !== "legal_acceptance_required") return first;
+  const accepted = await requestLegalAcceptance(first.payload, { capability, csrfToken: state.csrf });
+  return accepted ? getJson(path, options) : first;
 }
 
 function onAuthenticatedApp() {
@@ -224,17 +233,19 @@ async function saveOwnProfile(event) {
   button.disabled = true;
   status.textContent = "Saving";
   try {
-    const { response, payload } = await getJson("/api/v1/community/me", {
+    const { response, payload } = await getJsonWithLegalAcceptance("/api/v1/community/me", {
       method: "PUT",
       headers: { "content-type": "application/json", "x-ravenos-csrf": state.csrf },
       body: JSON.stringify({ settings: settingsFromForm(form), expected_revision: state.ownProfile?.profile_revision ?? 0 }),
-    });
+    }, "community_publication");
     if (!response.ok || !payload?.profile) throw new Error(payload?.error || "unavailable");
     state.ownProfile = payload.profile;
     populateSettings(payload.profile);
     status.textContent = payload.profile.settings.public_profile_enabled ? "Profile public" : "Profile private";
   } catch (error) {
-    status.textContent = error.message === "community_profile_revision_conflict" ? "Reload and try again" : "Could not save";
+    status.textContent = error.message === "community_profile_revision_conflict" ? "Reload and try again"
+      : error.message === "legal_acceptance_required" ? "Review the current terms before publishing"
+        : "Could not save";
   } finally {
     button.disabled = false;
   }
