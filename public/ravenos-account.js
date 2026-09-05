@@ -55,13 +55,18 @@ function renderPrivyState(payload) {
   }
   panel.hidden = false;
   const wallets = Array.isArray(payload.wallets) ? payload.wallets : [];
+  const capabilities = payload.capabilities || {};
+  const enabledEcosystems = [capabilities.evm && "EVM", capabilities.solana && "Solana"].filter(Boolean);
+  const walletLabel = enabledEcosystems.length === 2
+    ? "Solana and EVM wallets"
+    : enabledEcosystems.length === 1 ? `${enabledEcosystems[0]} wallet` : "trading wallet";
   state.privy.wallets = wallets;
   panel.dataset.state = payload.linked ? "linked" : "available";
   setText("accountPrivyState", payload.linked ? "Ready" : "Optional");
   setText("accountPrivyTitle", payload.linked ? "Your Raven Wallet" : "Create wallets when you want to trade.");
   setText("accountPrivyStatus", payload.linked
-    ? "One Solana wallet and one EVM wallet. Raven login remains separate."
-    : "Creates separate Solana and EVM wallets without changing your login.");
+    ? `${wallets.length} ${wallets.length === 1 ? "wallet" : "wallets"} ready. Raven login remains separate.`
+    : `Creates your ${walletLabel} without changing your login.`);
   button.hidden = payload.linked;
   renderPrivyWallets(wallets);
 }
@@ -1053,7 +1058,17 @@ async function logout() {
   if (!state.csrf) return;
   const button = document.getElementById("accountLogout");
   button.disabled = true;
-  try { await state.privy.client?.logout(); } catch { /* Raven logout must still complete. */ }
+  try {
+    let client = state.privy.client;
+    if (!client && state.privy.config?.available) {
+      const factory = await loadPrivyFactory();
+      client = factory.create({ appId: state.privy.config.app_id, clientId: state.privy.config.client_id });
+    }
+    await Promise.race([
+      client?.logout(),
+      new Promise((resolve) => setTimeout(resolve, 2_000)),
+    ]);
+  } catch { /* Raven logout must still complete if Privy is unavailable. */ }
   const { response } = await getJson("/api/v1/auth/logout", {
     method: "POST",
     headers: { "content-type": "application/json", "x-ravenos-csrf": state.csrf },
