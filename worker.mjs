@@ -432,6 +432,11 @@ function authenticatedAppBoundary(request) {
     || url.pathname === "/api/v1/account/username"
     || url.pathname === "/api/v1/sessions"
     || url.pathname.startsWith("/api/v1/sessions/");
+  const privyWalletApi = url.pathname === "/api/v1/wallets/privy/config"
+    || url.pathname === "/api/v1/wallets/privy/jwks"
+    || url.pathname === "/api/v1/wallets/privy"
+    || url.pathname === "/api/v1/wallets/privy/session"
+    || url.pathname === "/api/v1/wallets/privy/link";
   const portfolioPreviewApi = url.pathname === PORTFOLIO_GOVERNOR_PREVIEW_ROUTE;
   const researchStateApi = url.pathname === CUSTOMER_RESEARCH_STATE_ROUTE
     || url.pathname === `${CUSTOMER_RESEARCH_STATE_ROUTE}/watch-items`
@@ -483,7 +488,7 @@ function authenticatedAppBoundary(request) {
   ]).has(url.pathname);
   const releaseProbe = readRequest && url.pathname === "/api/build";
   const immutableAsset = readRequest && (url.pathname.startsWith("/assets/") || AUTHENTICATED_APP_STATIC_PATHS.has(url.pathname));
-  if ((readRequest && (accountPath || terminalPath || agentsPath || communityPath || proIntelligencePath || walletCopyPath || monitorPath)) || identityApi || portfolioPreviewApi || researchStateApi || entitlementApi || monitorAlertsApi || walletCopyApi || walletObserverIngressApi || liveExecutionApi || agenticApi || communityApi || referralApi || terminalReadApi || terminalReviewApi || releaseProbe || immutableAsset) return { allowed: true, response: null };
+  if ((readRequest && (accountPath || terminalPath || agentsPath || communityPath || proIntelligencePath || walletCopyPath || monitorPath)) || identityApi || privyWalletApi || portfolioPreviewApi || researchStateApi || entitlementApi || monitorAlertsApi || walletCopyApi || walletObserverIngressApi || liveExecutionApi || agenticApi || communityApi || referralApi || terminalReadApi || terminalReviewApi || releaseProbe || immutableAsset) return { allowed: true, response: null };
 
   const firstSegment = url.pathname.split("/").filter(Boolean)[0] || "";
   if (readRequest && firstSegment === "brief") {

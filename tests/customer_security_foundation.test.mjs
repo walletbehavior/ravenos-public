@@ -425,6 +425,9 @@ test("the authenticated hostname exposes only approved account and reviewed dorm
     },
     RAVENOS_AUTH_ORIGIN: "https://app.ravenos.xyz",
     RAVENOS_AUTH_REDIRECT_URI: "https://app.ravenos.xyz/api/v1/auth/callback",
+    RAVENOS_PRIVY_CUSTOM_AUTH_PUBLIC_JWK: JSON.stringify({
+      kty: "EC", crv: "P-256", kid: "ravenos-privy-test", alg: "ES256", use: "sig", x: "test-x", y: "test-y",
+    }),
   };
 
   const account = await worker.fetch(new Request("https://app.ravenos.xyz/account/"), env);
@@ -434,6 +437,12 @@ test("the authenticated hostname exposes only approved account and reviewed dorm
   const config = await worker.fetch(new Request("https://app.ravenos.xyz/api/v1/auth/config"), env);
   assert.equal(config.status, 200);
   assert.equal((await config.json()).available, false);
+
+  const privyJwks = await worker.fetch(new Request("https://app.ravenos.xyz/api/v1/wallets/privy/jwks"), env);
+  assert.equal(privyJwks.status, 200);
+  const privyJwksPayload = await privyJwks.json();
+  assert.equal(privyJwksPayload.keys[0].kid, "ravenos-privy-test");
+  assert.equal("d" in privyJwksPayload.keys[0], false);
 
   const asset = await worker.fetch(new Request("https://app.ravenos.xyz/ravenos-account.js"), env);
   assert.equal(asset.status, 200);
