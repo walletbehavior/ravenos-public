@@ -203,6 +203,7 @@ test("origin connectivity preflight resolves its probes from the immutable asset
 
 test("release packaging carries the versioned on-chain provider gate without hard-wiring CoinGecko", () => {
   const source = readFileSync("scripts/package-release.mjs", "utf8");
+  assert.match(source, /ravenos-discover-intelligence\.js/);
   assert.match(source, /onchain_chart_provider: releaseConfig\.onchain_chart_provider/);
   assert.match(source, /RAVENOS_ONCHAIN_CHART_PROVIDER_ORDER/);
   assert.match(source, /RAVENOS_ONCHAIN_CHART_PRODUCTION_PROVIDER/);
