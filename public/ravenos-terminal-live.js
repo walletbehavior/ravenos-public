@@ -12,7 +12,8 @@ document.body.classList.add("ros-terminal-live-shell");
 
 const TIMEFRAMES = new Set(RAVENOS_CHART_TIMEFRAMES);
 const SAVED_INDICATORS = new Set(["ema20", "ema50", "vwap", "bb20", "rsi14", "macd"]);
-const SAVED_RAVEN_OVERLAYS = new Set(["structure", "pressure", "participation", "replay", "risk", "pressure-zone", "history-window", "breadth-line", "compression-band", "regime-marker", "liquidity-zone", "participant-shift"]);
+const SAVED_RAVEN_OVERLAYS = new Set(["structure", "pressure", "participation", "replay", "risk", "pressure-zone", "history-window", "breadth-line", "compression-band", "regime-marker", "liquidity-zone", "participant-shift", "technical-macd", "technical-accumulation", "technical-fibonacci"]);
+const DEFAULT_RAVEN_OVERLAYS = Object.freeze(["technical-macd", "technical-accumulation"]);
 const SAVED_DENSITIES = new Set(["compact", "comfortable"]);
 const SAVED_PANELS = new Set(["chart", "raven", "book", "trade", "account"]);
 const TERMINAL_PANELS = new Set(["chart", "activity", "holders", "raven", "book", "trade", "account"]);
@@ -937,7 +938,12 @@ function currentRavenOverlayTypes() {
   return [...new Set([...state.savedRavenOverlays, ...measured].filter((value) => SAVED_RAVEN_OVERLAYS.has(value)))];
 }
 
-function captureCurrentRavenOverlayTypes() {
+function captureCurrentRavenOverlayTypes(nextTypes = null) {
+  if (Array.isArray(nextTypes)) {
+    state.savedRavenOverlays = [...new Set(nextTypes.filter((value) => SAVED_RAVEN_OVERLAYS.has(value)))];
+    updateMonitorHandoff();
+    return;
+  }
   setTimeout(() => {
     const measured = state.workspace?.diagnostics?.()?.chart?.active_overlay_types || [];
     state.savedRavenOverlays = [...new Set(measured.filter((value) => SAVED_RAVEN_OVERLAYS.has(value)))];
@@ -2451,9 +2457,10 @@ function technicalAlphaCard(read = state.chartRead) {
     || !(finite(read.facts?.rsi) >= 0)
   ) return null;
   const direction = read.direction === "long" ? "↑" : "↓";
-  const facts = [`RSI ${finite(read.facts.rsi).toFixed(0)}`];
+  const technical = Array.isArray(read.technical?.summary) ? read.technical.summary.slice(0, 2) : [];
+  const facts = [...technical, `RSI ${finite(read.facts.rsi).toFixed(0)}`];
   const volumeRatio = finite(read.facts.volume_ratio);
-  if (volumeRatio !== null) facts.push(`volume ${volumeRatio.toFixed(1)}× recent`);
+  if (volumeRatio !== null && volumeRatio >= 0.05) facts.push(`volume ${volumeRatio.toFixed(1)}× recent`);
   const map = read.structure_map;
   if (
     finite(map?.entry_reference) > 0
@@ -2467,7 +2474,9 @@ function technicalAlphaCard(read = state.chartRead) {
     label: "Chart setup",
     headline: `${read.setup === "breakout_confirmed" ? "Breakout confirmed" : "Trend aligned"} ${direction} · ${read.score}/${read.score_max}`,
     detail: facts.join(" · "),
-    meta: `${read.timeframe} · current price action`,
+    meta: technical.length
+      ? `${read.timeframe} · closed-candle TA · research only`
+      : `${read.timeframe} · current price action`,
     tone: read.direction === "long" ? "positive" : "negative",
   });
 }
@@ -5881,6 +5890,7 @@ function applyContextChartEvent(payload) {
     chartDataSource: "terminal_chart_api",
     indicatorSourceState: "provider_backed",
     onOverlaySelect: captureCurrentRavenOverlayTypes,
+    onOverlayTypesChange: captureCurrentRavenOverlayTypes,
   });
 }
 
@@ -5935,6 +5945,7 @@ function applySpotContextChart(payload = state.context || {}) {
     chartDataSource: "terminal_chart_api",
     indicatorSourceState: "provider_backed",
     onOverlaySelect: captureCurrentRavenOverlayTypes,
+    onOverlayTypesChange: captureCurrentRavenOverlayTypes,
   });
 }
 
@@ -8675,11 +8686,12 @@ async function selectAtlasInstrument(row, { updateUrl = true } = {}) {
     timeframe: state.timeframe,
     events: [],
     overlays: [],
-    visibleOverlayTypes: [],
+    visibleOverlayTypes: currentRavenOverlayTypes(),
     showVolume: true,
     chartDataSource: "terminal_chart_api",
     indicatorSourceState: "provider_backed",
     onOverlaySelect: captureCurrentRavenOverlayTypes,
+    onOverlayTypesChange: captureCurrentRavenOverlayTypes,
   });
   setText("terminalChartStatus", chartState?.candles?.length
     ? `${chartState.candles.length.toLocaleString()} candles · ${titleCase(subject.instrumentType)}`
@@ -9265,7 +9277,10 @@ async function boot() {
   const requestedLaunch = String(params.get("launch") || "").toLowerCase();
   state.launchSource = ["velocity", "raven", "activity"].includes(requestedLaunch) ? requestedLaunch : "";
   state.autoRavenOverlays = Boolean(state.launchSource && params.get("raven_overlays") === "auto");
-  state.savedRavenOverlays = [...new Set(String(params.get("raven_overlays") || "").split(",").map((value) => value.trim()).filter((value) => SAVED_RAVEN_OVERLAYS.has(value)))];
+  const requestedRavenOverlays = String(params.get("raven_overlays") || "");
+  state.savedRavenOverlays = params.has("raven_overlays") && requestedRavenOverlays !== "auto"
+    ? [...new Set(requestedRavenOverlays.split(",").map((value) => value.trim()).filter((value) => SAVED_RAVEN_OVERLAYS.has(value)))]
+    : [...DEFAULT_RAVEN_OVERLAYS];
   state.density = SAVED_DENSITIES.has(params.get("density")) ? params.get("density") : "comfortable";
   state.requestedPanel = TERMINAL_PANELS.has(params.get("panel")) ? params.get("panel") : "chart";
   state.spotActivityView = state.requestedPanel === "activity" && SPOT_ACTIVITY_VIEWS.has(params.get("activity_view")) ? params.get("activity_view") : "trades";

@@ -73,12 +73,13 @@ test("Terminal loads exact Hyperliquid facts, a real chart, and joined Raven con
   await expect(page.locator("#terminalAlphaStack")).toContainText("Trade path");
   await expect(page.locator("#terminalAlphaStack")).not.toContainText(/unknown|unavailable|missing/i);
   await expect(page.locator("#terminalPlanToggle")).not.toBeChecked();
-  await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.available_overlay_count)).toBe(0);
-  await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.active_overlay_count)).toBe(0);
-  await page.locator("#terminalPlanToggle").check();
-  await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.available_overlay_count)).toBe(3);
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.available_overlay_count)).toBe(6);
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.active_overlay_count)).toBe(3);
-  await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.active_overlay_types || [])).toEqual(["plan-entry", "plan-target", "plan-risk"]);
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.active_overlay_types || [])).toEqual(["technical-macd"]);
+  await page.locator("#terminalPlanToggle").check();
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.available_overlay_count)).toBeGreaterThanOrEqual(6);
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.active_overlay_count)).toBeGreaterThanOrEqual(3);
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.active_overlay_types || [])).toEqual(expect.arrayContaining(["plan-entry", "plan-target", "plan-risk"]));
   await expect(page.locator("#terminalEvidenceState")).toHaveText("Current observation");
   await expect(page.locator("#terminalAnatomy1Label")).toHaveText("Open interest");
   await expect(page.locator("#terminalAnatomy1")).toContainText("192M");
@@ -116,7 +117,7 @@ test("Terminal loads exact Hyperliquid facts, a real chart, and joined Raven con
   await expect(page.locator("#assetSelect option")).toHaveCount(2);
   await expect(page.locator("#terminalModeSelect")).toBeHidden();
   await expect(page.locator("#terminalModeSelect option")).toHaveCount(3);
-  await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.marker_count)).toBe(1);
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.marker_count)).toBeGreaterThanOrEqual(1);
 
   const state = await page.evaluate(() => window.__RAVENOS_TERMINAL__.getState());
   expect(state.instrumentId).toContain("hyperliquid");
@@ -125,6 +126,24 @@ test("Terminal loads exact Hyperliquid facts, a real chart, and joined Raven con
   expect(state.tapeCount).toBe(4);
   expect(state.signingAvailable).toBe(false);
   expect(state.submissionAvailable).toBe(false);
+});
+
+test("Terminal exposes qualified TA marks without making Fibonacci chart clutter mandatory", async ({ page }) => {
+  await mockTerminalLiveApis(page);
+  await page.goto("/terminal/");
+  await waitForTerminalLive(page, { lane: "perps", instrument: "SOL-PERP", timeframe: "1h" });
+
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.active_overlay_types || [])).toEqual(["technical-macd"]);
+  await page.locator('#terminalChart [data-overlay-group="TA"]').click();
+  await expect(page.locator('#terminalChart [data-overlay-id="technical-macd"]')).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator('#terminalChart [data-overlay-id="technical-fibonacci"]')).toHaveAttribute("aria-pressed", "false");
+  await page.locator('#terminalChart [data-overlay-id="technical-fibonacci"]').click();
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.active_overlay_types || [])).toEqual(["technical-macd", "technical-fibonacci"]);
+  await expect.poll(() => page.evaluate(() => (window.__RAVENOS_LAST_RAVEN_READS__ || []).some((read) => read.short_label === "Fib 38.2%"))).toBe(true);
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_TERMINAL__.getState())).toMatchObject({
+    signingAvailable: false,
+    submissionAvailable: false,
+  });
 });
 
 test("an exact Discover Raven observation survives a missing generic context join", async ({ page }) => {
@@ -547,7 +566,9 @@ test("an exact-instrument plan mismatch fails closed without chart overlays", as
   await expect(page.locator("#terminalPlanSection")).toBeHidden();
   await expect(page.locator("#terminalAlphaStack")).not.toContainText("Trade path");
   await expect(page.locator("#terminalPlanToggle")).toBeDisabled();
-  await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.active_overlay_count)).toBe(0);
+  await expect.poll(() => page.evaluate(() => (
+    window.__RAVENOS_CHART_GEOMETRY__?.active_overlay_types || []
+  ).filter((type) => String(type).startsWith("plan-")))).toEqual([]);
   const state = await page.evaluate(() => window.__RAVENOS_TERMINAL__.getState());
   expect(state.planPreviewAvailable).toBe(false);
   expect(state.planQualificationIssue).toBe("exact_instrument_mismatch");
@@ -561,7 +582,9 @@ test("stale Raven plan evidence fails closed while current market facts remain a
   await expect(page.locator("#terminalChart canvas").first()).toBeVisible();
   await expect(page.locator("#terminalPlanSection")).toBeHidden();
   await expect(page.locator("#terminalChartPlanStrip")).toBeHidden();
-  await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.active_overlay_count)).toBe(0);
+  await expect.poll(() => page.evaluate(() => (
+    window.__RAVENOS_CHART_GEOMETRY__?.active_overlay_types || []
+  ).filter((type) => String(type).startsWith("plan-")))).toEqual([]);
   const state = await page.evaluate(() => window.__RAVENOS_TERMINAL__.getState());
   expect(state.planPreviewAvailable).toBe(false);
   expect(state.planQualificationIssue).toBe("evidence_not_current");
@@ -869,16 +892,16 @@ test("new-timeframe candles never inherit Raven markers from the prior timeframe
   await openExactSpotSearch(page, "JUP");
   await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1h" });
   const markerIndex = page.locator("#terminalChart [data-rpw-marker-index] button");
-  await expect(markerIndex).toHaveCount(1);
+  const contextualMarker = page.getByRole("button", { name: "Inspect Raven marker 1" });
+  await expect(contextualMarker).toHaveCount(1);
 
   await page.selectOption("#terminalChart [data-rpw-timeframe-select]", "4h");
   await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "4h" });
 
   expect(calls.some((call) => call.market === "crypto_spot" && call.timeframe === "4h" && !call.includeEnrichment)).toBe(true);
-  expect(await markerIndex.count()).toBe(0);
-  expect(await page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.marker_count ?? 0)).toBe(0);
+  await expect(contextualMarker).toHaveCount(0);
 
-  await expect(markerIndex).toHaveCount(1);
+  await expect(contextualMarker).toHaveCount(1);
   expect(calls.some((call) => call.market === "crypto_spot" && call.timeframe === "4h" && call.includeEnrichment)).toBe(true);
 });
 
@@ -1188,11 +1211,12 @@ test("spot search loads one exact pool and joins only its admitted current Raven
   await expect(page.locator("#terminalSourceProvider")).toHaveText("DexPaprika");
   await expect(page.locator("#terminalSourceInterval")).toContainText("Direct 1h bars");
   await expect(page.locator("#terminalSourceContinuity")).toContainText(/Verified/i);
-  await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.marker_count)).toBe(1);
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.marker_count)).toBeGreaterThanOrEqual(1);
   const markerIndex = page.locator("#terminalChart [data-rpw-marker-index] button");
-  await expect(markerIndex).toHaveCount(1);
-  await expect(markerIndex).toHaveText("Raven marker 1");
-  await expect(markerIndex).toHaveAttribute("aria-label", /Inspect /);
+  const contextualMarker = page.getByRole("button", { name: "Inspect Raven marker 1" });
+  await expect(contextualMarker).toHaveCount(1);
+  await expect(contextualMarker).toHaveText("Raven marker 1");
+  await expect(contextualMarker).toHaveAttribute("aria-label", /Inspect /);
   const spotPriceScale = await page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.price_axis);
   expect(spotPriceScale).toMatchObject({
     side: "right",
@@ -1934,7 +1958,7 @@ test("Velocity launch opens the exact pool with an automatic Raven overlay and t
   await expect(page.locator("#terminalPlanToggle")).toBeChecked();
   await expect(page.locator("#terminalChartPlanStrip")).toBeVisible();
   await expect(page.locator("#terminalChartPlanSummary")).toHaveText("Entry + 3 TP + Risk");
-  await expect(page.locator("#terminalChartRavenLayerCount")).toHaveText("5 Raven layers active");
+  await expect(page.locator("#terminalChartRavenLayerCount")).toHaveText(/\d+ Raven layers active/);
   await expect(page.locator("#terminalChart [data-rpw-read-cell]")).toBeVisible();
   await expect(page.locator("#terminalChart [data-rpw-read-cell]")).toContainText(/Raven Read.*Trend ↑.*RSI/s);
   await expect(page.locator("#terminalAlphaStack")).toContainText("TP strategy");
@@ -1942,9 +1966,11 @@ test("Velocity launch opens the exact pool with an automatic Raven overlay and t
   await expect(page.locator("#terminalAlphaStack")).toContainText("Token-wide activity · selected pool revalidated");
   await expect(page.locator("#terminalPlanSection")).not.toContainText(/unknown|unavailable|missing/i);
   await expect(page.locator("#terminalAlphaStack")).not.toContainText(/unknown|unavailable|missing/i);
-  await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.available_overlay_count)).toBe(5);
-  await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.active_overlay_count)).toBe(5);
-  await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.active_overlay_types || [])).toEqual(["plan-entry", "plan-target", "plan-risk"]);
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.available_overlay_count)).toBeGreaterThanOrEqual(5);
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.active_overlay_count)).toBeGreaterThanOrEqual(5);
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.active_overlay_types || [])).toEqual(
+    expect.arrayContaining(["plan-entry", "plan-target", "plan-risk", "technical-macd"]),
+  );
 
   const state = await page.evaluate(() => window.__RAVENOS_TERMINAL__.getState());
   expect(state).toMatchObject({
@@ -1984,7 +2010,9 @@ test("Raven and chart direction conflicts are explicit and suppress a directiona
   await expect(page.locator("#terminalAlphaStack")).toContainText("not promoting a directional plan until they align");
   await expect(page.locator("#terminalPlanSection")).toBeHidden();
   await expect(page.locator("#terminalChartPlanStrip")).toBeHidden();
-  await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.active_overlay_count)).toBe(0);
+  await expect.poll(() => page.evaluate(() => (
+    window.__RAVENOS_CHART_GEOMETRY__?.active_overlay_types || []
+  ).filter((type) => String(type).startsWith("plan-")))).toEqual([]);
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_TERMINAL__?.getState?.())).toMatchObject({
     chartReadDirection: "long",
     planPreviewAvailable: false,

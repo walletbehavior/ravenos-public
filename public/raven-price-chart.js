@@ -19,6 +19,12 @@
     "regime-marker": { label: "Risk", color: "#c4a05c" },
     "liquidity-zone": { label: "Risk", color: "#c4a05c" },
     "participant-shift": { label: "Participation", color: "#68a585" },
+    "technical-macd": { label: "MACD crosses", color: "#77a7c4" },
+    "technical-accumulation": { label: "Accumulation", color: "#5cad88" },
+    "technical-fibonacci": { label: "Fibonacci", color: "#b5965c" },
+    "technical-macd-crossover": { label: "MACD crosses", color: "#77a7c4" },
+    "technical-accumulation-zone": { label: "Accumulation", color: "#5cad88" },
+    "technical-fibonacci-level": { label: "Fibonacci", color: "#b5965c" },
     "plan-entry": { label: "Entry reference", color: "#8da6b8" },
     "plan-target": { label: "Favorable reference", color: "#3fa675" },
     "plan-risk": { label: "Adverse reference", color: "#d96070" },
@@ -32,14 +38,20 @@
     "regime-marker": { renderAs: "marker" },
     "liquidity-zone": { renderAs: "price-region" },
     "participant-shift": { renderAs: "marker" },
+    "technical-macd-crossover": { renderAs: "marker" },
+    "technical-accumulation-zone": { renderAs: "price-region" },
+    "technical-fibonacci-level": { renderAs: "line" },
     "plan-entry": { renderAs: "price-region" },
     "plan-target": { renderAs: "price-region" },
     "plan-risk": { renderAs: "price-region" },
   };
 
-  const RAVEN_OVERLAY_GROUPS = ["Raven", "Actors", "Liquidity", "Structure", "Risk", "Trade path"];
+  const RAVEN_OVERLAY_GROUPS = ["Raven", "TA", "Actors", "Liquidity", "Structure", "Risk", "Trade path"];
   const RAVEN_OVERLAY_LIBRARY = [
     { id: "pressure", label: "Pressure", group: "Raven", keys: ["pressure", "pressure-zone"] },
+    { id: "technical-macd", label: "MACD crosses", group: "TA", keys: ["technical-macd"] },
+    { id: "technical-accumulation", label: "Accumulation", group: "TA", keys: ["technical-accumulation"] },
+    { id: "technical-fibonacci", label: "Fibonacci", group: "TA", keys: ["technical-fibonacci"] },
     { id: "liquidity", label: "Book liquidity", group: "Liquidity", keys: ["liquidity-zone"] },
     { id: "structure", label: "Structure", group: "Structure", keys: ["structure"] },
     { id: "compression", label: "Compression", group: "Structure", keys: ["compression-band"] },
@@ -56,11 +68,12 @@
   }
 
   function overlayKey(overlay) {
-    return overlay?.raven_read?.mode || overlayType(overlay?.type);
+    return overlay?.metadata?.overlay_key || overlay?.raven_read?.overlay_key || overlay?.raven_read?.mode || overlayType(overlay?.type);
   }
 
   function colorFor(item) {
-    return item?.raven_read?.mode ? OVERLAY_META[item.raven_read.mode]?.color || SEVERITY_COLOR.info : SEVERITY_COLOR[item?.severity] || OVERLAY_META[overlayType(item?.type)]?.color || SEVERITY_COLOR.info;
+    const key = overlayKey(item);
+    return OVERLAY_META[key]?.color || (item?.raven_read?.mode ? OVERLAY_META[item.raven_read.mode]?.color : null) || SEVERITY_COLOR[item?.severity] || OVERLAY_META[overlayType(item?.type)]?.color || SEVERITY_COLOR.info;
   }
 
   function normalizeCandles(candles) {
@@ -578,7 +591,9 @@
         .map((overlay) => overlay.raven_read)
         .filter(Boolean);
     }
-    const activeTypes = new Set(Array.isArray(options?.visibleOverlayTypes) ? options.visibleOverlayTypes : []);
+    const availableOverlayKeys = new Set(enrichedOverlays.map(overlayKey));
+    const activeTypes = new Set((Array.isArray(options?.visibleOverlayTypes) ? options.visibleOverlayTypes : [])
+      .filter((type) => availableOverlayKeys.has(type)));
     const scaleContract = priceScaleContract(options, candles.flatMap((row) => [row.open, row.high, row.low, row.close]));
     const priceFormatter = typeof options?.priceFormatter === "function" ? options.priceFormatter : scaleContract.formatter;
 
@@ -991,14 +1006,15 @@
       .filter((overlay) => Number.isFinite(Number(overlay.priceMin)) || Number.isFinite(Number(overlay.priceMax)))
       .forEach((overlay) => {
         const isPlan = String(overlay.type || "").startsWith("plan-");
+        const isTechnicalLevel = overlay.type === "technical-fibonacci-level";
         if (Number.isFinite(Number(overlay.priceMin))) {
           candleSeries.createPriceLine({
             price: Number(overlay.priceMin),
             color: colorFor(overlay),
             lineWidth: isPlan ? 2 : 1,
             lineStyle: api.LineStyle?.Dotted || 1,
-            axisLabelVisible: isPlan,
-            title: isPlan ? overlay.label || "" : "",
+            axisLabelVisible: isPlan || isTechnicalLevel,
+            title: isPlan || isTechnicalLevel ? overlay.label || "" : "",
           });
         }
         if (Number.isFinite(Number(overlay.priceMax)) && Number(overlay.priceMax) !== Number(overlay.priceMin)) {
@@ -1065,6 +1081,7 @@
         if (activeTypes.has(type)) activeTypes.delete(type);
         else activeTypes.add(type);
         options?.onOverlaySelect?.(activeTypes.has(type) ? selectedOverlay : null);
+        options?.onOverlayTypesChange?.(Array.from(activeTypes));
         const initialVisibleTimeRange = chart.timeScale().getVisibleRange?.() || null;
         apiRef.destroy();
         const next = RavenPriceChart(container, {
@@ -1076,6 +1093,7 @@
       }, () => {
         activeTypes.clear();
         options?.onOverlaySelect?.(null);
+        options?.onOverlayTypesChange?.([]);
         const initialVisibleTimeRange = chart.timeScale().getVisibleRange?.() || null;
         apiRef.destroy();
         const next = RavenPriceChart(container, {

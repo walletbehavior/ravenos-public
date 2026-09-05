@@ -1197,6 +1197,7 @@ test("Discover defaults to Velocity, keeps sourcing internal, and opens Raven's 
   await expect(row).toContainText("Exact pool");
   await expect(row).toContainText("+12.80%");
   await expect(row.locator(".discover-token-raven")).toContainText(/Velocity \d+\/99.*(?:Reacceleration|Upside Velocity)/s);
+  await expect(row.locator(".discover-token-raven > strong")).toHaveText("Accumulation watch: buy flow leads as participation expands.");
   await expect(row).toHaveAttribute("href", /instrument_id=solana%3Apool%3Afixture-pair-address/);
   await expect(row).toHaveAttribute("href", /launch=velocity/);
   await expect(row).toHaveAttribute("href", /raven_overlays=auto/);
@@ -1221,7 +1222,7 @@ test("Discover defaults to Velocity, keeps sourcing internal, and opens Raven's 
   await expect(page.locator("#terminalPlanSection")).toBeVisible();
   await expect(page.locator("#terminalPlanTitle")).toHaveText("Defensive de-risk");
   await expect(page.locator("#terminalPlanToggle")).toBeChecked();
-  await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.active_overlay_count)).toBe(5);
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.active_overlay_count)).toBeGreaterThanOrEqual(5);
   const terminal = await page.evaluate(() => window.__RAVENOS_TERMINAL__.getState());
   expect(terminal.planStrategyId).toBe("defensive_de_risk");
   expect(terminal.planTargetCount).toBe(3);

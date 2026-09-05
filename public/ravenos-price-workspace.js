@@ -40,6 +40,11 @@ const STATE_LABELS = Object.freeze({
 
 const TIMEFRAMES = RAVENOS_CHART_TIMEFRAMES;
 const SUPPORTED_INDICATORS = Object.freeze(["ema20", "ema50", "vwap", "bb20", "rsi14", "macd"]);
+const TECHNICAL_OVERLAY_KEYS = new Set([
+  "technical-macd",
+  "technical-accumulation",
+  "technical-fibonacci",
+]);
 const PERP_HISTORY_LIMITS = Object.freeze({
   "1m": 720,
   "5m": 720,
@@ -120,6 +125,50 @@ function normalizeCandles(value) {
       quote_volume: finite(row?.quote_volume ?? row?.quoteVolume),
     }))
     .filter((row) => row.time !== null && row.time !== undefined && row.open > 0 && row.high > 0 && row.low > 0 && row.close > 0);
+}
+
+function technicalOverlayKey(overlay = {}) {
+  return String(
+    overlay?.metadata?.overlay_key
+    || overlay?.raven_read?.overlay_key
+    || overlay?.raven_read?.mode
+    || overlay?.type
+    || "",
+  ).trim();
+}
+
+function isTechnicalOverlay(overlay = {}) {
+  return TECHNICAL_OVERLAY_KEYS.has(technicalOverlayKey(overlay))
+    || String(overlay?.type || "").startsWith("technical-");
+}
+
+function mergeTechnicalOverlays(overlays = [], technicalAnalysis = null) {
+  const retained = (Array.isArray(overlays) ? overlays : []).filter((overlay) => !isTechnicalOverlay(overlay));
+  const technical = technicalAnalysis?.state === "available" && Array.isArray(technicalAnalysis.overlays)
+    ? technicalAnalysis.overlays
+    : [];
+  return [...retained, ...technical];
+}
+
+function deriveTechnicalAnalysis(candles = [], {
+  instrumentId = null,
+  timeframe = "1h",
+  source = "Exact-market candles",
+  state = PRICE_WORKSPACE_STATES.DATA_UNAVAILABLE,
+  observedAt = null,
+} = {}) {
+  const derive = window.RavenChartOverlays?.deriveTechnicalAnalysis;
+  if (typeof derive !== "function" || !instrumentId) return null;
+  const sourceState = state === PRICE_WORKSPACE_STATES.LIVE || state === PRICE_WORKSPACE_STATES.HISTORICAL
+    ? "provider_backed"
+    : state === PRICE_WORKSPACE_STATES.DELAYED
+      ? "delayed"
+      : state;
+  try {
+    return derive({ candles, timeframe, instrumentId, source, sourceState, observedAt });
+  } catch {
+    return null;
+  }
 }
 
 function timestampLabel(value) {
@@ -235,7 +284,7 @@ function latestAtr(rows, period = 14) {
   return value;
 }
 
-function deriveChartRead(candles = [], { instrumentId = null, timeframe = "1h" } = {}) {
+function deriveChartRead(candles = [], { instrumentId = null, timeframe = "1h", technicalAnalysis = null } = {}) {
   const rows = normalizeCandles(candles).slice(-160);
   if (rows.length < 55) return null;
   const latest = rows.at(-1);
@@ -320,6 +369,15 @@ function deriveChartRead(candles = [], { instrumentId = null, timeframe = "1h" }
       prior_high: priorHigh,
       prior_low: priorLow,
     },
+    technical: technicalAnalysis?.state === "available" ? {
+      evidence_scope: technicalAnalysis.evidence_scope,
+      observed_at: technicalAnalysis.observed_at,
+      closed_candle_count: technicalAnalysis.closed_candle_count,
+      summary: Array.isArray(technicalAnalysis.summary) ? technicalAnalysis.summary.slice(0, 3) : [],
+      macd: technicalAnalysis.macd || null,
+      accumulation: technicalAnalysis.accumulation || null,
+      fibonacci: technicalAnalysis.fibonacci || null,
+    } : null,
     structure_map: structureMap,
   };
 }
@@ -486,6 +544,7 @@ export class PriceWorkspace {
     this.requestSequence = 0;
     this.liveGeneration = 0;
     this.paintFrame = null;
+    this.technicalRefreshTimer = null;
     this.lastRequest = null;
     this.backfillPending = false;
     this.backfillArmed = false;
@@ -525,6 +584,7 @@ export class PriceWorkspace {
       marketAnatomy: null,
       alphaLayers: null,
       chartRead: null,
+      technicalAnalysis: null,
       providerTransitionCount: 0,
     };
     container.innerHTML = createMarkup();
@@ -809,9 +869,20 @@ export class PriceWorkspace {
     const value = this.container.querySelector("[data-rpw-read]");
     const detail = this.container.querySelector("[data-rpw-read-detail]");
     if (!cell || !value || !detail) return null;
+    const technicalAnalysis = this.renderInput?.showRavenAnnotations === false
+      ? null
+      : deriveTechnicalAnalysis(this.state.candles, {
+        instrumentId: this.state.instrument?.canonical_id || null,
+        timeframe: this.state.timeframe,
+        source: this.state.source,
+        state: this.state.state,
+        observedAt: this.state.observedAt,
+      });
+    this.state.technicalAnalysis = technicalAnalysis;
     const read = deriveChartRead(this.state.candles, {
       instrumentId: this.state.instrument?.canonical_id || null,
       timeframe: this.state.timeframe,
+      technicalAnalysis,
     });
     const showRead = this.renderInput?.showChartRead !== false;
     this.state.chartRead = read;
@@ -823,10 +894,9 @@ export class PriceWorkspace {
       value.textContent = `${read.setup === "breakout_confirmed" ? "Breakout" : "Trend"} ${direction} · ${read.score}/${read.score_max}`;
       value.dataset.direction = read.direction === "long" ? "up" : "down";
       const details = [
+        ...(Array.isArray(read.technical?.summary) ? read.technical.summary.slice(0, 2) : []),
         `RSI ${read.facts.rsi.toFixed(0)}`,
-        read.facts.volume_ratio === null ? "" : `volume ${read.facts.volume_ratio.toFixed(1)}× recent`,
-        read.structure_map ? `structure risk ${read.structure_map.risk_pct.toFixed(1)}%` : "",
-        "current price action",
+        read.facts.volume_ratio === null || read.facts.volume_ratio < 0.05 ? "" : `volume ${read.facts.volume_ratio.toFixed(1)}× recent`,
       ].filter(Boolean);
       detail.textContent = details.join(" · ");
     } else {
@@ -835,7 +905,7 @@ export class PriceWorkspace {
       value.removeAttribute("data-direction");
     }
     const fingerprint = read
-      ? [read.instrument_id, read.timeframe, read.observed_at, read.direction, read.setup, read.score].join(":")
+      ? [read.instrument_id, read.timeframe, read.observed_at, read.direction, read.setup, read.score, ...(read.technical?.summary || [])].join(":")
       : `none:${this.state.instrument?.canonical_id || "unselected"}:${this.state.timeframe}`;
     if (fingerprint !== this.lastChartReadFingerprint) {
       this.lastChartReadFingerprint = fingerprint;
@@ -929,7 +999,10 @@ export class PriceWorkspace {
     const host = this.container.querySelector("[data-rpw-marker-index]");
     if (!host) return;
     const events = (Array.isArray(this.renderInput?.events) ? this.renderInput.events : []).filter((row) => row?.time);
-    const overlays = (Array.isArray(this.renderInput?.overlays) ? this.renderInput.overlays : []).filter((row) => row?.time || row?.startTime);
+    const visibleOverlayTypes = new Set(Array.isArray(this.renderInput?.visibleOverlayTypes) ? this.renderInput.visibleOverlayTypes : []);
+    const overlays = (Array.isArray(this.renderInput?.overlays) ? this.renderInput.overlays : [])
+      .filter((row) => row?.time || row?.startTime)
+      .filter((row) => !Array.isArray(this.renderInput?.visibleOverlayTypes) || visibleOverlayTypes.has(technicalOverlayKey(row)));
     const rows = [...events, ...overlays].slice(0, 6);
     host.replaceChildren();
     host.hidden = rows.length === 0;
@@ -1351,6 +1424,12 @@ export class PriceWorkspace {
       };
     }
     this.paintChartRead();
+    this.renderInput = {
+      ...this.renderInput,
+      overlays: this.renderInput.showRavenAnnotations === false
+        ? []
+        : mergeTechnicalOverlays(this.renderInput.overlays, this.state.technicalAnalysis),
+    };
     if (this.state.state === PRICE_WORKSPACE_STATES.LOADING && this.state.candles.length && this.chartHandle) {
       this.paintMarkerIndex();
       this.paintState();
@@ -1372,6 +1451,7 @@ export class PriceWorkspace {
     }
     const mobile = window.matchMedia?.("(max-width: 820px)")?.matches;
     const height = Math.max(mobile ? 300 : 420, this.chartHost.clientHeight || this.root.getBoundingClientRect().height - (mobile ? 116 : 42));
+    const onOverlayTypesChange = this.renderInput.onOverlayTypesChange;
     this.chartHandle = window.RavenPriceChart(this.chartHost, {
       ...this.renderInput,
       candles: this.state.candles,
@@ -1387,6 +1467,11 @@ export class PriceWorkspace {
       onCrosshairMove: (crosshair) => this.renderCrosshair(crosshair),
       onMarkerSelect: (marker) => this.selectMarker(marker),
       onVisibleLogicalRangeChange: (range) => this.handleVisibleRange(range),
+      onOverlayTypesChange: (types) => {
+        this.renderInput.visibleOverlayTypes = Array.isArray(types) ? [...types] : [];
+        this.paintMarkerIndex();
+        onOverlayTypesChange?.(this.renderInput.visibleOverlayTypes);
+      },
     });
     this.chartInstrumentId = currentInstrumentId;
     this.renderCrosshair(null);
@@ -1500,7 +1585,7 @@ export class PriceWorkspace {
       this.state.candles = [...merged.values()].sort((left, right) => Number(left.time) - Number(right.time));
       this.state.returnedBars = this.state.candles.length;
       this.state.backfillCount = Number(this.state.backfillCount || 0) + 1;
-      this.chartHandle?.prependCandles?.(candles);
+      this.render(this.renderInput);
       this.paintWindowAnalytics(this.chartHandle?.visibleLogicalRange?.() || this.visibleRange);
       this.publishGeometry?.();
       document.dispatchEvent(new CustomEvent("ravenos:chartbackfill", { detail: { instrumentId: this.state.instrument?.canonical_id, added: candles.length } }));
@@ -1807,16 +1892,28 @@ export class PriceWorkspace {
     };
   }
 
+  scheduleTechnicalRefresh() {
+    if (this.technicalRefreshTimer !== null) return;
+    this.technicalRefreshTimer = setTimeout(() => {
+      this.technicalRefreshTimer = null;
+      if (!this.state.candles.length || !this.state.instrument) return;
+      this.render(this.renderInput);
+      if (this.followLive) this.chartHandle?.scrollToRealTime?.();
+    }, 0);
+  }
+
   applyCandle(value) {
     const candle = this.reconcileExactPoolTapeCandle(value);
     if (!candle) return;
     const index = this.state.candles.findIndex((row) => Number(row.time) === Number(candle.time));
+    const added = index < 0;
     if (index >= 0) this.state.candles[index] = candle;
     else this.state.candles.push(candle);
     this.state.candles.sort((left, right) => Number(left.time) - Number(right.time));
     if (this.state.candles.length > 5000) this.state.candles.splice(0, this.state.candles.length - 5000);
     this.state.returnedBars = this.state.candles.length;
     this.chartHandle?.updateCandle?.(candle);
+    if (added) this.scheduleTechnicalRefresh();
     if (!this.inspectingCandle) this.renderCrosshair(null);
     if (this.followLive) this.chartHandle?.scrollToRealTime?.();
     this.paintWindowAnalytics(this.visibleRange);
@@ -1894,6 +1991,8 @@ export class PriceWorkspace {
     this.resetExactPoolTape();
     if (this.paintFrame !== null && typeof cancelAnimationFrame === "function") cancelAnimationFrame(this.paintFrame);
     this.paintFrame = null;
+    if (this.technicalRefreshTimer !== null) clearTimeout(this.technicalRefreshTimer);
+    this.technicalRefreshTimer = null;
     if (this.backfillArmTimer) clearTimeout(this.backfillArmTimer);
     this.backfillArmTimer = null;
     this._clearFocus?.();

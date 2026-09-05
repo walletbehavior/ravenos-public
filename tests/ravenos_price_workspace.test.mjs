@@ -9,6 +9,7 @@ const landingRuntime = readFileSync(new URL("../ravenos-landing.js", import.meta
 const atlas = readFileSync(new URL("../ravenos-atlas.js", import.meta.url), "utf8");
 const terminal = readFileSync(new URL("../terminal/index.html", import.meta.url), "utf8");
 const terminalRuntime = readFileSync(new URL("../ravenos-terminal-live.js", import.meta.url), "utf8");
+const discoverRuntime = readFileSync(new URL("../ravenos-discover.js", import.meta.url), "utf8");
 const overlays = readFileSync(new URL("../raven-chart-overlays.js", import.meta.url), "utf8");
 const worker = readFileSync(new URL("../worker.mjs", import.meta.url), "utf8");
 const shellStyles = readFileSync(new URL("../ravenos-shell.css", import.meta.url), "utf8");
@@ -59,6 +60,10 @@ test("PriceWorkspace declares provenance states and never generates fallback can
   assert.doesNotMatch(workspace, /data-rpw-range=/);
   assert.match(workspace, /ravenos\.chart_read\.v1/);
   assert.match(workspace, /provider_candles_only/);
+  assert.match(workspace, /deriveTechnicalAnalysis/);
+  assert.match(workspace, /mergeTechnicalOverlays/);
+  assert.match(workspace, /technicalAnalysis/);
+  assert.match(workspace, /closed_candle_count/);
   assert.match(workspace, /onChartReadChange/);
   assert.match(workspace, /ravenos:chartread/);
   assert.match(workspace, /longScore >= 4/);
@@ -165,6 +170,20 @@ test("chart annotations require exact identity, timestamp, and lineage", () => {
   assert.match(overlays, /lineagePresent/);
   assert.match(overlays, /exact_event_time/);
   assert.doesNotMatch(overlays, /seedFor|chart_heuristic|Math\.sin|Math\.cos/);
+  assert.match(overlays, /ravenos\.technical_overlay\.v1/);
+  assert.match(overlays, /closed_exact_market_candles/);
+  assert.match(overlays, /wallet_accumulation_claimed: false/);
+  assert.match(priceChart, /technical-macd-crossover/);
+  assert.match(priceChart, /technical-accumulation-zone/);
+  assert.match(priceChart, /technical-fibonacci-level/);
+});
+
+test("Discover turns qualified behavior into short, non-repetitive market comments", () => {
+  assert.match(discoverRuntime, /Accumulation watch: buy flow leads as participation expands\./);
+  assert.match(discoverRuntime, /Absorption watch: buyers strengthen into price pressure\./);
+  assert.match(discoverRuntime, /Base watch: price and activity are stabilizing in range\./);
+  assert.match(discoverRuntime, /\["accumulation", "absorption", "distribution"\]\.includes\(activityState\)/);
+  assert.doesNotMatch(discoverRuntime, /wallets? (?:are )?accumulating/i);
 });
 
 test("Worker supports exact-pool OHLCV with explicit provider lineage", () => {

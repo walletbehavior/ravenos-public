@@ -1920,9 +1920,9 @@ function spotDecisionHeadline(row, { current = true, velocityState = "forming", 
   const observationCount = Math.max(1, Math.floor(finite(discovery.registry?.observation_count) || 1));
   if (observationCount < 2) return spotFirstObservationHeadline(row, risks);
   const activityHeadlines = {
-    accumulation: "Buy flow leading as participation accelerates.",
-    absorption: "Buyers strengthening into price pressure.",
-    distribution: "Sell flow strengthening into price strength.",
+    accumulation: "Accumulation watch: buy flow leads as participation expands.",
+    absorption: "Absorption watch: buyers strengthen into price pressure.",
+    distribution: "Distribution warning: sell flow leads into price strength.",
     participation_accelerating: "Participation is accelerating.",
     participation_decelerating: "Participation is slowing.",
     balanced: "Buy and sell participation remain balanced.",
@@ -1934,16 +1934,18 @@ function spotDecisionHeadline(row, { current = true, velocityState = "forming", 
     continuation: "Price and participation remain aligned.",
     pullback_holding: "Pullback holding with buyers and liquidity intact.",
     sell_pressure_absorption: "Buy participation strengthening into the decline.",
-    reacceleration: "Price and participation are reaccelerating.",
+    reacceleration: "Momentum is reaccelerating with participation.",
     distribution: "Price strength conflicts with flow, liquidity, or control data.",
     failed_breakout: "Breakout lost; buy participation is weakening.",
     capitulation: "Price and participation are falling with sell flow dominant.",
-    base_building: "Price and activity are stabilizing in range.",
+    base_building: "Base watch: price and activity are stabilizing in range.",
     post_dump_resurrection: "Rebuilding from a deep drawdown.",
     reclaiming_range: "Reclaiming a lost range with buy flow.",
     approaching_ath: "Approaching the recorded high with positive velocity.",
     ath_breakout: "Trading above the recorded high.",
   };
+  if (["accumulation", "absorption", "distribution"].includes(activityState)) return activityHeadlines[activityState];
+  if (["reacceleration", "base_building", "sell_pressure_absorption"].includes(primary)) return behaviorHeadlines[primary];
   if (state.spotSort === "activity" && activityHeadlines[activityState]) return activityHeadlines[activityState];
   if (state.spotSort !== "raven" && behaviorHeadlines[primary]) return behaviorHeadlines[primary];
   const candidates = state.spotSort === "raven"

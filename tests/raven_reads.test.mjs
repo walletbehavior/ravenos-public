@@ -66,6 +66,26 @@ function assertPublicRead(read) {
   assert.equal(read.public_safe, true);
 }
 
+for (const [type, metadata, expected] of [
+  ["technical-macd-crossover", { overlay_key: "technical-macd", evidence_scope: "closed_exact_market_candles", direction: "positive", candle_count: 80 }, "Positive MACD cross"],
+  ["technical-accumulation-zone", { overlay_key: "technical-accumulation", evidence_scope: "closed_exact_market_candles", candle_count: 48, wallet_accumulation_claimed: false }, "Accumulation-shaped range"],
+  ["technical-fibonacci-level", { overlay_key: "technical-fibonacci", evidence_scope: "closed_exact_market_candles", ratio: 0.618, candle_count: 96, predictive_claimed: false }, "Fibonacci retracement reference"],
+]) {
+  const read = translateOverlayToRavenRead(overlay({
+    id: `sol-${type}`,
+    type,
+    source: "exact_pool_ohlcv",
+    observed_at: "2026-06-25T12:00:00Z",
+    freshness_state: "fresh",
+    metadata,
+  }), context);
+  assert.equal(read.title, expected);
+  assert.equal(read.evidence[0].evidence_scope, "closed_exact_market_candles");
+  assert.equal(read.evidence[0].overlay_key, metadata.overlay_key);
+  assert.match(read.plain_english_read, type === "technical-accumulation-zone" ? /not proof of wallet accumulation/i : /not|momentum/i);
+  assertPublicRead(read);
+}
+
 {
   const read = translateOverlayToRavenRead(providerPressureOverlay(), context);
   assert.equal(read.mode, "pressure");

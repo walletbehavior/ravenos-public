@@ -350,6 +350,67 @@
     };
   }
 
+  function technicalReadCopy(type, metadata = {}, freshnessState = "unknown") {
+    const stale = ["stale", "degraded", "recovering", "backfilling", "unavailable", "unknown"].includes(freshnessState);
+    const candleCount = Number(metadata.candle_count || metadata.sample_count || 0);
+    const sampleReady = Number.isFinite(candleCount) && candleCount >= 24;
+    if (type === "technical-macd-crossover") {
+      const positive = metadata.direction === "positive";
+      return {
+        mode: "pressure",
+        title: positive ? "Positive MACD cross" : "Negative MACD cross",
+        shortLabel: positive ? "MACD +" : "MACD −",
+        plain: `MACD crossed ${positive ? "above" : "below"} its signal line on a closed candle. This describes momentum, not direction certainty.`,
+        setup: "The 12/26 MACD crossed its 9-period signal line using exact-market closed candles.",
+        edge: "The timestamp marks where measured trend momentum changed direction.",
+        confirmation: ["The histogram expands in the same direction on later closed candles", "Price structure remains aligned"],
+        failure: ["MACD crosses back through its signal line", "Price structure diverges from momentum"],
+        warnings: ["A MACD cross can reverse quickly in a range."],
+        confidence: stale || !sampleReady ? "low" : "medium",
+        confidenceScore: stale || !sampleReady ? 38 : 62,
+        supporting: ["closed_candles", "macd_crossover"],
+        conflicting: [],
+        role: "live_market_context",
+      };
+    }
+    if (type === "technical-accumulation-zone") {
+      return {
+        mode: "participation",
+        title: "Accumulation-shaped range",
+        shortLabel: "Accumulation watch",
+        plain: "Price compressed while closed-candle volume and range position stayed constructive. This is not proof of wallet accumulation.",
+        setup: "A bounded candle range, upper-range closes, and constructive volume overlap in the current window.",
+        edge: "The zone makes a quiet build-up visible without treating it as confirmed participant intent.",
+        confirmation: ["The range holds while participation persists", "Price leaves the range with stronger closed-candle volume"],
+        failure: ["Price closes below the range", "Constructive volume fades", "The range expands without directional resolution"],
+        warnings: ["Candle shape cannot identify who is accumulating."],
+        confidence: stale || !sampleReady ? "low" : "medium",
+        confidenceScore: stale || !sampleReady ? 36 : 64,
+        supporting: ["closed_candles", "range_contraction", "volume_shape"],
+        conflicting: ["participant identity unavailable"],
+        role: "live_market_context",
+      };
+    }
+    const ratio = Number(metadata.ratio);
+    const ratioLabel = ratio === 0.5 ? "50%" : Number.isFinite(ratio) ? `${(ratio * 100).toFixed(1)}%` : "retracement";
+    return {
+      mode: "structure",
+      title: "Fibonacci retracement reference",
+      shortLabel: `Fib ${ratioLabel}`,
+      plain: `The ${ratioLabel} level is measured between two confirmed swing pivots. It is a reference, not predicted support or resistance.`,
+      setup: "Raven measured the latest qualified closed-candle swing and plotted its retracement levels.",
+      edge: "The reference makes reactions around a widely watched part of the prior swing easier to inspect.",
+      confirmation: ["Price reacts at the level on closed candles", "Participation or momentum independently confirms the reaction"],
+      failure: ["Price passes through the level without a reaction", "A newer confirmed swing replaces the anchors"],
+      warnings: ["Fibonacci levels are geometric references, not standalone evidence."],
+      confidence: "low",
+      confidenceScore: stale ? 28 : 44,
+      supporting: ["closed_candles", "confirmed_swing_pivots"],
+      conflicting: ["predictive evidence unavailable"],
+      role: "live_market_context",
+    };
+  }
+
   function validateRavenRead(read) {
     if (!read || typeof read !== "object") throw new Error("Raven Read must be an object");
     if (read.schema_version !== SCHEMA_VERSION) throw new Error("Invalid Raven Read schema_version");
@@ -371,6 +432,30 @@
     const delayed = /delayed/i.test(String(overlay?.label || ""));
     const freshnessState = overlay.freshness_state || (delayed ? "stale" : "fresh");
     const value = Number(overlay?.value || 0);
+
+    if (["technical-macd-crossover", "technical-accumulation-zone", "technical-fibonacci-level"].includes(type)) {
+      const copy = technicalReadCopy(type, overlay.metadata || {}, freshnessState);
+      return buildRead({
+        overlay, context, mode: copy.mode, role: copy.role, freshnessState,
+        title: copy.title,
+        shortLabel: copy.shortLabel,
+        plain: copy.plain,
+        setup: copy.setup,
+        edge: copy.edge,
+        confirmation: copy.confirmation,
+        failure: copy.failure,
+        supporting: copy.supporting,
+        conflicting: copy.conflicting,
+        warnings: copy.warnings,
+        confidence: copy.confidence,
+        confidenceScore: copy.confidenceScore,
+        evidenceExtra: {
+          observed_at: overlay.observed_at || overlay.observedAt,
+          evidence_scope: overlay.metadata?.evidence_scope,
+          overlay_key: overlay.metadata?.overlay_key,
+        },
+      });
+    }
 
     if (type === "pressure-zone") {
       const pressureCopy = pressureReadCopy(overlay.metadata || {}, freshnessState, overlay.value);

@@ -33,4 +33,18 @@ The chart-facing modes are:
 - Replay
 - Risk
 
+## Technical context
+
+The Terminal can add deterministic TA context from closed candles belonging to the selected exact market and timeframe:
+
+- MACD 12/26/9 signal-line crosses, marked on the closed candle where the cross occurred
+- accumulation-shaped ranges, requiring contraction plus constructive volume and range position
+- 38.2%, 50%, and 61.8% Fibonacci retracement references from the latest qualified swing pivots
+
+MACD and accumulation marks are shown by default when qualified. Fibonacci stays available in `Raven → TA` to avoid covering the chart with reference lines. Changing the market or timeframe recomputes the marks; a forming candle is excluded.
+
+These are measured context, not execution instructions. An accumulation-shaped range does not establish wallet accumulation, and a Fibonacci level does not establish support or resistance. Missing volume, insufficient history, limited chart data, or unavailable provider evidence produces no mark rather than a guessed result.
+
+Discover uses only its qualified market-flow and behavior evidence for short comments such as `Accumulation watch` or `Base watch`. It does not claim candle-level MACD or Fibonacci evidence when the Discover record does not contain exact-market candles.
+
 Raven Reads must not use buy/sell/long/short/guaranteed/advice language. They identify where market behavior is changing and what would confirm or weaken Raven's interpretation.
