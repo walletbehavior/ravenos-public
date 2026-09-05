@@ -642,7 +642,7 @@ test("Worker supplements the primary Discover page with bounded later-page marke
     assert.deepEqual(pages.sort(), [1, 2, 3]);
     assert.deepEqual(body.rows.map((row) => row.symbol), ["PAGE1", "PAGE2", "PAGE3"]);
     assert.equal(body.discovery_coverage.provider_page_size, 20);
-    assert.equal(body.discovery_coverage.provider_rows_per_chain_limit, 44);
+    assert.equal(body.discovery_coverage.provider_rows_per_chain_limit, 60);
     assert.deepEqual(body.discovery_coverage.chains[0].pages_loaded, [1, 2, 3]);
     assert.deepEqual(body.discovery_coverage.chains[0].supplemental_page_failures, []);
   } finally {
@@ -763,7 +763,7 @@ test("Worker merges Jupiter token velocity into a verified exact Solana pool wit
     if (url.hostname === "api.jup.ag") {
       assert.equal(init.headers["x-api-key"], jupiterSecret);
       assert.equal(url.pathname, "/tokens/v2/toptrending/1h");
-      assert.equal(url.searchParams.get("limit"), "20");
+      assert.equal(url.searchParams.get("limit"), "50");
       return jsonResponse([{
         id: tokenAddress,
         name: "Jupiter",
@@ -850,6 +850,76 @@ test("Worker merges Jupiter token velocity into a verified exact Solana pool wit
     assert.equal(velocity.discovery.velocity_state.score.score_kind, "velocity_ranking");
     assert.equal(velocity.discovery.velocity_state.score.scale_max, 99);
     assert.equal(JSON.stringify(body).includes(coinGeckoSecret), false);
+    assert.equal(JSON.stringify(body).includes(jupiterSecret), false);
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+
+test("Worker expands Jupiter discovery with bounded exact-pool batches", async () => {
+  const jupiterSecret = "server-only-expanded-jupiter-token";
+  const quoteAddress = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+  const alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+  const address = (prefix, index) => `${prefix}${alphabet[index % alphabet.length]}${alphabet[Math.floor(index / alphabet.length)]}${"1".repeat(29)}`;
+  const tokens = Array.from({ length: 35 }, (_, index) => ({
+    id: address("T", index),
+    name: `Velocity ${index + 1}`,
+    symbol: `VEL${index + 1}`,
+    usdPrice: 0.01 + index / 10_000,
+    mcap: 100_000 + index * 10_000,
+    liquidity: 80_000 + index * 1_000,
+    holderCount: 100 + index,
+    organicScore: 70,
+    firstPool: { createdAt: "2026-01-01T00:00:00Z" },
+    stats5m: { priceChange: 6, buyVolume: 10_000, sellVolume: 4_000, numBuys: 20, numSells: 8, numTraders: 18 },
+    stats1h: { priceChange: 10, buyVolume: 80_000, sellVolume: 30_000, numBuys: 120, numSells: 50, numTraders: 90 },
+    stats24h: { priceChange: 20, buyVolume: 500_000, sellVolume: 240_000, numBuys: 900, numSells: 410, numTraders: 640 },
+  }));
+  const dexBatchSizes = [];
+  const previousFetch = globalThis.fetch;
+  globalThis.fetch = async (input, init = {}) => {
+    const url = new URL(String(input));
+    if (url.origin === new URL(ORIGIN).origin && url.pathname.endsWith("/opportunities.json")) return jsonResponse({}, 503);
+    if (url.hostname === "api.jup.ag") {
+      assert.equal(init.headers["x-api-key"], jupiterSecret);
+      assert.equal(url.pathname, "/tokens/v2/toptrending/24h");
+      assert.equal(url.searchParams.get("limit"), "50");
+      return jsonResponse(tokens);
+    }
+    if (url.hostname === "api.dexscreener.com") {
+      const requested = decodeURIComponent(url.pathname.split("/").at(-1)).split(",").filter(Boolean);
+      dexBatchSizes.push(requested.length);
+      assert.ok(requested.length <= 30);
+      return jsonResponse(requested.map((tokenAddress) => {
+        const index = tokens.findIndex((token) => token.id === tokenAddress);
+        return {
+          chainId: "solana",
+          dexId: "meteora",
+          pairAddress: address("P", index),
+          pairCreatedAt: Date.now() - 30 * 86_400_000,
+          baseToken: { address: tokenAddress, symbol: `VEL${index + 1}`, name: `Velocity ${index + 1}` },
+          quoteToken: { address: quoteAddress, symbol: "USDC", name: "USD Coin" },
+          priceUsd: String(0.01 + index / 10_000),
+          liquidity: { usd: 80_000 + index * 1_000 },
+          volume: { h24: 500_000 + index * 1_000 },
+          txns: { h24: { buys: 900, sells: 410 } },
+          marketCap: 100_000 + index * 10_000,
+          priceChange: { h24: 20 },
+        };
+      }));
+    }
+    throw new Error(`unexpected_url:${url}`);
+  };
+  try {
+    const response = await worker.fetch(
+      new Request("https://ravenos.xyz/api/onchain/trending?chains=solana&duration=24h"),
+      { ...environment(), JUPITER_API_KEY: jupiterSecret },
+    );
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.rows.filter((row) => row.source_type === "jupiter_velocity").length, 35);
+    assert.deepEqual(dexBatchSizes.sort((left, right) => right - left), [30, 5]);
+    assert.equal(body.discovery_lanes.jupiter_velocity, true);
     assert.equal(JSON.stringify(body).includes(jupiterSecret), false);
   } finally {
     globalThis.fetch = previousFetch;

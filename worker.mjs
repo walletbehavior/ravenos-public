@@ -33,6 +33,7 @@ import {
   resolveChartCapability,
   timeframeSeconds,
 } from "./ravenos-chart-data-plane.js";
+import { bestExactSpotMarketPerToken } from "./ravenos-discover-intelligence.js";
 import { resolveCustomerTradeFlags } from "./lib/customer_trade/feature_flags.mjs";
 import {
   createHyperliquidMarketPreview,
@@ -540,8 +541,12 @@ const EVM_ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
 const EVM_POOL_ID_RE = /^0x(?:[a-fA-F0-9]{40}|[a-fA-F0-9]{64})$/;
 const ONCHAIN_PULSE_PROVIDER_PAGES = Object.freeze([1, 2, 3]);
 const ONCHAIN_PULSE_PROVIDER_PAGE_SIZE = 20;
-const ONCHAIN_PULSE_PROVIDER_ROWS_PER_CHAIN = 44;
+const ONCHAIN_PULSE_PROVIDER_ROWS_PER_CHAIN = 60;
 const ONCHAIN_PULSE_SUPPLEMENT_TTL_MS = 90_000;
+const ONCHAIN_PULSE_MAX_ROWS = 240;
+const JUPITER_DISCOVERY_LIMIT = 50;
+const DEXSCREENER_TOKEN_BATCH_LIMIT = 30;
+const DEXCH_PULSE_TOKENS_PER_CHAIN = 30;
 const EVM_CHAINS = ["base", "ethereum", "robinhood", "arbitrum", "optimism", "bsc", "polygon", "avalanche"];
 const QUOTE_RANK = { USDC: 90, USDT: 85, USDG: 84, SOL: 80, WETH: 80, ETH: 75, WSOL: 75 };
 const CHAIN_ROUTE_MAP = {
@@ -3515,10 +3520,10 @@ async function dexchPulseDiscovery({ env = {}, chains = [], duration = "5m", fet
     };
   }
   const discoveryRequests = [
-    { lane: "trending", sort: "trending", limit: 30 },
-    { lane: "new", preset: "new", sort: "new", limit: 18 },
-    { lane: "almost", preset: "almost", sort: "progress", limit: 18 },
-    { lane: "graduated", preset: "graduated", sort: "migratedAt", limit: 18 },
+    { lane: "trending", sort: "trending", limit: 50 },
+    { lane: "new", preset: "new", sort: "new", limit: 30 },
+    { lane: "almost", preset: "almost", sort: "progress", limit: 30 },
+    { lane: "graduated", preset: "graduated", sort: "migratedAt", limit: 30 },
   ];
   const tokenSettled = await Promise.allSettled(discoveryRequests.map((request) => dexchDiscoveryProvider.tokens({
     chains: supportedChains,
@@ -3543,12 +3548,12 @@ async function dexchPulseDiscovery({ env = {}, chains = [], duration = "5m", fet
   const tokensByChain = new Map();
   for (const token of tokens) {
     if (!tokensByChain.has(token.chain)) tokensByChain.set(token.chain, []);
-    if (tokensByChain.get(token.chain).length < 24) tokensByChain.get(token.chain).push(token);
+    if (tokensByChain.get(token.chain).length < DEXCH_PULSE_TOKENS_PER_CHAIN) tokensByChain.get(token.chain).push(token);
   }
   const pairSettled = await Promise.allSettled([...tokensByChain].map(async ([chain, chainTokens]) => ({
     chain,
     tokens: chainTokens,
-    pairs: await tokensDex(chain, chainTokens.slice(0, 24).map((token) => token.address).join(",")),
+    pairs: await tokensDex(chain, chainTokens.slice(0, DEXSCREENER_TOKEN_BATCH_LIMIT).map((token) => token.address).join(",")),
   })));
   const rows = [];
   for (const result of pairSettled) {
@@ -3679,15 +3684,15 @@ function normalizeJupiterVelocityToken(token = {}, pair = {}, { duration = "5m",
 async function jupiterVelocityRows({ env = {}, duration = "5m", fetchedAt = new Date().toISOString() } = {}) {
   const apiKey = String(env.JUPITER_API_KEY || "").trim();
   if (!apiKey) return [];
-  const cacheKey = `toptrending:${duration}:configured`;
+  const cacheKey = `toptrending:${duration}:limit-${JUPITER_DISCOVERY_LIMIT}`;
   const cached = cacheGet(jupiterVelocityCache, cacheKey);
   if (cached) return cached;
   const payload = await runProviderOperation({
     component: "jupiter_token_discovery",
     operation_key: cacheKey,
-    fn: () => boundedProviderJson(`${JUPITER_TOKENS_BASE_URL}/toptrending/${encodeURIComponent(duration)}?limit=20`, {
+    fn: () => boundedProviderJson(`${JUPITER_TOKENS_BASE_URL}/toptrending/${encodeURIComponent(duration)}?limit=${JUPITER_DISCOVERY_LIMIT}`, {
       headers: { "x-api-key": apiKey },
-      maxBytes: 512 * 1024,
+      maxBytes: 1024 * 1024,
       timeoutMs: 5_000,
       errorPrefix: "jupiter_tokens",
     }),
@@ -3695,24 +3700,29 @@ async function jupiterVelocityRows({ env = {}, duration = "5m", fetchedAt = new 
   const tokens = (Array.isArray(payload) ? payload : [])
     .filter((row) => SOLANA_ADDRESS_RE.test(String(row?.id || "")))
     .filter((row) => !STABLE_TOKEN_SYMBOLS.has(String(row?.symbol || "").toUpperCase()))
-    .slice(0, 20);
+    .slice(0, JUPITER_DISCOVERY_LIMIT);
   if (!tokens.length) return [];
-  const pairs = await runProviderOperation({
+  const tokenBatches = [];
+  for (let index = 0; index < tokens.length; index += DEXSCREENER_TOKEN_BATCH_LIMIT) {
+    tokenBatches.push(tokens.slice(index, index + DEXSCREENER_TOKEN_BATCH_LIMIT));
+  }
+  const pairSettled = await Promise.allSettled(tokenBatches.map((batch, batchIndex) => runProviderOperation({
     component: "jupiter_token_discovery",
-    operation_key: `exact-pools:${tokens.map((row) => row.id).join(",")}`,
+    operation_key: `exact-pools:${duration}:${batchIndex}:${batch.map((row) => row.id).join(",")}`,
     fn: async () => {
-      const addresses = tokens.map((row) => row.id).join(",");
+      const addresses = batch.map((row) => row.id).join(",");
       const exactPools = await boundedProviderJson(
         `${DEXSCREENER_BASE_URL}/tokens/v1/solana/${encodeURIComponent(addresses)}`,
         {
-          maxBytes: 768 * 1024,
+          maxBytes: 1024 * 1024,
           timeoutMs: 4_000,
           errorPrefix: "dexscreener_jupiter_exact_pools",
         },
       );
       return sortedDexResults(Array.isArray(exactPools) ? exactPools : []);
     },
-  });
+  })));
+  const pairs = pairSettled.flatMap((result) => result.status === "fulfilled" ? result.value : []);
   const bestPair = new Map();
   for (const pair of pairs) {
     if (!bestPair.has(pair.tokenAddress)) bestPair.set(pair.tokenAddress, pair);
@@ -3720,7 +3730,7 @@ async function jupiterVelocityRows({ env = {}, duration = "5m", fetchedAt = new 
   const rows = tokens
     .map((token, index) => normalizeJupiterVelocityToken(token, bestPair.get(token.id), { duration, rank: index + 1, fetchedAt }))
     .filter(Boolean)
-    .slice(0, 20);
+    .slice(0, JUPITER_DISCOVERY_LIMIT);
   cacheSet(jupiterVelocityCache, cacheKey, rows, 30_000);
   return rows;
 }
@@ -4039,6 +4049,29 @@ function onchainPulseCachePolicy(result = {}, { jupiterConfigured = false } = {}
   });
 }
 
+function balancedDiscoverCandidates(rows = [], chains = [], { timeframe = "5m", limit = ONCHAIN_PULSE_MAX_ROWS } = {}) {
+  const exactTokens = bestExactSpotMarketPerToken(rows, { timeframe });
+  if (exactTokens.length <= limit) return exactTokens;
+  const orderedChains = [...new Set(chains.map((chain) => String(chain || "").trim().toLowerCase()).filter(Boolean))];
+  const buckets = new Map(orderedChains.map((chain) => [chain, []]));
+  const remainder = [];
+  for (const row of exactTokens) {
+    const chain = String(row?.chain_id || row?.chain || "").trim().toLowerCase();
+    if (buckets.has(chain)) buckets.get(chain).push(row);
+    else remainder.push(row);
+  }
+  const selected = [];
+  while (selected.length < limit && [...buckets.values()].some((bucket) => bucket.length)) {
+    for (const chain of orderedChains) {
+      const row = buckets.get(chain)?.shift();
+      if (row) selected.push(row);
+      if (selected.length >= limit) break;
+    }
+  }
+  if (selected.length < limit) selected.push(...remainder.slice(0, limit - selected.length));
+  return selected;
+}
+
 async function onchainMarketPulse({ env = {}, request = null, chains = [], duration = "5m" } = {}) {
   const providerWindow = ONCHAIN_PULSE_DURATIONS[duration];
   if (!providerWindow || !chains.length) throw new Error("onchain_market_pulse_request_invalid");
@@ -4158,7 +4191,7 @@ async function onchainMarketPulse({ env = {}, request = null, chains = [], durat
     const marketKey = String(row.instrument_id || "");
     if (marketKey && !rowsByMarket.has(marketKey)) rowsByMarket.set(marketKey, row);
   }
-  const rows = [...rowsByMarket.values()];
+  const rows = balancedDiscoverCandidates([...rowsByMarket.values()], chains, { timeframe: duration });
   if (!rows.length) throw new Error("onchain_market_pulse_unavailable");
   const classifiedRows = attachDiscoverRegistryHistory(rows, registryHistory).map((row) => ({
     ...row,

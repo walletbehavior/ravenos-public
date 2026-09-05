@@ -138,7 +138,19 @@
           <button type="button" data-spot-market-cap="10k_100k" aria-pressed="false">$10–100K</button>
           <button type="button" data-spot-market-cap="100k_plus" aria-pressed="false">$100K+</button>
         </div>
-        <button class="discover-revival-scan" id="discoverRevivalScan" type="button" aria-pressed="false">Trading again</button>
+      </div>
+      <div class="discover-lifecycle-quickbar">
+        <div role="group" aria-label="Quick token lifecycle">
+          <button class="active" type="button" data-spot-cohort="all" aria-pressed="true">All</button>
+          <button type="button" data-spot-cohort="new" aria-pressed="false">New</button>
+          <button type="button" data-spot-cohort="bonding" aria-pressed="false">Bonding</button>
+          <button type="button" data-spot-cohort="migrated" aria-pressed="false">Migrated</button>
+          <button id="discoverRevivalScan" type="button" data-spot-revival aria-pressed="false">Trading again</button>
+        </div>
+        <span class="discover-lifecycle-quickbar-status">
+          <button id="discoverSameSymbolToggle" type="button" aria-label="Show all same-symbol contracts" aria-pressed="false">All contracts</button>
+          <output id="discoverSpotResultState" aria-live="polite">Finding exact markets</output>
+        </span>
       </div>
       <div class="discover-radar-filters" aria-label="Lifecycle and market filters">
         <details class="discover-refine-markets" id="discoverRefineMarkets">

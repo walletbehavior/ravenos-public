@@ -811,7 +811,7 @@ async function mockWorkspaceApis(page, {
 test("desktop adds Raven Lab without crowding the four mobile workspaces", async ({ page }) => {
   await mockWorkspaceApis(page);
   await page.goto("/discover/");
-  await expect(page.locator(".ros-workspace-nav a > span:last-child")).toHaveText(["Discover", "Terminal", "Agents", "Raven Lab", "Portfolio", "Atlas"]);
+  await expect(page.locator(".ros-workspace-nav a > span:last-child")).toHaveText(["Discover", "Terminal", "Agents", "Community", "Raven Lab", "Portfolio", "Atlas"]);
   await expect(page.locator(".ros-left-nav")).toHaveCount(0);
   await expect(page.locator(".ros-workspace-nav")).not.toContainText(/Solana|Base|Spot|Perps|Robinhood|Tradier/);
   await expect(page.locator("#discoverSearchTrigger")).toContainText("Search any supported instrument");
@@ -1192,6 +1192,7 @@ test("Discover defaults to Velocity, keeps sourcing internal, and opens Raven's 
   await expect(page.locator("#discoverSpotPulseTitle")).toHaveText("Velocity radar");
   const row = page.locator(".discover-token-row").first();
   await expect(row).toContainText("JUP");
+  await expect(row.locator(".discover-token-market-id")).toContainText("Solana · Jupiter · Meteora");
   await expect(page.locator("#discoverSpotPulse")).not.toContainText(/Jupiter velocity|Raven tracked/i);
   await expect(row).toContainText("Exact pool");
   await expect(row).toContainText("+12.80%");
@@ -1249,6 +1250,42 @@ test("Discover shows the full ranked market set by default and keeps the high-si
   await expect(page.locator(".discover-token-empty")).toContainText("No high-signal market now");
   await page.getByRole("button", { name: "Open everything" }).click();
   await expect(row).toHaveCount(1);
+});
+
+test("Discover groups same-symbol contracts for clarity and reveals every exact identity on demand", async ({ page }) => {
+  const primary = structuredClone(evmPulseRows[0]);
+  primary.symbol = "TWINS";
+  primary.name = "Twins";
+  primary.instrument_id = "base:pool:0x0000000000000000000000000000000000000101";
+  primary.public_attention_id = "market:base:0x0000000000000000000000000000000000000101";
+  primary.pool_address = "0x0000000000000000000000000000000000000101";
+  primary.token_address = "0x0000000000000000000000000000000000000201";
+
+  const alternatePool = structuredClone(primary);
+  alternatePool.instrument_id = "base:pool:0x0000000000000000000000000000000000000102";
+  alternatePool.public_attention_id = "market:base:0x0000000000000000000000000000000000000102";
+  alternatePool.pool_address = "0x0000000000000000000000000000000000000102";
+  alternatePool.market = { ...alternatePool.market, liquidity_usd: primary.market.liquidity_usd / 2 };
+
+  const sameSymbolDifferentContract = structuredClone(primary);
+  sameSymbolDifferentContract.instrument_id = "base:pool:0x0000000000000000000000000000000000000103";
+  sameSymbolDifferentContract.public_attention_id = "market:base:0x0000000000000000000000000000000000000103";
+  sameSymbolDifferentContract.pool_address = "0x0000000000000000000000000000000000000103";
+  sameSymbolDifferentContract.token_address = "0x0000000000000000000000000000000000000202";
+
+  await mockWorkspaceApis(page, { pulseRowsOverride: [primary, alternatePool, sameSymbolDifferentContract] });
+  await page.goto("/discover/");
+
+  await expect(page.locator(".discover-lifecycle-quickbar")).toBeVisible();
+  await expect(page.locator(".discover-lifecycle-quickbar > div button")).toHaveText(["All", "New", "Bonding", "Migrated", "Trading again"]);
+  await expect(page.locator(".discover-token-row")).toHaveCount(1);
+  await expect(page.locator("#discoverSpotResultState")).toHaveText("1 shown · 2 exact tokens");
+  await expect(page.locator("#discoverTokenTapeList")).toContainText("2 same-symbol contracts · best shown");
+  await expect(page.locator("#discoverSameSymbolToggle")).toHaveAttribute("aria-pressed", "false");
+  await page.locator("#discoverSameSymbolToggle").click();
+  await expect(page.locator("#discoverSameSymbolToggle")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("#discoverSpotResultState")).toHaveText("2 tokens");
+  await expect(page.locator(".discover-token-row").filter({ hasText: "TWINS" })).toHaveCount(2);
 });
 
 test("Discover scans sub-5K and sub-10K markets and rejects one-print revival noise", async ({ page }) => {
@@ -1665,6 +1702,28 @@ test("Discover adds live Base and Ethereum exact pools without presenting them a
   await page.setViewportSize({ width: 390, height: 844 });
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(2);
+});
+
+test("Discover surfaces every active chain in the all-chain lead rows", async ({ page }) => {
+  const bsc = structuredClone(evmPulseRows[0]);
+  bsc.public_attention_id = "market:bsc:0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+  bsc.instrument_id = "bsc:pool:0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+  bsc.chain = "BNB Chain";
+  bsc.chain_id = "bsc";
+  bsc.venue = "PancakeSwap";
+  bsc.symbol = "BNBX";
+  bsc.name = "BNB Example";
+  bsc.pool_address = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+  bsc.token_address = "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+  bsc.quote_token_address = "0xcccccccccccccccccccccccccccccccccccccccc";
+  await mockWorkspaceApis(page, {
+    pulseRowsOverride: [evmPulseRows[0], evmPulseRows[1], bsc, robinhoodPulseRow, solanaPulseRow],
+  });
+  await page.goto("/discover/");
+
+  await expect(page.locator(".discover-token-row")).toHaveCount(5);
+  const chains = await page.locator(".discover-token-market-id").evaluateAll((nodes) => nodes.map((node) => node.textContent.split(" · ")[0]));
+  expect(chains).toEqual(["Solana", "Robinhood Chain", "Base", "BNB Chain", "Ethereum"]);
 });
 
 test("Discover promotes qualified Robinhood Chain flow and opens the same exact pool in Terminal", async ({ page }) => {

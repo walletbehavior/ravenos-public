@@ -1643,6 +1643,7 @@ test("Solana spot ticket keeps quick sizing, plans, fees, and wallet-backed sell
   await expect(page.locator("#terminalSpotCustomInputs")).toBeHidden();
   await expect(page.locator("#terminalSpotActiveFee")).toContainText("1.00%");
   await expect(page.locator("#terminalSpotProFee")).toContainText("0.70%");
+  await expect(page.locator("#terminalSpotExecutionRail [data-terminal-step=connect]")).toContainText("Wallet");
   await expect(page.locator("#terminalSpotExecutionRail [data-terminal-step=sign]")).toContainText("Locked");
   await expect(page.locator("#terminalSpotExecutionRail [data-terminal-step=send]")).toContainText("Locked");
   await expect(page.locator("#terminalSpotDecisionStrip")).toBeVisible();
@@ -1654,7 +1655,11 @@ test("Solana spot ticket keeps quick sizing, plans, fees, and wallet-backed sell
   await expect(page.locator("#terminalSpotExitCompact")).toHaveText("Not reviewed");
   await expect(page.locator("#terminalSpotAdvanced")).not.toHaveAttribute("open", "");
   const primaryActionBounds = await page.locator("#terminalSpotQuoteAction").boundingBox();
+  const readinessBounds = await page.locator("#terminalSpotExecutionRail").boundingBox();
+  const decisionBounds = await page.locator("#terminalSpotDecisionStrip").boundingBox();
   const mobileNavBounds = await page.locator(".ros-mobile-nav").boundingBox();
+  expect(readinessBounds?.y || 0).toBeLessThan(decisionBounds?.y || Number.POSITIVE_INFINITY);
+  expect(decisionBounds?.y || 0).toBeLessThan(primaryActionBounds?.y || Number.POSITIVE_INFINITY);
   expect((primaryActionBounds?.y || 0) + (primaryActionBounds?.height || 0)).toBeLessThanOrEqual(mobileNavBounds?.y || 844);
   expect(primaryActionBounds?.height || 0).toBeGreaterThanOrEqual(44);
 

@@ -688,13 +688,13 @@ button, input, select { font: inherit; }
 .terminal-spot-ticket > .terminal-spot-asset-choice { order: 3; }
 .terminal-spot-ticket > .terminal-spot-amount-row { order: 4; }
 .terminal-spot-ticket > .terminal-size-presets { order: 5; }
-.terminal-spot-ticket > .terminal-spot-decision-strip { order: 6; }
-.terminal-spot-ticket > .terminal-spot-fee-compact { order: 7; }
-.terminal-spot-ticket > .terminal-preview-action { order: 8; }
-.terminal-spot-ticket > .terminal-quote-follow { order: 9; }
-.terminal-spot-ticket > .terminal-preview-result { order: 10; }
-.terminal-spot-ticket > .terminal-spot-live-execution { order: 11; margin-top: 8px; }
-.terminal-spot-ticket > .terminal-execution-rail { order: 12; }
+.terminal-spot-ticket > .terminal-execution-rail { order: 6; }
+.terminal-spot-ticket > .terminal-spot-decision-strip { order: 7; }
+.terminal-spot-ticket > .terminal-spot-fee-compact { order: 8; }
+.terminal-spot-ticket > .terminal-preview-action { order: 9; }
+.terminal-spot-ticket > .terminal-quote-follow { order: 10; }
+.terminal-spot-ticket > .terminal-preview-result { order: 11; }
+.terminal-spot-ticket > .terminal-spot-live-execution { order: 12; margin-top: 8px; }
 .terminal-spot-ticket > .terminal-preview-message { order: 13; }
 .terminal-spot-ticket > .terminal-spot-advanced { order: 14; }
 @media (min-width: 821px) {

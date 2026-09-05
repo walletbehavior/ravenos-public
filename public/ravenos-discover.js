@@ -77,6 +77,9 @@ const state = {
   featuredRows: [],
   featuredRefreshedAt: 0,
   spotRows: [],
+  spotVisibleTokenCount: 0,
+  spotVisibleExactMarketCount: 0,
+  spotShowSameSymbolContracts: false,
   spotTimeframe: "5m",
   spotSort: "velocity",
   spotChain: "all",
@@ -1098,6 +1101,63 @@ function spotRowId(row = {}) {
   return text(row.instrument_id, text(row.public_attention_id, `${text(row.chain, "solana")}:${text(row.token_address, "")}`));
 }
 
+function spotCanonicalAssetKey(row = {}) {
+  const chain = text(row.chain_id || row.chain, "unknown").toLowerCase();
+  const address = text(row.token_address, "");
+  if (!address) return `market:${spotRowId(row)}`;
+  const canonicalAddress = chain === "solana" ? address : address.toLowerCase();
+  const standard = text(row.token_standard, "token").toLowerCase();
+  return `${chain}:${standard}:${canonicalAddress}`;
+}
+
+function groupSpotRowsByCanonicalAsset(rankedRows = []) {
+  const groups = new Map();
+  rankedRows.forEach((row) => {
+    const key = spotCanonicalAssetKey(row);
+    const group = groups.get(key);
+    if (group) group.push(row);
+    else groups.set(key, [row]);
+  });
+  return [...groups.values()].map((group) => ({
+    ...group[0],
+    display_exact_market_count: group.length,
+  }));
+}
+
+function groupSpotRowsBySymbol(rankedRows = []) {
+  const groups = new Map();
+  rankedRows.forEach((row, index) => {
+    const chain = text(row.chain_id || row.chain, "unknown").toLowerCase();
+    const symbol = text(row.symbol, "").trim().toUpperCase();
+    const key = symbol ? `${chain}:${symbol}` : `unresolved:${index}:${spotCanonicalAssetKey(row)}`;
+    const group = groups.get(key);
+    if (group) group.push(row);
+    else groups.set(key, [row]);
+  });
+  return [...groups.values()].map((group) => ({
+    ...group[0],
+    display_same_symbol_contract_count: group.length,
+  }));
+}
+
+function updateSpotResultState(visibleCount, exactTokenCount, exactMarketCount) {
+  state.spotVisibleTokenCount = visibleCount;
+  state.spotVisibleExactMarketCount = exactMarketCount;
+  const output = document.getElementById("discoverSpotResultState");
+  if (!output) return;
+  if (!exactMarketCount) {
+    output.textContent = "No matching markets";
+    return;
+  }
+  if (visibleCount < exactTokenCount) {
+    output.textContent = `${visibleCount} shown · ${exactTokenCount} exact tokens`;
+    return;
+  }
+  output.textContent = exactTokenCount === exactMarketCount
+    ? `${exactTokenCount} token${exactTokenCount === 1 ? "" : "s"}`
+    : `${exactTokenCount} tokens · ${exactMarketCount} exact pools`;
+}
+
 function spotTokenFingerprint(value) {
   const clean = text(value, "");
   if (!clean) return "";
@@ -1736,6 +1796,37 @@ function spotRankedRows() {
   });
 }
 
+function surfaceEverySpotChain(rows = [], leadLimit = 15) {
+  if (state.spotChain !== "all" || rows.length < 2) return rows;
+  const chainOrder = ["solana", "robinhood", "base", "bsc", "ethereum"];
+  const buckets = new Map(chainOrder.map((chain) => [chain, []]));
+  for (const row of rows) {
+    const chain = text(row.chain_id || row.chain, "").toLowerCase();
+    if (buckets.has(chain)) buckets.get(chain).push(row);
+  }
+  const represented = chainOrder.filter((chain) => buckets.get(chain).length > 0);
+  if (represented.length < 2) return rows;
+  const lead = [];
+  const selected = new Set();
+  const target = Math.min(rows.length, Math.max(represented.length, leadLimit));
+  while (lead.length < target && represented.some((chain) => buckets.get(chain).length)) {
+    for (const chain of represented) {
+      const row = buckets.get(chain).shift();
+      if (!row) continue;
+      lead.push(row);
+      selected.add(spotRowId(row));
+      if (lead.length >= target) break;
+    }
+  }
+  return [...lead, ...rows.filter((row) => !selected.has(spotRowId(row)))];
+}
+
+function spotDiscoverySourceLabel(row = {}) {
+  if (row.source_type === "jupiter_velocity") return "Jupiter";
+  if (row.source_type === "launchpad_discovery" && row.provider_enrichment?.dexch?.provider === "dexch") return "Dexch";
+  return "";
+}
+
 function momentumGlyph(row) {
   const values = ["5m", "1h", "24h"].map((window) => finite(row?.market?.[`price_change_${window}_pct`]));
   const available = values.filter((value) => value !== null);
@@ -2144,11 +2235,18 @@ function updateSpotTokenRow(anchor, row, index) {
   append(name, "strong", "", text(row.symbol));
   append(name, "small", "", text(row.name, ""));
   const marketId = append(copy, "span", "discover-token-market-id", "");
+  const exactMarketCount = finite(row.display_exact_market_count);
+  const sameSymbolContractCount = finite(row.display_same_symbol_contract_count);
   const marketIdentity = [
     spotChainLabel(row.chain_id || row.chain),
+    spotDiscoverySourceLabel(row),
     text(row.venue, ""),
     text(row.quote_symbol, ""),
-    row.identity_scope === "exact_pool" ? "Exact pool" : "Exact token",
+    sameSymbolContractCount !== null && sameSymbolContractCount > 1
+      ? `${sameSymbolContractCount} same-symbol contracts · best shown`
+      : row.identity_scope === "exact_pool"
+        ? exactMarketCount !== null && exactMarketCount > 1 ? `${exactMarketCount} pools · best shown` : "Exact pool"
+        : "Exact token",
     `CA ${spotTokenFingerprint(row.token_address)}`,
     spotTokenAge(row),
     spotMigrationAge(row),
@@ -2331,7 +2429,10 @@ function schedulePendingSpotOrder(delay = DISCOVER_IDLE_MS) {
 function renderSpotTokenTape({ forceOrder = false } = {}) {
   const host = document.getElementById("discoverTokenTapeList");
   const updates = document.getElementById("discoverTokenUpdates");
-  const ranked = spotRankedRows();
+  const exactRanked = surfaceEverySpotChain(spotRankedRows());
+  const exactTokens = groupSpotRowsByCanonicalAsset(exactRanked);
+  const ranked = state.spotShowSameSymbolContracts ? exactTokens : groupSpotRowsBySymbol(exactTokens);
+  updateSpotResultState(ranked.length, exactTokens.length, exactRanked.length);
   const rankedIds = ranked.map(spotRowId);
   if (discoverInteractionActive() && !forceOrder && host.childElementCount) {
     const byId = new Map(ranked.map((row) => [spotRowId(row), row]));
@@ -2499,8 +2600,18 @@ function renderSpotPulse(rows = state.spotRows, { forceOrder = false } = {}) {
     marketCapSelect.value = state.spotMarketCapFilter;
   }
   syncNumericRangeControls();
-  const revivalButton = document.getElementById("discoverRevivalScan");
-  if (revivalButton) revivalButton.setAttribute("aria-pressed", String(state.spotRevivalOnly));
+  document.querySelectorAll("[data-spot-revival]").forEach((button) => {
+    button.classList.toggle("active", state.spotRevivalOnly);
+    button.setAttribute("aria-pressed", String(state.spotRevivalOnly));
+  });
+  const contractToggle = document.getElementById("discoverSameSymbolToggle");
+  if (contractToggle) {
+    contractToggle.classList.toggle("active", state.spotShowSameSymbolContracts);
+    contractToggle.setAttribute("aria-pressed", String(state.spotShowSameSymbolContracts));
+    contractToggle.setAttribute("aria-label", state.spotShowSameSymbolContracts
+      ? "Group same-symbol contracts"
+      : "Show all same-symbol contracts");
+  }
   for (const [id, metric] of [
     ["discoverVolumeFilterLabel", "volume"],
     ["discoverTransactionFilterLabel", "txns"],
@@ -3526,6 +3637,7 @@ function bind() {
   }));
   document.querySelectorAll("[data-spot-cohort]").forEach((button) => button.addEventListener("click", () => {
     state.spotCohort = button.dataset.spotCohort;
+    state.spotRevivalOnly = false;
     renderSpotPulse(state.spotRows, { forceOrder: true });
   }));
   document.querySelectorAll("[data-spot-market-cap]").forEach((button) => button.addEventListener("click", () => {
@@ -3534,9 +3646,16 @@ function bind() {
     if (state.spotMarketCapFilter !== "all") state.spotLane = "all";
     renderSpotPulse(state.spotRows, { forceOrder: true });
   }));
-  document.getElementById("discoverRevivalScan")?.addEventListener("click", () => {
+  document.querySelectorAll("[data-spot-revival]").forEach((button) => button.addEventListener("click", () => {
     state.spotRevivalOnly = !state.spotRevivalOnly;
-    if (state.spotRevivalOnly) state.spotLane = "all";
+    if (state.spotRevivalOnly) {
+      state.spotLane = "all";
+      state.spotCohort = "all";
+    }
+    renderSpotPulse(state.spotRows, { forceOrder: true });
+  }));
+  document.getElementById("discoverSameSymbolToggle")?.addEventListener("click", () => {
+    state.spotShowSameSymbolContracts = !state.spotShowSameSymbolContracts;
     renderSpotPulse(state.spotRows, { forceOrder: true });
   });
   for (const [id, key] of [
@@ -3609,6 +3728,9 @@ window.__RAVENOS_DISCOVER__ = Object.freeze({
     rowCount: state.rows.size,
     marketCount: state.markets.size,
     spotCount: state.spotRows.length,
+    spotVisibleTokenCount: state.spotVisibleTokenCount,
+    spotVisibleExactMarketCount: state.spotVisibleExactMarketCount,
+    spotShowSameSymbolContracts: state.spotShowSameSymbolContracts,
     solanaSpotCount: state.spotRows.filter((row) => text(row.chain_id || row.chain, "").toLowerCase() === "solana").length,
     evmSpotCount: state.spotRows.filter((row) => ["robinhood", "base", "bsc", "ethereum"].includes(text(row.chain_id || row.chain, "").toLowerCase())).length,
     bscSpotCount: state.spotRows.filter((row) => text(row.chain_id || row.chain, "").toLowerCase() === "bsc").length,
