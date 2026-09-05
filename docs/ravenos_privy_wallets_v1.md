@@ -25,6 +25,8 @@ All are default-off and absent from base Wrangler variables:
 - `RAVENOS_PRIVY_DEFAULT_WALLET_ONBOARDING`
 - `RAVENOS_PRIVY_WALLET_USERS` (comma-delimited Raven user IDs; the first canary must not use `*`)
 
+The immutable owner-canary release turns on only `PRIVY_ENABLED`, `PRIVY_WALLETS_ENABLED`, and `PRIVY_EVM_ENABLED`. The owner allowlist remains a server-only binding. Solana provisioning, manual signing, delegated signing, and default onboarding remain off.
+
 Public configuration:
 
 - `RAVENOS_PRIVY_APP_ID`
@@ -48,4 +50,4 @@ The Account CSP permits only Privy's documented secure iframe and API/RPC origin
 
 Implemented: opt-in UI, custom-auth token, public JWKS bootstrap, rotation-safe Privy identity verification, browser SDK boundary, dual-wallet provisioning, durable public-metadata association, account isolation, idempotency, usage ledger, external-wallet coexistence, and a Terminal EVM provider seam that reuses Raven's fee-bound 0x execution review.
 
-Not yet claimed: an end-to-end dashboard-authenticated wallet creation, safe EVM signature/submission, Robinhood Chain compatibility, Solana signing, withdrawal/export, or funded Terminal trade. Those require the controlled staging acceptance run. Solana stays disabled until Raven's Jupiter fee account is configured and independently verified.
+Dashboard JWT configuration and identity-token return are now saved and reload-verified. The next owner-only acceptance step is an authenticated EVM wallet creation/link with no signature or value movement. Not yet claimed: a safe EVM signature/submission, Robinhood Chain compatibility, Solana signing, withdrawal/export, or funded Terminal trade. Solana stays disabled until Raven's Jupiter fee account is configured and independently verified.

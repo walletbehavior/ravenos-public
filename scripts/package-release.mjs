@@ -43,6 +43,13 @@ const walletCopyabilityCheckpointsActive = walletCopyabilityActive
 const walletBackfillActive = walletIntelligenceActive
   && customerSecurity.wallet_copy?.deep_history_backfill_active === true;
 const privyJwksBootstrapActive = customerSecurity.privy_wallets?.public_jwks_bootstrap_release_enabled === true;
+const privyEvmWalletCanaryActive = privyJwksBootstrapActive
+  && customerSecurity.privy_wallets?.dashboard_jwt_configuration_saved === true
+  && customerSecurity.privy_wallets?.dashboard_identity_token_return_enabled === true
+  && customerSecurity.privy_wallets?.owner_evm_wallet_canary_release_enabled === true
+  && customerSecurity.privy_wallets?.owner_evm_wallet_provisioning_enabled === true
+  && customerSecurity.privy_wallets?.manual_signing_enabled === false
+  && customerSecurity.privy_wallets?.delegated_signing_enabled === false;
 const customerLiveExecutionCodeReady = customerSecurity.customer_live_execution_canary?.implementation_status === "owner_canary_code_ready";
 const solanaLiveReleaseReady = customerLiveExecutionCodeReady
   && customerSecurity.customer_live_execution_canary?.solana_live_release_activation_ready === true;
@@ -174,6 +181,13 @@ const releaseWrangler = {
     RAVENOS_SHADOW_LEDGER_ENABLED: baseWrangler.vars?.RAVENOS_SHADOW_LEDGER_ENABLED === "1" ? "1" : "0",
     RAVENOS_AUTH_ORIGIN: customerSecurity.origins?.authenticated_candidate || "https://app.ravenos.xyz",
     RAVENOS_AUTH_REDIRECT_URI: `${customerSecurity.origins?.authenticated_candidate || "https://app.ravenos.xyz"}/api/v1/auth/callback`,
+    RAVENOS_PRIVY_ENABLED: privyEvmWalletCanaryActive ? "1" : "0",
+    RAVENOS_PRIVY_WALLETS_ENABLED: privyEvmWalletCanaryActive ? "1" : "0",
+    RAVENOS_PRIVY_EVM_ENABLED: privyEvmWalletCanaryActive ? "1" : "0",
+    RAVENOS_PRIVY_SOLANA_ENABLED: "0",
+    RAVENOS_PRIVY_MANUAL_SIGNING_ENABLED: "0",
+    RAVENOS_PRIVY_DELEGATED_SIGNING_ENABLED: "0",
+    RAVENOS_PRIVY_DEFAULT_WALLET_ONBOARDING: "0",
   },
 };
 writeFileSync(join(bundleRoot, "wrangler.release.jsonc"), `${JSON.stringify(releaseWrangler, null, 2)}\n`, "utf8");
@@ -196,6 +210,7 @@ const packageManifest = {
   public_evm_holder_lists_enabled: publicEvmHolderListsActive,
   evm_wallet_lookup_enabled: evmWalletLookupActive,
   privy_jwks_bootstrap_enabled: privyJwksBootstrapActive,
+  privy_evm_wallet_canary_enabled: privyEvmWalletCanaryActive,
   worker_name: baseWrangler.name,
   cron_schedules: Array.isArray(baseWrangler.triggers?.crons) ? baseWrangler.triggers.crons : [],
   required_server_secret_bindings: [
@@ -208,7 +223,16 @@ const packageManifest = {
     ...(customerSecurity.customer_capabilities_enabled === true
       ? ["WORKOS_API_KEY", "WORKOS_CLIENT_ID", "RAVENOS_AUTH_HASH_PEPPER"]
       : []),
-    ...(privyJwksBootstrapActive ? ["RAVENOS_PRIVY_CUSTOM_AUTH_PUBLIC_JWK"] : []),
+    ...(privyEvmWalletCanaryActive
+      ? [
+          "RAVENOS_PRIVY_APP_ID",
+          "RAVENOS_PRIVY_CLIENT_ID",
+          "RAVENOS_PRIVY_CUSTOM_AUTH_PUBLIC_JWK",
+          "RAVENOS_PRIVY_CUSTOM_AUTH_PRIVATE_JWK",
+          "RAVENOS_PRIVY_IDENTITY_JWKS",
+          "RAVENOS_PRIVY_WALLET_USERS",
+        ]
+      : privyJwksBootstrapActive ? ["RAVENOS_PRIVY_CUSTOM_AUTH_PUBLIC_JWK"] : []),
     ...(evmLiveReleaseReady
       ? [
           "RAVENOS_CUSTOMER_TRADE_ROBINHOOD_LIVE_ENABLE",

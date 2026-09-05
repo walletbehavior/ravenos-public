@@ -223,7 +223,15 @@ test("release packaging carries the versioned on-chain provider gate without har
   assert.match(source, /RAVENOS_WALLET_BACKFILL_ENABLED: walletBackfillActive \? "1" : "0"/);
   assert.match(source, /RAVENOS_EVM_WALLET_LOOKUP_ENABLED: evmWalletLookupActive \? "1" : "0"/);
   assert.match(source, /privy_jwks_bootstrap_enabled: privyJwksBootstrapActive/);
-  assert.match(source, /privyJwksBootstrapActive \? \["RAVENOS_PRIVY_CUSTOM_AUTH_PUBLIC_JWK"\] : \[\]/);
+  assert.match(source, /privy_evm_wallet_canary_enabled: privyEvmWalletCanaryActive/);
+  assert.match(source, /RAVENOS_PRIVY_ENABLED: privyEvmWalletCanaryActive \? "1" : "0"/);
+  assert.match(source, /RAVENOS_PRIVY_EVM_ENABLED: privyEvmWalletCanaryActive \? "1" : "0"/);
+  assert.match(source, /RAVENOS_PRIVY_SOLANA_ENABLED: "0"/);
+  assert.match(source, /RAVENOS_PRIVY_MANUAL_SIGNING_ENABLED: "0"/);
+  assert.match(source, /RAVENOS_PRIVY_DELEGATED_SIGNING_ENABLED: "0"/);
+  assert.match(source, /"RAVENOS_PRIVY_CUSTOM_AUTH_PRIVATE_JWK"/);
+  assert.match(source, /"RAVENOS_PRIVY_IDENTITY_JWKS"/);
+  assert.match(source, /"RAVENOS_PRIVY_WALLET_USERS"/);
   assert.match(source, /publicEvmHolderListsActive \|\| evmWalletLookupActive \? \["BLOCKSCOUT_API_KEY"\] : \[\]/);
   assert.match(source, /RAVENOS_LIVE_COPY_ENABLED: "0"/);
   assert.match(source, /dexch_discovery_provider: releaseConfig\.dexch_discovery_provider/);
