@@ -150,8 +150,10 @@ test("authenticated account desk renders profile and revocable session inventory
   expect(usernameRequest).toEqual({ method: "PUT", csrf: "csrf_browser_fixture", body: { username: "chart_witch7" } });
 });
 
-test("optional Raven Wallet provisions Solana and EVM without replacing Raven login", async ({ page, baseURL }) => {
+test("optional Raven Wallet provisions Solana and EVM and clears Privy on Raven logout", async ({ page, baseURL }) => {
   const calls = [];
+  let privyLogoutCalled = false;
+  await page.exposeFunction("__recordPrivyLogout", () => { privyLogoutCalled = true; });
   await page.addInitScript(() => {
     globalThis.__RAVENOS_PRIVY_WALLET_FACTORY__ = {
       create() {
@@ -159,7 +161,10 @@ test("optional Raven Wallet provisions Solana and EVM without replacing Raven lo
           sync: async () => { globalThis.__PRIVY_TEST_CALLS__.push("sync"); },
           provision: async () => { globalThis.__PRIVY_TEST_CALLS__.push("provision"); },
           identityToken: async () => "header.payload.signature",
-          logout: async () => { globalThis.__PRIVY_TEST_CALLS__.push("logout"); },
+          logout: async () => {
+            globalThis.__PRIVY_TEST_CALLS__.push("logout");
+            await globalThis.__recordPrivyLogout();
+          },
         };
       },
     };
@@ -177,6 +182,7 @@ test("optional Raven Wallet provisions Solana and EVM without replacing Raven lo
     }),
   }));
   await page.route("**/api/v1/sessions", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, sessions: [], csrf_token: "csrf_browser_fixture" }) }));
+  await page.route("**/api/v1/auth/logout", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) }));
   await page.route("**/api/v1/wallets/privy**", async (route) => {
     const url = new URL(route.request().url());
     calls.push({ path: url.pathname, method: route.request().method(), csrf: route.request().headers()["x-ravenos-csrf"] || null });
@@ -188,7 +194,8 @@ test("optional Raven Wallet provisions Solana and EVM without replacing Raven lo
       ],
     }) });
     return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({
-      ok: true, available: true, linked: false, app_id: "cmtna91zp004m0cjss6lill1d", client_id: "client-test", wallets: [],
+      ok: true, available: true, linked: false, app_id: "cmtna91zp004m0cjss6lill1d", client_id: "client-test",
+      capabilities: { evm: true, solana: true, manual_signing: false, delegated_signing: false }, wallets: [],
     }) });
   });
 
@@ -203,6 +210,28 @@ test("optional Raven Wallet provisions Solana and EVM without replacing Raven lo
     { path: "/api/v1/wallets/privy/link", method: "POST", csrf: "csrf_browser_fixture" },
   ]);
   await expect(page.locator("#accountEmail")).toHaveText("raven@example.com");
+  await page.locator("#accountLogout").click();
+  await expect.poll(() => privyLogoutCalled).toBe(true);
+});
+
+test("optional Raven Wallet describes an EVM-only rollout honestly", async ({ page, baseURL }) => {
+  await page.route("**/api/v1/auth/config", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(configPayload(baseURL)) }));
+  await page.route("**/api/v1/auth/session", (route) => route.fulfill({
+    status: 200, contentType: "application/json", body: JSON.stringify({
+      ok: true, authenticated: true, account: { username: "raven_test", email: "raven@example.com" },
+      session: { session_public_id: "sespub_current", current: true }, csrf_token: "csrf_browser_fixture",
+    }),
+  }));
+  await page.route("**/api/v1/sessions", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, sessions: [], csrf_token: "csrf_browser_fixture" }) }));
+  await page.route("**/api/v1/wallets/privy", (route) => route.fulfill({
+    status: 200, contentType: "application/json", body: JSON.stringify({
+      ok: true, available: true, linked: false, app_id: "cmtna91zp004m0cjss6lill1d", client_id: "client-test",
+      capabilities: { evm: true, solana: false, manual_signing: false, delegated_signing: false }, wallets: [],
+    }),
+  }));
+  await page.goto("/account/");
+  await expect(page.locator("#accountPrivyStatus")).toHaveText("Creates your EVM wallet without changing your login.");
+  await expect(page.locator("#accountPrivyStatus")).not.toContainText("Solana");
 });
 
 test("portfolio holdings stay compact and preserve unavailable cost basis and supply data", async ({ page, baseURL }) => {

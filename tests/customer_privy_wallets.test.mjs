@@ -13,6 +13,7 @@ import {
 const ORIGIN = "https://app.ravenos.xyz";
 const NOW = 1_788_480_000;
 const APP_ID = "cmtna91zp004m0cjss6lill1d";
+const TEST_USER_ID = `usr_${"a".repeat(32)}`;
 
 function b64(bytes) {
   let binary = "";
@@ -44,16 +45,17 @@ function env(keys = null, identityPublicJwk = null) {
     RAVENOS_PRIVY_MANUAL_SIGNING_ENABLED: "0",
     RAVENOS_PRIVY_DELEGATED_SIGNING_ENABLED: "0",
     RAVENOS_PRIVY_DEFAULT_WALLET_ONBOARDING: "0",
+    RAVENOS_PRIVY_WALLET_USERS: TEST_USER_ID,
     RAVENOS_PRIVY_APP_ID: APP_ID,
     RAVENOS_PRIVY_CLIENT_ID: "client-test-ravenos",
     RAVENOS_PRIVY_CUSTOM_AUTH_PUBLIC_JWK: keys ? JSON.stringify(keys.publicJwk) : "",
     RAVENOS_PRIVY_CUSTOM_AUTH_PRIVATE_JWK: keys ? JSON.stringify(keys.privateJwk) : "",
-    RAVENOS_PRIVY_IDENTITY_PUBLIC_JWK: identityPublicJwk ? JSON.stringify(identityPublicJwk) : "",
+    RAVENOS_PRIVY_IDENTITY_JWKS: identityPublicJwk ? JSON.stringify({ keys: Array.isArray(identityPublicJwk) ? identityPublicJwk : [identityPublicJwk] }) : "",
     RAVENOS_CUSTOMER_DB: { prepare() {}, batch() {} },
   };
 }
 
-function authorize(userId = `usr_${"a".repeat(32)}`) {
+function authorize(userId = TEST_USER_ID) {
   return async () => ({ principal: { user_id: userId, session_public_id: "ses_test", authenticated_at: NOW - 60 }, now: NOW });
 }
 
@@ -87,6 +89,7 @@ test("Privy is default-off and does not affect Raven login routes", async () => 
   const payload = await response.json();
   assert.equal(payload.available, false);
   assert.equal(payload.app_id, null);
+  assert.deepEqual(payload.capabilities, { evm: false, solana: false, manual_signing: false, delegated_signing: false });
   assert.equal(await routeCustomerPrivyWallets(new Request(`${ORIGIN}/api/v1/auth/session`), env()), null);
 });
 
@@ -101,6 +104,48 @@ test("Raven issues a short-lived, wallet-only custom-auth token", async () => {
   assert.equal(claims.exp - claims.iat, 300);
   assert.equal("email" in claims, false);
   assert.equal("entitlement" in claims, false);
+});
+
+test("Privy wallet creation is limited to an explicit Raven user allowlist", async () => {
+  const keys = await keyMaterial("raven-wallet-auth");
+  const response = await routeCustomerPrivyWallets(
+    new Request(`${ORIGIN}/api/v1/wallets/privy`),
+    env(keys, keys.publicJwk),
+    { authorize: authorize(`usr_${"z".repeat(32)}`) },
+  );
+  assert.equal(response.status, 403);
+  assert.equal((await response.json()).error, "privy_wallet_not_available");
+});
+
+test("Privy publishes only Raven's public custom-auth verification key", async () => {
+  const keys = await keyMaterial("raven-wallet-auth");
+  const bootstrap = {
+    ...env(keys, keys.publicJwk),
+    RAVENOS_PRIVY_ENABLED: "0",
+    RAVENOS_PRIVY_WALLETS_ENABLED: "0",
+  };
+  const response = await routeCustomerPrivyWallets(new Request(`${ORIGIN}/api/v1/wallets/privy/jwks`), bootstrap);
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get("cache-control"), /max-age=300/);
+  const payload = await response.json();
+  assert.equal(payload.keys.length, 1);
+  assert.equal(payload.keys[0].kid, "raven-wallet-auth");
+  assert.equal("d" in payload.keys[0], false);
+  const walletResponse = await routeCustomerPrivyWallets(new Request(`${ORIGIN}/api/v1/wallets/privy`), bootstrap);
+  assert.equal(walletResponse.status, 503);
+});
+
+test("Privy identity verification accepts the active key from a bounded rotating JWKS set", async () => {
+  const oldKeys = await keyMaterial("privy-old");
+  const activeKeys = await keyMaterial("privy-active");
+  const identityToken = await token(activeKeys.pair, "privy-active", {
+    iss: "privy.io", aud: APP_ID, sub: "did:privy:rotating-user", iat: NOW - 10, exp: NOW + 300,
+  });
+  const verified = await verifyPrivyIdentityToken(identityToken, {
+    app_id: APP_ID,
+    identity_jwks: [oldKeys.publicJwk, activeKeys.publicJwk],
+  }, { now: NOW });
+  assert.equal(verified.sub, "did:privy:rotating-user");
 });
 
 test("Privy identity token verifies and embedded wallets link idempotently", async () => {

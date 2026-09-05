@@ -329,6 +329,76 @@ test("normal browser wallet chooser surfaces popular external wallets without cl
   expect(state.walletAddressConnected).toBe(false);
 });
 
+test("signed-in users can choose a Raven embedded EVM wallet without replacing external wallets", async ({ page, baseURL }) => {
+  await page.route("https://app.ravenos.xyz/**", async (route) => {
+    const requested = new URL(route.request().url());
+    const response = await page.request.fetch(`${baseURL}${requested.pathname}${requested.search}`);
+    await route.fulfill({ response });
+  });
+  await page.addInitScript((address) => {
+    const provider = {
+      request: async ({ method }) => method === "eth_requestAccounts" || method === "eth_accounts" ? [address] : method === "eth_chainId" ? "0x1237" : [],
+      on: () => {},
+    };
+    globalThis.__RAVENOS_PRIVY_TEST_CALLS__ = [];
+    globalThis.__RAVENOS_PRIVY_WALLET_FACTORY__ = {
+      create: () => ({
+        sync: async () => globalThis.__RAVENOS_PRIVY_TEST_CALLS__.push("sync"),
+        provision: async () => {
+          globalThis.__RAVENOS_PRIVY_TEST_CALLS__.push("provision");
+          return { evm: { ecosystem: "evm", address } };
+        },
+        identityToken: async () => "privy.identity.token",
+        providers: async () => ({ evm: provider, solana: null }),
+      }),
+    };
+  }, HYPERLIQUID_ACCOUNT_ADDRESS);
+  await page.route("**/api/v1/auth/session", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({ ok: true, authenticated: true, csrf_token: "csrf_privy_terminal" }),
+  }));
+  await page.route("**/api/trade/live/session", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({ ok: true, gate: { configured: false, chains: {} } }),
+  }));
+  await page.route("**/api/v1/wallets/privy**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === "/api/v1/wallets/privy/session") {
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, token: "raven.wallet.token", wallets: { evm: true, solana: false } }) });
+    }
+    if (path === "/api/v1/wallets/privy/link") {
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, linked: true, wallets: [{ ecosystem: "evm", address: HYPERLIQUID_ACCOUNT_ADDRESS }] }) });
+    }
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        available: true,
+        app_id: "cmtna91zp004m0cjss6lill1d",
+        client_id: "client-test",
+        linked: false,
+        wallets: [],
+        capabilities: { evm: true, solana: false, manual_signing: false, delegated_signing: false },
+      }),
+    });
+  });
+  await mockTerminalLiveApis(page);
+  await page.goto("https://app.ravenos.xyz/terminal/");
+  await waitForTerminalLive(page, { lane: "perps", instrument: "SOL-PERP" });
+
+  await page.locator("#terminalWalletConnect").click();
+  const chooser = page.locator("#terminalWalletChooser");
+  await expect(chooser.getByRole("button", { name: /Raven Wallet/ })).toBeVisible();
+  await expect(chooser.getByText("MetaMask", { exact: true })).toBeVisible();
+  await chooser.getByRole("button", { name: /Raven Wallet/ }).click();
+  await expect(page.locator("#terminalAccountAddress")).toHaveValue(HYPERLIQUID_ACCOUNT_ADDRESS);
+  await expect(page.locator("#terminalAccountStatus")).toContainText("wallet connected");
+  expect(await page.evaluate(() => globalThis.__RAVENOS_PRIVY_TEST_CALLS__)).toEqual(["sync", "provision"]);
+});
+
 test("mobile Terminal keeps the Txns label across perp pane changes without horizontal overflow", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await mockTerminalLiveApis(page);

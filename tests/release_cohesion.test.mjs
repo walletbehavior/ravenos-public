@@ -222,6 +222,8 @@ test("release packaging carries the versioned on-chain provider gate without har
   assert.match(source, /RAVENOS_WALLET_COPYABILITY_CHECKPOINTS_ENABLED: walletCopyabilityCheckpointsActive \? "1" : "0"/);
   assert.match(source, /RAVENOS_WALLET_BACKFILL_ENABLED: walletBackfillActive \? "1" : "0"/);
   assert.match(source, /RAVENOS_EVM_WALLET_LOOKUP_ENABLED: evmWalletLookupActive \? "1" : "0"/);
+  assert.match(source, /privy_jwks_bootstrap_enabled: privyJwksBootstrapActive/);
+  assert.match(source, /privyJwksBootstrapActive \? \["RAVENOS_PRIVY_CUSTOM_AUTH_PUBLIC_JWK"\] : \[\]/);
   assert.match(source, /publicEvmHolderListsActive \|\| evmWalletLookupActive \? \["BLOCKSCOUT_API_KEY"\] : \[\]/);
   assert.match(source, /RAVENOS_LIVE_COPY_ENABLED: "0"/);
   assert.match(source, /dexch_discovery_provider: releaseConfig\.dexch_discovery_provider/);
@@ -234,6 +236,8 @@ test("release packaging carries the versioned on-chain provider gate without har
   assert.match(source, /RAVENOS_SOLANA_FEE_COLLECTOR_ADDRESS/);
   assert.match(source, /RAVENOS_SOLANA_JUPITER_REFERRAL_ACCOUNT/);
   assert.match(source, /RAVENOS_SOLANA_JUPITER_FEE_ENABLE/);
+  assert.match(source, /solanaLiveReleaseReady/);
+  assert.match(source, /evmLiveReleaseReady/);
   assert.match(source, /RAVENOS_EVM_FEE_COLLECTOR_ADDRESS/);
   assert.match(source, /RAVENOS_ROBINHOOD_ZEROX_QUOTE_ENABLE/);
   assert.match(source, /RAVENOS_ROBINHOOD_ZEROX_FEE_ENABLE/);

@@ -42,6 +42,12 @@ const walletCopyabilityCheckpointsActive = walletCopyabilityActive
   && customerSecurity.wallet_copy?.shared_prospective_follower_outcome_checkpoints_active === true;
 const walletBackfillActive = walletIntelligenceActive
   && customerSecurity.wallet_copy?.deep_history_backfill_active === true;
+const privyJwksBootstrapActive = customerSecurity.privy_wallets?.public_jwks_bootstrap_release_enabled === true;
+const customerLiveExecutionCodeReady = customerSecurity.customer_live_execution_canary?.implementation_status === "owner_canary_code_ready";
+const solanaLiveReleaseReady = customerLiveExecutionCodeReady
+  && customerSecurity.customer_live_execution_canary?.solana_live_release_activation_ready === true;
+const evmLiveReleaseReady = customerLiveExecutionCodeReady
+  && customerSecurity.customer_live_execution_canary?.evm_live_release_activation_ready === true;
 const releasesRoot = join(repoRoot, ".releases");
 const bundleRoot = join(releasesRoot, release.release_id);
 const archivePath = join(releasesRoot, `${release.release_id}.tar.gz`);
@@ -189,6 +195,7 @@ const packageManifest = {
   dexch_discovery_provider: releaseConfig.dexch_discovery_provider,
   public_evm_holder_lists_enabled: publicEvmHolderListsActive,
   evm_wallet_lookup_enabled: evmWalletLookupActive,
+  privy_jwks_bootstrap_enabled: privyJwksBootstrapActive,
   worker_name: baseWrangler.name,
   cron_schedules: Array.isArray(baseWrangler.triggers?.crons) ? baseWrangler.triggers.crons : [],
   required_server_secret_bindings: [
@@ -201,16 +208,13 @@ const packageManifest = {
     ...(customerSecurity.customer_capabilities_enabled === true
       ? ["WORKOS_API_KEY", "WORKOS_CLIENT_ID", "RAVENOS_AUTH_HASH_PEPPER"]
       : []),
-    ...(customerSecurity.customer_live_execution_canary?.implementation_status === "owner_canary_code_ready"
+    ...(privyJwksBootstrapActive ? ["RAVENOS_PRIVY_CUSTOM_AUTH_PUBLIC_JWK"] : []),
+    ...(evmLiveReleaseReady
       ? [
-          "RAVENOS_CUSTOMER_TRADE_SOLANA_LIVE_ENABLE",
           "RAVENOS_CUSTOMER_TRADE_ROBINHOOD_LIVE_ENABLE",
           "RAVENOS_CUSTOMER_TRADE_BSC_LIVE_ENABLE",
           "RAVENOS_CUSTOMER_TRADE_BASE_LIVE_ENABLE",
           "RAVENOS_CUSTOMER_TRADE_ETHEREUM_LIVE_ENABLE",
-          "RAVENOS_SOLANA_FEE_COLLECTOR_ADDRESS",
-          "RAVENOS_SOLANA_JUPITER_REFERRAL_ACCOUNT",
-          "RAVENOS_SOLANA_JUPITER_FEE_ENABLE",
           "RAVENOS_EVM_FEE_COLLECTOR_ADDRESS",
           "RAVENOS_ROBINHOOD_ZEROX_QUOTE_ENABLE",
           "RAVENOS_ROBINHOOD_ZEROX_FEE_ENABLE",
@@ -231,6 +235,14 @@ const packageManifest = {
           "RAVENOS_ETHEREUM_RPC_URL",
           "RAVENOS_ETHEREUM_RPC_FALLBACK_URL",
           "RAVENOS_ZEROX_API_KEY",
+        ]
+      : []),
+    ...(solanaLiveReleaseReady
+      ? [
+          "RAVENOS_CUSTOMER_TRADE_SOLANA_LIVE_ENABLE",
+          "RAVENOS_SOLANA_FEE_COLLECTOR_ADDRESS",
+          "RAVENOS_SOLANA_JUPITER_REFERRAL_ACCOUNT",
+          "RAVENOS_SOLANA_JUPITER_FEE_ENABLE",
         ]
       : []),
   ],

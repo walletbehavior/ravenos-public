@@ -70,6 +70,7 @@ const EVM_SPOT_PROFILES = Object.freeze({
 });
 const announcedEvmWallets = new Map();
 const boundEvmWalletProviders = new WeakSet();
+const ravenEmbeddedEvmProviders = new WeakSet();
 function rememberAnnouncedEvmWallet(event) {
   const detail = event?.detail;
   const provider = detail?.provider;
@@ -124,6 +125,8 @@ const state = {
   walletListenersBound: false,
   selectedEvmWalletProvider: null,
   selectedSolanaWalletProvider: null,
+  privyWallet: { config: null, client: null, wallets: [], provider: null },
+  privyWalletBundle: null,
   paneScrollPositions: {},
   selectedMarker: null,
   planQualificationIssue: "unavailable",
@@ -1036,6 +1039,7 @@ function shortAccountAddress(value) {
 }
 
 function evmWalletName(provider, fallback = "Browser wallet") {
+  if (ravenEmbeddedEvmProviders.has(provider)) return "Raven Wallet";
   if (provider?.isMetaMask && !provider?.isRabby) return "MetaMask";
   if (provider?.isCoinbaseWallet || provider?.isWalletLink) return "Coinbase Wallet";
   if (provider?.isRabby) return "Rabby";
@@ -1086,6 +1090,11 @@ function browserWalletProvider() {
   return state.selectedEvmWalletProvider || detectedEvmWallets()[0]?.provider || null;
 }
 
+function embeddedWalletManualSigningAvailable(provider = browserWalletProvider()) {
+  return !ravenEmbeddedEvmProviders.has(provider)
+    || state.privyWallet.config?.capabilities?.manual_signing === true;
+}
+
 function walletLaunchHref(wallet, chainType) {
   const current = location.href;
   const encoded = encodeURIComponent(current);
@@ -1106,7 +1115,7 @@ function walletLaunchHref(wallet, chainType) {
   return null;
 }
 
-function walletChoiceButton({ name, detail, detected, onChoose, href = null }) {
+function walletChoiceButton({ name, detail, detected, onChoose, href = null, stateText = null }) {
   const row = href ? document.createElement("a") : document.createElement("button");
   row.className = "terminal-wallet-choice";
   if (href) {
@@ -1127,18 +1136,91 @@ function walletChoiceButton({ name, detail, detected, onChoose, href = null }) {
   copy.append(title, note);
   const stateLabel = document.createElement("span");
   stateLabel.className = "terminal-wallet-choice-state";
-  stateLabel.textContent = detected ? "Detected" : "Open app";
+  stateLabel.textContent = stateText || (detected ? "Detected" : "Open app");
   row.append(mark, copy, stateLabel);
   return row;
 }
 
-function chooseExternalWallet(chainType = "evm") {
+async function loadPrivyWalletFactory() {
+  if (globalThis.__RAVENOS_PRIVY_WALLET_FACTORY__?.create) return globalThis.__RAVENOS_PRIVY_WALLET_FACTORY__;
+  if (!state.privyWalletBundle) {
+    state.privyWalletBundle = (async () => {
+      const { response, payload } = await fetchJson("/ravenos_asset_manifest.json");
+      const assetUrl = String(payload?.assets?.["ravenos-privy-wallet.js"]?.url || "");
+      if (!response.ok || !/^\/assets\/ravenos-privy-wallet\.[0-9a-f]{16}\.js$/.test(assetUrl)) {
+        throw new Error("privy_sdk_unavailable");
+      }
+      await import(assetUrl);
+      if (!globalThis.__RAVENOS_PRIVY_WALLET_FACTORY__?.create) throw new Error("privy_sdk_unavailable");
+      return globalThis.__RAVENOS_PRIVY_WALLET_FACTORY__;
+    })().catch((error) => {
+      state.privyWalletBundle = null;
+      throw error;
+    });
+  }
+  return state.privyWalletBundle;
+}
+
+async function loadPrivyWalletConfiguration() {
+  if (state.liveAuth?.authenticated !== true) return null;
+  if (state.privyWallet.config?.available === true) return state.privyWallet.config;
+  try {
+    const { response, payload } = await fetchJson("/api/v1/wallets/privy");
+    if (!response.ok || payload?.available !== true) return null;
+    state.privyWallet.config = payload;
+    state.privyWallet.wallets = Array.isArray(payload.wallets) ? payload.wallets : [];
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
+async function connectRavenEmbeddedWallet(chainType = "evm") {
+  const cfg = await loadPrivyWalletConfiguration();
+  const ecosystem = chainType === "solana" ? "solana" : "evm";
+  if (!cfg?.capabilities?.[ecosystem]) throw new Error("privy_wallet_unavailable");
+  const csrf = String(state.liveAuth?.csrf_token || "");
+  if (!csrf) throw new Error("recent_authentication_required");
+  const factory = await loadPrivyWalletFactory();
+  const session = await fetchJson("/api/v1/wallets/privy/session", {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-ravenos-csrf": csrf },
+    body: "{}",
+  });
+  if (!session.response.ok || !session.payload?.token) throw new Error(session.payload?.error || "privy_session_unavailable");
+  const client = state.privyWallet.client || factory.create({ appId: cfg.app_id, clientId: cfg.client_id });
+  state.privyWallet.client = client;
+  await client.sync(session.payload.token);
+  const wallets = await client.provision({ evm: ecosystem === "evm", solana: ecosystem === "solana" });
+  const identityToken = await client.identityToken();
+  const linked = await fetchJson("/api/v1/wallets/privy/link", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-ravenos-csrf": csrf,
+      "privy-id-token": identityToken,
+    },
+    body: "{}",
+  });
+  if (!linked.response.ok || linked.payload?.linked !== true) throw new Error(linked.payload?.error || "privy_link_failed");
+  state.privyWallet.wallets = Array.isArray(linked.payload.wallets) ? linked.payload.wallets : [];
+  const providers = await client.providers();
+  const provider = ecosystem === "evm" ? providers.evm : providers.solana;
+  if (!provider) throw new Error("privy_wallet_provider_unavailable");
+  state.privyWallet.provider = provider;
+  if (ecosystem === "evm") ravenEmbeddedEvmProviders.add(provider);
+  return { provider, wallet: wallets?.[ecosystem] || state.privyWallet.wallets.find((row) => row.ecosystem === ecosystem) || null };
+}
+
+async function chooseExternalWallet(chainType = "evm") {
   const dialog = document.getElementById("terminalWalletChooser") || document.createElement("dialog");
   dialog.id = "terminalWalletChooser";
   dialog.className = "terminal-wallet-chooser";
   dialog.setAttribute("aria-labelledby", "terminalWalletChooserTitle");
   if (!dialog.isConnected) document.body.append(dialog);
   const detected = chainType === "solana" ? detectedSolanaWallets() : detectedEvmWallets();
+  const privyConfig = await loadPrivyWalletConfiguration();
+  const embeddedAvailable = privyConfig?.capabilities?.[chainType === "solana" ? "solana" : "evm"] === true;
   const popular = chainType === "solana"
     ? ["Phantom", "Solflare", "Backpack", "Glow"]
     : ["MetaMask", "Coinbase Wallet", "Rabby", "Rainbow", "Phantom", "Trust Wallet"];
@@ -1157,7 +1239,7 @@ function chooseExternalWallet(chainType = "evm") {
   close.addEventListener("click", () => dialog.close());
   header.append(heading, close);
   const intro = document.createElement("p");
-  intro.textContent = "RavenOS reads your public address. Your wallet confirms every transaction.";
+  intro.textContent = "RavenOS reads your public address. Choose Raven Wallet or an external wallet; every transaction still requires confirmation.";
   const list = document.createElement("div");
   list.className = "terminal-wallet-choice-list";
   dialog.append(header, intro, list);
@@ -1179,6 +1261,29 @@ function chooseExternalWallet(chainType = "evm") {
     const closeHandler = () => finish(null);
     dialog.addEventListener("close", closeHandler, { once: true });
     const rendered = new Set();
+    if (embeddedAvailable) {
+      const existing = state.privyWallet.wallets.find((row) => row.ecosystem === (chainType === "solana" ? "solana" : "evm"));
+      const row = walletChoiceButton({
+        name: "Raven Wallet",
+        detected: true,
+        detail: existing ? "Embedded wallet · ready in RavenOS" : "Create an embedded wallet · no extension",
+        stateText: existing ? "Ready" : "Set up",
+        onChoose: async () => {
+          if (settled || row.disabled) return;
+          row.disabled = true;
+          row.querySelector(".terminal-wallet-choice-state").textContent = "Opening";
+          try {
+            const result = await connectRavenEmbeddedWallet(chainType);
+            finish(result.provider);
+            dialog.close();
+          } catch {
+            row.disabled = false;
+            row.querySelector(".terminal-wallet-choice-state").textContent = "Try again";
+          }
+        },
+      });
+      list.append(row);
+    }
     for (const name of popular) {
       const candidate = detected.find((row) => row.name === name);
       rendered.add(candidate?.provider);
@@ -7367,6 +7472,7 @@ async function executeEvmLiveTrade() {
   let clientReport = null;
   try {
     const execution = await ensureWalletExecutionBundle();
+    if (!embeddedWalletManualSigningAvailable()) throw new Error("privy_manual_signing_disabled");
     clientReport = await execution.executeEvmZeroXTicket({
       profile,
       ticket,
@@ -7921,6 +8027,7 @@ async function approveHyperliquidBuilderFee() {
   renderLiveExecution();
   try {
     const execution = await ensureWalletExecutionBundle();
+    if (!embeddedWalletManualSigningAvailable()) throw new Error("privy_manual_signing_disabled");
     await execution.approveHyperliquidBuilderFee({
       approval,
       provider: browserWalletProvider(),
@@ -7949,6 +8056,7 @@ async function executeHyperliquidLiveOrder() {
   renderLiveExecution();
   try {
     const execution = await ensureWalletExecutionBundle();
+    if (!embeddedWalletManualSigningAvailable()) throw new Error("privy_manual_signing_disabled");
     const clientReport = await execution.executeHyperliquidTicket({
       ticket,
       provider: browserWalletProvider(),
