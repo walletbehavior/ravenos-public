@@ -1,4 +1,7 @@
-import { normalizeChartInstrument } from "./ravenos-chart-data-plane.js";
+import {
+  normalizeChartInstrument,
+  canonicalInstrumentId,
+} from "./ravenos-chart-data-plane.js";
 // Bounded, public-only desk preferences. Quotes and account data are never persisted.
 const KEY = "ravenos.terminal.tools.v1";
 const FRAMES = ["1m", "5m", "15m", "1h", "4h", "1d"];
@@ -110,6 +113,45 @@ export function marketRequest(market, timeframe = "1h") {
       quoteAsset: "USD",
     },
   };
+}
+export function quoteMatchesMarket(market, payload) {
+  if (payload?.ok !== true || !payload.instrument) return false;
+  const instrument = normalizeChartInstrument(payload.instrument);
+  const request = marketRequest(market);
+  if (
+    payload.market_identity &&
+    payload.market_identity !== request.marketIdentity &&
+    payload.market_identity !== instrument.canonical_id
+  )
+    return false;
+  if (market.lane === "perps")
+    return (
+      instrument.instrument_type === "perpetual" &&
+      instrument.chain === "hyperliquid" &&
+      instrument.venue === "hyperliquid" &&
+      instrument.symbol === market.asset &&
+      instrument.quote_asset === "USD" &&
+      [request.marketIdentity, canonicalInstrumentId(instrument)].includes(
+        instrument.canonical_id,
+      )
+    );
+  if (market.lane === "equity")
+    return (
+      instrument.canonical_id === market.instrumentId &&
+      instrument.symbol === market.asset &&
+      ["equity", "etf"].includes(instrument.instrument_type)
+    );
+  const equal = (a, b) =>
+    market.chain === "solana"
+      ? a === b
+      : String(a).toLowerCase() === String(b).toLowerCase();
+  return (
+    instrument.instrument_type === "spot_pool" &&
+    instrument.identity_scope === "exact_pool" &&
+    instrument.chain === market.chain &&
+    equal(instrument.pool_address, market.pool) &&
+    equal(instrument.token_address, market.token)
+  );
 }
 export function quoteFromCandles(candles, observedAt, source) {
   const rows = (Array.isArray(candles) ? candles : [])
@@ -521,30 +563,7 @@ export function enhanceDesk({
             });
             const body = await response.json();
             const payload = body.data || body;
-            const instrument = normalizeChartInstrument(
-              payload.instrument || {},
-            );
-            const identity = instrument.canonical_id;
-            if (
-              !response.ok ||
-              payload.ok !== true ||
-              (payload.market_identity || identity) !== request.marketIdentity
-            )
-              continue;
-            if (
-              market.lane === "perps" &&
-              (instrument.chain !== "hyperliquid" ||
-                instrument.symbol !== market.asset)
-            )
-              continue;
-            if (
-              market.lane === "spot" &&
-              (market.chain === "solana"
-                ? instrument.token_address !== market.token
-                : String(instrument.token_address).toLowerCase() !==
-                  market.token.toLowerCase())
-            )
-              continue;
+            if (!response.ok || !quoteMatchesMarket(market, payload)) continue;
             const quote = quoteFromCandles(
               payload.candles,
               payload.observed_at || payload.generated_at,

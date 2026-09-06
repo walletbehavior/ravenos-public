@@ -4,6 +4,7 @@ import {
   toolPreferences,
   marketRequest,
   quoteFromCandles,
+  quoteMatchesMarket,
 } from "../ravenos-desk-tools.js";
 test("tools persistence strips private and unexpected fields and bounds user collections", () => {
   const input = {
@@ -59,4 +60,34 @@ test("quote windows use ordered bounded observations and do not invent missing c
   assert.ok(Math.abs(q.change - 20) < 1e-8);
   assert.equal(q.volume, 7);
   assert.deepEqual(q.points, [10, 12]);
+});
+
+test("live canonical provider identities qualify only the selected market", () => {
+  const market = { lane: "perps", asset: "SOL-PERP", label: "SOL" };
+  const payload = {
+    ok: true,
+    instrument: {
+      canonical_id: "perpetual:hyperliquid:hyperliquid:SOL:USD:aggregate",
+      instrument_type: "perpetual",
+      chain: "hyperliquid",
+      venue: "hyperliquid",
+      symbol: "SOL-PERP",
+      quote_asset: "USD",
+    },
+  };
+  assert.equal(quoteMatchesMarket(market, payload), true);
+  assert.equal(
+    quoteMatchesMarket({ ...market, asset: "BTC-PERP" }, payload),
+    false,
+  );
+  assert.equal(
+    quoteMatchesMarket(market, {
+      ...payload,
+      instrument: {
+        ...payload.instrument,
+        canonical_id: "perpetual:hyperliquid:hyperliquid:BTC:USD:aggregate",
+      },
+    }),
+    false,
+  );
 });
