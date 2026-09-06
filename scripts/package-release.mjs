@@ -44,6 +44,10 @@ const walletCopyabilityCheckpointsActive = walletCopyabilityActive
   && customerSecurity.wallet_copy?.shared_prospective_follower_outcome_checkpoints_active === true;
 const walletBackfillActive = walletIntelligenceActive
   && customerSecurity.wallet_copy?.deep_history_backfill_active === true;
+const heliusHistoryActive = walletIntelligenceActive && customerSecurity.wallet_history_providers?.helius_release_enabled === true;
+const alchemyHistoryActive = evmWalletLookupActive && customerSecurity.wallet_history_providers?.alchemy_release_enabled === true;
+const productRelease = customerSecurity.pro_rewards_release || {};
+const productFlag = (key) => productRelease[key] === true ? "1" : "0";
 const privyJwksBootstrapActive = customerSecurity.privy_wallets?.public_jwks_bootstrap_release_enabled === true;
 const privyEvmWalletCanaryActive = privyJwksBootstrapActive
   && customerSecurity.privy_wallets?.dashboard_jwt_configuration_saved === true
@@ -178,6 +182,19 @@ const releaseWrangler = {
     RAVENOS_WALLET_COPYABILITY_CHECKPOINTS_ENABLED: walletCopyabilityCheckpointsActive ? "1" : "0",
     RAVENOS_WALLET_BACKFILL_ENABLED: walletBackfillActive ? "1" : "0",
     RAVENOS_EVM_WALLET_LOOKUP_ENABLED: evmWalletLookupActive ? "1" : "0",
+    RAVENOS_HELIUS_WALLET_HISTORY_ENABLED: heliusHistoryActive ? "1" : "0",
+    RAVENOS_ALCHEMY_WALLET_HISTORY_ENABLED: alchemyHistoryActive ? "1" : "0",
+    RAVENOS_PRO_FREE_TRIAL_ENABLED: productFlag("trials_enabled"),
+    RAVENOS_PRO_CASHBACK_ENABLED: productFlag("cashback_enabled"),
+    RAVENOS_PRO_CASHBACK_CLAIMS_ENABLED: productFlag("claims_enabled"),
+    RAVENOS_PRO_CASHBACK_AUTO_APPLY_ENABLED: productFlag("auto_apply_enabled"),
+    RAVENOS_PRO_CASHBACK_SUBSCRIPTION_CREDIT_ENABLED: productFlag("subscription_credit_enabled"),
+    RAVENOS_PRO_ACCOUNT_BILLING_ENABLED: productFlag("billing_enabled"),
+    RAVENOS_PRO_TRIAL_EXISTING_USERS: productRelease.existing_user_trial_policy === "opt_in" ? "opt_in" : "disabled",
+    RAVENOS_AFFILIATE_ENROLLMENT_ENABLED: productFlag("affiliate_enrollment_enabled"),
+    RAVENOS_AFFILIATE_COMMISSIONS_ENABLED: productFlag("affiliate_commissions_enabled"),
+    RAVENOS_AFFILIATE_PUBLIC_PROFILE_CTA_ENABLED: productFlag("affiliate_public_profile_cta_enabled"),
+    RAVENOS_AFFILIATE_PAYOUTS_ENABLED: productFlag("affiliate_payouts_enabled"),
     RAVENOS_LIVE_COPY_ENABLED: "0",
     RAVENOS_COPY_FEE_COLLECTION_ENABLED: "0",
     RAVENOS_PUBLIC_SOLANA_HOLDERS_ENABLED: publicHolderListsActive ? "1" : "0",
@@ -224,6 +241,8 @@ const packageManifest = {
     "RAVENOS_SPOT_CHART_ORIGIN_TOKEN",
     chartProviderConfig.provider_secret_binding || "ONCHAIN_CHART_PROVIDER_SECRET",
     "JUPITER_API_KEY",
+    ...(heliusHistoryActive ? ["HELIUS_API_KEY"] : []),
+    ...(alchemyHistoryActive ? ["ALCHEMY_BASE_RPC_URL", "ALCHEMY_ETH_RPC_URL", "ALCHEMY_BSC_RPC_URL"] : []),
     ...(publicHolderListsActive ? ["RAVENOS_PUBLIC_SOLANA_HOLDERS_RPC_URL"] : []),
     ...(publicEvmHolderListsActive || evmWalletLookupActive ? ["BLOCKSCOUT_API_KEY"] : []),
     ...(customerSecurity.customer_capabilities_enabled === true

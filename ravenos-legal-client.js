@@ -1,6 +1,11 @@
 const LEGAL_ACCEPTANCE_ROUTE = "/api/v1/legal/acceptances";
 
 const CAPABILITIES = Object.freeze({
+  pro_subscription: Object.freeze({
+    document_types: Object.freeze(["terms", "privacy"]), eyebrow: "Raven Pro and Rewards", title: "Review Pro and rewards terms",
+    summary: "The free trial requires no card and ends without a charge. Paid Pro is $149/month by your explicit choice. Rewards are a rebate of confirmed Raven execution fees; invoice credits and claims are separate actions.",
+    acknowledgement: "I agree to the Terms of Service, including Raven Rewards, and acknowledge the Privacy Policy.",
+  }),
   trading_activation: Object.freeze({
     document_types: Object.freeze(["terms", "privacy", "trading_risk"]),
     eyebrow: "Before your first trade",

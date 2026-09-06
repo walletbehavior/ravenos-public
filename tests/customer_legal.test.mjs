@@ -22,11 +22,11 @@ import {
 } from "../lib/customer_legal_registry.mjs";
 
 const ORIGIN = "https://app.ravenos.xyz";
-const NOW = 1_788_566_400;
+const NOW = 1_788_652_800;
 const EFFECTIVE_DOCUMENTS = CustomerLegalDocuments.map((document) => Object.freeze({
   ...document,
   status: "effective",
-  effective_at: "2026-09-05T00:00:00.000Z",
+  effective_at: "2026-09-06T00:00:00.000Z",
 }));
 
 function enabledEnv() {
@@ -279,8 +279,10 @@ test("legal migration seeds exact candidates and makes documents and acceptances
   const database = new DatabaseSync(":memory:");
   database.exec(readFileSync("customer-migrations/0001_customer_identity.sql", "utf8"));
   database.exec(readFileSync("customer-migrations/0033_customer_legal.sql", "utf8"));
+  database.exec(readFileSync("customer-migrations/0035_customer_pro_rewards_legal.sql", "utf8"));
   const documents = database.prepare("SELECT * FROM ravenos_legal_documents ORDER BY document_type").all();
-  assert.equal(documents.length, CustomerLegalDocuments.length);
+  assert.equal(documents.length, CustomerLegalDocuments.length + 5);
+  for (const current of CustomerLegalDocuments) assert(documents.some(row => row.document_type === current.document_type && row.document_version === current.version && row.content_hash === current.content_hash));
   assert(documents.every((document) => document.status === "review_candidate"));
   assert(documents.every((document) => /^[0-9a-f]{64}$/.test(document.content_hash)));
   assert(documents.every((document) => document.accepted_predecessor_json === "[]"));
@@ -312,6 +314,7 @@ test("new identity and account-creation assent commit atomically", async () => {
   database.exec(readFileSync("customer-migrations/0001_customer_identity.sql", "utf8"));
   database.exec(readFileSync("customer-migrations/0028_customer_username.sql", "utf8"));
   database.exec(readFileSync("customer-migrations/0033_customer_legal.sql", "utf8"));
+  database.exec(readFileSync("customer-migrations/0035_customer_pro_rewards_legal.sql", "utf8"));
   const store = createD1CustomerIdentityStore(new SqliteD1Database(database));
   const identity = {
     issuer: "https://api.workos.com/user_management",

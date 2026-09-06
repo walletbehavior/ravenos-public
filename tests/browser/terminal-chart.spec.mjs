@@ -1156,7 +1156,7 @@ test("spot search loads one exact pool and joins only its admitted current Raven
   await expect(page.locator("#terminalHolderListRows .terminal-holder-row")).toHaveCount(2);
   await expect(page.locator("#terminalHolderListRows")).toContainText(/#1.*123\.457M.*12\.3%/s);
   await expect(page.locator('#terminalHolderListRows [data-classification="exact_pool_account"]')).toContainText("excluded from wallet concentration");
-  await expect(page.locator("#terminalHolderListRows a").first()).toHaveAttribute("href", /solscan\.io\/account\/Stake/);
+  await expect(page.locator("#terminalHolderListRows a").first()).toHaveAttribute("href", /app\.ravenos\.xyz\/account\/copy\/\?wallet=Stake.*&chain=solana/);
   expect(holderCalls[0]).toEqual({ poolAddress: "fixture-pair-address", tokenAddress: "fixture-token-address", quoteAddress: "fixture-quote-address" });
   await page.locator('[data-terminal-pane-button="raven"]').click();
   await expect(page.locator("#terminalAlphaSection")).toBeVisible();
@@ -1433,7 +1433,7 @@ test("Robinhood exact-token holders and valuation follow the live exact-pool tap
   await expect(page.locator('#terminalHolderListRows [data-classification="exact_pool_account"]')).toHaveCount(0);
   await expect(page.locator("#terminalHolderMapState")).toHaveText("Pool exclusion unresolved");
   await expect(page.locator("#terminalHolderTop10Cell")).toBeHidden();
-  await expect(page.locator("#terminalHolderListRows a").first()).toHaveAttribute("href", /robinhoodchain\.blockscout\.com\/address\/0x/);
+  await expect(page.locator("#terminalHolderListRows a").first()).toHaveAttribute("href", /^https:\/\/app\.ravenos\.xyz\/account\/copy\/\?wallet=0x[a-f0-9]{40}&chain=robinhood$/);
   expect(holderCalls[0]).toEqual({ poolAddress: ROBINHOOD_POOL, tokenAddress: ROBINHOOD_CONTRACT, quoteAddress: ROBINHOOD_QUOTE });
   await expect(page.locator("#terminalRiskScreen")).not.toContainText(/Mint authority disabled|Freeze authority disabled/);
   expect(ROBINHOOD_POOL).toMatch(/^0x[a-f0-9]{64}$/);
@@ -1694,7 +1694,7 @@ test("Solana spot ticket keeps quick sizing, plans, fees, and wallet-backed sell
   await expect(page.locator("#terminalSpotSellPresets")).toBeHidden();
   await expect(page.locator("#terminalSpotCustomInputs")).toBeHidden();
   await expect(page.locator("#terminalSpotActiveFee")).toContainText("1.00%");
-  await expect(page.locator("#terminalSpotProFee")).toContainText("0.70%");
+  await expect(page.locator("#terminalSpotProFee")).toContainText("30% of Raven fee");
   await expect(page.locator("#terminalSpotExecutionRail [data-terminal-step=connect]")).toContainText("Wallet");
   await expect(page.locator("#terminalSpotExecutionRail [data-terminal-step=sign]")).toContainText("Locked");
   await expect(page.locator("#terminalSpotExecutionRail [data-terminal-step=send]")).toContainText("Locked");
@@ -1702,7 +1702,7 @@ test("Solana spot ticket keeps quick sizing, plans, fees, and wallet-backed sell
   await expect(page.locator("#terminalSpotDecisionStrip > *")).toHaveCount(2);
   await expect(page.locator("#terminalSpotFeeSummary")).toBeVisible();
   await expect(page.locator("#terminalSpotFeeCompact")).toHaveText("1.00%");
-  await expect(page.locator("#terminalSpotFeeCompactNote")).toContainText("Pro 0.70%");
+  await expect(page.locator("#terminalSpotFeeCompactNote")).toContainText("Pro cashback 30% · after confirmation");
   await expect(page.locator("#terminalSpotRiskCompact")).toHaveText("Watch");
   await expect(page.locator("#terminalSpotExitCompact")).toHaveText("Not reviewed");
   await expect(page.locator("#terminalSpotAdvanced")).not.toHaveAttribute("open", "");

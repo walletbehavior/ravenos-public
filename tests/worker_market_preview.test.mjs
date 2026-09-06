@@ -375,8 +375,8 @@ test("public trade flags distinguish market preview from disabled customer execu
 });
 
 test("public trade flags expose Solana fees only when collector, referral account, and activation agree", async () => {
-  const collector = "NFDReixLdyRD5rYyVeqLWfCRwr75hhiBuKz6e3XnBRX";
-  const referral = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+  const collector = "CEACkaNKdHVupnaiEMLGppw8RthjCdoMj8kdxJeg3MfV";
+  const referral = "CAhs68qUBmRVg4i8kh6L6VzDqAWsMtNrE8acoTo3K3Vd";
   const response = await worker.fetch(new Request("https://ravenos.xyz/api/trade/flags"), {
     RAVENOS_SOLANA_FEE_COLLECTOR_ADDRESS: collector,
     RAVENOS_SOLANA_JUPITER_REFERRAL_ACCOUNT: referral,
@@ -386,7 +386,7 @@ test("public trade flags expose Solana fees only when collector, referral accoun
   const body = await response.json();
   assert.equal(body.spot_fee_preview.enabled, true);
   assert.equal(body.spot_fee_preview.actual_fee_bps, 100);
-  assert.equal(body.spot_fee_preview.pro_fee_bps, 70);
+  assert.equal(body.spot_fee_preview.pro_fee_bps, 100);
   assert.equal(body.spot_fee_preview.collection_method, "jupiter_referral_program");
   assert.equal(body.spot_fee_preview.provider_share_pct, 20);
 });
@@ -496,7 +496,7 @@ test("Worker proves a same-chain Solana USDC entry and reverse USDC exit without
     assert.equal(body.shadow_execution.execution.submission_available, false);
     assert.equal(body.shadow_execution.execution.transaction_material_available, false);
     assert.equal(body.fee_policy.free_fee_bps, 100);
-    assert.equal(body.fee_policy.pro_fee_bps, 70);
+    assert.equal(body.fee_policy.pro_fee_bps, 100);
     assert.equal(body.fee_policy.actual_fee_bps, 0);
     assert.doesNotMatch(JSON.stringify(body), /serializedTransaction|swapTransaction|privateKey|secretKey/);
     assert.equal(providerCalls.filter((row) => row === "api.jup.ag/swap/v2/order").length, 2);

@@ -473,3 +473,19 @@ button, a { -webkit-tap-highlight-color: transparent; }
   .copy-watch-actions { grid-column: auto; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .copy-boundary { margin-inline: 0; }
 }
+
+.copy-holdings { padding: 20px; border: 1px solid var(--copy-line, #29313d); border-radius: 12px; margin: 18px 0; }
+.copy-holdings header { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.copy-holdings p { color: var(--copy-muted, #a1acbb); font-size: 12px; line-height: 1.6; }
+.copy-wallet-balances { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)); gap: 12px; }
+#copyPolicySource { overflow-wrap: anywhere; }
+
+.copy-profile > header .copy-profile-actions button { padding: 8px 10px; border-radius: 6px; font-size: 12px; line-height: 1.3; }
+.copy-profile > header #copyRefreshProfile { background: transparent; color: var(--copy-muted); border-color: var(--copy-line); }
+.copy-holdings > header { min-height: 0; padding: 0; margin: 0 0 14px; align-items: flex-start; }
+.copy-holdings > header h3 { margin: 4px 0 0; font-size: 16px; }
+.copy-holdings > header p { margin: 0; }
+.copy-wallet-balances { margin: 0; }
+.copy-wallet-balances > div { min-width: 0; border-top: 1px solid var(--copy-line); padding: 10px 0; }
+.copy-wallet-balances dt { font-size: 11px; color: var(--copy-muted); }
+.copy-wallet-balances dd { margin: 5px 0 0; font-size: 13px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }

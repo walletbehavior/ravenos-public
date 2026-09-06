@@ -364,6 +364,13 @@ async function loadPublicProfile() {
       ${metric("Raven Copy", profile.availability.raven_copy ? "Available" : "Off")}
     </div>
     <section class="community-performance"><h2>Public performance</h2><div class="community-period-grid">${profile.performance?.length ? profile.performance.map(performanceCard).join("") : emptyMarkup("Insufficient evidence", "No qualified public performance yet.")}</div></section>`;
+    if (profile.referral_cta?.url && /^https:\/\/ravenos\.xyz\/r\/RVN[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{12}$/.test(profile.referral_cta.url)) {
+      const invitation=document.createElement("section"); invitation.className="community-performance";
+      const title=document.createElement("h2");title.textContent=`Try Raven Pro free for ${profile.referral_cta.trial_days} days`;
+      const disclosure=document.createElement("p");disclosure.textContent=profile.referral_cta.disclosure;
+      const link=document.createElement("a");link.href=profile.referral_cta.url;link.className="primary";link.textContent="Try Raven · no card required";
+      invitation.append(title,disclosure,link);root.append(invitation);
+    }
     if (signedInApp) {
       const follow = root.querySelector('[data-profile-action="follow"]');
       if (follow && !follow.disabled) follow.addEventListener("click", () => setProfileAction(username, "follow", follow.dataset.enabled !== "true", follow));

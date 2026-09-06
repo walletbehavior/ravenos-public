@@ -2530,12 +2530,12 @@ test("universal search offers explicit wallet analysis without replacing an exac
   await expect(wallet).toHaveCount(1);
   await expect(wallet).toContainText("Analyze public wallet");
   await expect(wallet).toContainText("Solana public address");
-  await expect(wallet).toContainText("Open in Pro");
+  await expect(wallet).toContainText("Holdings & trades");
   await expect(page.locator(".ros-command-empty")).toHaveCount(0);
   await expect(page.locator("#rosSearchStatus")).toContainText("public-wallet analysis available");
 
   await wallet.click();
-  await expect(page).toHaveURL(`https://app.ravenos.xyz/account/copy/?wallet=${bitcatPoolAddress}`);
+  await expect(page).toHaveURL(`https://app.ravenos.xyz/account/copy/?wallet=${bitcatPoolAddress}&chain=solana`);
 });
 
 test("universal search does not classify malformed or non-32-byte base58 input as a wallet", async ({ page }) => {
@@ -2859,4 +2859,23 @@ test("Discover expires route capacity independently of market facts while paused
   const overview = page.locator(".discover-token-evidence").first();
   await expect(overview).toContainText("Routeable size");
   await expect(overview).not.toContainText("$2.5K");
+});
+
+test("wallet search requires an explicit EVM chain and ticker has a distinct mobile action", async ({ page }) => {
+  await mockWorkspaceApis(page, { withSpot: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/discover/");
+  await page.locator("#discoverIntroToggle").click();
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Stocks & ETFs", exact: true })).toHaveCount(1);
+  await expect(page.locator("#discoverTapeToggle")).toHaveText("Show ticker");
+  expect(await page.locator("#discoverTapeToggle").evaluate((node) => parseFloat(getComputedStyle(node).fontSize))).toBeLessThanOrEqual(12);
+  await expect(page.locator(".discover-token-row").first()).toBeVisible();
+  if (process.env.RAVENOS_VISUAL_ARTIFACT_DIR) await page.screenshot({ path: `${process.env.RAVENOS_VISUAL_ARTIFACT_DIR}/RavenOS-discover-mobile.png` });
+  await page.locator("#rosCommandTrigger").click();
+  await page.locator("#rosCommandInput").fill(ROBINHOOD_CONTRACT);
+  await expect(page.locator(".ros-command-result.wallet")).toHaveCount(4);
+  await page.locator("#rosCommandInput").fill(`base:${ROBINHOOD_CONTRACT}`);
+  await expect(page.locator(".ros-command-result.wallet")).toHaveCount(1);
+  await expect(page.locator(".ros-command-result.wallet")).toContainText("Base public address");
 });

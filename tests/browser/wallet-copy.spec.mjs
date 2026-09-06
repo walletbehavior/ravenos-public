@@ -944,3 +944,68 @@ test("an approved Raven Copy decision opens an exact prefilled terminal review",
   expect(url.searchParams.get("copy_decision_id")).toBe("scd_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
   expect(url.searchParams.get("panel")).toBe("trade");
 });
+
+test("free wallets show observed holdings and keep advanced discovery hidden", async ({ page }) => {
+  const shared = { requests: [] };
+  await install(page, shared, { entitled: false });
+  await page.goto(`/account/copy/?wallet=${EVM_WALLET}&chain=bsc`);
+  await expect(page.locator("#copyWalletBalances")).toContainText("USDC");
+  await expect(page.locator("#copyWalletBalances")).toContainText("2.5");
+  await expect(page.locator('[data-discovery-field="mooner_tokens"]')).toBeHidden();
+  await expect(page.locator("#copyStartSetup")).toBeDisabled();
+});
+
+test("Pro discovery filter values survive reload and use the selected chain", async ({ page }) => {
+  const shared = { requests: [] };
+  await install(page, shared);
+  await page.goto("/account/copy/");
+  await expect(page.locator("#copyScreener")).toBeVisible();
+  await page.locator('details').filter({ has: page.locator('[data-discovery-field="trades_1d"]') }).locator('summary').click();
+  await page.locator('[data-discovery-field="trades_1d"]').fill("8");
+  await page.locator('[data-discovery-field="loss_75_pct"]').fill("12");
+  await page.getByRole("button", { name: "Apply filters", exact: true }).click();
+  await expect(page).toHaveURL(/df_trades_1d_gte=8/);
+  await page.locator('[data-screen-chain="base"]').click();
+  await expect.poll(() => JSON.parse(shared.requests.filter((row) => row.path.endsWith('/screener')).at(-1).body).chain).toBe("base");
+  const query = JSON.parse(shared.requests.filter((row) => row.path.endsWith('/screener')).at(-1).body);
+  expect(query.clauses).toEqual(expect.arrayContaining([{ field: "trades_1d", operator: "gte", value: 8 }, { field: "loss_75_pct", operator: "lte", value: 12 }]));
+  await page.reload();
+  await expect(page.locator('[data-discovery-field="trades_1d"]')).toHaveValue("8");
+});
+
+test("wallet discovery and copy setup remain readable on mobile", async ({ page }) => {
+  const shared = { requests: [] };
+  await install(page, shared);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`/account/copy/?wallet=${WALLET}`);
+  await expect(page.locator("#copyProfile")).toBeVisible();
+  await page.locator("#copyStartSetup").click();
+  await expect(page.locator("#copyPolicySource")).toContainText(WALLET);
+  await expect(page.locator("#copyPolicy")).toContainText("Shadow first");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await expect.poll(() => page.locator("#copyPolicy").evaluate((node) => Math.round(node.getBoundingClientRect().top))).toBeLessThan(150);
+  if (process.env.RAVENOS_VISUAL_ARTIFACT_DIR) await page.screenshot({ path: `${process.env.RAVENOS_VISUAL_ARTIFACT_DIR}/RavenOS-wallet-copy-mobile.png` });
+});
+
+test("a late inspection cannot replace the wallet opened from discovery or its copy source", async ({ page }) => {
+  const shared = { requests: [] };
+  await install(page, shared);
+  let release;
+  await page.route("**/api/v1/wallet-copy/inspect", async (route) => {
+    await new Promise((resolve) => { release = resolve; });
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ profile: profile(), source_wallet_id: SOURCE_ID }) });
+  });
+  const secondAddress = "So11111111111111111111111111111111111111112";
+  await page.route(`**/api/v1/wallet-copy/wallets/${SOURCE_ID}`, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ source_wallet_id: SOURCE_ID, profile: { ...profile(), source_wallet: { chain: "solana", network: "mainnet", address: secondAddress } } }) }));
+  await page.goto("/account/copy/");
+  await page.getByLabel("Paste an address").fill(WALLET);
+  await page.getByRole("button", { name: "Analyze wallet", exact: true }).click();
+  await expect.poll(() => typeof release).toBe("function");
+  await page.getByRole("button", { name: "Open analysis", exact: true }).first().click();
+  await expect(page.getByLabel("Paste an address")).toHaveValue(secondAddress);
+  release();
+  await expect(page.getByRole("button", { name: "Analyze wallet", exact: true })).toBeEnabled();
+  await page.locator("#copyStartSetup").click();
+  await expect(page.locator("#copyPolicySource")).toContainText(secondAddress);
+  await expect(page.locator("#copyPolicySource")).not.toContainText(WALLET);
+});

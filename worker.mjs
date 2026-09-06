@@ -1,3 +1,12 @@
+import { heliusWalletHistoryRuntime, loadHeliusWalletHistory, loadHeliusWalletPage, cachedHeliusWalletTransaction } from "./lib/customer_trade/helius_wallet_history.mjs";
+import { runRewardPayoutDispatcher } from "./lib/customer_reward_payouts.mjs";
+import { routeCustomerProduct } from "./lib/customer_product_routes.mjs";
+import { captureExecutionRewards, reconcileExecutionRewards, sweepExecutionRewards } from "./lib/customer_rewards.mjs";
+import { readProductAccess, expireProTrials } from "./lib/customer_pro.mjs";
+import { RAVEN_PRO_CASHBACK_PERCENT, productFlags } from "./lib/customer_product.mjs";
+import { emergingDiscoverCandidate } from "./lib/discover_radar.mjs";
+import { loadSolanaWalletHoldings } from "./lib/customer_trade/solana_wallet_holdings.mjs";
+import { RAVEN_JUPITER_REFERRAL } from "./lib/customer_trade/jupiter_referral.mjs";
 import { normalizeHyperliquidPerps } from "./lib/ravenos_perps_intelligence.mjs";
 import {
   normalizeHyperliquidBook,
@@ -169,6 +178,7 @@ import {
 import {
   CUSTOMER_REFERRAL_ROUTE,
   routeCustomerReferrals,
+  routePublicReferral,
 } from "./lib/customer_referrals.mjs";
 import {
   customerLiveExecutionRefusal,
@@ -468,6 +478,7 @@ function authenticatedAppBoundary(request) {
     || url.pathname.startsWith(`${AGENTIC_ROUTE_PREFIX}/`);
   const communityApi = url.pathname === CUSTOMER_COMMUNITY_ROUTE
     || url.pathname.startsWith(`${CUSTOMER_COMMUNITY_ROUTE}/`);
+  const productApi = url.pathname === "/api/v1/pro" || url.pathname.startsWith("/api/v1/pro/");
   const referralApi = url.pathname === CUSTOMER_REFERRAL_ROUTE
     || url.pathname.startsWith(`${CUSTOMER_REFERRAL_ROUTE}/`);
   const terminalReadApi = readRequest && (
@@ -500,7 +511,7 @@ function authenticatedAppBoundary(request) {
   ]).has(url.pathname);
   const releaseProbe = readRequest && url.pathname === "/api/build";
   const immutableAsset = readRequest && (url.pathname.startsWith("/assets/") || AUTHENTICATED_APP_STATIC_PATHS.has(url.pathname));
-  if ((readRequest && (accountPath || terminalPath || agentsPath || communityPath || proIntelligencePath || walletCopyPath || monitorPath)) || identityApi || legalApi || privyWalletApi || portfolioPreviewApi || researchStateApi || entitlementApi || monitorAlertsApi || walletCopyApi || walletObserverIngressApi || liveExecutionApi || agenticApi || communityApi || referralApi || terminalReadApi || terminalReviewApi || releaseProbe || immutableAsset) return { allowed: true, response: null };
+  if ((readRequest && (accountPath || terminalPath || agentsPath || communityPath || proIntelligencePath || walletCopyPath || monitorPath)) || identityApi || legalApi || privyWalletApi || portfolioPreviewApi || researchStateApi || entitlementApi || monitorAlertsApi || walletCopyApi || walletObserverIngressApi || liveExecutionApi || agenticApi || communityApi || referralApi || productApi || terminalReadApi || terminalReviewApi || releaseProbe || immutableAsset) return { allowed: true, response: null };
 
   const firstSegment = url.pathname.split("/").filter(Boolean)[0] || "";
   if (readRequest && firstSegment === "brief") {
@@ -4059,8 +4070,10 @@ function onchainPulseCachePolicy(result = {}, { jupiterConfigured = false } = {}
 }
 
 function balancedDiscoverCandidates(rows = [], chains = [], { timeframe = "5m", limit = ONCHAIN_PULSE_MAX_ROWS } = {}) {
+  const nowMs = Date.now();
   const exactTokens = bestExactSpotMarketPerToken(rows, { timeframe });
   if (exactTokens.length <= limit) return exactTokens;
+  exactTokens.sort((left, right) => Number(emergingDiscoverCandidate(right, { nowMs })) - Number(emergingDiscoverCandidate(left, { nowMs })));
   const orderedChains = [...new Set(chains.map((chain) => String(chain || "").trim().toLowerCase()).filter(Boolean))];
   const buckets = new Map(orderedChains.map((chain) => [chain, []]));
   const remainder = [];
@@ -5856,6 +5869,7 @@ async function fetchJupiterExactSpotQuote({ env = {}, inputMint, outputMint, amo
 }
 
 async function loadBoundedSolanaWalletHistory(env, { address, limit, observation_mode: observationMode }) {
+  if (heliusWalletHistoryRuntime(env).enabled) return loadHeliusWalletHistory(env, {address,limit:Math.max(1,Math.min(24,Number(limit)||12)),observation_mode:observationMode}, {rpc:boundedSolanaTradeRpc});
   const runtime = spotQuotePreviewRuntime(env);
   if (!runtime.available || !runtime.rpc_url) throw new Error("wallet_copy_solana_rpc_unavailable");
   const boundedLimit = Math.max(1, Math.min(24, Number(limit) || 12));
@@ -5919,6 +5933,10 @@ async function loadBoundedSolanaWalletHistory(env, { address, limit, observation
 }
 
 async function fetchSourceWalletBackfillSignatures(env, { wallet_address: address, before, limit, commitment }) {
+  if (heliusWalletHistoryRuntime(env).enabled) {
+    const page=await loadHeliusWalletPage(env,{address,before,limit,commitment},{rpc:boundedSolanaTradeRpc});
+    return page.rows.map(({transaction,...row})=>row);
+  }
   const runtime = spotQuotePreviewRuntime(env);
   if (!runtime.available || !runtime.rpc_url) throw new Error("wallet_backfill_solana_rpc_unavailable");
   const options = { limit, commitment };
@@ -5934,6 +5952,10 @@ async function fetchSourceWalletBackfillSignatures(env, { wallet_address: addres
 }
 
 async function hydrateSourceWalletBackfillTransaction(env, { signature_record: signatureRow, commitment }) {
+  if (heliusWalletHistoryRuntime(env).enabled) {
+    const cached=cachedHeliusWalletTransaction(signatureRow.signature,commitment);
+    if(cached)return cached;
+  }
   const runtime = spotQuotePreviewRuntime(env);
   if (!runtime.available || !runtime.rpc_url) throw new Error("wallet_backfill_solana_rpc_unavailable");
   const transaction = await runProviderOperation({
@@ -7667,21 +7689,23 @@ function handleTradeFlags(env = {}) {
       provider: "jupiter",
       free_fee_bps: freeJupiterFee.configured_fee_bps,
       pro_fee_bps: proJupiterFee.configured_fee_bps,
-      pro_discount_pct: proJupiterFee.discount_from_free_pct,
+      pro_discount_pct: 0,
+      pro_cashback_percent: productFlags(env).cashback ? RAVEN_PRO_CASHBACK_PERCENT : null,
       actual_fee_bps: solanaFee.actual_fee_bps,
       enabled: solanaFee.fee_enabled,
       collection_method: solanaFee.collection_method,
       provider_share_pct: 20,
       fee_token_policy: "Jupiter-selected input or output mint",
       disclosure_string: solanaFee.fee_enabled
-        ? "Free Raven fee: 1.00% · Pro: 0.70%. Included in the signed Jupiter order."
+        ? "Raven fee: 1.00% for Standard and Pro. Eligible Pro earns 30% cashback on the confirmed Raven fee."
         : freeJupiterFee.disclosure_string,
     },
     evm_fee_preview: {
       provider: "0x",
       free_fee_bps: robinhoodZeroX.fee_schedule.free_fee_bps,
       pro_fee_bps: robinhoodZeroX.fee_schedule.pro_fee_bps,
-      pro_discount_pct: 30,
+      pro_discount_pct: 0,
+          pro_cashback_percent: productFlags(env).cashback ? RAVEN_PRO_CASHBACK_PERCENT : null,
       actual_fee_bps: robinhoodZeroX.fee_collection_enabled ? robinhoodZeroX.fee_schedule.free_fee_bps : 0,
       enabled: robinhoodZeroX.fee_collection_enabled,
       collection_method: robinhoodZeroX.fee_collection_enabled ? "zero_x_swap_integrator_fee" : "none",
@@ -7690,7 +7714,8 @@ function handleTradeFlags(env = {}) {
         robinhood: {
           free_fee_bps: robinhoodZeroX.fee_schedule.free_fee_bps,
           pro_fee_bps: robinhoodZeroX.fee_schedule.pro_fee_bps,
-          pro_discount_pct: 30,
+          pro_discount_pct: 0,
+          pro_cashback_percent: productFlags(env).cashback ? RAVEN_PRO_CASHBACK_PERCENT : null,
           actual_fee_bps: robinhoodZeroX.fee_collection_enabled ? robinhoodZeroX.fee_schedule.free_fee_bps : 0,
           enabled: robinhoodZeroX.fee_collection_enabled,
           accounting_asset: robinhoodZeroX.accounting_asset,
@@ -7698,7 +7723,8 @@ function handleTradeFlags(env = {}) {
         bsc: {
           free_fee_bps: bscZeroX.fee_schedule.free_fee_bps,
           pro_fee_bps: bscZeroX.fee_schedule.pro_fee_bps,
-          pro_discount_pct: 30,
+          pro_discount_pct: 0,
+          pro_cashback_percent: productFlags(env).cashback ? RAVEN_PRO_CASHBACK_PERCENT : null,
           actual_fee_bps: bscZeroX.fee_collection_enabled ? bscZeroX.fee_schedule.free_fee_bps : 0,
           enabled: bscZeroX.fee_collection_enabled,
           accounting_asset: bscZeroX.accounting_asset,
@@ -7706,7 +7732,8 @@ function handleTradeFlags(env = {}) {
         base: {
           free_fee_bps: baseZeroX.fee_schedule.free_fee_bps,
           pro_fee_bps: baseZeroX.fee_schedule.pro_fee_bps,
-          pro_discount_pct: 30,
+          pro_discount_pct: 0,
+          pro_cashback_percent: productFlags(env).cashback ? RAVEN_PRO_CASHBACK_PERCENT : null,
           actual_fee_bps: baseZeroX.fee_collection_enabled ? baseZeroX.fee_schedule.free_fee_bps : 0,
           enabled: baseZeroX.fee_collection_enabled,
           accounting_asset: baseZeroX.accounting_asset,
@@ -7714,7 +7741,8 @@ function handleTradeFlags(env = {}) {
         ethereum: {
           free_fee_bps: ethereumZeroX.fee_schedule.free_fee_bps,
           pro_fee_bps: ethereumZeroX.fee_schedule.pro_fee_bps,
-          pro_discount_pct: 30,
+          pro_discount_pct: 0,
+          pro_cashback_percent: productFlags(env).cashback ? RAVEN_PRO_CASHBACK_PERCENT : null,
           actual_fee_bps: ethereumZeroX.fee_collection_enabled ? ethereumZeroX.fee_schedule.free_fee_bps : 0,
           enabled: ethereumZeroX.fee_collection_enabled,
           accounting_asset: ethereumZeroX.accounting_asset,
@@ -7761,8 +7789,8 @@ function solanaFeeCollectorStatus(env = {}) {
   const collectorAddress = String(env.RAVENOS_SOLANA_FEE_COLLECTOR_ADDRESS || "").trim();
   const referralAccount = String(env.RAVENOS_SOLANA_JUPITER_REFERRAL_ACCOUNT || "").trim();
   const requested = String(env.RAVENOS_SOLANA_JUPITER_FEE_ENABLE || "") === "1";
-  const collectorConfigured = SOLANA_ADDRESS_RE.test(collectorAddress);
-  const referralConfigured = SOLANA_ADDRESS_RE.test(referralAccount);
+  const collectorConfigured = collectorAddress === RAVEN_JUPITER_REFERRAL.authority;
+  const referralConfigured = referralAccount === RAVEN_JUPITER_REFERRAL.account;
   const configured = collectorConfigured && referralConfigured;
   return Object.freeze({
     configured,
@@ -8632,8 +8660,10 @@ async function handleTradeLiveRobinhoodPrepare(request, env = {}) {
       user_id: authorization.principal.user_id,
       now_seconds: authorization.now,
     });
+    const rewards = await captureExecutionRewards(env, prepared.ticket.ticket_id, authorization.principal.user_id, { now: authorization.now });
     return liveExecutionResponse({
       ok: true,
+      rewards,
       schema_version: "ravenos.robinhood_live_prepare_response.v1",
       ticket: prepared.ticket,
       provider_quote: prepared.provider_quote,
@@ -8689,6 +8719,7 @@ async function handleTradeLiveRobinhoodReport(request, env = {}) {
       reconciliation,
       now_seconds: Math.floor(Date.now() / 1_000),
     });
+    const rewards = await reconcileExecutionRewards(env.RAVENOS_CUSTOMER_DB, stored.prepared.ticket_id).catch(() => ({ state: "reconciliation_pending" }));
     const confirmed = reconciliation.state === "provider_confirmed";
     const rejected = reconciliation.state === "provider_rejected";
     return liveExecutionResponse({
@@ -8697,6 +8728,7 @@ async function handleTradeLiveRobinhoodReport(request, env = {}) {
       ticket_id: stored.prepared.ticket_id,
       transaction_hash: report.transaction_hash,
       reconciliation,
+      rewards,
       retryable_reconciliation: persisted.retryable,
       execution_boundary: stored.prepared.execution_boundary,
     }, authorization, { status: confirmed ? 200 : rejected ? 409 : 202 });
@@ -8743,8 +8775,10 @@ async function handleTradeLiveEvmPrepare(request, env = {}, profile) {
       user_id: authorization.principal.user_id,
       now_seconds: authorization.now,
     });
+    const rewards = await captureExecutionRewards(env, prepared.ticket.ticket_id, authorization.principal.user_id, { now: authorization.now });
     return liveExecutionResponse({
       ok: true,
+      rewards,
       schema_version: "ravenos.evm_live_prepare_response.v1",
       profile_id: profile.profile_id,
       chain_namespace: profile.chain_namespace,
@@ -8834,6 +8868,7 @@ async function handleTradeLiveEvmReport(request, env = {}, profile) {
       reconciliation,
       now_seconds: Math.floor(Date.now() / 1_000),
     });
+    const rewards = await reconcileExecutionRewards(env.RAVENOS_CUSTOMER_DB, stored.prepared.ticket_id).catch(() => ({ state: "reconciliation_pending" }));
     const confirmed = reconciliation.state === "provider_confirmed" && reconciliation.evidence?.finalized === true;
     const rejected = reconciliation.state === "provider_rejected";
     return liveExecutionResponse({
@@ -8844,6 +8879,7 @@ async function handleTradeLiveEvmReport(request, env = {}, profile) {
       ticket_id: stored.prepared.ticket_id,
       transaction_hash: report.transaction_hash,
       reconciliation,
+      rewards,
       retryable_reconciliation: persisted.retryable,
       execution_boundary: stored.prepared.execution_boundary,
     }, authorization, { status: confirmed ? 200 : rejected ? 409 : 202 });
@@ -8893,13 +8929,15 @@ async function handleTradeLiveSolanaPrepare(request, env = {}) {
     return liveExecutionResponse({ ok: false, error: error?.code || "invalid_live_execution_json" }, authorization, { status: 400 });
   }
   try {
-    const prepared = await loadCurrentSolanaLivePreparation(body, env, { access_tier: "free" });
+    const access = productFlags(env).cashback ? await readProductAccess(env.RAVENOS_CUSTOMER_DB, authorization.principal.user_id, { now: authorization.now }) : null;
+    const prepared = await loadCurrentSolanaLivePreparation(body, env, { access_tier: access?.pro ? "pro" : "free" });
     await createD1SolanaLiveExecutionStore(env.RAVENOS_CUSTOMER_DB).createTicket({
       ticket: prepared.ticket,
       user_id: authorization.principal.user_id,
       now_seconds: authorization.now,
     });
-    return liveExecutionResponse({ ok: true, ...prepared }, authorization);
+    const rewards = await captureExecutionRewards(env, prepared.ticket.ticket_id, authorization.principal.user_id, { now: authorization.now, access });
+    return liveExecutionResponse({ ok: true, ...prepared, rewards }, authorization);
   } catch (error) {
     const code = String(error?.code || error?.message || "solana_live_prepare_unavailable");
     const clientError = /(?:invalid|mismatch|blocked|expired|out_of_bounds|required|insufficient|unavailable)$/.test(code);
@@ -8954,6 +8992,7 @@ async function handleTradeLiveSolanaExecute(request, env = {}) {
       reconciliation,
       now_seconds: Math.floor(Date.now() / 1000),
     });
+    const rewards = await reconcileExecutionRewards(env.RAVENOS_CUSTOMER_DB, stored.prepared.ticket_id).catch(() => ({ state: "reconciliation_pending" }));
     const ok = reconciliation.state !== "provider_rejected";
     return liveExecutionResponse({
       ok,
@@ -8961,6 +9000,7 @@ async function handleTradeLiveSolanaExecute(request, env = {}) {
       ticket_id: stored.prepared.ticket_id,
       provider: providerObservation,
       reconciliation,
+      rewards,
       execution_boundary: stored.prepared.execution_boundary,
     }, authorization, { status: ok ? reconciliation.state === "provider_confirmed" ? 200 : 202 : 409 });
   } catch (error) {
@@ -11131,6 +11171,8 @@ async function routeApi(request, env, executionContext = null) {
     });
     if (walletIngressResponse) return walletIngressResponse;
   }
+  const publicReferralResponse = await routePublicReferral(request, env);
+  if (publicReferralResponse) return publicReferralResponse;
   const identityResponse = await routeCustomerIdentity(request, env);
   if (identityResponse) return identityResponse;
   const legalResponse = await routeCustomerLegal(request, env);
@@ -11139,6 +11181,8 @@ async function routeApi(request, env, executionContext = null) {
   if (privyWalletResponse) return privyWalletResponse;
   const communityResponse = await routeCustomerCommunity(request, env);
   if (communityResponse) return communityResponse;
+  const productResponse = await routeCustomerProduct(request, env);
+  if (productResponse) return productResponse;
   const referralResponse = await routeCustomerReferrals(request, env);
   if (referralResponse) return referralResponse;
   if (url.pathname === "/api/trade/live/session" && request.method === "GET") return handleTradeLiveSession(request, env);
@@ -11184,6 +11228,11 @@ async function routeApi(request, env, executionContext = null) {
   const walletCopyDependencies = {
     walletProvider: {
       loadHistory: (input) => loadBoundedSolanaWalletHistory(env, input),
+      loadHoldings: ({ address, now }) => loadSolanaWalletHoldings({ address, now: new Date(now * 1000).toISOString(), rpc: (method, params) => {
+        const rpcUrl = publicSolanaTradeRpcUrl(env);
+        if (!rpcUrl) throw new Error("wallet_holdings_rpc_unavailable");
+        return boundedSolanaTradeRpc(rpcUrl, method, params);
+      } }),
       quoteCopySignal: (input) => quoteSolanaWalletCopySignal(env, input),
       quoteCopyExit: (input) => quoteSolanaWalletCopyExit(env, input),
     },
@@ -11602,6 +11651,11 @@ async function routeApi(request, env, executionContext = null) {
 
 export default {
   async scheduled(_controller, env, context) {
+    if (env?.RAVENOS_CUSTOMER_DB?.prepare) {
+      const rewardMaintenance = Promise.allSettled([expireProTrials(env.RAVENOS_CUSTOMER_DB), sweepExecutionRewards(env), runRewardPayoutDispatcher(env)]);
+      if (context?.waitUntil) context.waitUntil(rewardMaintenance);
+      else await rewardMaintenance;
+    }
     const request = new Request("https://ravenos.xyz/ravenos/perps.json", { method: "GET" });
     const monitorWork = runCustomerMonitorEvaluator(env || {}, {
       loadEvidenceBatch: (instrumentIds) => loadMonitorEvidenceBatch(env || {}, request, instrumentIds),
@@ -11962,6 +12016,10 @@ export default {
     }
     if (releaseState.cohesion.enforced && !releaseState.cohesion.ok) {
       return attachReleaseHeaders(applyAssetSecurityHeaders(releaseUnavailable(releaseState), url.pathname), releaseState, url.pathname);
+    }
+    if (url.pathname.startsWith("/r/")) {
+      const referral = await routePublicReferral(request, env || {});
+      if (referral) return attachReleaseHeaders(applyAssetSecurityHeaders(referral, url.pathname), releaseState, url.pathname);
     }
     const authenticatedBoundary = authenticatedAppBoundary(request);
     if (authenticatedBoundary && !authenticatedBoundary.allowed) {

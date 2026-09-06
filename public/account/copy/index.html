@@ -94,10 +94,14 @@
                 <button type="button" data-screen-chain="all" aria-pressed="false">All</button>
                 <button type="button" data-screen-chain="solana" aria-pressed="true">Solana</button>
                 <button type="button" data-screen-chain="robinhood" aria-pressed="false">Robinhood</button>
+                <button type="button" data-screen-chain="base" aria-pressed="false">Base</button>
+                <button type="button" data-screen-chain="ethereum" aria-pressed="false">Ethereum</button>
+                <button type="button" data-screen-chain="bsc" aria-pressed="false">BNB Chain</button>
               </div>
               <strong id="copyScreenerCount">0 indexed</strong>
             </div>
           </header>
+          <p class="copy-index-coverage">Indexed: Solana, Robinhood. Address lookup: Base, Ethereum, BNB. Coverage varies.</p>
           <div class="copy-preset-rail copy-pro-only" id="copyPresetRail" aria-label="Raven Pro wallet screener presets">
             <button type="button" data-screen-preset="evidence_first">Evidence first<small>Strong reconstruction</small></button>
             <button type="button" data-screen-preset="consistent_winners">Consistent winners<small>Profit quality</small></button>
@@ -120,7 +124,7 @@
                 <header><span>Smart money</span><strong>Recent activity</strong></header>
                 <div id="copyRhActivity"><p>Loading…</p></div>
               </article>
-              <article>
+              <article class="copy-pro-only">
                 <header><span>Clustered activity</span><strong>Several wallets, one token</strong></header>
                 <div id="copyRhClusters"><p>Loading…</p></div>
               </article>
@@ -139,6 +143,27 @@
             <label class="copy-pro-only"><span>Performance evidence</span><select id="copyScreenEvidence"><option value="any">Any state</option><option value="available">Available</option><option value="partial">Partial</option><option value="insufficient_evidence">Insufficient</option></select></label>
             <label><span>Sort</span><select id="copyScreenSort"><option value="last_trade_desc">Recently active</option><option value="follower_capture_desc">Most source alpha retained</option><option value="follower_return_desc">Best +1h follower return</option><option value="follower_route_persistence_desc">Best +1h route persistence</option><option value="copyability_score_desc">Copyability at $100</option><option value="policy_pass_desc">Follower pass rate</option><option value="exit_executable_desc">Exit verified rate</option><option value="round_trip_friction_asc">Lowest round-trip friction</option><option value="copyability_sample_desc">Most follower tests</option><option value="detected_liquidity_desc">Highest detected liquidity</option><option value="detected_market_cap_asc">Lowest detected market cap</option><option value="detected_pair_age_asc">Newest selected pairs</option><option value="source_liquidity_footprint_asc">Smallest source footprint</option><option value="reconstruction_confidence_desc">Best reconstruction</option><option value="profit_factor_desc">Profit factor</option><option value="profit_concentration_asc">Lowest winner concentration</option><option value="weekly_consistency_desc">Weekly consistency</option><option value="trade_count_desc">Most trades</option><option value="active_days_desc">Most active days</option><option value="trade_rate_desc">Trade rate</option><option value="known_cost_basis_desc">Best cost basis</option><option value="closed_lots_desc">Most closed lots</option><option value="win_rate_desc">Win rate</option><option value="roi_desc">ROI</option><option value="median_trade_roi_desc">Median trade ROI</option><option value="median_hold_asc">Shortest hold</option><option value="median_hold_desc">Longest hold</option><option value="realized_pnl_usdc_desc">USDC P&amp;L</option><option value="realized_pnl_sol_desc">SOL P&amp;L</option><option value="maximum_drawdown_usdc_asc">Lowest USDC drawdown</option><option value="maximum_drawdown_sol_asc">Lowest SOL drawdown</option></select></label>
             <div class="copy-screener-actions"><button type="button" id="copyScreenReset">Reset</button><button type="submit">Apply filters</button></div>
+            <details class="copy-screener-more copy-pro-only"><summary>Wallet discovery filters · volume, sizing, multipliers &amp; risk</summary>
+              <p>Retained history only. Missing metrics never pass. USDC stays USDC.</p>
+              <div><label><span>Minimum 1d trades</span><div class="copy-input-unit"><input data-discovery-field="trades_1d" data-discovery-operator="gte" data-discovery-key="trades_1d_gte" aria-label="Minimum 1d trades" type="number" min="0" max="1000000000000000" step="any" placeholder="Any" /><small>count</small></div></label>
+<label><span>Minimum 7d trades</span><div class="copy-input-unit"><input data-discovery-field="trades_7d" data-discovery-operator="gte" data-discovery-key="trades_7d_gte" aria-label="Minimum 7d trades" type="number" min="0" max="1000000000000000" step="any" placeholder="Any" /><small>count</small></div></label>
+<label><span>Minimum 30d trades</span><div class="copy-input-unit"><input data-discovery-field="trades_30d" data-discovery-operator="gte" data-discovery-key="trades_30d_gte" aria-label="Minimum 30d trades" type="number" min="0" max="1000000000000000" step="any" placeholder="Any" /><small>count</small></div></label>
+<label><span>Minimum sells / buys</span><div class="copy-input-unit"><input data-discovery-field="sell_buy_ratio_pct" data-discovery-operator="gte" data-discovery-key="sell_buy_ratio_pct_gte" aria-label="Minimum sells / buys" type="number" min="0" max="1000000000000000" step="any" placeholder="Any" /><small>%</small></div></label>
+<label><span>Minimum average buy</span><div class="copy-input-unit"><input data-discovery-field="average_buy_usdc" data-discovery-operator="gte" data-discovery-key="average_buy_usdc_gte" aria-label="Minimum average buy" type="number" min="0" max="1000000000000000" step="any" placeholder="Any" /><small>USDC</small></div></label>
+<label><span>Maximum average buy</span><div class="copy-input-unit"><input data-discovery-field="average_buy_usdc" data-discovery-operator="lte" data-discovery-key="average_buy_usdc_lte" aria-label="Maximum average buy" type="number" min="0" max="1000000000000000" step="any" placeholder="Any" /><small>USDC</small></div></label>
+<label><span>Minimum realized profit</span><div class="copy-input-unit"><input data-discovery-field="realized_pnl_usdc" data-discovery-operator="gte" data-discovery-key="realized_pnl_usdc_gte" aria-label="Minimum realized profit" type="number" min="-1000000000" max="1000000000000000" step="any" placeholder="Any" /><small>USDC</small></div></label>
+<label><span>Minimum realized profit / buys</span><div class="copy-input-unit"><input data-discovery-field="profit_buy_size_pct" data-discovery-operator="gte" data-discovery-key="profit_buy_size_pct_gte" aria-label="Minimum realized profit divided by total retained USDC buy size" type="number" min="-100" max="1000000000" step="any" placeholder="Any" /><small>%</small></div></label>
+<label><span>Minimum average closed ROI</span><div class="copy-input-unit"><input data-discovery-field="average_trade_roi_pct" data-discovery-operator="gte" data-discovery-key="average_trade_roi_pct_gte" aria-label="Minimum average closed ROI" type="number" min="-1000000000" max="1000000000000000" step="any" placeholder="Any" /><small>%</small></div></label>
+<label><span>Maximum average closed ROI</span><div class="copy-input-unit"><input data-discovery-field="average_trade_roi_pct" data-discovery-operator="lte" data-discovery-key="average_trade_roi_pct_lte" aria-label="Maximum average closed ROI" type="number" min="-1000000000" max="1000000000000000" step="any" placeholder="Any" /><small>%</small></div></label>
+<label><span>Maximum win rate</span><div class="copy-input-unit"><input data-discovery-field="win_rate_pct" data-discovery-operator="lte" data-discovery-key="win_rate_pct_lte" aria-label="Maximum win rate" type="number" min="0" max="100" step="any" placeholder="Any" /><small>%</small></div></label>
+<label><span>Minimum 5× tokens</span><div class="copy-input-unit"><input data-discovery-field="mooner_tokens" data-discovery-operator="gte" data-discovery-key="mooner_tokens_gte" aria-label="Minimum 5× tokens" type="number" min="0" max="1000000000000000" step="any" placeholder="Any" /><small>count</small></div></label>
+<label><span>Minimum 2× tokens</span><div class="copy-input-unit"><input data-discovery-field="double_tokens" data-discovery-operator="gte" data-discovery-key="double_tokens_gte" aria-label="Minimum 2× tokens" type="number" min="0" max="1000000000000000" step="any" placeholder="Any" /><small>count</small></div></label>
+<label><span>Maximum closes losing 75%+</span><div class="copy-input-unit"><input data-discovery-field="loss_75_pct" data-discovery-operator="lte" data-discovery-key="loss_75_pct_lte" aria-label="Maximum closes losing 75%+" type="number" min="0" max="100" step="any" placeholder="Any" /><small>%</small></div></label>
+<label><span>Maximum closes losing 50%+</span><div class="copy-input-unit"><input data-discovery-field="big_loss_count" data-discovery-operator="lte" data-discovery-key="big_loss_count_lte" aria-label="Maximum closes losing 50%+" type="number" min="0" max="1000000000000000" step="any" placeholder="Any" /><small>count</small></div></label>
+<label><span>Maximum closes held under 15 sec</span><div class="copy-input-unit"><input data-discovery-field="under_15_seconds_count" data-discovery-operator="lte" data-discovery-key="under_15_seconds_count_lte" aria-label="Maximum closes held under 15 sec" type="number" min="0" max="1000000000000000" step="any" placeholder="Any" /><small>count</small></div></label>
+<label><span>Maximum tokens with 15+ buys</span><div class="copy-input-unit"><input data-discovery-field="tokens_15_plus_buys" data-discovery-operator="lte" data-discovery-key="tokens_15_plus_buys_lte" aria-label="Maximum tokens with 15+ buys" type="number" min="0" max="1000000000000000" step="any" placeholder="Any" /><small>count</small></div></label>
+</div><p>Multipliers count distinct tokens with known-cost sells. Short holds require every matched lot under 15 seconds.</p>
+              <p>Warning-coin and unrealized-profit filters await verified coverage.</p></details>
             <details class="copy-screener-more copy-pro-only">
               <summary>Follower reality, detected markets, profit quality, and behavior</summary>
               <div>
@@ -175,8 +200,21 @@
         <section class="copy-profile" id="copyProfile" hidden>
           <header>
             <div><span>Wallet profile</span><h2 id="copyProfileAddress">Wallet</h2><p id="copyProfileCoverage">Loading evidence…</p></div>
-            <div class="copy-profile-actions"><button id="copySaveProfile" type="button">Save wallet</button><button id="copyStartSetup" type="button">Copy this wallet</button></div>
+            <div class="copy-profile-actions"><button id="copyRefreshProfile" type="button">Refresh wallet</button><button id="copySaveProfile" type="button">Save wallet</button><button id="copyStartSetup" type="button">Copy this wallet</button></div>
           </header>
+          <section class="copy-holdings" aria-labelledby="copyHoldingsTitle">
+            <header><div><span>Wallet holdings</span><h3 id="copyHoldingsTitle">Last observed balances</h3></div><p id="copyHoldingsScope"></p></header>
+            <dl id="copyWalletBalances" class="copy-wallet-balances"></dl>
+            <p>Observed balances. Execution values may differ.</p>
+          </section>
+          <section class="copy-event-list">
+            <header>
+              <div><span>Wallet activity</span><strong id="copyEventCount">0 retained</strong></div>
+              <label><span>Show</span><select id="copyActivityFilter" aria-label="Wallet activity filter"><option value="all">All activity</option><option value="trades">All trades</option><option value="buys">Buys</option><option value="sells">Sells</option><option value="transfers">Transfers</option><option value="unresolved">Needs review</option><option value="other">Other activity</option></select></label>
+            </header>
+            <div id="copyRecentEvents"></div>
+            <footer><p id="copyActivityStatus">Choose a wallet.</p><button type="button" id="copyActivityMore" hidden>Load older</button></footer>
+          </section>
           <section class="copy-profile-pro-gate" id="copyProfileProGate" hidden>
             <div><span>Raven Pro</span><strong>Unlock the full wallet record</strong></div>
             <p>Cohorts, history, copyability.</p>
@@ -212,6 +250,7 @@
             </div>
             <p>Not financial advice. Quotes ≠ fills.</p>
           </section>
+
           <div class="copy-performance-split">
             <article>
               <span>Source performance</span>
@@ -264,18 +303,11 @@
             <div class="copy-card-list" id="copyEvmContextRows"></div>
             <footer><p>Unverified transfer: Copy waits for route and balance evidence.</p></footer>
           </section>
-          <section class="copy-event-list">
-            <header>
-              <div><span>Wallet activity</span><strong id="copyEventCount">0 retained</strong></div>
-              <label><span>Show</span><select id="copyActivityFilter" aria-label="Wallet activity filter"><option value="all">All activity</option><option value="trades">All trades</option><option value="buys">Buys</option><option value="sells">Sells</option><option value="transfers">Transfers</option><option value="unresolved">Needs review</option><option value="other">Other activity</option></select></label>
-            </header>
-            <div id="copyRecentEvents"></div>
-            <footer><p id="copyActivityStatus">Choose a wallet.</p><button type="button" id="copyActivityMore" hidden>Load older</button></footer>
-          </section>
+
         </section>
 
         <form class="copy-policy" id="copyPolicy" hidden>
-          <header><div><span>Start Raven Copy</span><h2>Set your policy.</h2><p>You sign.</p></div><strong>Manual beta</strong></header>
+          <header><div><span>Start Raven Copy</span><h2>Set your policy.</h2><p id="copyPolicySource"></p><p>Shadow first. Review and sign each trade.</p></div><strong>Shadow + manual review</strong></header>
           <div class="copy-policy-grid">
             <label><span>Wallet label</span><input id="copyPolicyLabel" maxlength="80" value="Wallet strategy" /></label>
             <label><span>Order size</span><div class="copy-input-unit"><input id="copyPolicySize" type="number" min="1" max="100000" step="1" value="100" /><small>USDC</small></div></label>

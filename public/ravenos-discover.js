@@ -85,6 +85,7 @@ const state = {
   spotShowSameSymbolContracts: false,
   spotTimeframe: "5m",
   spotSort: "velocity",
+  spotEmergingFirst: true,
   spotChain: "all",
   spotLane: "all",
   spotCohort: "all",
@@ -180,7 +181,7 @@ function syncWorkspacePresentation() {
   const tapeToggle = document.getElementById("discoverTapeToggle");
   if (tapeToggle) {
     tapeToggle.setAttribute("aria-expanded", String(state.tapeExpanded));
-    tapeToggle.textContent = state.tapeExpanded ? "Hide stock tape" : "Stocks & ETFs";
+    tapeToggle.textContent = state.tapeExpanded ? "Hide ticker" : "Show ticker";
   }
   const tokenTape = document.getElementById("discoverSpotPulse");
   const toolbar = document.querySelector(".discover-page .workspace-toolbar");
@@ -2419,7 +2420,13 @@ function schedulePendingSpotOrder(delay = DISCOVER_IDLE_MS) {
 function renderSpotTokenTape({ forceOrder = false } = {}) {
   const host = document.getElementById("discoverTokenTapeList");
   const updates = document.getElementById("discoverTokenUpdates");
-  const exactRanked = surfaceEverySpotChain(spotRankedRows());
+  const sourceRanked = spotRankedRows();
+  const emerging = state.spotEmergingFirst && state.spotSort !== "raven"
+    ? sourceRanked.filter((row) => row.discovery?.focus?.emerging_candidate === true) : [];
+  const emergingIds = new Set(emerging.map(spotRowId));
+  const exactRanked = emerging.length
+    ? [...surfaceEverySpotChain(emerging), ...surfaceEverySpotChain(sourceRanked.filter((row) => !emergingIds.has(spotRowId(row))))]
+    : surfaceEverySpotChain(sourceRanked);
   const exactTokens = groupSpotRowsByCanonicalAsset(exactRanked);
   const ranked = state.spotShowSameSymbolContracts ? exactTokens : groupSpotRowsBySymbol(exactTokens);
   updateSpotResultState(ranked.length, exactTokens.length, exactRanked.length);
@@ -2633,7 +2640,7 @@ function renderSpotPulse(rows = state.spotRows, { forceOrder = false } = {}) {
   document.getElementById("discoverSpotPulseTitle").textContent = view.title;
   document.getElementById("discoverSpotPulseSummary").textContent = state.spotLane === "opportunities" && state.spotSort !== "raven"
     ? `High signal only. ${view.summary}`
-    : view.summary;
+    : state.spotEmergingFirst && state.spotSort !== "raven" ? `Emerging markets first · ${view.summary}` : view.summary;
   document.getElementById("discoverSpotWhyColumn").textContent = view.column;
   renderSpotTokenTape({ forceOrder });
   void hydrateSpotMetadata(state.spotRows);
@@ -3613,6 +3620,12 @@ function bind() {
     state.spotDegenOpen = degenMarketCapFilterActive() || state.spotRevivalOnly;
     renderSpotPulse(state.spotRows, { forceOrder: true });
   }));
+  document.getElementById("discoverEmergingFocus")?.addEventListener("click", (event) => {
+    state.spotEmergingFirst = !state.spotEmergingFirst;
+    event.currentTarget.setAttribute("aria-pressed", String(state.spotEmergingFirst));
+    event.currentTarget.textContent = state.spotEmergingFirst ? "Emerging first" : "All sizes equally";
+    renderSpotPulse(state.spotRows, { forceOrder: true });
+  });
   document.getElementById("discoverDegenToggle")?.addEventListener("click", () => {
     state.spotDegenOpen = !state.spotDegenOpen;
     syncDegenPanel();

@@ -155,3 +155,12 @@ button, input { font: inherit; }
 }
 
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
+.landing-trial-welcome { display:flex; gap:14px; max-width:550px; margin-top:28px; padding:18px 20px; border:1px solid #b7ed7a26; border-radius:14px; background:#b7ed7a08; }
+.landing-trial-welcome[hidden] { display:none; }
+.landing-trial-mark { display:grid; place-items:center; flex:0 0 30px; height:30px; border-radius:50%; background:#b7ed7a18; color:#c4f098; font-size:20px; }
+.landing-trial-welcome strong { color:#edf3e9; font-size:16px; font-weight:600; }
+.landing-trial-welcome p { margin:7px 0 10px; max-width:440px; color:#a3ada0; font-size:13px; line-height:1.55; }
+.landing-trial-welcome a { color:#b9de9d; font-size:13px; text-decoration:none; }
+.landing-trial-welcome a:hover { text-decoration:underline; }
+@media(max-width:600px) { .landing-trial-welcome { margin-top:22px; padding:16px; gap:10px; } .landing-trial-welcome strong { font-size:15px; } }

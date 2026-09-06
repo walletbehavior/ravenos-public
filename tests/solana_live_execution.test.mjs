@@ -207,7 +207,8 @@ test("ticket exposes the exact unsigned transaction once without persisting tran
   assert.equal(value.prepared.ticket.fee.raven_fee_enabled, true);
   assert.equal(value.prepared.ticket.fee.raven_fee_bps, 100);
   assert.equal(value.prepared.ticket.fee.expected_amount_base_units, "8000");
-  assert.equal(value.prepared.ticket.fee.estimated_raven_fee_usdc, 0.008);
+  assert.equal(value.prepared.ticket.fee.estimated_raven_fee_usdc, 0.01);
+  assert.equal(value.prepared.ticket.fee.estimated_collector_receipt_usdc,0.008);
   assert.equal(value.prepared.ticket.fee.referral_account, value.referralAccount);
   assert.equal(value.prepared.ticket.fee.collection_method, "jupiter_referral_program");
   assert.equal(value.prepared.ticket.fee.collector_configured, true);
@@ -240,7 +241,7 @@ test("only the expected wallet signature over the unchanged reviewed message is 
 test("Jupiter submission forwards only the wallet-signed reviewed transaction and sanitizes the provider result", async () => {
   const value = fixture();
   const verified = verifySolanaSignedTransaction({ signed_transaction_base64: signFixture(value) }, value.prepared.ticket);
-  const signature = bs58.encode(Buffer.alloc(64, 3));
+  const signature = verified.wallet_signature;
   const observed = await executeJupiterSignedTransaction({ ticket: value.prepared.ticket, verified }, {
     jupiter_api_key: "fixture-key",
     fetch_impl: async (url, init) => {
@@ -258,10 +259,28 @@ test("Jupiter submission forwards only the wallet-signed reviewed transaction an
   assert.equal(Object.hasOwn(observed, "signedTransaction"), false);
   assert.equal(JSON.stringify(observed).includes(verified.signed_transaction_base64), false);
 });
+test("Jupiter cannot replace the user's reviewed transaction with a different reported signature",async()=>{
+ const value=fixture();
+ const verified=verifySolanaSignedTransaction({signed_transaction_base64:signFixture(value)},value.prepared.ticket);
+ await assert.rejects(executeJupiterSignedTransaction({ticket:value.prepared.ticket,verified},{jupiter_api_key:"fixture-key",fetch_impl:async()=>response({status:"success",signature:bs58.encode(Buffer.alloc(64,3))})}),/execute_signature_mismatch/);
+});
+test("settled balances cannot prove a fee when the actual transaction message differs from review",async()=>{
+ const value=fixture(),other=fixture();
+ const signed=signFixture(other),signature=decodeSolanaTransaction(signed).signatures[0].signature_base58;
+ const result=await reconcileSolanaExecution({ticket:value.prepared.ticket,provider_observation:{state:"provider_submitted",signature}},{rpc_url:"https://rpc.example",fetch_impl:async(_url,init)=>{
+   const request=JSON.parse(init.body);
+   if(request.method==="getSignatureStatuses")return response({result:{value:[{err:null,confirmationStatus:"finalized"}]}});
+   return response({result:{slot:1,transaction:request.params[1].encoding==="base64"?[signed,"base64"]:{signatures:[signature]}}});
+ }});
+ assert.equal(result.state,"indeterminate");
+ assert.equal(result.evidence.reason,"settled_transaction_message_mismatch");
+ assert.equal(result.evidence.economic_result_verified,false);
+});
 
 test("reconciliation proves selected-token credit, canonical-USDC debit, and bounded native fees", async () => {
   const value = fixture();
-  const signature = bs58.encode(Buffer.alloc(64, 4));
+  const signed=signFixture(value);
+  const signature=decodeSolanaTransaction(signed).signatures[0].signature_base58;
   const reconciled = await reconcileSolanaExecution({
     ticket: value.prepared.ticket,
     provider_observation: { state: "provider_submitted", signature },
@@ -273,10 +292,11 @@ test("reconciliation proves selected-token credit, canonical-USDC debit, and bou
         return response({ jsonrpc: "2.0", id: request.id, result: { value: [{ err: null, confirmationStatus: "confirmed", confirmations: 1 }] } });
       }
       if (request.method === "getTransaction") {
+        if(request.params[1].encoding==="base64")return response({jsonrpc:"2.0",id:request.id,result:{slot:55,transaction:[signed,"base64"]}});
         return response({ jsonrpc: "2.0", id: request.id, result: {
           slot: 55,
           blockTime: 1_788_278_400,
-          transaction: { message: { accountKeys: [{ pubkey: value.walletAddress }] } },
+          transaction: { signatures:[signature],message: { accountKeys: [{ pubkey: value.walletAddress }] } },
           meta: {
             err: null,
             fee: 6000,
@@ -306,6 +326,8 @@ test("reconciliation proves selected-token credit, canonical-USDC debit, and bou
   assert.equal(reconciled.evidence.native_debit_lamports, "6000");
   assert.equal(reconciled.evidence.raven_fee.verified, true);
   assert.equal(reconciled.evidence.raven_fee.observed_collector_credit_base_units, "8000");
+  assert.equal(reconciled.evidence.gross_raven_fee_verified,true);
+  assert.equal(reconciled.evidence.settled_message_hash,value.prepared.ticket.transaction.message_hash);
 });
 
 test("missing or mismatched Solana fee evidence cannot create a signable ticket", () => {

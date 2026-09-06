@@ -360,3 +360,32 @@ async function boot() {
 }
 
 boot().catch(() => { setText("landingOriginState", "Raven refreshing"); document.getElementById("landingOriginDot").dataset.state = "waiting"; });
+
+async function loadLandingTrialWelcome() {
+  const panel = document.getElementById("landingTrialWelcome");
+  if (!panel) return;
+  try {
+    const response = await fetch("/api/v1/pro/product", { credentials: "same-origin", cache: "no-store" });
+    const product = response.ok ? await response.json() : null;
+    if (!product?.flags?.trials) return;
+    document.getElementById("landingTrialTitle").textContent = `Your first ${product.policy.trial_days} days are on Raven.`;
+    panel.hidden = false;
+    const referralResponse = await fetch("/api/v1/referrals/landing", { credentials: "include", cache: "no-store" });
+    const referralPayload = referralResponse.ok ? await referralResponse.json() : null;
+    const referral = referralPayload?.referral;
+    if (referral?.invited_by) {
+      document.getElementById("landingTrialTitle").textContent = `Invited by @${referral.invited_by}. Make yourself at home.`;
+      document.getElementById("landingTrialCopy").textContent = `Try Raven Pro free for ${product.policy.trial_days} days. No card required. ${referral.disclosure}`;
+      document.getElementById("landingTrialLink").textContent = "Create your account →";
+    }
+    const accountResponse = await fetch("/api/v1/pro", { credentials: "same-origin", cache: "no-store" });
+    if (!accountResponse.ok) return;
+    const account = await accountResponse.json();
+    if (!account?.access) return;
+    const activeTrial = account.access.state === "PRO_TRIAL_ACTIVE";
+    document.getElementById("landingTrialTitle").textContent = activeTrial ? "Your Pro trial is underway. Make yourself at home." : "Good to have you back.";
+    document.getElementById("landingTrialCopy").textContent = activeTrial ? `Explore deeper wallet intelligence${product.flags.cashback ? " and Pro cashback" : ""}. Your free trial ends without a charge unless you choose to subscribe.` : "Your markets, wallet research, and account are ready when you are.";
+    document.getElementById("landingTrialLink").textContent = "Open your account →";
+  } catch { /* A welcome must never interrupt the landing page. */ }
+}
+loadLandingTrialWelcome();

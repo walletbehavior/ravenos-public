@@ -7,7 +7,7 @@ import {
   feePolicyFor,
 } from "../lib/customer_trade/fee_policy.mjs";
 
-test("Free uses the reviewed venue schedule and Pro is at least 30 percent lower", () => {
+test("Native fees are 100 bps for both tiers while Hyperliquid preserves its separate schedule", () => {
   const schedule = customerTradeFeeSchedule();
   assert.deepEqual(schedule["hyperliquid:perpetual"], {
     provider: "hyperliquid",
@@ -20,16 +20,16 @@ test("Free uses the reviewed venue schedule and Pro is at least 30 percent lower
   assert.equal(schedule["hyperliquid:spot"].free_fee_bps, 100);
   assert.equal(schedule["hyperliquid:spot"].pro_fee_bps, 70);
   assert.equal(schedule["jupiter:spot"].free_fee_bps, 100);
-  assert.equal(schedule["jupiter:spot"].pro_fee_bps, 70);
+  assert.equal(schedule["jupiter:spot"].pro_fee_bps, 100);
   assert.deepEqual(schedule["0x:spot"], {
     provider: "0x",
     chain: "evm",
     trade_type: "spot",
     fee_kind: "integrator_fee",
     free_fee_bps: 100,
-    pro_fee_bps: 70,
+    pro_fee_bps: 100,
   });
-  for (const row of Object.values(schedule)) assert.ok(row.pro_fee_bps <= row.free_fee_bps * 0.7);
+  for (const row of Object.values(schedule)) if(row.provider!=="hyperliquid") assert.equal(row.pro_fee_bps,row.free_fee_bps);
 });
 
 test("0x EVM spot fees are server-selected and require a nonzero collector", () => {
@@ -53,7 +53,7 @@ test("0x EVM spot fees are server-selected and require a nonzero collector", () 
     fee_recipient: recipient,
   });
   assert.equal(pro.enabled, true);
-  assert.equal(pro.fee_bps, 70);
+  assert.equal(pro.fee_bps, 100);
   const zero = feePolicyFor({
     provider: "0x",
     trade_type: "spot",
@@ -85,9 +85,10 @@ test("only server-selected tier and schedule control the fee", () => {
     referralFee: 1,
   });
   assert.equal(policy.enabled, true);
-  assert.equal(policy.fee_bps, 70);
-  assert.equal(policy.fee_parameter_value, 70);
-  assert.equal(policy.discount_from_free_pct, 30);
+  assert.equal(policy.fee_bps, 100);
+  assert.equal(policy.fee_parameter_value, 100);
+  assert.equal(policy.discount_from_free_pct, 0);
+  assert.equal(policy.cashback_percent, 30);
   assert.equal(policy.customer_controls.body_or_query_fee_override_allowed, false);
 });
 

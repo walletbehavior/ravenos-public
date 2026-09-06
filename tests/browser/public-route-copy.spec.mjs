@@ -233,19 +233,21 @@ test("account status exposes the real activation gate without synthetic identity
   expect(text).not.toMatch(/\$149|\$999|upgrade to pro|connect wallet to unlock|founder token balance/i);
 });
 
-test("plans page presents the published tiers without activating checkout", async ({ page }) => {
+test("plans page presents the no-card trial and routes chosen Pro billing through Account", async ({ page }) => {
   await page.goto("/pricing/");
   await expect(page.getByRole("heading", { name: "Start free. Go deeper when Raven becomes part of your edge." })).toBeVisible();
   await expect(page.locator('[data-plan="free"]')).toContainText("$0");
   await expect(page.locator('[data-plan="pro"]')).toContainText("$149");
   await expect(page.locator('[data-plan="desk"]')).toContainText("$499");
   await expect(page.locator('[data-plan="enterprise"]')).toContainText("Custom");
-  await expect(page.getByRole("link", { name: "Open Free" })).toHaveAttribute("href", "/discover/");
-  await expect(page.getByRole("link", { name: "View Pro preview" })).toHaveAttribute("href", "https://app.ravenos.xyz/account/intelligence/");
+  await expect(page.getByRole("link", { name: "Open Standard" })).toHaveAttribute("href", "/discover/");
+  await expect(page.getByRole("link", { name: "Explore Pro access" })).toHaveAttribute("href", "https://app.ravenos.xyz/account/");
   await expect(page.locator(".ros-activity-strip")).toHaveCount(0);
   await expect(page.locator("[data-stripe-checkout], [data-stripe-portal]")).toHaveCount(0);
   const text = await visibleBodyText(page);
-  expect(text).toMatch(/Paid enrollment opens later/i);
+  expect(text).toMatch(/No card required/i);
+  expect(text).toMatch(/No charge when a free trial ends unless you choose paid Pro/i);
+  expect(text).toMatch(/actual fee charged is 1.00%/i);
   expect(text).toMatch(/Research only\. Not financial advice/i);
   expect(text).not.toMatch(/buy pro|start monthly|start annual|token threshold|activation gate|projection contract|operator grant/i);
 });

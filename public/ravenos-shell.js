@@ -158,16 +158,23 @@ function isExactSolanaPublicAddress(value = "") {
 }
 
 function publicWalletCommandResult(query = "") {
-  const address = String(query || "").trim();
-  if (!isExactSolanaPublicAddress(address)) return null;
-  return {
+  const clean = String(query || "").trim();
+  const qualified = clean.match(/^(solana|ethereum|base|bsc|robinhood)[:\s]+(\S+)$/i);
+  const address = qualified ? qualified[2] : clean;
+  const chain = qualified?.[1]?.toLowerCase();
+  const chains = isExactSolanaPublicAddress(address)
+    ? (!chain || chain === "solana" ? ["solana"] : [])
+    : /^0x[a-fA-F0-9]{40}$/.test(address)
+      ? (chain && chain !== "solana" ? [chain] : chain ? [] : ["ethereum", "base", "bsc", "robinhood"])
+      : [];
+  return chains.map((chain) => ({
     commandType: "wallet",
     label: "Analyze public wallet",
-    detail: `${shortMarketId(address)} · Solana public address`,
+    detail: `${shortMarketId(address)} · ${chain === "bsc" ? "BNB Chain" : chain[0].toUpperCase() + chain.slice(1)} public address`,
     group: "Wallet intelligence",
-    state: "Open in Pro",
-    href: `https://app.ravenos.xyz/account/copy/?wallet=${encodeURIComponent(address)}`,
-  };
+    state: "Holdings & trades",
+    href: `https://app.ravenos.xyz/account/copy/?wallet=${encodeURIComponent(address)}&chain=${chain}`,
+  }));
 }
 
 function escapeHtml(value) {
@@ -989,10 +996,10 @@ export function mountRavenOSShell(options = {}) {
     for (const [family, rows] of grouped) {
       appendCommandGroup(family, rows);
     }
-    if (walletResult) {
-      appendCommandGroup("Wallet intelligence", [walletResult], "Explicit public address · Pro analysis");
+    if (walletResult.length) {
+      appendCommandGroup("Wallet intelligence", walletResult, "Choose the exact chain · wallet lookup included");
     }
-    if (!instruments.length && !recent.length && !walletResult) {
+    if (!instruments.length && !recent.length && !walletResult.length) {
       const empty = document.createElement("div");
       empty.className = "ros-command-empty";
       const searchPending = clean.length >= 1 && spotSearch.query === normalized && spotSearch.state === "searching";
@@ -1019,7 +1026,7 @@ export function mountRavenOSShell(options = {}) {
             : spotSearch.state === "unavailable"
               ? " · live market lookup unavailable"
               : "";
-    const walletState = walletResult ? " · public-wallet analysis available" : "";
+    const walletState = walletResult.length ? " · public-wallet analysis available" : "";
     searchStatus.textContent = registryState + spotState + walletState;
   }
 

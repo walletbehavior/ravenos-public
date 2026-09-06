@@ -303,3 +303,9 @@
   .discover-market-ribbon-actions button,
   .discover-token-decision-chip { transition: none !important; }
 }
+
+.discover-emerging-focus { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.discover-emerging-focus button { min-height: 36px; padding: 7px 12px; border: 1px solid #394951; border-radius: 8px; color: #cbd6dc; background: #11191e; white-space: nowrap; }
+.discover-emerging-focus button[aria-pressed="true"] { color: #7bd8af; border-color: #376653; }
+.discover-emerging-focus small { max-width: 360px; color: #94a1ad; font-size: 11px; line-height: 1.5; }
+@media (max-width: 600px) { .discover-page #discoverTapeToggle { font-size: 10px; line-height: 1.2; min-height: 32px; padding: 5px 9px; white-space: nowrap; } .discover-emerging-focus small { max-width: 100%; } }

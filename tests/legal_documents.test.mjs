@@ -33,7 +33,9 @@ test("candidate package preserves the critical product and risk distinctions", (
   const community = readFileSync("legal/review/community-guidelines/index.html", "utf8");
 
   assert.match(terms, /user’s selected external wallet signs/i);
-  assert.match(terms, /checkout route is not active/i);
+  assert.match(terms, /explicitly authorize recurring monthly billing/i);
+  assert.match(terms, /30-day Raven Pro trial at account creation/i);
+  assert.match(terms, /Rewards do not expire/i);
   assert.match(terms, /withdrawal, export, or recovery/i);
   assert.match(privacy, /public Raven profile is separately opt-in/i);
   assert.match(privacy, /no third-party behavioral-advertising tracker/i);
@@ -41,7 +43,10 @@ test("candidate package preserves the critical product and risk distinctions", (
   assert.match(risk, /aggregate USDC amount is not one instantly available balance/i);
   assert.match(copy, /Source performance is never follower performance/i);
   assert.match(copy, /Live Copy disabled/i);
-  assert.match(affiliate, /No current referral activity earns compensation/i);
+  assert.match(affiliate, /25% of actual net qualifying Raven Pro subscription cash revenue/i);
+  assert.match(affiliate, /12 calendar months from the first qualifying paid conversion/i);
+  assert.match(affiliate, /60-day attribution window/i);
+  assert.match(affiliate, /Free trials and trading activity do not generate commission/i);
   assert.match(community, /Reward process—not outrage/i);
   assert.match(community, /make a profile private without first accepting/i);
 });

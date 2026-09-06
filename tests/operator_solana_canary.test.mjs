@@ -3,6 +3,8 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import bs58 from "bs58";
+import { RAVEN_JUPITER_REFERRAL } from "../lib/customer_trade/jupiter_referral.mjs";
+import { referralFixture } from "./fixtures/jupiter_referral.mjs";
 
 import {
   OperatorCanaryExecutionAuthorization,
@@ -38,11 +40,12 @@ function key(seed) {
   return Buffer.alloc(32, seed);
 }
 
-function fixtureTransaction(walletAddress, programAddress = JUPITER_PROGRAM, dynamicCount = 1) {
+function fixtureTransaction(walletAddress, programAddress = JUPITER_PROGRAM, dynamicCount = 1, feeIndex = null) {
   const wallet = Buffer.from(bs58.decode(walletAddress));
   const program = Buffer.from(bs58.decode(programAddress));
   const lookupAddress = key(22);
   const dynamicAccounts = Array.from({ length: dynamicCount }, (_, index) => key(23 + index));
+  if (feeIndex !== null) dynamicAccounts[feeIndex] = Buffer.from(bs58.decode(RAVEN_JUPITER_REFERRAL.usdc_fee_account));
   const instruction = Buffer.concat([
     Buffer.from([1]),
     shortVec(2),
@@ -181,7 +184,7 @@ function runtime({
   const usesUsdc = (side === "buy" ? fundingKind : settlementKind) === "canonical_usdc";
   const hasReferral = Boolean(referralAccount);
   const resolvedDynamicCount = Math.max(dynamicCount, 1 + Number(hasWrappedState) + Number(usesUsdc) + Number(hasReferral));
-  const transaction = fixtureTransaction(wallet, program, resolvedDynamicCount);
+  const transaction = fixtureTransaction(wallet, program, resolvedDynamicCount, hasReferral ? 1 + Number(hasWrappedState) + Number(usesUsdc) : null);
   const inputMint = side === "buy"
     ? fundingKind === "canonical_usdc" ? SOLANA_USDC_MINT : SOLANA_WRAPPED_MINT
     : context.token;
@@ -302,6 +305,10 @@ function runtime({
       return response({ jsonrpc: "2.0", id: 1, result: currentBlockHeight });
     }
     if (request.method === "getMultipleAccounts") {
+      if (request.params[0][0] === RAVEN_JUPITER_REFERRAL.account) {
+        assert.deepEqual(request.params[0], [RAVEN_JUPITER_REFERRAL.account, RAVEN_JUPITER_REFERRAL.usdc_fee_account]);
+        return response({ jsonrpc: "2.0", id: 1, result: referralFixture() });
+      }
       if (request.params[0].length === 1 && request.params[0][0] === transaction.lookupAddress) {
         assert.equal(request.params[1].minContextSlot, 500);
         return response({ jsonrpc: "2.0", id: 1, result: {
@@ -472,7 +479,7 @@ test("customer preflight returns only the exact reviewed unsigned transaction an
 });
 
 test("customer preflight binds and independently simulates the exact Jupiter referral fee", async () => {
-  const referralAccount = bs58.encode(key(44));
+  const referralAccount = RAVEN_JUPITER_REFERRAL.account;
   const value = runtime({
     fundingKind: "canonical_usdc",
     referralAccount,
@@ -744,3 +751,27 @@ test("source limits match the reviewed security contract caps", async () => {
   assert.equal(Number(OperatorSolanaCanaryLimits.maximum_total_native_debit_lamports), security.operator_solana_canary.maximum_total_native_debit_lamports);
   assert.equal(OperatorSolanaCanaryLimits.maximum_route_legs, security.operator_solana_canary.maximum_route_legs);
 });
+
+for (const tier of ["Standard", "Pro"]) test(`${tier} referral preflight keeps 100 bps and exact USDC account`, async () => {
+  const feeBps = 100;
+  const value = runtime({ fundingKind: "canonical_usdc", referralAccount: RAVEN_JUPITER_REFERRAL.account, referralFeeBps: feeBps });
+  const request = requestFor(value, { wallet_role: "customer", funding_kind: "canonical_usdc", settlement_kind: "canonical_usdc", referral_account: RAVEN_JUPITER_REFERRAL.account, referral_fee_bps: feeBps });
+  const options = { rpc_url: "https://rpc.example", jupiter_api_key: "fixture-key", fetch_impl: value.fetchImpl };
+  const result = await runCustomerSolanaLivePreflight(request, options);
+  assert.equal(result.quote.fee_bps, feeBps);
+  assert.equal(result.simulation.referral_fee_balance_evidence.fee_account, RAVEN_JUPITER_REFERRAL.usdc_fee_account);
+  assert.equal(result.transaction_review.unsigned_transaction, true);
+  let providerCalls = 0;
+  await assert.rejects(() => runCustomerSolanaLivePreflight(request, { ...options, fetch_impl: async (url, init) => {
+    if (String(url).includes("api.jup.ag")) providerCalls++;
+    const rpc = init?.body ? JSON.parse(init.body) : null;
+    if (rpc?.method === "getMultipleAccounts" && rpc.params[0][0] === RAVEN_JUPITER_REFERRAL.account) {
+      const missing = referralFixture(); missing.value[1] = null;
+      return response({ jsonrpc: "2.0", id: 1, result: missing });
+    }
+    return value.fetchImpl(url, init);
+  } }), /jupiter_usdc_fee_account_missing/);
+  assert.equal(providerCalls, 0, "missing fee account blocks before requesting a swap");
+});
+
+test("retired native Pro 70 bps requests fail before any provider call",async()=>{const value=runtime({fundingKind:"canonical_usdc",referralAccount:RAVEN_JUPITER_REFERRAL.account,referralFeeBps:70});let calls=0;await assert.rejects(runCustomerSolanaLivePreflight(requestFor(value,{wallet_role:"customer",funding_kind:"canonical_usdc",settlement_kind:"canonical_usdc",referral_account:RAVEN_JUPITER_REFERRAL.account,referral_fee_bps:70}),{rpc_url:"https://rpc.example",jupiter_api_key:"fixture-key",fetch_impl:async()=>{calls++;throw new Error("unexpected_provider_call");}}),/fee/);assert.equal(calls,0);});

@@ -184,7 +184,7 @@ test("D1 grant reads are owner-scoped, bounded, and exclude private grant proven
   let bound = [];
   const db = {
     prepare(sql) {
-      query = sql;
+      if (sql.includes("ravenos_customer_entitlement_grants")) query = sql;
       return {
         bind(...values) {
           bound = values;

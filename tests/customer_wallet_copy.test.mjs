@@ -989,3 +989,13 @@ test("manual fallback retains a signal backlog instead of advancing past unproce
   assert.equal(store.decisions.length, 5);
   assert.equal(store.positions.length, 5);
 });
+
+test("cohort clusters and discovery risk filters require Pro at the API boundary", async () => {
+  const store = memoryStore();
+  const provider = { async loadHistory() { return { events: [walletEvent()] }; } };
+  const activeEnv = env({ RAVENOS_WALLET_SCREENER_ENABLED: "1" });
+  const cluster = await routeCustomerWalletCopy(request("/api/v1/wallet-copy/robinhood/clusters?hours=24&limit=100&min_wallets=2"), activeEnv, deps(store, provider, []));
+  assert.equal(cluster.status, 403);
+  const filter = await routeCustomerWalletCopy(request("/api/v1/wallet-copy/screener", { method: "POST", body: { chain: "all", clauses: [{ field: "loss_75_pct", operator: "lte", value: 10 }] } }), activeEnv, deps(store, provider, []));
+  assert.equal(filter.status, 403);
+});

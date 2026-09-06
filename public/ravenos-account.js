@@ -482,8 +482,63 @@ async function loadProIntelligenceCapabilities() {
   }
 }
 
+function affiliateUsd(value) {
+  if (!/^\d+$/.test(String(value ?? ""))) return "—";
+  const cents = BigInt(value);
+  return `$${(cents / 100n).toLocaleString()}.${(cents % 100n).toString().padStart(2, "0")}`;
+}
+function renderAffiliateProgram(referral) {
+  const active = referral.state === "active";
+  const policy = referral.policy;
+  referralPanel.dataset.referralState = active ? "active" : "not_created";
+  setText("accountReferralState", active ? "Active" : "Join when ready");
+  setText("accountReferralStatus", active ? "Your link is ready. Commissions begin only after a qualifying paid Pro conversion." : "Joining is optional. Review the program and accept its terms to activate your link.");
+  setText("accountAffiliateOffer", `Earn ${policy.commission_percent}% of qualifying Pro subscription revenue for up to ${policy.commission_months} months from the first qualifying paid conversion. Conversion must occur within ${policy.attribution_days} days of the first qualifying referral visit. Rewards, credits, discounts, refunds, and chargebacks reduce the commission basis.`);
+  document.getElementById("accountAffiliateTerms").hidden = active;
+  document.getElementById("accountReferralCreate").hidden = active;
+  document.getElementById("accountReferralCreate").disabled = !policy.flags.enrollment;
+  document.getElementById("accountReferralCopy").hidden = !active;
+  document.getElementById("accountReferralLink").value = active ? referral.referral_url : "Join to activate your link";
+  document.getElementById("accountReferralClaimForm").hidden = true;
+  document.getElementById("accountAffiliateDisclosure").hidden = !active;
+  document.getElementById("accountAffiliateProfilePreference").hidden = !active || !policy.flags.public_profile_cta;
+  document.getElementById("accountAffiliateProfileCta").checked = referral.enrollment?.public_profile_cta === 1;
+  const shareText = active ? `${referral.disclosure}\n${referral.referral_url}` : "";
+  setText("accountAffiliateDisclosureText", referral.disclosure);
+  document.getElementById("accountAffiliateShareText").value = shareText;
+  document.getElementById("accountAffiliateShareX").href = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}`;
+  for (const [id,key] of [["accountReferralAccounts","accounts_created"],["accountReferralQualified","paid_conversions"],["accountAffiliateClicks","clicks"],["accountAffiliateTrials","active_trials"],["accountAffiliateActivePro","active_referred_pro"]]) {
+    setText(id, Number.isSafeInteger(referral.metrics?.[key]) ? referral.metrics[key].toLocaleString() : "—");
+  }
+  for (const [id,key] of [["accountAffiliatePending","pending_cents"],["accountAffiliateAvailable","available_cents"],["accountAffiliateEarned","earned_cents"]]) setText(id, affiliateUsd(referral.balance?.[key]));
+  setText("accountReferralRewards", referral.payout_state === "manual_review" ? "Manual review" : "Not enabled");
+  document.querySelectorAll("[data-affiliate-metric]").forEach(node => { node.hidden = !active; });
+  const events = document.getElementById("accountAffiliateEvents");
+  events.replaceChildren(); events.hidden = !active;
+  const heading = document.createElement("h4"); heading.textContent = "Commission activity"; events.append(heading);
+  if (!referral.events?.length) { const empty=document.createElement("p"); empty.textContent="No commission events yet."; events.append(empty); }
+  for (const event of referral.events || []) {
+    const row = document.createElement("p");
+    row.textContent = `${readableState(event.status)} · ${affiliateUsd(event.amount_cents)} commission · ${affiliateUsd(event.qualifying_revenue_cents)} qualifying revenue · ${new Date(event.created_at * 1000).toLocaleDateString()}`;
+    events.append(row);
+  }
+  const recoverable=BigInt(referral.balance?.recoverable_cents || "0");
+  if (recoverable > 0n) { const adjustment=document.createElement("p"); adjustment.textContent=`${affiliateUsd(recoverable.toString())} outstanding adjustment from reversed subscription payments. Future commission offsets this amount.`; events.append(adjustment); }
+  referralControls.hidden = false;
+}
+function recordAffiliateUiEvent(eventType) {
+  if (!state.referral?.policy || !state.csrf) return;
+  getJson("/api/v1/referrals/events", { method: "POST", headers: { "content-type": "application/json", "x-ravenos-csrf": state.csrf }, body: JSON.stringify({ event: eventType, request_id: crypto.randomUUID() }) }).catch(() => {});
+}
+async function copyAffiliateDisclosure() {
+  const text = document.getElementById("accountAffiliateShareText");
+  try { await navigator.clipboard.writeText(text.value); setText("accountReferralStatus", "Disclosure and link copied."); recordAffiliateUiEvent("referral_link_copied"); }
+  catch { text.focus(); text.select(); setText("accountReferralStatus", "Disclosure and link selected. Copy them from the field."); }
+}
+
 function renderReferralProgram(referral = {}) {
   state.referral = referral;
+  if (referral.policy) return renderAffiliateProgram(referral);
   const code = referralCode(referral.referral_code);
   const attributionRecorded = referral.attribution?.state === "recorded";
   referralPanel.dataset.referralState = attributionRecorded ? "recorded" : code ? "active" : "not_created";
@@ -532,13 +587,19 @@ async function createReferralLink() {
   if (!state.csrf) return renderReferralUnavailable("Refresh and sign in again before creating a link.");
   const button = document.getElementById("accountReferralCreate");
   button.disabled = true;
-  setText("accountReferralStatus", "Creating your private link…");
+  const affiliate = Boolean(state.referral?.policy);
+  if (affiliate && !document.getElementById("accountAffiliateAccept").checked) {
+    button.disabled = false;
+    document.getElementById("accountAffiliateAccept").focus();
+    return setText("accountReferralStatus", "Review and accept the Affiliate Terms to join.");
+  }
+  setText("accountReferralStatus", affiliate ? "Checking your Affiliate Terms acceptance…" : "Creating your referral link…");
   try {
-    const { response, payload } = await getJson("/api/v1/referrals/code", {
+    const { response, payload } = await getJsonWithLegalAcceptance(affiliate ? "/api/v1/referrals/join" : "/api/v1/referrals/code", {
       method: "PUT",
       headers: { "content-type": "application/json", "x-ravenos-csrf": state.csrf },
-      body: "{}",
-    });
+      body: affiliate ? JSON.stringify({ accept: true }) : "{}",
+    }, "affiliate_enrollment");
     if (!response.ok || !payload?.referral) {
       setText("accountReferralStatus", payload?.error === "username_required" ? "Choose a Raven username first." : "A referral link could not be created.");
       return;
@@ -588,7 +649,8 @@ async function copyReferralLink() {
   if (!state.referral?.referral_url) return;
   try {
     await navigator.clipboard.writeText(state.referral.referral_url);
-    setText("accountReferralStatus", "Referral link copied.");
+    setText("accountReferralStatus", "Referral link copied. Include the required disclosure when sharing.");
+    recordAffiliateUiEvent("referral_link_copied");
   } catch {
     link.focus();
     link.select();
@@ -1043,6 +1105,7 @@ function renderAuthenticated(payload) {
   renderBrowserWallet();
   loadSessions();
   loadProIntelligenceCapabilities();
+  loadProductRewards();
   loadPortfolioPreviewCapability();
   loadReferralProgram();
   loadPrivyWallets();
@@ -1206,6 +1269,13 @@ async function initialize() {
   document.getElementById("accountPrivyCreate").addEventListener("click", createPrivyWallets);
   document.getElementById("accountReferralCreate").addEventListener("click", createReferralLink);
   document.getElementById("accountReferralCopy").addEventListener("click", copyReferralLink);
+  document.getElementById("accountAffiliateProfileCta")?.addEventListener("change", async event => {
+    const input=event.target;input.disabled=true;
+    try {const result=await getJson("/api/v1/referrals/preference",{method:"PUT",headers:{"content-type":"application/json","x-ravenos-csrf":state.csrf},body:JSON.stringify({public_profile_cta:input.checked})});if(!result.response.ok)throw new Error();}
+    catch {input.checked=!input.checked;setText("accountReferralStatus","The profile preference could not be saved.");} finally {input.disabled=false;}
+  });
+  document.getElementById("accountAffiliateCopyDisclosure")?.addEventListener("click", copyAffiliateDisclosure);
+  document.getElementById("accountAffiliateShareX")?.addEventListener("click", () => recordAffiliateUiEvent("affiliate_share_x"));
   document.getElementById("accountReferralClaimForm").addEventListener("submit", claimReferral);
   governorAnalyze.addEventListener("click", analyzePortfolioPreview);
   bindAuthForms();
@@ -1266,3 +1336,243 @@ window.__RAVENOS_ACCOUNT__ = Object.freeze({
 });
 
 initialize().catch(renderActivationPending);
+
+// Account-owned product/rewards controls. Currency arithmetic stays in integer
+// micro-USDC; only text is formatted in the browser.
+const rewardDialogState = { mode: null, idempotency: null, destination: null, quote: null };
+function formatRewardMicros(value, places = 2) {
+  const n = BigInt(String(value || "0"));
+  const negative = n < 0n, absolute = negative ? -n : n;
+  const fraction = (absolute % 1000000n).toString().padStart(6, "0").slice(0, places);
+  return `${negative ? "−" : ""}${(absolute / 1000000n).toLocaleString("en-US")}${places ? `.${fraction}` : ""}`;
+}
+function parseRewardAmount(value) {
+  const text = String(value || "").trim();
+  if (!/^\d{1,9}(\.\d{1,6})?$/.test(text)) throw new Error("Enter a USDC amount with up to six decimals.");
+  const [whole, fraction = ""] = text.split(".");
+  return (BigInt(whole) * 1000000n + BigInt(fraction.padEnd(6, "0"))).toString();
+}
+const rewardMessages = {
+  pro_billing_unavailable: "Pro billing is not available yet.",
+  subscription_credit_unavailable: "Applying rewards to Pro is not available yet.",
+  claim_recent_login_required: "Please sign in again before claiming cashback.",
+  claim_below_minimum: "This amount is below the minimum for the selected network.",
+  claim_network_cost_too_high: "Network costs are currently too high. Your rewards remain available.",
+  claim_treasury_funding_unavailable: "Payout funding is temporarily unavailable on this network. Your rewards remain available.",
+  rewards_treasury_unavailable: "Cashback payouts are temporarily unavailable. Your balance is unchanged.",
+  stripe_result_indeterminate: "Stripe confirmation is pending. Your rewards are reserved; avoid starting another application.",
+  billing_operation_in_progress: "A billing request is being reconciled. Please check back before starting another.",
+  billing_operation_requires_reconciliation: "Your earlier billing request needs reconciliation. Your balance remains protected.",
+  continue_pro_at_trial_end: "Your free trial has less than two days left. Continue with Pro when it ends to keep every free day; you will not be charged automatically.",
+  next_pro_bill_already_credited: "Your next Pro bill already has credit. Apply a smaller amount or wait for that invoice.",
+  reward_balance_insufficient: "That amount is no longer available. Refresh your rewards balance.",
+  embedded_wallet_verification_required: "Reconnect your Raven Wallet before using it as a destination.",
+  external_wallet_verification_required: "Verify your connected wallet again before claiming.",
+  pro_subscription_already_exists: "You already have a Pro subscription. Use Manage subscription.",
+  pro_subscription_confirmation_pending: "Stripe completed checkout. Raven is waiting for subscription confirmation.",
+  product_rate_limited: "A few too many requests. Please wait a moment and try again.",
+};
+async function productMutation(path, body, { legal = false } = {}) {
+  const init = { method: "POST", headers: { "content-type": "application/json", "x-ravenos-csrf": state.csrf }, body: JSON.stringify(body) };
+  const { response, payload } = legal ? await getJsonWithLegalAcceptance(path, init, "pro_subscription") : await getJson(path, init);
+  if (!response.ok || !payload?.ok) throw new Error(rewardMessages[payload?.error] || (payload?.error === "legal_acceptance_required" ? "Review the current Pro and rewards terms to continue." : "This request could not be completed. Your account remains available."));
+  return payload;
+}
+async function loadProductRewards() {
+  const panel = document.getElementById("accountRewardsPanel");
+  if (!panel || !state.session) return;
+  try {
+    const { response, payload } = await getJson("/api/v1/pro");
+    if (!response.ok || !payload?.ok) return;
+    state.product = payload;
+    document.getElementById("accountFinancePanel").hidden = !payload.finance_operator;
+    panel.hidden = false;
+    const { access, policy, rewards, flags } = payload;
+    const trial = access.state === "PRO_TRIAL_ACTIVE";
+    setText("accountProductTitle", trial ? "Raven Pro trial" : access.pro ? "Raven Pro" : "Raven Standard");
+    setText("accountProductPrice", trial ? "$0 during your trial" : access.pro ? `$${policy.pro_monthly_price_usd} / month` : "$0 / month");
+    document.getElementById("accountTrialWelcome").hidden = !trial;
+    const trialDate = access.trial?.trial_ends_at ? new Date(access.trial.trial_ends_at * 1000).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "";
+    const choseSubscription = ["trialing", "active", "past_due", "incomplete"].includes(access.subscription?.status);
+    setText("accountTrialStatus", trial ? `${access.trial.days_remaining} days remaining · Ends ${trialDate}. ${choseSubscription ? "You chose to continue with paid Pro after your trial. Manage billing below." : "No card required. You will not be charged automatically."}` : access.trial?.trial_status === "EXPIRED" ? "Your trial has ended. Your existing rewards are still yours." : access.subscription?.cancel_at_period_end ? "Pro stays active through your paid period. Your rewards remain yours after cancellation." : "Native trading and Raven Copy are available on Standard.");
+    setText("accountProductFee", `Raven fee: ${(policy.standard_execution_fee_bps / 100).toFixed(2)}% on eligible native trades. No additional copy-trading surcharge.`);
+    document.getElementById("accountCashbackExplanation").hidden = !flags.cashback;
+    setText("accountCashbackExplanation", `Pro cashback: ${policy.pro_cashback_percent}% of Raven's confirmed execution fee, paid in USDC-denominated rewards. Hyperliquid is separate.`);
+    const continueButton = document.getElementById("accountContinuePro");
+    continueButton.hidden = choseSubscription;
+    continueButton.disabled = !flags.billing;
+    continueButton.textContent = trial ? `Keep Pro after trial — $${policy.pro_monthly_price_usd}/month` : `Continue with Pro — $${policy.pro_monthly_price_usd}/month`;
+    document.getElementById("accountBillingPortal").hidden = !access.subscription;
+    document.getElementById("accountBillingPortal").disabled = !flags.billing;
+    document.getElementById("accountStartTrial").hidden = !payload.trial_can_request;
+    for (const [field, node] of Object.entries({ available: "Available", pending: "Pending", reserved: "Reserved", earned: "Earned", applied: "Applied", claimed: "Claimed" })) setText(`accountRewards${node}`, `${formatRewardMicros(rewards[`${field}_micros`])} USDC`);
+    const available = BigInt(rewards.available_micros);
+    document.getElementById("accountClaimCashback").disabled = !rewards.claims_ready || !rewards.networks.some(n => available >= BigInt(n.minimum_claim_micros));
+    document.getElementById("accountApplyCashback").disabled = !flags.subscription_credit || !flags.billing || available < 10000n;
+    const auto = document.getElementById("accountRewardsAutoApply");
+    auto.checked = rewards.auto_apply;
+    auto.disabled = !rewards.auto_apply && (!flags.auto_apply || !flags.subscription_credit);
+    const adjustment = document.getElementById("accountRewardsAdjustment");
+    adjustment.hidden = BigInt(rewards.adjustment_micros) === 0n;
+    adjustment.textContent = `${formatRewardMicros(rewards.adjustment_micros, 6)} USDC is an outstanding adjustment for a reversed Raven fee. Your available balance is shown separately.`;
+    const coverage = document.getElementById("accountRewardsCoverage");
+    coverage.hidden = !rewards.unvalued_fee_count;
+    coverage.textContent = `${rewards.unvalued_fee_count} fee ${rewards.unvalued_fee_count === 1 ? "receipt is" : "receipts are"} awaiting verified USDC valuation. These amounts are not available to spend.`;
+    const labels = { PENDING: "Estimated · awaiting fee confirmation", AVAILABLE: "Cashback earned", RESERVED: "Reserved for processing", CLAIMED: "Cashback claimed", APPLIED_TO_SUBSCRIPTION: "Applied to Pro invoice credit", REVERSED: "Fee adjustment", RELEASED: "Reservation released" };
+    const history = document.getElementById("accountRewardsHistory");
+    history.replaceChildren(...rewards.history.map(row => {
+      const item = document.createElement("li"), label = document.createElement("span"), value = document.createElement("span");
+      label.textContent = `${labels[row.status] || row.status} · ${new Date(row.created_at * 1000).toLocaleDateString()}`;
+      value.textContent = `${formatRewardMicros(row.amount_micros, 6)} USDC`;
+      item.append(label, value); return item;
+    }));
+    if (!history.childElementCount) { const item = document.createElement("li"); item.textContent = "Your confirmed fee rebates will appear here."; history.append(item); }
+    const invoices = document.getElementById("accountProInvoices");
+    invoices.replaceChildren(...payload.invoices.map(row => {
+      const item = document.createElement("li");
+      item.textContent = `${new Date(row.period_start * 1000).toLocaleDateString()} · Pro $${formatRewardMicros(BigInt(row.gross_cents) * 10000n)} · Rewards $${formatRewardMicros(BigInt(row.reward_credit_cents) * 10000n)} · External payment $${formatRewardMicros(BigInt(row.external_paid_cents) * 10000n)}`;
+      return item;
+    }));
+    if (!invoices.childElementCount) { const item = document.createElement("li"); item.textContent = "No Pro invoices yet."; invoices.append(item); }
+    if (!flags.cashback && available === 0n) setText("accountRewardsStatus", "Rewards are not enabled yet. Your Raven login and existing features are unchanged.");
+  } catch { /* Account login and wallet access never depend on rewards. */ }
+}
+function updateClaimNetwork() {
+  const chain = document.getElementById("accountClaimNetwork").value;
+  const rewards = state.product.rewards;
+  const network = rewards.networks.find(n => n.chain === chain);
+  const select = document.getElementById("accountClaimWallet");
+  const ecosystem = chain === "solana" ? "solana" : "evm";
+  select.replaceChildren();
+  for (const wallet of rewards.wallets.filter(w => w.ecosystem === ecosystem)) {
+    const option = document.createElement("option"); option.value = wallet.wallet_record_id; option.textContent = `Raven Wallet · ${shortWalletAddress(wallet.public_address)}`; select.append(option);
+  }
+  const external = document.createElement("option"); external.value = "external_connected"; external.textContent = "Verify a connected wallet"; select.append(external);
+  setText("accountClaimEconomics", network ? `Canonical USDC on ${chain}. Minimum ${formatRewardMicros(network.minimum_claim_micros, 6)} USDC. Raven covers the network cost; we check current cost before confirming.` : "Choose an available network.");
+  rewardDialogState.quote = null; rewardDialogState.destination = null;
+}
+function openRewardsDialog(mode) {
+  if (!state.product) return;
+  const dialog = document.getElementById("accountRewardsDialog");
+  rewardDialogState.mode = mode; rewardDialogState.idempotency = crypto.randomUUID(); rewardDialogState.destination = null; rewardDialogState.quote = null;
+  const checkout = mode === "checkout", claim = mode === "claim";
+  setText("accountRewardsDialogTitle", checkout ? "Keep Raven Pro" : claim ? "Claim cashback" : "Apply to Raven Pro");
+  setText("accountRewardsDialogCopy", checkout ? "Choose a paid subscription only when you are ready. Your remaining free trial is preserved; otherwise paid Pro starts after successful checkout." : claim ? "Choose a network and verify a wallet you control. A requested claim remains reserved until its USDC transfer is confirmed." : "Move available cashback to your next Pro invoice as a dollar credit. This does not start a subscription. Any sub-cent remainder stays in Rewards.");
+  document.getElementById("accountRewardsAmountLabel").hidden = checkout;
+  document.getElementById("accountClaimFields").hidden = !claim;
+  document.getElementById("accountBillingConsentLabel").hidden = !checkout;
+  document.getElementById("accountBillingConsent").checked = false;
+  const available = BigInt(state.product.rewards.available_micros), price = BigInt(state.product.policy.pro_monthly_price_usd) * 1000000n;
+  const amount = claim ? available : (available < price ? available : price) / 10000n * 10000n;
+  const amountInput = document.getElementById("accountRewardsAmount"); amountInput.value = `${amount / 1000000n}.${(amount % 1000000n).toString().padStart(6, "0")}`; amountInput.disabled = false;
+  for (const id of ["accountClaimNetwork", "accountClaimWallet"]) document.getElementById(id).disabled = false;
+  const networks = document.getElementById("accountClaimNetwork"); networks.replaceChildren(...state.product.rewards.networks.map(n => { const option = document.createElement("option"); option.value = n.chain; option.textContent = n.chain === "solana" ? "Solana" : n.chain === "base" ? "Base" : "Ethereum"; return option; }));
+  if (claim) updateClaimNetwork();
+  updateRewardCreditPreview();
+  setText("accountClaimVerifiedAddress", ""); setText("accountRewardsDialogStatus", "");
+  setText("accountRewardsConfirm", checkout ? "Continue to Stripe" : claim ? "Review claim" : "Apply rewards");
+  dialog.showModal();
+}
+function updateRewardCreditPreview() {
+  const preview=document.getElementById("accountRewardCreditPreview");
+  if(!preview||!state.product)return;
+  preview.hidden=rewardDialogState.mode!=="apply";
+  if(preview.hidden)return;
+  try {
+    const amount=BigInt(parseRewardAmount(document.getElementById("accountRewardsAmount").value));
+    const price=BigInt(state.product.policy.pro_monthly_price_usd)*1000000n;
+    if(amount>price||amount%10000n!==0n){preview.textContent="Use an amount in whole cents up to one Pro month.";return;}
+    preview.textContent=`Pro $${formatRewardMicros(price)} − Rewards $${formatRewardMicros(amount)} = $${formatRewardMicros(price-amount)} before any other invoice credits or adjustments.`;
+  } catch {preview.textContent="Enter the amount to see your Pro bill estimate.";}
+}
+function signatureBase58(bytes) {
+  const alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+  let value = 0n, encoded = "";
+  for (const byte of bytes) value = value * 256n + BigInt(byte);
+  while (value > 0n) { encoded = alphabet[Number(value % 58n)] + encoded; value /= 58n; }
+  for (const byte of bytes) { if (byte !== 0) break; encoded = "1" + encoded; }
+  return encoded;
+}
+async function verifiedClaimDestination() {
+  const chain = document.getElementById("accountClaimNetwork").value;
+  const choice = document.getElementById("accountClaimWallet").value;
+  if (choice !== "external_connected") return { kind: "privy_embedded", chain, wallet_record_id: choice };
+  let provider, address;
+  if (chain === "solana") { provider = solanaWalletProvider()?.provider; if (!provider?.signMessage) throw new Error("Connect a Solana wallet that supports message verification."); const connected = await provider.connect(); address = solanaAddress(connected.publicKey || provider.publicKey); }
+  else { provider = evmWalletProvider()?.provider; if (!provider) throw new Error("Connect your EVM wallet to verify this destination."); address = String((await provider.request({ method: "eth_requestAccounts" }))?.[0] || "").toLowerCase(); }
+  const challenge = await productMutation("/api/v1/pro/rewards/wallet/challenge", { chain, address });
+  let signature;
+  if (chain === "solana") { const signed = await provider.signMessage(new TextEncoder().encode(challenge.message), "utf8"); signature = signatureBase58(signed.signature || signed); }
+  else { const bytes = new TextEncoder().encode(challenge.message); const hex = "0x" + Array.from(bytes, n => n.toString(16).padStart(2, "0")).join(""); signature = await provider.request({ method: "personal_sign", params: [hex, address] }); }
+  const proof = await productMutation("/api/v1/pro/rewards/wallet/verify", { challenge_id: challenge.challenge_id, signature });
+  return { kind: "external_connected", chain, verification_id: proof.verification_id };
+}
+async function submitRewardsForm(event) {
+  event.preventDefault();
+  const button = document.getElementById("accountRewardsConfirm"); button.disabled = true;
+  setText("accountRewardsDialogStatus", "Checking…");
+  try {
+    const mode = rewardDialogState.mode;
+    if (mode === "checkout") {
+      if (!document.getElementById("accountBillingConsent").checked) throw new Error("Choose recurring Pro billing before continuing to Stripe.");
+      const result = await productMutation("/api/v1/pro/checkout", { consent: true }, { legal: true }); window.location.assign(result.checkout_url); return;
+    }
+    const amount = parseRewardAmount(document.getElementById("accountRewardsAmount").value);
+    if (mode === "claim" && !rewardDialogState.quote) {
+      const destination = await verifiedClaimDestination();
+      const quote = await productMutation("/api/v1/pro/rewards/claim/quote", { amount_micros: amount, destination });
+      rewardDialogState.quote = quote; rewardDialogState.destination = destination;
+      setText("accountClaimVerifiedAddress", `Verified destination: ${quote.destination.wallet_address}`);
+      setText("accountClaimEconomics", `You receive ${formatRewardMicros(amount, 6)} canonical USDC on ${quote.destination.chain}. Estimated network cost: ${formatRewardMicros(quote.estimated_network_cost_micros, 6)} USDC, covered by Raven.`);
+      for (const id of ["accountRewardsAmount", "accountClaimNetwork", "accountClaimWallet"]) document.getElementById(id).disabled = true;
+      setText("accountRewardsConfirm", "Confirm claim"); setText("accountRewardsDialogStatus", "Review the amount, network, and full destination address."); return;
+    }
+    if (mode === "claim") {
+      await productMutation("/api/v1/pro/rewards/claim", { amount_micros: amount, idempotency_key: rewardDialogState.idempotency, destination: rewardDialogState.destination });
+      setText("accountRewardsStatus", "Claim requested. Your cashback is reserved until the USDC transfer is confirmed.");
+    } else {
+      await productMutation("/api/v1/pro/rewards/apply", { amount_micros: amount, idempotency_key: rewardDialogState.idempotency }, { legal: true });
+      setText("accountRewardsStatus", `${formatRewardMicros(amount)} USDC applied as Pro invoice credit. A subscription starts only if you choose to subscribe.`);
+    }
+    document.getElementById("accountRewardsDialog").close(); await loadProductRewards();
+  } catch (error) { setText("accountRewardsDialogStatus", error.message || "Please try again."); }
+  finally { button.disabled = false; }
+}
+async function loadFinanceReport() {
+  const button=document.getElementById("accountFinanceRefresh");button.disabled=true;
+  try {
+    const {response,payload}=await getJson(`/api/v1/pro/operations/report?period=${encodeURIComponent(document.getElementById("accountFinancePeriod").value)}`);
+    if(!response.ok||!payload.report)throw new Error(payload?.error==="finance_recent_login_required"?"Sign in again to review financial operations.":"Financial reporting is temporarily unavailable.");
+    const report=payload.report,root=document.getElementById("accountFinanceReport");root.replaceChildren();
+    const summary=document.createElement("div");summary.className="account-referral-metrics";
+    for(const [label,key] of [["Outstanding cashback liability","outstanding_liability_micros"],["Available cashback","available_micros"],["Reserved cashback","reserved_micros"],["Pending estimates","pending_micros"],["Cashback claimed","claimed_micros"],["Applied to Pro","applied_to_pro_micros"]]) {
+      const card=document.createElement("article"),name=document.createElement("span"),value=document.createElement("strong");name.textContent=label;value.textContent=`${formatRewardMicros(report.reward_balances_as_of_end[key])} USDC`;card.append(name,value);summary.append(card);
+    }
+    root.append(summary);
+    const list=document.createElement("div");list.className="account-affiliate-events";
+    for(const row of report.execution_by_source){const line=document.createElement("p");line.textContent=`${row.period} · ${row.chain} · ${row.trade_type} · ${row.entitlement_source} — Customer fee ${formatRewardMicros(row.customer_execution_fees_micros)} / Provider share ${formatRewardMicros(row.provider_share_micros)} / Collector receipt ${formatRewardMicros(row.gross_collected_micros)} / Cashback ${formatRewardMicros(row.cashback_accrued_micros)} / Net ${formatRewardMicros(row.net_execution_revenue_micros)} USDC`;list.append(line);}
+    if(!list.childElementCount){const empty=document.createElement("p");empty.textContent="No confirmed, valued execution fees in this period.";list.append(empty);}
+    root.append(list);
+    setText("accountFinanceStatus","Revenue is grouped by its source chain. Claim destinations are separate. Pending and unvalued receipts are not counted as available cashback. This report does not verify payout funding.");
+  } catch(error){setText("accountFinanceStatus",error.message);} finally {button.disabled=false;}
+}
+function bindRewardsControls() {
+  document.getElementById("accountFinanceRefresh")?.addEventListener("click",loadFinanceReport);
+  document.getElementById("accountRewardsAmount")?.addEventListener("input",updateRewardCreditPreview);
+  document.getElementById("accountRefreshRewards")?.addEventListener("click",loadProductRewards);
+  document.getElementById("accountContinuePro")?.addEventListener("click", () => openRewardsDialog("checkout"));
+  document.getElementById("accountClaimCashback")?.addEventListener("click", () => openRewardsDialog("claim"));
+  document.getElementById("accountApplyCashback")?.addEventListener("click", () => openRewardsDialog("apply"));
+  document.getElementById("accountRewardsClose")?.addEventListener("click", () => document.getElementById("accountRewardsDialog").close());
+  document.getElementById("accountRewardsForm")?.addEventListener("submit", submitRewardsForm);
+  document.getElementById("accountClaimNetwork")?.addEventListener("change", updateClaimNetwork);
+  document.getElementById("accountBillingPortal")?.addEventListener("click", async () => { try { const result = await productMutation("/api/v1/pro/portal", {}); window.location.assign(result.portal_url); } catch (error) { setText("accountRewardsStatus", error.message); } });
+  document.getElementById("accountStartTrial")?.addEventListener("click", async () => { try { await productMutation("/api/v1/pro/trial/start", {}); await loadProductRewards(); await loadProIntelligenceCapabilities(); } catch (error) { setText("accountRewardsStatus", error.message); } });
+  document.getElementById("accountRewardsAutoApply")?.addEventListener("change", async (event) => {
+    const input = event.target, wanted = input.checked; input.disabled = true;
+    try { await productMutation("/api/v1/pro/rewards/preference", { auto_apply: wanted }, { legal: wanted }); setText("accountRewardsStatus", wanted ? "Auto-apply is on for future Pro renewals. This does not create a subscription." : "Auto-apply is off. Previously applied invoice credits stay on your billing account."); }
+    catch (error) { input.checked = !wanted; setText("accountRewardsStatus", error.message); }
+    finally { await loadProductRewards(); }
+  });
+}
+bindRewardsControls();

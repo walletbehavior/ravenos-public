@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { DatabaseSync } from "node:sqlite";
 
 import { createD1CustomerWalletCopyStore } from "../lib/customer_wallet_copy.mjs";
 
 import {
   WALLET_SCREENER_SCHEMA,
   WalletScreenerChainScopes,
+  WalletScreenerFieldSqlColumns,
   WalletScreenerLimits,
   WalletScreenerOperators,
   WalletScreenerPerformanceStates,
@@ -128,7 +130,7 @@ test("all supported filters, sort, and pagination normalize for deterministic D1
 });
 
 test("all-chain scope combines only currently supported wallet indexes", async () => {
-  assert.deepEqual(WalletScreenerChainScopes, ["all", "solana", "robinhood"]);
+  assert.deepEqual(WalletScreenerChainScopes, ["all", "solana", "robinhood", "base", "ethereum", "bsc"]);
   const reference = createSourceWalletCopyabilityPolicyReference({ fee_bps: 10 });
   const query = normalizeWalletScreenerRequest({ chain: "all", page_size: 12 }, { now: NOW, copyability_reference: reference });
   assert.equal(query.scope, "raven_indexed_supported_wallets");
@@ -147,12 +149,12 @@ test("all-chain scope combines only currently supported wallet indexes", async (
     },
   };
   await createD1CustomerWalletCopyStore(db).screenSourceWallets(query);
-  assert.match(calls[0].sql, /s\.chain IN \('solana', 'robinhood'\)/);
+  assert.match(calls[0].sql, /s\.chain IN \('solana', 'robinhood', 'base', 'ethereum', 'bsc'\)/);
   assert.doesNotMatch(calls[0].sql, /s\.chain = \?/);
   assert.deepEqual(calls[0].bindings, [10, reference.matrix_policy_hash, "mainnet"]);
   const response = buildWalletScreenerResponse({ query, rows: [], total: 0, now: NOW });
-  assert.deepEqual(response.scope.chains, ["solana", "robinhood"]);
-  assert.match(response.limitations[0], /not every wallet on either chain/i);
+  assert.deepEqual(response.scope.chains, ["solana", "robinhood", "base", "ethereum", "bsc"]);
+  assert.match(response.limitations[0], /not every wallet on those chains/i);
 });
 
 test("composable clauses and transparent presets normalize without accepting SQL-shaped input", () => {
@@ -308,7 +310,7 @@ test("Robinhood Chain uses the same bounded filter engine without inheriting Sol
   }, { now: NOW });
   assert.equal(query.scope, "raven_indexed_robinhood_wallets");
   assert.equal(query.chain, "robinhood");
-  assert.throws(() => normalizeWalletScreenerRequest({ chain: "ethereum" }, { now: NOW }), /wallet_screener_chain_invalid/);
+  assert.throws(() => normalizeWalletScreenerRequest({ chain: "unknown" }, { now: NOW }), /wallet_screener_chain_invalid/);
 
   const projected = projectWalletScreenerRow(row({
     source_wallet_id: ROBINHOOD_SOURCE_ID,
@@ -524,4 +526,40 @@ test("a page containing only invalid identities fails closed instead of posing a
   assert.equal(response.state, "unavailable");
   assert.equal(response.rows.length, 0);
   assert.equal(response.projection_exclusions, 1);
+});
+
+test("discovery filters bind values, use rolling chain time, and keep unknown risk NULL", async () => {
+  const calls = [];
+  const db = { prepare(sql) { return { bind(...bindings) { calls.push({ sql, bindings }); return { async first() { return { count: 0 }; }, async all() { return { results: [] }; } }; } }; } };
+  for (const chain of ["solana", "robinhood", "base", "ethereum", "bsc", "all"]) {
+    const query = normalizeWalletScreenerRequest({ chain, clauses: [
+      { field: "trades_1d", operator: "gte", value: 3 },
+      { field: "mooner_tokens", operator: "gte", value: 1 },
+      { field: "loss_75_pct", operator: "lte", value: 10 },
+      { field: "warning_tokens_pct", operator: "lte", value: 20 },
+    ] }, { now: NOW });
+    await createD1CustomerWalletCopyStore(db).screenSourceWallets(query);
+    const count = calls.at(-2);
+    assert.match(count.sql, /COALESCE\(ve.block_time, ve.chain_event_time\)/);
+    assert.doesNotMatch(count.sql, /__EVALUATED_SECONDS__|ve.observed_at|COALESCE\(json_extract/);
+    assert.match(count.sql, /json_extract\(p.profile_json, '\$\.discovery_metrics.warning_tokens_pct'\) <= \?/);
+    assert.deepEqual(count.bindings.slice(-4), [3, 1, 10, 20]);
+  }
+  assert.throws(() => normalizeWalletScreenerRequest({ clauses: [{ field: "loss_75_pct", operator: "lte", value: 101 }] }, { now: NOW }));
+});
+
+
+test("SQLite excludes unknown risk values and excludes old or other-wallet events from rolling counts", () => {
+  const db = new DatabaseSync(":memory:");
+  db.exec(`CREATE TABLE c(source_wallet_id TEXT); CREATE TABLE p(profile_json TEXT);
+    CREATE TABLE ravenos_source_wallet_events(source_wallet_id TEXT, classification TEXT, block_time INTEGER, chain_event_time INTEGER, observed_at INTEGER);
+    INSERT INTO c VALUES ('target'); INSERT INTO p VALUES ('{}');
+    INSERT INTO ravenos_source_wallet_events VALUES ('target', 'SWAP_BUY', 1999999999, NULL, 2000000000), ('target', 'SWAP_SELL', 100, NULL, 2000000000), ('other', 'SWAP_BUY', 1999999999, NULL, 2000000000), ('target', 'TRANSFER_IN', 1999999999, NULL, 2000000000), ('target', 'SWAP_BUY', NULL, NULL, 2000000000);`);
+  const window = WalletScreenerFieldSqlColumns.trades_1d.replaceAll("__EVALUATED_SECONDS__", "2000000000");
+  assert.equal(db.prepare(`SELECT ${window} AS count FROM c`).get().count, 1);
+  const risk = WalletScreenerFieldSqlColumns.warning_tokens_pct;
+  assert.equal(db.prepare(`SELECT COUNT(*) AS count FROM c, p WHERE ${risk} <= ?`).get(20).count, 0);
+  db.exec(`UPDATE p SET profile_json = '{"discovery_metrics":{"warning_tokens_pct":0}}'`);
+  assert.equal(db.prepare(`SELECT COUNT(*) AS count FROM c, p WHERE ${risk} <= ?`).get(20).count, 1);
+  db.close();
 });

@@ -1,0 +1,20 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { earn,rewardFixture,NOW,USER,OTHER } from "./customer_rewards_ledger.test.mjs";
+import { financeReport,requireFinanceOperator,reviewAffiliateAttribution } from "../lib/customer_finance_operations.mjs";
+import { referredFixture,paidInvoice } from "./customer_referral_conversion.test.mjs";
+import { reconcileAffiliateInvoice,affiliateBalance,setAffiliateProfileCta,publicAffiliateProfileCta } from "../lib/customer_referral_growth.mjs";
+for(const period of ["day","week","month"])test(`finance ${period} reporting separates gross fees, rebate liability and net revenue`,async()=>{const f=await earn();const report=await financeReport(f.db,{start:NOW-1,end:NOW+1,period});assert.equal(report.execution_by_source[0].gross_collected_micros,"10000000");assert.equal(report.execution_by_source[0].cashback_accrued_micros,"3000000");assert.equal(report.execution_by_source[0].net_execution_revenue_micros,"7000000");assert.equal(report.reward_balances_as_of_end.outstanding_liability_micros,"3000000");assert.equal(report.reward_balances_as_of_end.pending_micros,"0");assert.ok(!JSON.stringify(report).includes(USER));});
+test("Jupiter fee report keeps provider cost and full cashback separate",async()=>{
+ const f=await earn(rewardFixture({amount:"8000000",grossAmount:"10000000"}));
+ const report=await financeReport(f.db,{start:NOW-1,end:NOW+1});
+ const row=report.execution_by_source[0];
+ assert.equal(row.customer_execution_fees_micros,"10000000");
+ assert.equal(row.provider_share_micros,"2000000");
+ assert.equal(row.gross_collected_micros,"8000000");
+ assert.equal(row.cashback_accrued_micros,"3000000");
+ assert.equal(row.net_execution_revenue_micros,"5000000");
+});
+test("financial reporting and payout records require a configured account and fresh login",()=>{const env={RAVENOS_FINANCE_OPERATIONS_ENABLED:"1",RAVENOS_FINANCE_OPERATOR_USER_IDS:USER};requireFinanceOperator(env,{user_id:USER,authenticated_at:NOW},NOW);assert.throws(()=>requireFinanceOperator(env,{user_id:OTHER,authenticated_at:NOW},NOW),/operator_required/);assert.throws(()=>requireFinanceOperator(env,{user_id:USER,authenticated_at:NOW-901},NOW),/recent_login/);});
+test("reason-coded referral review blocks future commissions and preserves audit history",async()=>{const f=await referredFixture();const env={...f.env,RAVENOS_FINANCE_OPERATIONS_ENABLED:"1",RAVENOS_FINANCE_OPERATOR_USER_IDS:USER};const attribution=f.db.raw.prepare("SELECT attribution_id FROM ravenos_referral_attributions").get().attribution_id;await reviewAffiliateAttribution(env,{user_id:USER,authenticated_at:NOW},{attribution_id:attribution,reason:"MANUAL_REVIEW",reference:"review_reference_123"},NOW);assert.equal((await reconcileAffiliateInvoice(env,paidInvoice(f))).state,"commission_not_eligible");assert.equal((await affiliateBalance(f.db,USER)).earned_cents,"0");assert.throws(()=>f.db.raw.exec("DELETE FROM ravenos_affiliate_review_events"),/append_only/);});
+test("public profile referral CTA is optional and explicitly disclosed",async()=>{const f=await referredFixture();f.env.RAVENOS_AFFILIATE_PUBLIC_PROFILE_CTA_ENABLED="1";assert.equal(await publicAffiliateProfileCta(f.env,USER),null);await setAffiliateProfileCta(f.env,USER,true);const cta=await publicAffiliateProfileCta(f.env,USER);assert.equal(cta.trial_days,30);assert.match(cta.disclosure,/may earn a commission/);assert.match(cta.url,/\/r\/RVN/);await setAffiliateProfileCta(f.env,USER,false);assert.equal(await publicAffiliateProfileCta(f.env,USER),null);});

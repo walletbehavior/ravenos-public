@@ -21,7 +21,7 @@ const NOW_MS = Date.parse("2026-08-26T15:00:00.000Z");
 const EFFECTIVE_LEGAL_DOCUMENTS = CustomerLegalDocuments.map((document) => Object.freeze({
   ...document,
   status: "effective",
-  effective_at: "2026-09-05T00:00:00.000Z",
+  effective_at: document.published_at,
 }));
 
 function configuredEnv() {

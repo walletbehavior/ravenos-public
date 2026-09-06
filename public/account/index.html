@@ -103,11 +103,11 @@
 
         <section class="account-security-panel account-referral-panel" id="accountReferralPanel" data-referral-state="loading">
           <header>
-            <div><span class="workspace-label">Raven referrals</span><h3>Invite traders to Raven Pro</h3></div>
+            <div><span class="workspace-label">Raven referrals</span><h3>Share Raven with your people</h3></div>
             <strong id="accountReferralState">Checking</strong>
           </header>
           <div class="account-referral-intro">
-            <strong>One accountable growth loop.</strong>
+            <strong>Software referrals, with clear terms.</strong>
             <p id="accountReferralStatus" aria-live="polite">Checking referral access…</p>
           </div>
           <div class="account-referral-controls" id="accountReferralControls" hidden>
@@ -115,9 +115,21 @@
               <label for="accountReferralLink">Your referral link</label>
               <div>
                 <input id="accountReferralLink" type="text" readonly value="Not created" />
-                <button id="accountReferralCreate" type="button">Create link</button>
+                <button id="accountReferralCreate" type="button">Join Raven Referrals</button>
                 <button id="accountReferralCopy" type="button" hidden>Copy</button>
               </div>
+            </div>
+            <div id="accountAffiliateTerms" class="account-affiliate-terms" hidden>
+              <p id="accountAffiliateOffer"></p>
+              <p>Everyone you refer receives the normal Pro offer. Referrals do not add trial days or change trading fees.</p>
+              <label><input id="accountAffiliateAccept" type="checkbox" /> I agree to the <a href="/legal/review/affiliate/" target="_blank" rel="noopener">Affiliate Terms</a> and will include the required disclosure when sharing.</label>
+            </div>
+            <div id="accountAffiliateDisclosure" class="account-affiliate-disclosure" hidden>
+              <label id="accountAffiliateProfilePreference" hidden><input type="checkbox" id="accountAffiliateProfileCta" /> Show a disclosed referral invitation on my public Community profile</label>
+              <strong>Required disclosure</strong>
+              <p id="accountAffiliateDisclosureText"></p>
+              <textarea id="accountAffiliateShareText" readonly aria-label="Disclosure and referral link"></textarea>
+              <div><button id="accountAffiliateCopyDisclosure" type="button">Copy disclosure + link</button><a id="accountAffiliateShareX" target="_blank" rel="noopener noreferrer">Draft on X</a></div>
             </div>
             <form class="account-referral-claim" id="accountReferralClaimForm" novalidate>
               <label for="accountReferralClaimCode">Have a referral code?</label>
@@ -129,10 +141,17 @@
             <div class="account-referral-metrics" aria-label="Referral status">
               <article><span>Referred accounts</span><strong id="accountReferralAccounts">0</strong></article>
               <article><span>Qualified Pro</span><strong id="accountReferralQualified">0</strong></article>
-              <article><span>Rewards</span><strong id="accountReferralRewards">Not configured</strong></article>
+              <article><span>Payouts</span><strong id="accountReferralRewards">Not configured</strong></article>
+              <article data-affiliate-metric hidden><span>Link visits</span><strong id="accountAffiliateClicks">—</strong></article>
+              <article data-affiliate-metric hidden><span>Active trials</span><strong id="accountAffiliateTrials">—</strong></article>
+              <article data-affiliate-metric hidden><span>Active referred Pro</span><strong id="accountAffiliateActivePro">—</strong></article>
+              <article data-affiliate-metric hidden><span>Pending commission</span><strong id="accountAffiliatePending">—</strong></article>
+              <article data-affiliate-metric hidden><span>Available commission</span><strong id="accountAffiliateAvailable">—</strong></article>
+              <article data-affiliate-metric hidden><span>Lifetime net earned</span><strong id="accountAffiliateEarned">—</strong></article>
             </div>
           </div>
-          <footer class="account-referral-boundary">Referral ≠ investment endorsement.</footer>
+          <div id="accountAffiliateEvents" class="account-affiliate-events" hidden></div>
+          <footer class="account-referral-boundary">Commission comes from qualifying paid Pro subscriptions. Free trials, trades, Copy, and cashback do not generate affiliate commission. Referral is not investment endorsement.</footer>
         </section>
 
         <section class="account-security-panel">
@@ -191,6 +210,54 @@
             <strong>Planned · not yet available.</strong>
           </footer>
         </section>
+
+        <section class="account-security-panel account-rewards-panel" id="accountRewardsPanel" hidden>
+          <header><div><span class="workspace-label">Your membership</span><h3 id="accountProductTitle">Raven Standard</h3></div><strong id="accountProductPrice">$0 / month</strong></header>
+          <div class="account-rewards-intro">
+            <p id="accountTrialWelcome" hidden>Your first 30 days are on Raven. Make yourself at home.</p>
+            <p id="accountTrialStatus" aria-live="polite"></p>
+            <p id="accountProductFee">Raven charges a 1% native execution fee. Copy trading has no extra surcharge.</p>
+            <p id="accountCashbackExplanation">Pro members earn 30% of Raven execution fees back in USDC, after fee confirmation. Claim it or apply it to Pro. Hyperliquid is separate.</p>
+            <div class="account-rewards-actions"><button id="accountContinuePro" type="button">Continue with Pro — $149/month</button><button id="accountBillingPortal" type="button" hidden>Manage subscription</button><button id="accountStartTrial" type="button" hidden>Start my free trial</button></div>
+          </div>
+          <div class="account-rewards-heading"><span class="workspace-label">Raven Rewards</span><span>USDC · no expiry</span></div>
+          <dl class="account-rewards-balances">
+            <div><dt>Available cashback</dt><dd id="accountRewardsAvailable">—</dd></div>
+            <div><dt>Pending cashback</dt><dd id="accountRewardsPending">—</dd></div>
+            <div><dt>Reserved</dt><dd id="accountRewardsReserved">—</dd></div>
+            <div><dt>Lifetime earned</dt><dd id="accountRewardsEarned">—</dd></div>
+            <div><dt>Applied to Pro</dt><dd id="accountRewardsApplied">—</dd></div>
+            <div><dt>Claimed</dt><dd id="accountRewardsClaimed">—</dd></div>
+          </dl>
+          <p class="account-rewards-note" id="accountRewardsAdjustment" hidden></p>
+          <p class="account-rewards-note" id="accountRewardsCoverage" hidden></p>
+          <div class="account-rewards-actions"><button id="accountClaimCashback" type="button" disabled>Claim cashback</button><button id="accountApplyCashback" type="button" disabled>Apply to Raven Pro</button><button id="accountRefreshRewards" type="button">Refresh balance</button></div>
+          <label class="account-rewards-auto"><input id="accountRewardsAutoApply" type="checkbox" /> Automatically apply available rewards to my next Pro payment</label>
+          <p class="account-rewards-note">Auto-apply only affects a subscription you choose to start. You can turn it off anytime. Pending rewards cannot be spent.</p>
+          <details class="account-rewards-history"><summary>Rewards activity</summary><ol id="accountRewardsHistory"></ol></details>
+          <details class="account-rewards-history"><summary>Pro invoices</summary><ol id="accountProInvoices"></ol></details>
+          <p id="accountRewardsStatus" role="status" aria-live="polite"></p>
+          <footer><a href="/legal/review/terms/#raven-rewards">Rewards terms</a><span>A rebate of Raven's own execution fee.</span></footer>
+        </section>
+
+        <section id="accountFinancePanel" class="account-security-panel" hidden>
+          <header><div><span class="workspace-label">Finance operations</span><h3>Revenue and reward liabilities</h3></div></header>
+          <div class="account-finance-controls"><label>Group by <select id="accountFinancePeriod"><option value="day">Day</option><option value="week">Week</option><option value="month">Month</option></select></label><button id="accountFinanceRefresh" type="button">Review last 30 days</button></div>
+          <p id="accountFinanceStatus" role="status"></p><div id="accountFinanceReport"></div>
+        </section>
+
+        <dialog id="accountRewardsDialog" class="account-rewards-dialog" aria-labelledby="accountRewardsDialogTitle">
+          <form id="accountRewardsForm">
+            <header><h3 id="accountRewardsDialogTitle">Raven Rewards</h3><button type="button" id="accountRewardsClose" aria-label="Close rewards dialog">×</button></header>
+            <p id="accountRewardsDialogCopy"></p>
+            <p id="accountRewardCreditPreview" hidden></p>
+            <label id="accountRewardsAmountLabel">Amount in USDC<input id="accountRewardsAmount" inputmode="decimal" autocomplete="off" placeholder="0.00" /></label>
+            <div id="accountClaimFields" hidden><label>Network<select id="accountClaimNetwork"></select></label><label>Destination<select id="accountClaimWallet"></select></label><p id="accountClaimEconomics"></p><p id="accountClaimVerifiedAddress"></p></div>
+            <label id="accountBillingConsentLabel" hidden><input type="checkbox" id="accountBillingConsent" /> I choose Raven Pro at $149/month and authorize recurring billing. I can cancel in Account.</label>
+            <p id="accountRewardsDialogStatus" role="status"></p>
+            <button id="accountRewardsConfirm" type="submit">Confirm</button>
+          </form>
+        </dialog>
 
         <section class="account-security-panel account-governor-panel" id="accountGovernorPanel" data-preview-state="loading">
           <header>

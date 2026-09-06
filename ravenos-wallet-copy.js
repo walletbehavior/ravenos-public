@@ -13,6 +13,8 @@ const state = {
   activation: {},
   access: { tier: "free", advanced_wallet_intelligence: false },
   inspect_chain: "solana",
+  profile_request: 0,
+  policy_source: null,
   address: "",
   source_wallet_id: null,
   profile: null,
@@ -755,12 +757,19 @@ function renderProfile(payload, { scroll = true, from_poll: fromPoll = false } =
     state.deep_poll_token += 1;
     state.deep_poll_attempts = 0;
   }
-  state.profile = payload.profile;
+  state.policy_source = null;
+  const previousHoldings = state.profile?.source_wallet?.address === payload.profile?.source_wallet?.address ? state.profile?.holdings_snapshot : null;
+  state.profile = fromPoll && previousHoldings ? { ...payload.profile, holdings_snapshot: previousHoldings } : payload.profile;
   state.prospective_copyability = payload.prospective_copyability || null;
   state.address = payload.profile?.source_wallet?.address || state.address;
   state.source_wallet_id = payload.source_wallet_id || state.source_wallet_id;
   const profile = state.profile;
   const profileChain = profile?.source_wallet?.chain || "solana";
+  if (!fromPoll) {
+    document.getElementById("copyWalletChain").value = profileChain;
+    setInspectChain(profileChain, { announce: false });
+    document.getElementById("copyWalletAddress").value = state.address;
+  }
   const onDemandOnly = payload.persistence?.state === "on_demand_only";
   profileNode.hidden = false;
   policyNode.hidden = true;
@@ -897,6 +906,20 @@ function renderProfile(payload, { scroll = true, from_poll: fromPoll = false } =
   const native = capital.native || capital.sol || null;
   const nativeSymbol = native?.symbol || (profileChain === "solana" ? "SOL" : "Native");
   const providerBalance = profile.provider_balance_summary || {};
+  setText("copyHoldingsScope", profile.generated_at ? `${chainLabel(profileChain)} · scan ${when(profile.generated_at)}` : `${chainLabel(profileChain)} · retained observations`);
+  const snapshot = profile.holdings_snapshot;
+  const holdings = [];
+  if (snapshot) {
+    setText("copyHoldingsScope", `${chainLabel(profileChain)} · ${snapshot.state === "available" ? "Confirmed scan" : "Partial scan"} ${when(snapshot.observed_at)}`);
+    if (snapshot.native) holdings.push(fact("SOL", `${decimal(snapshot.native.amount)} SOL`));
+    for (const token of snapshot.tokens || []) holdings.push(fact(token.mint === SOLANA_USDC ? "USDC" : shortAddress(token.mint), `${token.balance_display} · token balance`));
+    if (snapshot.state !== "available") holdings.push(empty("Some balances unavailable", "One or more token programs could not be read."));
+    if (!holdings.length && snapshot.state === "available") holdings.push(empty("No balances observed", "Confirmed native and token-account scan."));
+  }
+  if (!snapshot && native?.amount !== null && native?.amount !== undefined) holdings.push(fact(`Last observed ${nativeSymbol}`, `${decimal(native.amount)} ${nativeSymbol} · ${when(native.observed_at)}`));
+  if (!snapshot && capital.canonical_usdc?.amount !== null && capital.canonical_usdc?.amount !== undefined) holdings.push(fact("Last observed USDC", `${money(capital.canonical_usdc.amount)} · ${when(capital.canonical_usdc.observed_at)}`));
+  for (const position of snapshot ? [] : providerBalances) holdings.push(fact(position.symbol || position.contract || position.mint || "Token", `${decimal(position.balance_display)} · ${position.provider_mark_price_usd == null ? "mark unavailable" : money(position.provider_mark_price_usd) + " provider mark"}`));
+  document.getElementById("copyWalletBalances").replaceChildren(...(holdings.length ? holdings : [empty("Balances unavailable", "This scan does not establish current holdings. Missing balances do not mean an empty wallet.")]));
   const capitalMetrics = [
     fact(`Last observed ${nativeSymbol}`, native?.amount === null || native?.amount === undefined ? "Unavailable" : `${decimal(native.amount)} ${nativeSymbol}`),
     fact(`${nativeSymbol} observed`, when(native?.observed_at)),
@@ -1183,6 +1206,9 @@ function screenerRequest() {
   clause("median_detected_market_cap_usd", "gte", "copyScreenMarketCapMin");
   clause("median_detected_market_cap_usd", "lte", "copyScreenMarketCapMax");
   clause("median_source_trade_liquidity_pct", "lte", "copyScreenSourceFootprint");
+  if (state.access.advanced_wallet_intelligence) document.querySelectorAll("[data-discovery-field]").forEach((input) => {
+    if (input.value !== "") clauses.push({ field: input.dataset.discoveryField, operator: input.dataset.discoveryOperator, value: Number(input.value) });
+  });
   const holdMinimum = optionalNumber("copyScreenHoldMin");
   const holdMaximum = optionalNumber("copyScreenHoldMax");
   if (holdMinimum !== null && holdMaximum !== null) clauses.push({ field: "median_hold_seconds", operator: "between", value: [holdMinimum, holdMaximum] });
@@ -1245,6 +1271,7 @@ function syncScreenerUrl() {
     mcap_max: document.getElementById("copyScreenMarketCapMax").value,
     source_footprint: document.getElementById("copyScreenSourceFootprint").value,
   };
+  document.querySelectorAll("[data-discovery-key]").forEach((input) => { fields[`df_${input.dataset.discoveryKey}`] = input.value; });
   for (const [key, value] of Object.entries(fields)) {
     if (value === null || value === undefined || value === "" || (key === "evidence" && value === "any") || (key === "sort" && value === "last_trade_desc")) url.searchParams.delete(key);
     else url.searchParams.set(key, String(value).slice(0, 64));
@@ -1255,7 +1282,8 @@ function syncScreenerUrl() {
 function hydrateScreenerFromUrl() {
   const params = new URL(location.href).searchParams;
   const chain = params.get("chain");
-  if (new Set(["all", "solana", "robinhood"]).has(chain)) state.screener.chain = chain;
+  if (new Set(["all", "solana", "robinhood", "base", "ethereum", "bsc"]).has(chain)) state.screener.chain = chain;
+  if (state.access.advanced_wallet_intelligence) document.querySelectorAll("[data-discovery-key]").forEach((input) => { input.value = (params.get(`df_${input.dataset.discoveryKey}`) || "").slice(0, 64); });
   const preset = params.get("screen");
   if (preset && [...document.querySelectorAll("[data-screen-preset]")].some((button) => button.dataset.screenPreset === preset)) state.screener.preset = preset;
   const mappings = {
@@ -1281,10 +1309,16 @@ function hydrateScreenerFromUrl() {
 }
 
 async function loadStoredWallet(sourceWalletId, button) {
+  const requestId = ++state.profile_request;
+  state.policy_source = null;
+  state.deep_poll_token += 1;
+  policyNode.hidden = true;
+  profileNode.hidden = true;
   const idleLabel = button?.textContent || "Open analysis";
   if (button) { button.disabled = true; button.textContent = "Opening…"; }
   const result = await api(`${API}/wallets/${encodeURIComponent(sourceWalletId)}`);
   if (button) { button.disabled = false; button.textContent = idleLabel; }
+  if (requestId !== state.profile_request) return;
   if (!result.response.ok) {
     state.profile = null;
     profileNode.hidden = true;
@@ -1457,7 +1491,7 @@ async function loadRobinhoodIntelligence() {
   setText("copyRhStatus", "Loading indexed RH activity…");
   const requests = [
     api(`${API}/robinhood/activity?hours=24&limit=12&action=all`),
-    api(`${API}/robinhood/clusters?hours=24&limit=100&min_wallets=2`),
+    state.access.advanced_wallet_intelligence ? api(`${API}/robinhood/clusters?hours=24&limit=100&min_wallets=2`) : Promise.resolve({ response: { ok: false }, payload: {} }),
     state.access.advanced_wallet_intelligence
       ? api(`${API}/robinhood/relationships?hours=720&limit=100&min_shared_entries=2&maximum_lag_seconds=3600`)
       : Promise.resolve({ response: { ok: false }, payload: {} }),
@@ -1627,6 +1661,9 @@ async function loadWorkspace() {
 }
 
 async function inspectWalletAddress(address, button) {
+  const requestId = ++state.profile_request;
+  state.policy_source = null;
+  state.deep_poll_token += 1;
   state.address = String(address || "").trim();
   state.source_wallet_id = null;
   state.profile = null;
@@ -1644,6 +1681,7 @@ async function inspectWalletAddress(address, button) {
   const result = await api(`${API}/inspect`, { method: "POST", body: JSON.stringify({ address: state.address, chain: state.inspect_chain }) });
   button.disabled = false;
   button.textContent = idleLabel;
+  if (requestId !== state.profile_request) return;
   if (!result.response.ok) {
     setText("copySearchStatus", result.payload?.error === "wallet_history_unavailable" ? "Public history unavailable." : "Inspection unavailable. Nothing inferred.");
     return;
@@ -1658,24 +1696,29 @@ async function inspectWallet(event) {
   await inspectWalletAddress(document.getElementById("copyWalletAddress").value, button);
 }
 
-function setInspectChain(chain) {
+function setInspectChain(chain, { announce = true } = {}) {
   const allowed = new Set(["solana", "robinhood", "bsc", "base", "ethereum"]);
   state.inspect_chain = allowed.has(chain) ? chain : "solana";
   const address = document.getElementById("copyWalletAddress");
   const evm = state.inspect_chain !== "solana";
   address.maxLength = evm ? 42 : 44;
   address.placeholder = evm ? "0x…" : "7Kx…9qP";
-  setText("copySearchStatus", `${chainLabel(state.inspect_chain)} wallet lookup.`);
+  if (announce) setText("copySearchStatus", `${chainLabel(state.inspect_chain)} wallet lookup.`);
 }
 
 async function savePolicy(event) {
   event.preventDefault();
+  const source = state.policy_source;
+  if (!source || source.chain !== "solana" || source.address !== state.profile?.source_wallet?.address || source.address !== state.address || !state.activation.shadow_copy) {
+    setText("copyPolicyStatus", "Inspect the source wallet again before saving a copy policy.");
+    return;
+  }
   const button = event.currentTarget.querySelector('button[type="submit"]');
   button.disabled = true;
   setText("copyPolicyStatus", "Saving policy…");
   const result = await api(`${API}/watches`, {
     method: "POST",
-    body: JSON.stringify({ address: state.address, label: document.getElementById("copyPolicyLabel").value, policy: policyPayload() }),
+    body: JSON.stringify({ address: source.address, label: document.getElementById("copyPolicyLabel").value, policy: policyPayload() }),
   });
   button.disabled = false;
   if (!result.response.ok) {
@@ -1726,7 +1769,7 @@ async function boot() {
   setText("copyWatchingDescription", state.activation.continuous_observer
     ? "Watched wallets update automatically."
     : state.activation.shadow_copy ? "Check wallets, then review approved copies in Terminal." : "Free access · activation pending.");
-  setText("copyWatchingBadge", state.activation.continuous_observer ? "Monitoring" : state.activation.shadow_copy ? "Manual copy live" : "Opening soon");
+  setText("copyWatchingBadge", state.activation.continuous_observer ? "Monitoring" : state.activation.shadow_copy ? "Shadow + manual review" : "Opening soon");
   if (state.activation.shadow_copy) await loadWorkspace();
   if (state.activation.wallet_screener) {
     document.getElementById("copyScreener").hidden = false;
@@ -1743,6 +1786,7 @@ bindAuthStartForms();
 document.querySelectorAll("[data-copy-view]").forEach((button) => button.addEventListener("click", () => switchView(button.dataset.copyView)));
 document.getElementById("copyWalletSearch").addEventListener("submit", inspectWallet);
 document.getElementById("copyWalletChain").addEventListener("change", (event) => setInspectChain(event.currentTarget.value));
+document.getElementById("copyRefreshProfile").addEventListener("click", (event) => inspectWalletAddress(state.address, event.currentTarget));
 document.getElementById("copySaveProfile").addEventListener("click", async (event) => {
   const button = event.currentTarget;
   if (button.dataset.action === "refresh") {
@@ -1751,7 +1795,16 @@ document.getElementById("copySaveProfile").addEventListener("click", async (even
   }
   await saveResearchWallet(state.source_wallet_id, shortAddress(state.address), button);
 });
-document.getElementById("copyStartSetup").addEventListener("click", () => { policyNode.hidden = false; policyNode.scrollIntoView({ behavior: "smooth", block: "start" }); });
+document.getElementById("copyStartSetup").addEventListener("click", () => {
+  const source = state.profile?.source_wallet;
+  if (!source || source.chain !== "solana" || !state.activation.shadow_copy) return;
+  state.policy_source = { chain: source.chain, address: source.address };
+  setText("copyPolicySource", `${chainLabel(source.chain)} · ${source.address}`);
+  setText("copyPolicyStatus", "");
+  policyNode.hidden = false;
+  policyNode.scrollIntoView({ behavior: "smooth", block: "start" });
+  document.getElementById("copyPolicyLabel").focus({ preventScroll: true });
+});
 document.getElementById("copyCancelSetup").addEventListener("click", () => { policyNode.hidden = true; });
 document.getElementById("copyPolicy").addEventListener("submit", savePolicy);
 document.getElementById("copyScreenerFilters").addEventListener("submit", async (event) => {
@@ -1778,7 +1831,7 @@ document.querySelectorAll("[data-screen-preset]").forEach((button) => button.add
 }));
 document.querySelectorAll("[data-screen-chain]").forEach((button) => button.addEventListener("click", async () => {
   const chain = button.dataset.screenChain;
-  if (!new Set(["all", "solana", "robinhood"]).has(chain) || chain === state.screener.chain) return;
+  if (!new Set(["all", "solana", "robinhood", "base", "ethereum", "bsc"]).has(chain) || chain === state.screener.chain) return;
   state.screener.chain = chain;
   state.screener.page = 1;
   document.querySelectorAll("[data-screen-chain]").forEach((candidate) => candidate.setAttribute("aria-pressed", String(candidate.dataset.screenChain === chain)));

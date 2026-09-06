@@ -792,3 +792,14 @@ test("a current unusable route retains its risk warning without positive capacit
   assert.equal(discovery.routeability.routeable_size_usd, 0);
   assert.equal(discovery.routeability.estimated_slippage_bps, null);
 });
+
+test("emerging discovery prioritizes evidenced smaller markets, not unknown caps or thin spikes", () => {
+  const input = pool();
+  const run = (patch) => build([{ ...input, ...patch, market: { ...input.market, ...patch?.market } }]).rows[0]?.discovery.focus.emerging_candidate;
+  assert.equal(run({}), true);
+  assert.equal(run({ market: { market_cap_usd: 1000000000 } }), false);
+  assert.equal(run({ market: { market_cap_usd: null, fdv_usd: 200000 } }), false);
+  assert.equal(run({ market: { liquidity_usd: 49999 } }), false);
+  assert.equal(run({ market: { buys_5m: 1, sells_5m: 0, volume_usd_5m: 1000000 } }), false);
+  assert.equal(run({ symbol: "USDC", name: "USD Coin" }), false);
+});

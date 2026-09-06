@@ -351,3 +351,49 @@
   .account-governor-row > div:first-child,
   .account-governor-row-state { grid-column: 1 / -1; }
 }
+
+.account-rewards-intro { padding:20px; }
+.account-rewards-intro p { margin:0 0 10px; color:var(--text-secondary,#9ba6a8); font-size:13px; line-height:1.55; }
+#accountTrialWelcome { color:var(--text-primary,#e4ecef); font-size:17px; font-weight:600; }
+.account-rewards-heading { display:flex; justify-content:space-between; gap:12px; padding:16px 20px 0; border-top:1px solid var(--border-color,#253039); color:#8e9ba3; font-size:11px; }
+.account-rewards-balances { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:20px; padding:20px; margin:0; }
+.account-rewards-balances dt { font-size:12px; color:#9ba6ae; }
+.account-rewards-balances dd { margin:8px 0 0; font-family:var(--font-mono,monospace); font-size:20px; color:#e5edef; overflow-wrap:anywhere; }
+.account-rewards-balances div:first-child dd { color:#b9df9e; }
+.account-rewards-actions { display:flex; flex-wrap:wrap; gap:10px; padding:0 20px 16px; }
+.account-rewards-intro .account-rewards-actions { padding:4px 0 0; }
+.account-rewards-actions button,.account-rewards-dialog button { min-height:42px; padding:10px 15px; border:1px solid #39434b; border-radius:9px; background:#192128; color:#e2e8eb; font:inherit; font-size:12px; cursor:pointer; }
+.account-rewards-actions button:disabled { opacity:.45; cursor:default; }
+.account-rewards-auto { display:flex; align-items:flex-start; gap:10px; margin:0 20px 10px; font-size:13px; line-height:1.45; color:#c3cdd2; }
+.account-rewards-auto input { margin-top:2px; accent-color:#b9df9e; flex-shrink:0; }
+.account-rewards-note,#accountRewardsStatus { font-size:12px; line-height:1.5; color:#9ba6ae; margin:12px 20px; }
+.account-rewards-history { margin:16px 20px; font-size:12px; color:#bec9d1; }
+.account-rewards-history summary { cursor:pointer; padding:8px 0; }
+.account-rewards-history ol { padding:0; list-style:none; }
+.account-rewards-history li { display:flex; flex-wrap:wrap; justify-content:space-between; gap:8px; padding:12px 0; border-bottom:1px solid #253039; line-height:1.5; }
+.account-rewards-panel footer { display:flex; flex-wrap:wrap; gap:12px; justify-content:space-between; padding:14px 20px; color:#9ba6ae; font-size:11px; }
+.account-rewards-panel footer a { color:#b9df9e; }
+.account-rewards-dialog { width:min(480px,calc(100vw - 36px)); max-height:85dvh; overflow:auto; box-sizing:border-box; padding:24px; background:#11191f; color:#e1e8ec; border:1px solid #3b4852; border-radius:16px; }
+.account-rewards-dialog::backdrop { background:#030609b8; }
+.account-rewards-dialog header { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.account-rewards-dialog h3 { margin:0; font-size:20px; }
+.account-rewards-dialog p { color:#a4b1ba; line-height:1.6; font-size:13px; overflow-wrap:anywhere; }
+.account-rewards-dialog label { display:block; color:#bcc8d0; font-size:12px; line-height:1.5; margin:16px 0; }
+.account-rewards-dialog input:not([type=checkbox]),.account-rewards-dialog select { display:block; box-sizing:border-box; width:100%; padding:12px; margin-top:7px; border:1px solid #394650; border-radius:8px; background:#0c1319; color:#e4ecef; font:inherit; font-size:14px; }
+.account-rewards-dialog [hidden] { display:none; }
+#accountRewardsConfirm { width:100%; margin-top:8px; border-color:#b9df9e50; color:#c2e9a7; }
+#accountRewardsDialogStatus { color:#e3c38f; }
+@media(max-width:600px) { .account-rewards-balances { grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px 12px; } .account-rewards-balances dd { font-size:18px; } .account-rewards-actions button { flex:1 1 160px; } .account-rewards-dialog { padding:20px; } }
+
+.account-affiliate-terms, .account-affiliate-disclosure, .account-affiliate-events { display:grid; gap:10px; font-size:12px; line-height:1.6; }
+.account-affiliate-terms[hidden], .account-affiliate-disclosure[hidden], .account-affiliate-events[hidden], [data-affiliate-metric][hidden] { display:none; }
+.account-affiliate-terms label { display:flex; align-items:flex-start; gap:8px; flex-wrap:wrap; }
+.account-affiliate-disclosure textarea { width:100%; min-height:92px; resize:vertical; background:#0a1019; color:var(--ws-text); border:1px solid var(--ws-border); padding:10px; border-radius:6px; }
+.account-affiliate-disclosure > div { display:flex; flex-wrap:wrap; gap:8px; }
+.account-affiliate-disclosure button, .account-affiliate-disclosure a { min-height:42px; padding:10px 13px; border:1px solid var(--ws-border-strong); border-radius:6px; background:#0a1019; color:#80d3aa; font:inherit; cursor:pointer; }
+.account-affiliate-events { padding:15px; border-top:1px solid var(--ws-border); }
+.account-affiliate-events p { color:var(--ws-muted); }
+
+.account-finance-controls { display:flex;flex-wrap:wrap;gap:12px;align-items:center;padding:14px; }
+.account-finance-controls select, .account-finance-controls button { min-height:42px;background:#0a1019;border:1px solid var(--ws-border-strong);color:var(--ws-text);border-radius:6px;padding:8px 12px; }
+#accountFinanceStatus { padding:0 14px 14px;font-size:12px;line-height:1.6;color:var(--ws-muted); }

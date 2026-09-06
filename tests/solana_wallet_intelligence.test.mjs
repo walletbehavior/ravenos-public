@@ -431,3 +431,38 @@ test("profile v5 exposes profit quality, drawdown, windows, reconstruction cover
   assert.equal(profile.research_thesis.claim_boundary.copyability_claimed, false);
   assert.equal(profile.copy_readiness.source_performance_substituted, false);
 });
+
+test("discovery counts known-cost multiplier tokens and applies the exact 15-second boundary", () => {
+  for (const holdSeconds of [14, 15]) {
+    const buy = normalize(transaction({ slot: 501, blockTime: 1777000000,
+      pre: [balance(WALLET, SOLANA_CANONICAL_USDC_MINT, 100000000, 6), balance(WALLET, TOKEN, 0, 6)],
+      post: [balance(WALLET, SOLANA_CANONICAL_USDC_MINT, 75000000, 6), balance(WALLET, TOKEN, 10000000, 6)],
+    }), "A");
+    const sell = normalize(transaction({ slot: 502, blockTime: 1777000000 + holdSeconds,
+      pre: [balance(WALLET, SOLANA_CANONICAL_USDC_MINT, 75000000, 6), balance(WALLET, TOKEN, 10000000, 6)],
+      post: [balance(WALLET, SOLANA_CANONICAL_USDC_MINT, 200000000, 6), balance(WALLET, TOKEN, 0, 6)],
+    }), "B");
+    const metrics = buildSolanaWalletProfile([buy, sell]).discovery_metrics;
+    assert.equal(metrics.mooner_tokens, 1);
+    assert.equal(metrics.double_tokens, 1);
+    assert.equal(metrics.under_15_seconds_count, holdSeconds < 15 ? 1 : 0);
+    assert.equal(metrics.warning_tokens_pct, null);
+    assert.equal(metrics.unrealized_profit_share_pct, null);
+  }
+});
+
+test("holdings aggregate exact token balances and reject mismatched owners without inventing zeros", async () => {
+  const { loadSolanaWalletHoldings, WALLET_TOKEN_PROGRAMS } = await import("../lib/customer_trade/solana_wallet_holdings.mjs");
+  const tokenRow = (program, owner = WALLET) => ({ account: { owner: program, data: { parsed: { info: { owner, mint: TOKEN, tokenAmount: { amount: "9007199254740993", decimals: 6 } } } } } });
+  const rpc = async (method, params) => method === "getBalance" ? { context: { slot: 1 }, value: 1000000000 }
+    : { context: { slot: 2 }, value: params[1].programId === WALLET_TOKEN_PROGRAMS[0] ? [tokenRow(params[1].programId), tokenRow(params[1].programId)] : [] };
+  const snapshot = await loadSolanaWalletHoldings({ address: WALLET, rpc });
+  assert.equal(snapshot.state, "available");
+  assert.equal(snapshot.tokens[0].balance_base_units, "18014398509481986");
+  assert.equal(snapshot.tokens[0].balance_display, "18014398509.481986");
+  const partial = await loadSolanaWalletHoldings({ address: WALLET, rpc: async (method, params) => method === "getBalance" ? { value: 0 } : { value: [tokenRow(params[1].programId, TOKEN_TWO)] } });
+  assert.equal(partial.state, "partial");
+  assert.equal(partial.tokens.length, 0);
+  assert.equal(partial.native.amount, 0);
+  assert.equal(partial.executable_valuation_available, false);
+});

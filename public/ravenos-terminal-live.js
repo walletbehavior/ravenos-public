@@ -1515,6 +1515,15 @@ function spotLiveTicketMatchesCurrentTrade(ticket) {
 }
 
 function renderSpotLiveExecution() {
+  const cashbackNode = document.getElementById("terminalSpotLiveCashback");
+  if (cashbackNode) {
+    const reward = state.spotLiveRewards;
+    const earned = state.spotLiveResult?.rewards;
+    cashbackNode.hidden = !(reward?.eligible && reward.ticket_id === state.spotLiveTicket?.ticket_id) && earned?.state !== "available";
+    const amount = earned?.state === "available" ? earned.earned_micros : reward?.estimated_micros;
+    const display = /^\d+$/.test(String(amount || "")) ? `${BigInt(amount) / 1000000n}.${(BigInt(amount) % 1000000n).toString().padStart(6, "0")}` : null;
+    cashbackNode.textContent = earned?.state === "available" ? `Cashback earned${display ? `: ${display} USDC` : ""} · View Raven Rewards in Account` : `Estimated Pro cashback: ${display ? `${display} USDC` : "30% of Raven fee; USDC valuation required"} · available only after fee confirmation`;
+  }
   const host = document.getElementById("terminalSpotLiveExecution");
   const action = document.getElementById("terminalSpotLiveAction");
   const link = document.getElementById("terminalSpotLiveLink");
@@ -4031,8 +4040,11 @@ function renderHolderListProjection(payload) {
     rank.textContent = `#${row.rank}`;
     const identity = document.createElement("div");
     const address = document.createElement("a");
-    address.href = holderExplorerUrl(payload.identity.chain, row.holder_address);
-    address.target = "_blank";
+    const walletOwner = row.classification === "owner";
+    address.href = walletOwner
+      ? `https://app.ravenos.xyz/account/copy/?wallet=${encodeURIComponent(row.holder_address)}&chain=${encodeURIComponent(payload.identity.chain)}`
+      : holderExplorerUrl(payload.identity.chain, row.holder_address);
+    if (!walletOwner) address.target = "_blank";
     address.rel = "noopener noreferrer nofollow";
     address.textContent = compactHolderAddress(row.holder_address);
     address.title = row.holder_address;
@@ -4081,6 +4093,15 @@ function renderHolderListProjection(payload) {
     const addressLine = document.createElement("div");
     addressLine.className = "terminal-holder-address-line";
     addressLine.append(address, copy);
+    if (walletOwner) {
+      address.setAttribute("aria-label", `View wallet ${row.holder_address}`);
+      const explorer = document.createElement("a");
+      explorer.href = holderExplorerUrl(payload.identity.chain, row.holder_address);
+      explorer.target = "_blank";
+      explorer.rel = "noopener noreferrer nofollow";
+      explorer.textContent = "Explorer";
+      addressLine.append(explorer);
+    }
     identity.className = "terminal-holder-identity";
     identity.append(addressLine, classification);
     const balance = document.createElement("strong");
@@ -6956,13 +6977,13 @@ function syncSpotTicketControls() {
     if (state.spotQuoteStatus === "idle" && !state.spotQuote) setText("terminalSpotQuoteState", "Ready to review");
     const freeFeeBps = finite(feePreview.free_fee_bps);
     const proFeeBps = finite(feePreview.pro_fee_bps);
-    const proDiscount = finite(feePreview.pro_discount_pct);
+    const cashbackPercent = finite(feePreview.pro_cashback_percent);
     setText("terminalSpotActiveFee", freeFeeBps === null ? "Shown before review" : `Standard · ${(freeFeeBps / 100).toFixed(2)}%`);
-    setText("terminalSpotProFee", proFeeBps === null ? "Pro rate unavailable" : `${(proFeeBps / 100).toFixed(2)}%${proDiscount === null ? "" : ` · ${Math.round(proDiscount)}% lower`}`);
+    setText("terminalSpotProFee", cashbackPercent === null ? "Shown when available" : `${Math.round(cashbackPercent)}% of Raven fee`);
     setText("terminalSpotFeeCompact", freeFeeBps === null ? "At review" : `${(freeFeeBps / 100).toFixed(2)}%`);
     setText("terminalSpotFeeCompactNote", proFeeBps === null
       ? "Exact cost shown in review"
-      : `Pro ${(proFeeBps / 100).toFixed(2)}% · ${feePreview.enabled === true ? "included in review" : "not charged in preview"}`);
+      : `${cashbackPercent ? `Pro cashback ${Math.round(cashbackPercent)}%` : "Pro cashback when available"} · after confirmation`);
     setText("terminalSpotFeeNote", feePreview.enabled === true
       ? "The server-enforced Raven fee is included in every current review before signing."
       : "Previewing is free. The applicable Raven fee is shown before wallet confirmation.");
@@ -6972,7 +6993,7 @@ function syncSpotTicketControls() {
     setText("terminalSpotQuoteState", titleCase(adapterState, "Adapter pending"));
     setText("terminalSpotQuoteMessage", `${chainDisplayName(identity?.chain)} route unavailable.`);
     setText("terminalSpotActiveFee", "Shown when adapter qualifies");
-    setText("terminalSpotProFee", "Pro discount preserved");
+    setText("terminalSpotProFee", "Cashback shown before trading");
     setText("terminalSpotFeeCompact", "Pending");
     setText("terminalSpotFeeCompactNote", "Shown when route qualifies");
   }
@@ -7407,6 +7428,7 @@ async function requestSpotQuote({ automatic = false, expectedFingerprint = "" } 
     if (generation !== state.spotQuoteGeneration || fingerprint !== state.spotQuoteFingerprint || fingerprint !== spotTicketFingerprint()) return;
     if (evmProfile && payload?.ok) {
       state.spotLiveTicket = payload.ticket;
+      state.spotLiveRewards = { ticket_id: payload.ticket.ticket_id, ...payload.rewards };
       state.spotLiveProviderQuote = payload.provider_quote;
     }
     renderSpotQuote(payload, performance.now() - startedAt, { snapshot, fingerprint });
@@ -7447,6 +7469,7 @@ async function prepareSolanaLiveTrade() {
     }
     if (!payload.unsigned_transaction_base64) throw new Error("solana_unsigned_transaction_unavailable");
     state.spotLiveTicket = payload.ticket;
+      state.spotLiveRewards = { ticket_id: payload.ticket.ticket_id, ...payload.rewards };
     state.spotLiveUnsignedTransaction = payload.unsigned_transaction_base64;
     const ticketId = payload.ticket.ticket_id;
     setTimeout(() => {

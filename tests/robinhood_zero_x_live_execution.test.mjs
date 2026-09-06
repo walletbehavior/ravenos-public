@@ -174,9 +174,9 @@ test("quote request binds chain, taker, recipient, exact tokens, fee tier, and 0
   });
 
   const pro = request({}, { access_tier: "pro" });
-  assert.equal(pro.fee.fee_bps, 70);
-  assert.equal(pro.fee.expected_fee_amount_base_units, "7000");
-  assert.deepEqual(RobinhoodZeroXFeeSchedule, { free: 100, pro: 70 });
+  assert.equal(pro.fee.fee_bps, 100);
+  assert.equal(pro.fee.expected_fee_amount_base_units, "10000");
+  assert.deepEqual(RobinhoodZeroXFeeSchedule, { free: 100, pro: 100 });
 });
 
 test("configured client requests an exact fee-bound firm quote without exposing its API key", async () => {
@@ -262,7 +262,7 @@ test("requested but invalid fee configuration fails before provider access witho
   assert.equal(calls, 0);
 });
 
-test("Pro entitlement selects exactly 70 bps and rejects caller fee overrides", async () => {
+test("Pro entitlement retains exactly 100 bps and rejects caller fee overrides", async () => {
   let feeBps = null;
   const client = createRobinhoodZeroXQuoteClient(configuredEnv(), {
     now: () => NOW,
@@ -273,9 +273,9 @@ test("Pro entitlement selects exactly 70 bps and rejects caller fee overrides", 
     },
   });
   const quote = await client.quote(order(), { entitlement_tier: "pro" });
-  assert.equal(feeBps, "70");
-  assert.equal(quote.fee.fee_bps, 70);
-  assert.equal(quote.fee.amount, "7000");
+  assert.equal(feeBps, "100");
+  assert.equal(quote.fee.fee_bps, 100);
+  assert.equal(quote.fee.amount, "10000");
 
   await assert.rejects(client.quote(order({ swapFeeBps: 1 }), { entitlement_tier: "pro" }), /zero_x_order_field_forbidden:swapFeeBps/);
   await assert.rejects(client.quote(order({ fee_token_side: "buy" }), { entitlement_tier: "pro" }), /zero_x_order_field_forbidden:fee_token_side/);
