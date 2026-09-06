@@ -103,3 +103,34 @@ test("a delayed saved-pool lookup cannot replace a newer market selection", asyn
   await expect(page.locator("#terminalPickerSymbol")).toHaveText("BTC-PERP");
   await expect(page.locator(".desk-market-row[data-active='true']")).toContainText("BTC-PERP");
 });
+
+test("panel keyboard navigation skips unavailable panels and does not activate on arrows", async ({ page }) => {
+  await mockTerminalLiveApis(page);
+  await page.goto("/terminal/");
+  await waitForTerminalLive(page, { instrument: "SOL-PERP" });
+  const chart = page.locator('[data-terminal-pane-button="chart"]');
+  await chart.focus();
+  await page.keyboard.press("End");
+  await expect(page.locator('[data-terminal-pane-button="account"]')).toBeFocused();
+  await expect(chart).toHaveAttribute("aria-pressed", "true");
+  await page.keyboard.press("Home");
+  await expect(chart).toBeFocused();
+  await page.keyboard.press("ArrowRight");
+  await expect(page.locator('[data-terminal-pane-button="book"]')).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page.locator('[data-terminal-pane-button="book"]')).toHaveAttribute("aria-pressed", "true");
+});
+
+test("review action remains in the trade panel when scrolling through costs", async ({ page }, testInfo) => {
+  await mockTerminalLiveApis(page);
+  await page.goto("/terminal/");
+  await waitForTerminalLive(page, { instrument: "SOL-PERP" });
+  const panel = page.locator(".terminal-intelligence");
+  const action = page.locator("#terminalPreviewAction");
+  await panel.evaluate(node => { node.scrollTop = node.scrollHeight; });
+  const panelBox = await panel.boundingBox();
+  const actionBox = await action.boundingBox();
+  expect(actionBox.y).toBeGreaterThanOrEqual(panelBox.y);
+  expect(actionBox.y + actionBox.height).toBeLessThanOrEqual(panelBox.y + panelBox.height);
+  await page.screenshot({ path: testInfo.outputPath("review-action-desktop.png"), fullPage: true });
+});

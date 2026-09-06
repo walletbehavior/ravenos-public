@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { deskMarket, deskPreferences } from "../ravenos-terminal-desk.js";
+import { deskMarket, deskPreferences, deskFeeLabel, deskPercentFromBps } from "../ravenos-terminal-desk.js";
 
 test("saved desk markets retain exact identity and discard account or execution data", () => {
   for (const chain of ["robinhood", "base", "bsc", "ethereum"]) {
@@ -29,4 +29,15 @@ test("malformed or excessive saved workspace preferences fall back to bounded de
   assert.equal(prefs.dataHeight, 600);
   assert.equal(prefs.account, undefined);
   assert.equal(deskPreferences({ dataHeight: -10 }).dataHeight, 180);
+});
+
+
+test("trade costs distinguish missing evidence, free preview, and quoted fees", () => {
+  assert.equal(deskFeeLabel(null, 100), "Fee unavailable");
+  assert.equal(deskFeeLabel(-1, 100), "Fee unavailable");
+  assert.equal(deskFeeLabel(0, 100), "No fee in preview · listed rate 1.00%");
+  assert.equal(deskFeeLabel(70, 100), "0.70% included in quote");
+  assert.equal(deskPercentFromBps(null), "Not reported");
+  assert.equal(deskPercentFromBps(25), "0.25%");
+  assert.equal(deskPercentFromBps(0.8), "0.0080%");
 });

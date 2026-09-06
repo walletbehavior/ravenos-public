@@ -1,4 +1,4 @@
-import { createTerminalDesk } from "./ravenos-terminal-desk.js";
+import { createTerminalDesk, deskFeeLabel, deskPercentFromBps } from "./ravenos-terminal-desk.js";
 import { ravenOSContext, savedMonitorHandoffHref } from "./ravenos-context-store.js";
 import {
   RAVENOS_CHART_TIMEFRAMES,
@@ -6957,7 +6957,7 @@ function syncSpotTicketControls() {
     const freeFeeBps = finite(feePreview.free_fee_bps);
     const proFeeBps = finite(feePreview.pro_fee_bps);
     const proDiscount = finite(feePreview.pro_discount_pct);
-    setText("terminalSpotActiveFee", freeFeeBps === null ? "Shown before review" : `Free · ${(freeFeeBps / 100).toFixed(2)}%`);
+    setText("terminalSpotActiveFee", freeFeeBps === null ? "Shown before review" : `Standard · ${(freeFeeBps / 100).toFixed(2)}%`);
     setText("terminalSpotProFee", proFeeBps === null ? "Pro rate unavailable" : `${(proFeeBps / 100).toFixed(2)}%${proDiscount === null ? "" : ` · ${Math.round(proDiscount)}% lower`}`);
     setText("terminalSpotFeeCompact", freeFeeBps === null ? "At review" : `${(freeFeeBps / 100).toFixed(2)}%`);
     setText("terminalSpotFeeCompactNote", proFeeBps === null
@@ -6965,7 +6965,7 @@ function syncSpotTicketControls() {
       : `Pro ${(proFeeBps / 100).toFixed(2)}% · ${feePreview.enabled === true ? "included in review" : "not charged in preview"}`);
     setText("terminalSpotFeeNote", feePreview.enabled === true
       ? "The server-enforced Raven fee is included in every current review before signing."
-      : "The configured Raven fee is visible now; quote/review mode currently charges 0 bps.");
+      : "Previewing is free. The applicable Raven fee is shown before wallet confirmation.");
   }
   if (!qualified) {
     const adapterState = state.flags?.trade_adapter_states?.[identity?.chain] || "adapter_pending";
@@ -7285,7 +7285,7 @@ function renderSpotQuote(payload, clientRttMs, { snapshot, fingerprint } = {}) {
           : String(state.selected?.symbol || "TOKEN");
   setText("terminalSpotQuoteOutput", displayQuoteAmount(quote.expected_output_display ?? quote.expected_output ?? quote.output, outputSymbol));
   setText("terminalSpotQuoteMinimum", `Minimum ${displayQuoteAmount(quote.minimum_output_display ?? quote.minimum_output ?? quote.minimum, outputSymbol)}`);
-  setText("terminalSpotQuoteImpact", finite(quote.price_impact_bps) === null ? "Not reported" : `${Number(quote.price_impact_bps).toFixed(2)} bps`);
+  setText("terminalSpotQuoteImpact", deskPercentFromBps(finite(quote.price_impact_bps)));
   const labels = Array.isArray(quote.route?.venues)
     ? quote.route.venues
     : Array.isArray(quote.route_labels)
@@ -7297,11 +7297,7 @@ function renderSpotQuote(payload, clientRttMs, { snapshot, fingerprint } = {}) {
   const fee = payload.fee_disclosure || payload.fee_policy || quote.fee_policy || {};
   const configuredFeeBps = finite(fee.configured?.fee_bps ?? fee.configured_fee_bps);
   const actualFeeBps = finite(fee.actual?.fee_bps ?? fee.actual_fee_bps ?? fee.fee_bps);
-  setText("terminalSpotQuoteFee", configuredFeeBps === null || actualFeeBps === null
-    ? "Unavailable"
-    : evmProfile
-      ? `${(configuredFeeBps / 100).toFixed(2)}% · ${actualFeeBps} bps charged`
-      : `${(configuredFeeBps / 100).toFixed(2)}% configured · ${actualFeeBps} bps charged`);
+  setText("terminalSpotQuoteFee", deskFeeLabel(actualFeeBps, configuredFeeBps));
   const providerLatency = finite(payload.timing?.provider_latency_ms ?? quote.provider_latency_ms ?? payload.provider_latency_ms);
   setText("terminalSpotQuoteLatency", `${Math.round(clientRttMs)}ms RTT${providerLatency === null ? "" : ` · ${Math.round(providerLatency)}ms provider`}`);
   const roundTrip = payload.shadow_execution?.round_trip || null;

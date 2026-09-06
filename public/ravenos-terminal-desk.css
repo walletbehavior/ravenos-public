@@ -331,3 +331,44 @@
 }
 .terminal-live.terminal-desk .desk-comparison > header > strong { display: block !important; color: #d9e7fa; font: 600 13px/1.5 var(--desk-font); flex: 1 0 100%; }
 .terminal-live.terminal-desk .desk-comparison > header { grid-template-columns: 1fr auto; }
+
+/* Keep the existing review action reachable while the ticket scrolls. */
+.terminal-live.terminal-desk #terminalPreviewAction,
+.terminal-live.terminal-desk #terminalSpotQuoteAction {
+  position: sticky;
+  top: 8px;
+  bottom: 8px;
+  z-index: 4;
+  min-height: 44px;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 7px #111925, 0 8px 20px #0005;
+}
+.terminal-live.terminal-desk .terminal-pane-nav button:focus-visible {
+  outline: 2px solid #a6c7ff;
+  outline-offset: -3px;
+  border-radius: 5px;
+}
+.terminal-live.terminal-desk .terminal-preview-result dd {
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.terminal-live.terminal-desk .terminal-preview-result dd {
+  font-family: var(--desk-font);
+  font-weight: 600;
+  letter-spacing: 0;
+}
+.terminal-live.terminal-desk .terminal-preview-fill > strong {
+  font: 600 18px/1.5 var(--desk-font);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.02em;
+}
+.terminal-live.terminal-desk .terminal-preview-fill > span,
+.terminal-live.terminal-desk .terminal-preview-inputs > label > span:first-child,
+.terminal-live.terminal-desk .terminal-preview-fill > small,
+.terminal-live.terminal-desk #terminalPreviewTiming,
+.terminal-live.terminal-desk #terminalSpotQuoteTiming {
+  font: 500 11px/1.5 var(--desk-font);
+  letter-spacing: 0;
+  text-transform: none;
+}

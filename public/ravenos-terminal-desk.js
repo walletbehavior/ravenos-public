@@ -4,6 +4,17 @@ export const DESK_STORAGE_KEY = "ravenos.terminal.desk.v1";
 const EVM = /^0x[0-9a-f]{40}$/i;
 const POOL = /^0x(?:[0-9a-f]{40}|[0-9a-f]{64})$/i;
 const SOL = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+export function deskPercentFromBps(value) {
+  if (value === null || value === undefined || value === "" || !Number.isFinite(Number(value))) return "Not reported";
+  const percent = Number(value) / 100;
+  return `${percent !== 0 && Math.abs(percent) < 0.01 ? percent.toFixed(4) : percent.toFixed(2)}%`;
+}
+export function deskFeeLabel(actual, configured) {
+  if (actual === null || actual === undefined || actual === "" || !Number.isFinite(Number(actual)) || Number(actual) < 0) return "Fee unavailable";
+  if (Number(actual) === 0) return Number(configured) > 0
+    ? `No fee in preview · listed rate ${deskPercentFromBps(configured)}` : "No fee in preview";
+  return `${deskPercentFromBps(actual)} included in quote`;
+}
 export function deskMarket(input) {
   if (!input || typeof input !== "object") return null;
   const label = String(input.label || "").replace(/[\u0000-\u001f]/g, "").slice(0, 48);
@@ -180,6 +191,22 @@ export function createTerminalDesk({ openMarket, inspectPane, resizeChart }) {
     const index = buttons.indexOf(event.target);
     const next = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1 : (index + (event.key === "ArrowDown" ? 1 : -1) + buttons.length) % buttons.length;
     event.preventDefault(); buttons[next]?.focus();
+  });
+  const paneNav = root.querySelector(".terminal-pane-nav");
+  const paneHelp = document.createElement("span");
+  paneHelp.id = "deskPaneKeyboardHelp";
+  paneHelp.className = "sr-only";
+  paneHelp.textContent = "Use left and right arrows to move between panels. Press Enter to open a panel.";
+  paneNav.append(paneHelp);
+  paneNav.setAttribute("aria-describedby", paneHelp.id);
+  paneNav.addEventListener("keydown", event => {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key) || !event.target.matches("[data-terminal-pane-button]")) return;
+    const buttons = [...paneNav.querySelectorAll("[data-terminal-pane-button]")].filter(button => !button.hidden && !button.disabled && button.getClientRects().length);
+    const index = buttons.indexOf(event.target);
+    if (index < 0 || !buttons.length) return;
+    const next = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1 : (index + (event.key === "ArrowRight" ? 1 : -1) + buttons.length) % buttons.length;
+    event.preventDefault(); buttons[next].focus({ preventScroll: true });
+    buttons[next].scrollIntoView({ block: "nearest", inline: "nearest" });
   });
   tools = enhanceDesk({root,toolbar,rail,dock,prefs,save,apply,render,openMarket,inspectPane});
   if (narrow.matches) prefs.rail = false;

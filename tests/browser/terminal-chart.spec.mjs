@@ -1726,7 +1726,7 @@ test("Solana spot ticket keeps quick sizing, plans, fees, and wallet-backed sell
   await expect(page.locator("#terminalSpotQuoteOutput")).toHaveText("8450.25 JUP");
   await expect(page.locator("#terminalSpotQuoteMinimum")).toHaveText("Minimum 8408 JUP");
   await expect(page.locator("#terminalSpotQuoteRoute")).toHaveText("Raydium → Meteora");
-  await expect(page.locator("#terminalSpotQuoteFee")).toHaveText("1.00% configured · 0 bps charged");
+  await expect(page.locator("#terminalSpotQuoteFee")).toHaveText("No fee in preview · listed rate 1.00%");
   await expect(page.locator("#terminalSpotQuoteExit")).toHaveText("$73.84 USDC");
   await expect(page.locator("#terminalSpotQuoteFrictionLabel")).toHaveText("Before network costs");
   await expect(page.locator("#terminalSpotQuoteFriction")).toHaveText("1.55% loss");
@@ -1952,7 +1952,7 @@ test("BNB Chain opens the native wallet route only when its reviewed adapter is 
   await expect(page.locator("#terminalSpotTicketEyebrow")).toContainText("BNB Chain · route review");
   await expect(page.locator("#terminalSpotTicketTitle")).toHaveText("Buy MEMESTOCK with Auto");
   await expect(page.locator("#terminalSpotNativeAssetLabel")).toHaveText("BNB");
-  await expect(page.locator("#terminalSpotActiveFee")).toHaveText("Free · 1.00%");
+  await expect(page.locator("#terminalSpotActiveFee")).toHaveText("Standard · 1.00%");
   await expect(page.locator("#terminalSpotFeeCompact")).toHaveText("1.00%");
   await expect(page.locator("#terminalSpotQuoteAction")).toBeVisible();
   await expect(page.locator("#terminalSpotQuoteAction")).toBeEnabled();
