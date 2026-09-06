@@ -124,7 +124,7 @@ function spotFixtureRows(query = "") {
       priceChange24h: 11.12,
       coverage: "Exact provider pool",
       isSample: false,
-      lastUpdated: "2026-08-27T12:13:31Z",
+      lastUpdated: new Date().toISOString(),
     }];
   }
   if (normalized === ROBINHOOD_CONTRACT || normalized.includes("runner")) {
@@ -146,7 +146,7 @@ function spotFixtureRows(query = "") {
       priceChange24h: -1.8,
       coverage: "Public lookup snapshot",
       isSample: false,
-      lastUpdated: "2026-07-21T12:20:00Z",
+      lastUpdated: new Date().toISOString(),
     }];
   }
   if (normalized && !normalized.includes("jup") && !normalized.includes("jupiter")) return [];
@@ -168,7 +168,7 @@ function spotFixtureRows(query = "") {
     priceChange24h: 3.4,
     coverage: "Public lookup snapshot",
     isSample: false,
-    lastUpdated: "2026-07-21T12:20:00Z",
+    lastUpdated: new Date().toISOString(),
   }];
 }
 
@@ -444,6 +444,7 @@ export async function mockTerminalLiveApis(page, {
   spotTradeDelayMs = 0,
   spotLateOlderPrice = null,
   spotChartCurrent = false,
+  spotChartPrice = null,
   spotQuotePreview = false,
   spotQuoteChains = null,
   spotQuoteTtlMs = 20_000,
@@ -792,6 +793,10 @@ export async function mockTerminalLiveApis(page, {
     let candleRows = pairAddress && bullishSpotPlan
       ? bullishSpotCandles(asset, timeframe)
       : providerCandles(asset, timeframe);
+    if (pairAddress && Number.isFinite(spotChartPrice) && spotChartPrice > 0) {
+      const scale = spotChartPrice / candleRows.at(-1).close;
+      candleRows = candleRows.map(row => ({ ...row, open: row.open * scale, high: row.high * scale, low: row.low * scale, close: row.close * scale }));
+    }
     if (pairAddress && spotChartCurrent) {
       const step = ({ "1m": 60, "5m": 300, "15m": 900, "1h": 3_600, "4h": 14_400, "1d": 86_400 })[timeframe] || 3_600;
       const end = Math.floor(Date.now() / 1_000 / step) * step;

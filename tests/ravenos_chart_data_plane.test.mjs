@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
+  deriveSpotValuation,
   BoundedEventBuffer,
   CHART_INSTRUMENT_TYPES,
   FormingCandleAccumulator,
@@ -2280,5 +2281,28 @@ test("provider-history failure rejects Raven observations as substitute candles"
     globalThis.fetch = originalFetch;
     if (originalCaches === undefined) delete globalThis.caches;
     else globalThis.caches = originalCaches;
+  }
+});
+
+
+test("spot valuation preserves identity, snapshot age and explicit estimate basis", () => {
+  const nowMs = Date.parse("2026-09-06T12:00:00Z");
+  for (const chain of ["solana", "robinhood", "base", "bsc", "ethereum"]) {
+    const identityKey = `${chain}:pool:token:quote`;
+    const reference = { identityKey, observedAt: new Date(nowMs - 60000).toISOString(), referencePrice: 2, marketCap: 100, fdv: 200 };
+    const derive = (patch = {}) => deriveSpotValuation({ identityKey, reference, price: 4, nowMs, ...patch });
+    assert.equal(derive().marketCap, 200);
+    assert.equal(derive().basis, "price_scaled_estimate");
+    assert.equal(derive().supplyReverified, false);
+    assert.equal(derive().executionAuthority, false);
+    assert.equal(derive({ price: 2 }).basis, "reported_snapshot");
+    assert.equal(derive({ identityKey: "other" }).marketCap, null);
+    assert.equal(derive({ nowMs: nowMs + 300001 }).state, "stale");
+    assert.equal(derive({ nowMs: nowMs - 120000 }).state, "timestamp_unavailable");
+    assert.equal(derive({ reference: { ...reference, observedAt: "bad" } }).marketCap, null);
+    assert.equal(derive({ price: 0 }).marketCap, null);
+    const fdvOnly = derive({ reference: { ...reference, marketCap: null } });
+    assert.equal(fdvOnly.marketCap, null);
+    assert.equal(fdvOnly.fdv, 400);
   }
 });

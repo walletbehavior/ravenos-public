@@ -2442,3 +2442,39 @@ test("primary navigation is coherent across workspace and static support surface
   await page.goto("/");
   await expect(page.locator(".landing-nav")).toHaveText(/Product.*Workflow.*Quick guide.*Access/s);
 });
+
+test("market evidence stays compact, readable and consistent across desktop and mobile", async ({ page }, testInfo) => {
+  await mockTerminalLiveApis(page, { spotTradePrice: 0.0006438, spotTradeDelayMs: 100, spotChartCurrent: true, spotChartPrice: 0.0006438 });
+  await page.goto("/terminal/");
+  await waitForTerminalLive(page, { instrument: "SOL-PERP" });
+  await openExactSpotSearch(page, "RUNNER");
+  await waitForTerminalLive(page, { lane: "spot", instrument: "RUNNER/WETH" });
+  await expect(page.locator("#terminalMetric2Label")).toHaveText("Est. market cap");
+  await expect(page.locator("#terminalEvidenceValuationStatus")).toHaveText("Estimated valuation");
+  await expect(page.locator("#terminalMarketEvidence")).not.toHaveAttribute("open", "");
+  await expect(page.locator("#terminalEvidencePriceStatus")).toHaveText("Exact-pool trade");
+  await expect(page.locator("#terminalEvidenceChartStatus")).toHaveText("Chart aligned");
+  for (const [name, width, height] of [["desktop", 1440, 1100], ["mobile", 390, 844]]) {
+    await page.setViewportSize({ width, height });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: testInfo.outputPath(`terminal-polish-${name}.png`), fullPage: true });
+  }
+  await page.locator("#terminalMarketEvidence summary").click();
+  await expect(page.locator("#terminalEvidenceValuation")).toContainText("supply has not been reverified");
+  await page.clock.install();
+  await page.clock.fastForward(301000);
+  await expect(page.locator("#terminalMetric2")).toHaveText("Unknown");
+  await expect(page.locator("#terminalAnatomy2")).toHaveText("Unknown");
+  await expect(page.locator("#terminalEvidenceValuationStatus")).toHaveText("Valuation expired");
+  const observedAt = await page.evaluate(() => new Date().toISOString());
+  let refreshToken = "0x0000000000000000000000000000000000000001";
+  await page.route("**/api/dexscreener/pair**", route => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ results: [{ chainId: "robinhood", pairAddress: ROBINHOOD_POOL, tokenAddress: refreshToken, quoteTokenAddress: ROBINHOOD_QUOTE, priceUsd: 0.0006438, marketCap: 643800, lastUpdated: observedAt }] }) }));
+  await page.locator("#terminalEvidenceRefresh").click();
+  await expect(page.locator("#terminalEvidenceRefresh")).toHaveText("Retry refresh");
+  await expect(page.locator("#terminalMetric2")).toHaveText("Unknown");
+  refreshToken = ROBINHOOD_CONTRACT;
+  await page.locator("#terminalEvidenceRefresh").click();
+  await expect(page.locator("#terminalMetric2")).toHaveText("$643.8K");
+  await expect(page.locator("#terminalEvidenceValuationStatus")).toHaveText("Snapshot valuation");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});

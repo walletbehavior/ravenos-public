@@ -112,13 +112,25 @@
         <strong id="terminalInstrument">SOL-PERP</strong>
         <small id="terminalInstrumentMeta">Hyperliquid perpetual · connecting</small>
       </div>
-      <div id="terminalLastMetric" hidden><span>Last</span><strong id="terminalLast">--</strong></div>
+      <div id="terminalLastMetric" hidden><span id="terminalLastLabel">Last</span><strong id="terminalLast">--</strong></div>
       <div id="terminalMetric2Cell" hidden><span id="terminalMetric2Label">Mark</span><strong id="terminalMetric2">--</strong></div>
       <div id="terminalMetric3Cell" hidden><span id="terminalMetric3Label">Funding</span><strong id="terminalMetric3">--</strong></div>
       <div id="terminalMetric4Cell" hidden><span id="terminalMetric4Label">Open interest</span><strong id="terminalMetric4">--</strong></div>
       <div id="terminalMetric5Cell" hidden><span id="terminalMetric5Label">24h volume</span><strong id="terminalMetric5">--</strong></div>
       <div id="terminalMetric6Cell" hidden><span id="terminalMetric6Label">24h change</span><strong id="terminalMetric6">--</strong></div>
     </section>
+
+    <details class="terminal-market-evidence" id="terminalMarketEvidence" hidden>
+      <summary><strong>Market evidence</strong><span id="terminalEvidencePriceStatus">Price pending</span><span id="terminalEvidenceValuationStatus">Valuation pending</span><span id="terminalEvidenceChartStatus">Chart pending</span><b>Inspect</b></summary>
+      <dl>
+        <div><dt>Price reference</dt><dd id="terminalEvidencePrice"></dd></div>
+        <div><dt>Valuation basis</dt><dd><span id="terminalEvidenceValuation"></span><button type="button" id="terminalEvidenceRefresh">Refresh valuation</button></dd></div>
+        <div><dt>Chart comparison</dt><dd id="terminalEvidenceChart"></dd></div>
+        <div><dt>Activity window</dt><dd id="terminalEvidenceActivity"></dd></div>
+        <div><dt>Holder coverage</dt><dd id="terminalEvidenceHolders"></dd></div>
+        <div><dt>Creation time</dt><dd id="terminalEvidenceAge"></dd></div>
+      </dl>
+    </details>
 
     <section class="terminal-risk-interrupt" id="terminalRiskInterrupt" data-level="forming" aria-labelledby="terminalRiskInterruptTitle" aria-live="polite" hidden>
       <div class="terminal-risk-interrupt-mark" aria-hidden="true">!</div>

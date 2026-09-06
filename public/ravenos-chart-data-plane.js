@@ -967,3 +967,30 @@ if (typeof window !== "undefined") {
     diagnostics: getChartDataPlaneDiagnostics,
   });
 }
+
+
+/** Presentation-only valuation; a new price does not verify circulating supply. */
+export function deriveSpotValuation({ identityKey, reference, price, nowMs = Date.now(), maxAgeSeconds = 300 } = {}) {
+  const positive = value => typeof value === "number" || typeof value === "string"
+    ? (Number.isFinite(Number(value)) && Number(value) > 0 ? Number(value) : null) : null;
+  const observedMs = Date.parse(String(reference?.observedAt || ""));
+  const ageMs = nowMs - observedMs;
+  const base = { marketCap: null, fdv: null, basis: "unavailable", observedAt: reference?.observedAt || null,
+    ageSeconds: Number.isFinite(ageMs) && ageMs >= 0 ? Math.floor(ageMs / 1000) : null,
+    supplyReverified: false, executionAuthority: false };
+  if (!identityKey || reference?.identityKey !== identityKey) return { ...base, state: "identity_unavailable" };
+  if (!Number.isFinite(ageMs) || ageMs < 0) return { ...base, state: "timestamp_unavailable" };
+  if (ageMs > maxAgeSeconds * 1000) return { ...base, state: "stale" };
+  const originalPrice = positive(reference.referencePrice);
+  const nextPrice = positive(price);
+  if (originalPrice === null || nextPrice === null) return { ...base, state: "price_unavailable" };
+  const multiplier = nextPrice / originalPrice;
+  const scale = value => {
+    const original = positive(value);
+    const result = original === null ? null : original * multiplier;
+    return result !== null && Number.isFinite(result) && result > 0 && result <= 1e15 ? result : null;
+  };
+  const marketCap = scale(reference.marketCap), fdv = scale(reference.fdv);
+  if (marketCap === null && fdv === null) return { ...base, state: "valuation_unavailable" };
+  return { ...base, marketCap, fdv, state: "available", basis: nextPrice === originalPrice ? "reported_snapshot" : "price_scaled_estimate" };
+}

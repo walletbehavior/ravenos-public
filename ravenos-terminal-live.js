@@ -3,6 +3,7 @@ import {
   RAVENOS_CHART_TIMEFRAMES,
   RAVENOS_TERMINAL_CHAIN_ROLLOUT,
   getChartDataPlaneDiagnostics,
+  deriveSpotValuation,
   resolveChartCapability,
 } from "./ravenos-chart-data-plane.js";
 import { customerFacingText } from "./ravenos-intelligence-contract.js";
@@ -338,6 +339,10 @@ const SPOT_CURRENT_PRICE_SOURCE_PRIORITY = Object.freeze({
 
 function seedSelectedSpotValuation(row = {}) {
   const identity = currentProjectIdentity();
+  if (identity?.key && row.valuationReference?.identityKey === identity.key) {
+    state.spotValuationReference = row.valuationReference;
+    return state.spotValuationReference;
+  }
   const referencePrice = finite(row.priceUsd);
   const marketCap = finite(row.marketCap);
   const fdv = finite(row.fdv);
@@ -348,25 +353,64 @@ function seedSelectedSpotValuation(row = {}) {
   state.spotValuationReference = {
     identityKey: identity.key,
     referencePrice,
+    observedAt: row.lastUpdated || null,
     marketCap: marketCap !== null && marketCap > 0 ? marketCap : null,
     fdv: fdv !== null && fdv > 0 ? fdv : null,
   };
+  state.selected = { ...state.selected, valuationReference: state.spotValuationReference };
   return state.spotValuationReference;
 }
 
-function currentSpotValuation(price) {
+function currentSpotValuation(price = state.spotCurrentPrice?.price ?? state.spotValuationReference?.referencePrice) {
+  return deriveSpotValuation({ identityKey: currentProjectIdentity()?.key, reference: state.spotValuationReference, price });
+}
+
+function spotValuationLabel(valuation = currentSpotValuation()) {
+  const label = valuation.marketCap !== null ? "Market cap" : valuation.fdv !== null ? "FDV" : "Market cap";
+  return valuation.basis === "price_scaled_estimate" ? `Est. ${label.toLowerCase()}` : label;
+}
+
+function renderSpotValuation() {
+  if (state.lane !== "spot") return;
+  const valuation = currentSpotValuation();
+  const value = valuation.marketCap === null && valuation.fdv === null ? "Unknown" : compact(valuation.marketCap ?? valuation.fdv, { currency: true });
+  setMarketMetric(2, spotValuationLabel(valuation), value || "Unknown", { show: true });
+  setText("terminalAnatomy2Label", spotValuationLabel(valuation));
+  setText("terminalAnatomy2", value || "Unknown");
+}
+
+function renderMarketEvidence(workspace = state.workspace?.state || {}) {
+  const element = document.getElementById("terminalMarketEvidence");
+  if (!element) return;
   const identity = currentProjectIdentity();
-  const reference = state.spotValuationReference;
-  const currentPrice = finite(price);
-  if (!identity || reference?.identityKey !== identity.key || currentPrice === null || currentPrice <= 0) return null;
-  const multiplier = currentPrice / reference.referencePrice;
-  if (!Number.isFinite(multiplier) || multiplier <= 0) return null;
-  const scale = (value) => {
-    const source = finite(value);
-    const result = source === null ? null : source * multiplier;
-    return result !== null && Number.isFinite(result) && result > 0 && result <= 1_000_000_000_000_000 ? result : null;
+  element.hidden = state.lane !== "spot" || !identity;
+  if (element.hidden) return;
+  const price = state.spotCurrentPrice;
+  const valuation = currentSpotValuation();
+  const age = value => {
+    const seconds = (Date.now() - Date.parse(value || "")) / 1000;
+    return Number.isFinite(seconds) && seconds >= 0 ? durationLabel(seconds) : "time unavailable";
   };
-  return { marketCap: scale(reference.marketCap), fdv: scale(reference.fdv) };
+  const source = { exact_pool_trade_tape: "Exact-pool trade", chart_candle: "Chart close", pair_snapshot: "Market snapshot" }[price?.source] || "Price pending";
+  setText("terminalEvidencePriceStatus", source);
+  setText("terminalEvidencePrice", price ? `${source} · ${price.source === "chart_candle" ? "bar opened " : "observed "}${age(price.observedAt)}` : "Waiting for this pool’s price reference.");
+  const valuationStatus = valuation.state === "available" ? valuation.basis === "price_scaled_estimate" ? "Estimated valuation" : "Snapshot valuation" : valuation.state === "stale" ? "Valuation expired" : "Valuation unavailable";
+  setText("terminalEvidenceValuationStatus", valuationStatus);
+  setText("terminalEvidenceValuation", valuation.state === "available" ? `${valuation.basis === "price_scaled_estimate" ? "Scaled from snapshot price; supply has not been reverified" : "Reported market snapshot"} · ${age(valuation.observedAt)}. Snapshot valid for 5 minutes.` : "A fresh market snapshot is needed. Refresh the valuation to request a new snapshot.");
+  const instrument = workspace.instrument || {};
+  const matches = instrument.identity_scope === "exact_pool" && instrument.chain === identity.chain
+    && sameSelectedAddress(identity.chain, instrument.pool_address, identity.poolAddress)
+    && sameSelectedAddress(identity.chain, instrument.token_address, identity.tokenAddress);
+  const candle = matches ? workspace.candles?.at(-1) : null;
+  const close = finite(candle?.close);
+  const difference = price?.price > 0 && close > 0 ? Math.abs(price.price - close) / close * 100 : null;
+  setText("terminalEvidenceChartStatus", difference === null ? "Chart pending" : difference < 0.01 ? "Chart aligned" : `Chart differs ${difference.toFixed(2)}%`);
+  setText("terminalEvidenceChart", candle ? `${readableProvider(workspace.candleSeries?.provider || workspace.source)} · bar opened ${age(new Date(candle.time * 1000).toISOString())}. A candle close is a chart reference, not an executable quote.` : "Waiting for an exact-pool chart reference.");
+  const anatomy = matches ? workspace.marketAnatomy || {} : {};
+  setText("terminalEvidenceActivity", anatomy.current_activity?.observed_at ? `5-minute activity · observed ${age(anatomy.current_activity.observed_at)}. Header volume uses 24 hours.` : "Header volume uses 24 hours. Short-window activity timestamp unavailable.");
+  setText("terminalEvidenceHolders", anatomy.holder_distribution?.state === "available" ? `Provider holder coverage · observed ${age(anatomy.holder_distribution.observed_at)}. See Holders for account classifications and coverage.` : "Holder coverage is shown in the Holders panel when available.");
+  const created = anatomy.token_created_at || anatomy.token_lifecycle?.created_at;
+  setText("terminalEvidenceAge", created ? `Token created ${timestamp(created)}.` : "Token creation time unavailable. Any pool age shown describes the pool, not the token.");
 }
 
 function reconcileSelectedSpotPrice(update = {}) {
@@ -410,28 +454,11 @@ function reconcileSelectedSpotPrice(update = {}) {
     observedMs: candidateObservedMs,
     source,
   };
-  const valuation = currentSpotValuation(price);
-  state.selected = {
-    ...state.selected,
-    priceUsd: price,
-    lastUpdated: state.spotCurrentPrice.observedAt,
-    marketCap: valuation?.marketCap ?? state.selected?.marketCap ?? null,
-    fdv: valuation?.fdv ?? state.selected?.fdv ?? null,
-  };
+  state.selected = { ...state.selected, priceUsd: price, lastUpdated: state.spotCurrentPrice.observedAt };
   setLastMetric(price);
-  setMarketMetric(
-    2,
-    valuation?.marketCap !== null && valuation?.marketCap !== undefined ? "Market cap" : "FDV",
-    compact(valuation?.marketCap ?? valuation?.fdv ?? state.selected?.marketCap ?? state.selected?.fdv, { currency: true }),
-  );
-  setText(
-    "terminalAnatomy2Label",
-    valuation?.marketCap !== null && valuation?.marketCap !== undefined ? "Market cap" : "FDV",
-  );
-  setText(
-    "terminalAnatomy2",
-    compact(valuation?.marketCap ?? valuation?.fdv ?? state.selected?.marketCap ?? state.selected?.fdv, { currency: true }),
-  );
+  setText("terminalLastLabel", source === "exact_pool_trade_tape" ? "Last trade" : source === "chart_candle" ? "Chart close" : "Snapshot");
+  renderSpotValuation();
+  renderMarketEvidence();
   return true;
 }
 
@@ -4826,8 +4853,8 @@ function renderMarketAnatomy(workspace = state.workspace?.state || {}) {
       ? `${compact(buys5m)} buy · ${compact(sells5m)} sell${traders5m === null ? "" : ` · ${compact(traders5m)} traders`}`
       : null;
     const liveValuation = currentSpotValuation(state.spotCurrentPrice?.price);
-    const marketCap = liveValuation?.marketCap ?? finite(anatomy.market_cap_usd ?? state.selected?.marketCap);
-    const fdv = liveValuation?.fdv ?? finite(anatomy.fully_diluted_value_usd ?? state.selected?.fdv);
+    const marketCap = liveValuation.marketCap;
+    const fdv = liveValuation.fdv;
     const routeState = String(anatomy.route?.state || "").toLowerCase();
     const buys24h = finite(anatomy.buys_24h ?? state.selected?.buys24h);
     const sells24h = finite(anatomy.sells_24h ?? state.selected?.sells24h);
@@ -4848,7 +4875,7 @@ function renderMarketAnatomy(workspace = state.workspace?.state || {}) {
       : ageLabel(poolAgeMs ?? state.selected?.pairAgeMs);
     setAnatomyRows([
       { label: "Liquidity", value: compact(anatomy.liquidity_usd ?? state.selected?.liquidityUsd, { currency: true }) },
-      { label: marketCap !== null ? "Market cap" : "FDV", value: compact(marketCap ?? fdv, { currency: true }) },
+      { label: spotValuationLabel(liveValuation), value: marketCap === null && fdv === null ? "Unknown" : compact(marketCap ?? fdv, { currency: true }), show: true },
       {
         label: shortVolume === null ? "24h volume" : "5m volume",
         value: compact(shortVolume ?? anatomy.volume_24h_usd ?? state.selected?.volume24h, { currency: true }),
@@ -5246,6 +5273,7 @@ function selectedPerpSnapshot(row = state.selected, streamed = state.workspace?.
 }
 
 function renderPerpFacts() {
+  setText("terminalLastLabel", "Last");
   const row = state.selected;
   const market = selectedPerpSnapshot(row);
   setInstrumentImage(null);
@@ -5298,7 +5326,8 @@ function renderSpotFacts(row = state.selected) {
     state.spotCurrentPrice = null;
     setLastMetric(null);
   }
-  setMarketMetric(2, finite(row?.marketCap) !== null ? "Market cap" : "FDV", compact(row?.marketCap ?? row?.fdv, { currency: true }));
+  renderSpotValuation();
+  renderMarketEvidence();
   setMarketMetric(3, "Liquidity", compact(row?.liquidityUsd, { currency: true }));
   setMarketMetric(4, "24h volume", compact(row?.volume24h, { currency: true }));
   const buys24h = finite(row?.buys24h);
@@ -8226,6 +8255,7 @@ function setLane(lane, { updateUrl = true, selectDefault = true } = {}) {
   closeProjectLinks();
   clearSpotQuoteResult("Market changed. Review a new exact route.");
   state.lane = lane;
+  renderMarketEvidence();
   setActiveMarketControlRisk(null);
   if (lane !== "spot") clearSpotTradeRefresh();
   renderLaunchBadge();
@@ -8930,6 +8960,32 @@ async function loadExactPool(instrumentId, { updateUrl = false, tokenAddress = "
 }
 
 function bindControls() {
+  document.getElementById("terminalEvidenceRefresh")?.addEventListener("click", async (event) => {
+    const identity = currentProjectIdentity();
+    if (!identity) return;
+    const button = event.currentTarget;
+    button.disabled = true;
+    button.textContent = "Refreshing…";
+    try {
+      const params = new URLSearchParams({ chainId: identity.chain, pairAddress: identity.poolAddress, tokenAddress: identity.tokenAddress });
+      const { response, payload } = await fetchJson(`/api/dexscreener/pair?${params}`);
+      if (currentProjectIdentity()?.key !== identity.key) return;
+      const row = response.ok && payload?.results?.find(item => item.chainId === identity.chain
+        && sameSelectedAddress(identity.chain, item.pairAddress, identity.poolAddress)
+        && sameSelectedAddress(identity.chain, item.tokenAddress, identity.tokenAddress)
+        && sameSelectedAddress(identity.chain, item.quoteTokenAddress, identity.quoteAddress));
+      if (!row) throw new Error("snapshot_unavailable");
+      seedSelectedSpotValuation({ ...row, valuationReference: undefined });
+      renderSpotValuation();
+      renderMarketEvidence();
+      button.textContent = currentSpotValuation().state === "available" ? "Refresh valuation" : "Retry refresh";
+    } catch {
+      button.textContent = "Retry refresh";
+    } finally {
+      button.disabled = false;
+      if (currentProjectIdentity()?.key !== identity.key) button.textContent = "Refresh valuation";
+    }
+  });
   initializeWalletAddressControl();
   renderSpotQuickSizes();
   syncSpotTicketControls();
@@ -9211,6 +9267,7 @@ function renderWorkspaceState(workspace = {}) {
     : workspace?.message || titleCase(workspaceState)));
   renderSourceDetails(workspace);
   renderMarketAnatomy(workspace);
+  renderMarketEvidence(workspace);
   renderTradeConsequences();
   renderAlphaStack();
   syncPlanActionSurfaces();
@@ -9408,6 +9465,7 @@ async function boot() {
       currentPrice: state.lane === "spot" ? state.spotCurrentPrice?.price ?? null : finite(state.workspace?.state?.marketState?.last),
       currentPriceObservedAt: state.lane === "spot" ? state.spotCurrentPrice?.observedAt || null : state.workspace?.state?.observedAt || null,
       currentPriceIdentityKey: state.lane === "spot" ? state.spotCurrentPrice?.identityKey || null : state.selected?.instrument_id || null,
+      valuation: state.lane === "spot" ? currentSpotValuation() : null,
       currentPriceSource: state.lane === "spot" ? state.spotCurrentPrice?.source || null : state.workspace?.state?.marketState?.live_price_source || null,
       chartState: state.workspace?.state?.state || "unavailable",
       connectionState: state.workspace?.state?.connectionState || "disconnected",
@@ -9487,6 +9545,11 @@ async function boot() {
     }),
   };
 }
+
+const marketEvidenceTimer = setInterval(() => {
+  if (!document.hidden) { renderSpotValuation(); renderMarketEvidence(); }
+}, 1000);
+window.addEventListener("pagehide", () => clearInterval(marketEvidenceTimer), { once: true });
 
 boot().catch((error) => {
   setState("terminalMarketFreshness", "unavailable", "Unavailable");

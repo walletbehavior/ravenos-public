@@ -1966,3 +1966,42 @@ button, input, select { font: inherit; }
   .terminal-external-chart-host,
   .terminal-external-chart-host iframe { min-height: 328px; }
 }
+
+/* Calm hierarchy: readable market figures and a single expandable source strip. */
+.terminal-market-head > div { padding: 9px 10px; min-width: 0; }
+.terminal-market-head span { font-size: 10px; letter-spacing: .025em; }
+.terminal-market-head strong { font-size: 14px; line-height: 1.35; font-variant-numeric: tabular-nums; }
+.terminal-market-evidence { margin: 0; border: 1px solid var(--line, #263438); border-top: 0; background: rgba(14, 23, 27, .65); color: #aabac0; min-width: 0; }
+.terminal-market-evidence[hidden] { display: none; }
+.terminal-market-evidence summary { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 20px; min-height: 44px; padding: 8px 12px; cursor: pointer; font: 11px/1.4 ui-monospace, monospace; list-style: none; }
+.terminal-market-evidence summary::-webkit-details-marker { display: none; }
+.terminal-market-evidence summary strong { color: #d8e4e8; font-size: 11px; }
+.terminal-market-evidence summary b { margin-left: auto; color: #9cd4cb; font-weight: 500; }
+.terminal-market-evidence summary b::after { content: ' +'; }
+.terminal-market-evidence[open] summary b::after { content: ' −'; }
+.terminal-market-evidence summary:focus-visible { outline: 2px solid #9cd4cb; outline-offset: -2px; }
+.terminal-market-evidence dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px 24px; margin: 0; padding: 16px 12px; border-top: 1px solid #263438; }
+.terminal-market-evidence dt { color: #e1eaed; font: 600 12px/1.4 sans-serif; margin-bottom: 5px; }
+.terminal-market-evidence dd { margin: 0; font: 12px/1.65 sans-serif; overflow-wrap: anywhere; }
+.terminal-market-evidence > p { margin: 0; padding: 0 12px 14px; font: 11px/1.6 sans-serif; color: #82969e; }
+@media (max-width: 700px) {
+  .terminal-market-head > div { padding: 8px; }
+  .terminal-market-head strong { font-size: 13px; }
+  .terminal-market-evidence { order: 4; }
+  .terminal-market-evidence summary { gap: 6px 12px; }
+  .terminal-market-evidence summary > span { font-size: 10px; }
+  .terminal-market-evidence summary > span:last-of-type { display: none; }
+  .terminal-market-evidence dl { grid-template-columns: 1fr; gap: 16px; }
+}
+body .terminal-pane-nav > button { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 12px; font-weight: 600; letter-spacing: .02em; min-height: 42px; }
+body .terminal-market-head span { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-weight: 600; }
+body .terminal-market-evidence summary { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+@media (max-width: 700px) {
+  .terminal-market-evidence summary > strong { flex-basis: 100%; }
+  .terminal-market-evidence summary { position: relative; padding-right: 62px; }
+  .terminal-market-evidence summary b { position: absolute; right: 10px; top: 11px; }
+  body .terminal-pane-nav > button { min-height: 42px; font-size: 11px; }
+}
+#terminalEvidenceRefresh { display: block; margin-top: 8px; padding: 8px 10px; min-height: 36px; border: 1px solid #35474f; border-radius: 4px; color: #bedbd7; background: #111d23; font: 600 11px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; cursor: pointer; }
+#terminalEvidenceRefresh:disabled { opacity: .6; cursor: wait; }
+#terminalEvidenceRefresh:focus-visible { outline: 2px solid #9cd4cb; outline-offset: 2px; }
