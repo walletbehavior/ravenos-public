@@ -33,7 +33,7 @@ import {
   resolveChartCapability,
   timeframeSeconds,
 } from "./ravenos-chart-data-plane.js";
-import { bestExactSpotMarketPerToken } from "./ravenos-discover-intelligence.js";
+import { bestExactSpotMarketPerToken, spotMarketCapitalization, spotTransactionCount } from "./ravenos-discover-intelligence.js";
 import { resolveCustomerTradeFlags } from "./lib/customer_trade/feature_flags.mjs";
 import {
   createHyperliquidMarketPreview,
@@ -3235,16 +3235,13 @@ function normalizeGeckoTrendingPool(payload, row, {
 
 function pulseSupplementPriority(row = {}) {
   const market = row.market || {};
-  const marketCap = optionalFiniteNumber(market.market_cap_usd) ?? optionalFiniteNumber(market.fdv_usd);
+  const marketCap = spotMarketCapitalization(market);
   const ageSeconds = optionalFiniteNumber(market.token_age_seconds) ?? optionalFiniteNumber(market.market_age_seconds);
-  const hourTransactions = [market.buys_1h, market.sells_1h]
-    .map(optionalFiniteNumber)
-    .reduce((sum, value) => sum + (value || 0), 0);
-  const dayTransactions = [market.buys_24h, market.sells_24h]
-    .map(optionalFiniteNumber)
-    .reduce((sum, value) => sum + (value || 0), 0);
-  const precedingDayTransactions = Math.max(0, dayTransactions - hourTransactions);
-  const oldQuietBurst = ageSeconds !== null
+  const hourTransactions = spotTransactionCount(market, "1h");
+  const dayTransactions = spotTransactionCount(market, "24h");
+  const precedingDayTransactions = dayTransactions !== null && hourTransactions !== null && dayTransactions >= hourTransactions
+    ? dayTransactions - hourTransactions : null;
+  const oldQuietBurst = precedingDayTransactions !== null && ageSeconds !== null
     && ageSeconds >= 30 * 86_400
     && hourTransactions >= 3
     && precedingDayTransactions <= 24
@@ -3809,6 +3806,7 @@ function currentDiscoverRadarProjection(value, { nowMs = Date.now() } = {}) {
       "2026-08-27.5",
       "2026-08-27.6",
       "2026-08-28.1",
+      "2026-09-03.2",
       DISCOVER_CLASSIFIER_VERSION,
     ]).has(value?.classifier?.version)
     || value?.classifier?.monitor_eligible !== false
@@ -3831,7 +3829,7 @@ function currentDiscoverRadarProjection(value, { nowMs = Date.now() } = {}) {
     raven_evidence: legacyDiscoverRavenEvidence(row),
     registry: {
       ...(row.registry || {}),
-      classifier_version: DISCOVER_CLASSIFIER_VERSION,
+      classifier_version: value.classifier.version,
       primary_behavior_state: row?.discovery?.primary_behavior_state?.value || row?.registry?.primary_behavior_state || "forming",
     },
   })), {

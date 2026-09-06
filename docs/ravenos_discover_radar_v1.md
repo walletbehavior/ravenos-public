@@ -101,3 +101,7 @@ Provider-specific acquisition lanes are internal provenance. Public pages use be
 ## Safety
 
 The projection contains no wallet data, customer identity, provider credentials, raw provider payloads, private participant identities, plan prices, orders, signing material, or execution data. Discover remains research-only and preserves exact-pool Terminal handoff, evidence freshness, explicit limitations, and unavailable states.
+
+## Valuation and freshness correction — 2026-09-06.1
+
+Market-cap filters, cohorts, ratios, and first-observation comparisons use only a positive reported market cap. FDV is displayed separately and cannot substitute for an unknown capitalization. Partial transaction windows cannot establish totals or a dormant baseline. Pool selection checks observation timestamps as well as declared currentness. Discovery route evidence must be explicitly current and no older than 120 seconds; it is research evidence, and Terminal must still obtain its own exact quote. Route badges and filters expire even while the board is paused. The classifier version change uses the existing rebaseline-without-notification boundary. See `ravenos_discovery_evidence_tranche_2026-09-06.md` for the measured baseline and verification.

@@ -2797,3 +2797,64 @@ test("Atlas outage is isolated and explicit", async ({ page }) => {
   await expect(page.locator("#atlasSearchInput")).toBeVisible();
   await expect(page.locator("#atlasContent")).toContainText("Issuer context");
 });
+
+
+for (const viewport of [{ width: 1440, height: 1100 }, { width: 390, height: 844 }]) {
+  test(`Discover preserves valuation bases and incomplete activity at ${viewport.width}px`, async ({ page }, testInfo) => {
+    await page.setViewportSize(viewport);
+    const rows = ["CAPKNOWN", "FDVONLY", "PARTIAL", "ZEROTX"].map((symbol, index) => {
+      const row = structuredClone(evmPulseRows[0]);
+      row.symbol = symbol;
+      row.name = symbol;
+      row.pool_address = `0x${String(800 + index).padStart(40, "0")}`;
+      row.token_address = `0x${String(900 + index).padStart(40, "0")}`;
+      row.instrument_id = `base:pool:${row.pool_address}`;
+      row.public_attention_id = `market:base:${row.pool_address}`;
+      Object.assign(row.market, { market_cap_usd: index === 1 ? null : 100_000, fdv_usd: 200_000,
+        liquidity_usd: 10_000, traders_5m: null, buys_5m: index === 3 ? 0 : 4, sells_5m: index === 2 ? null : 0 });
+      return row;
+    });
+    await mockWorkspaceApis(page, { pulseRowsOverride: rows });
+    await page.goto("/discover/");
+    await expect(page.locator(".discover-token-row")).toHaveCount(4);
+    const rowFor = symbol => page.locator(".discover-token-row").filter({ has: page.locator(".discover-token-name > strong", { hasText: symbol }) });
+    const stat = (row, label) => row.locator(".discover-token-stat").filter({ has: page.locator("small", { hasText: new RegExp(`^${label}$`) }) }).locator("strong");
+    const fdv = rowFor("FDVONLY");
+    await expect(stat(fdv, "MCap")).toHaveText("Unknown");
+    await expect(stat(fdv, "FDV")).toHaveText("$200K");
+    await expect(stat(fdv, "MC/Liq")).toHaveCount(0);
+    await expect(stat(rowFor("PARTIAL"), "Tx")).toHaveText("Unknown");
+    await expect(stat(rowFor("ZEROTX"), "Tx")).toHaveText("0");
+    await expect(fdv).toHaveAttribute("href", new RegExp(encodeURIComponent(rows[1].instrument_id)));
+    await page.locator("#discoverTokenTapeList").screenshot({ path: testInfo.outputPath(`valuation-${viewport.width}.png`) });
+    await fdv.evaluate(element => element.scrollIntoView({ block: "center" }));
+    await fdv.screenshot({ path: testInfo.outputPath(`fdv-detail-${viewport.width}.png`) });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(2);
+    await page.locator("#discoverRefineMarkets > summary").click();
+    await page.getByLabel("Maximum MCap").fill("250000");
+    await expect(page.locator(".discover-token-row")).toHaveCount(3);
+    await expect(rowFor("FDVONLY")).toHaveCount(0);
+    await page.locator("#discoverMarketCapFilter").selectOption("unavailable");
+    await expect(page.locator(".discover-token-row")).toHaveCount(1);
+    await expect(rowFor("FDVONLY")).toBeVisible();
+  });
+}
+
+test("Discover expires route capacity independently of market facts while paused", async ({ page }) => {
+  await page.clock.install();
+  const row = structuredClone(jupiterVelocityRow);
+  row.routeability = { availability: "available", freshness: "current", observed_at: new Date(Date.now() - 110_000).toISOString(), routeable_size_usd: 2_500, estimated_slippage_bps: 42 };
+  await mockWorkspaceApis(page, { pulseRowsOverride: [row] });
+  await page.goto("/discover/");
+  const visible = page.locator(".discover-token-row").first();
+  await expect(visible).toContainText("Capacity $2.5K");
+  await page.locator("#discoverPause").click();
+  await page.clock.fastForward(11_000);
+  await expect(visible).toHaveAttribute("data-freshness", "current");
+  await expect(visible).not.toContainText("Capacity");
+  await expect(visible).not.toContainText("bps slip");
+  await page.locator(".discover-token-evidence summary").first().click();
+  const overview = page.locator(".discover-token-evidence").first();
+  await expect(overview).toContainText("Routeable size");
+  await expect(overview).not.toContainText("$2.5K");
+});

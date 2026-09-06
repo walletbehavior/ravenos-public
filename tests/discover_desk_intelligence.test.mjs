@@ -5,6 +5,10 @@ import {
   bestExactSpotMarketPerToken,
   buildDeskFrame,
   opportunityLifecycle,
+  spotMarketCapitalization,
+  spotMarketFactFreshness,
+  spotRouteIsCurrent,
+  spotTransactionCount,
   spotFlowRead,
   spotMarketHealth,
   spotVelocityRead,
@@ -72,7 +76,7 @@ function exactPool(overrides = {}) {
       volume_usd_5m: overrides.volume_usd_5m ?? 10_000,
     },
     discovery: {
-      facts: { freshness: { state: overrides.freshness || "current" } },
+      facts: { freshness: { state: overrides.freshness || "current", target_seconds: 120 } },
       routeability: overrides.routeability || { availability: "unavailable", freshness: "unavailable", routeable_size_usd: null },
     },
   };
@@ -89,7 +93,7 @@ test("Discover keeps one best exact pool per canonical chain/token", () => {
     token_address: "0xabcd000000000000000000000000000000000001",
     liquidity_usd: 240_000,
   });
-  const selected = bestExactSpotMarketPerToken([shallower, deeper]);
+  const selected = bestExactSpotMarketPerToken([shallower, deeper], { nowMs: Date.parse("2026-08-26T01:00:00Z") });
   assert.equal(selected.length, 1);
   assert.equal(selected[0].instrument_id, deeper.instrument_id);
   assert.equal(selected[0].market.liquidity_usd, 240_000);
@@ -103,9 +107,9 @@ test("Discover prefers a current executable route without merging exact-pool evi
   const routeable = exactPool({
     pool_address: "0x0000000000000000000000000000000000000015",
     liquidity_usd: 120_000,
-    routeability: { availability: "available", freshness: "current", routeable_size_usd: 5_000 },
+    routeability: { availability: "available", freshness: "current", observed_at: "2026-08-26T01:00:00Z", routeable_size_usd: 5_000 },
   });
-  const selected = bestExactSpotMarketPerToken([deepButUnrouteable, routeable]);
+  const selected = bestExactSpotMarketPerToken([deepButUnrouteable, routeable], { nowMs: Date.parse("2026-08-26T01:00:00Z") });
   assert.deepEqual(selected, [routeable]);
   assert.equal(selected[0].market.liquidity_usd, 120_000);
 });
@@ -116,7 +120,7 @@ test("Discover never collapses same-symbol contracts or cross-chain assets", () 
     exactPool({ token_address: "0x0000000000000000000000000000000000000002", pool_address: "0x0000000000000000000000000000000000000022", symbol: "PONS" }),
     exactPool({ chain_id: "ethereum", token_address: "0x0000000000000000000000000000000000000001", pool_address: "0x0000000000000000000000000000000000000033", symbol: "PONS" }),
   ];
-  assert.equal(bestExactSpotMarketPerToken(rows).length, 3);
+  assert.equal(bestExactSpotMarketPerToken(rows, { nowMs: Date.parse("2026-08-26T01:00:00Z") }).length, 3);
 });
 
 function benchmark(overrides = {}) {
@@ -392,4 +396,35 @@ test("desk frame never presents unclassified pool flow as zero buy-side and zero
   assert.match(flow.detail, /No directional pool reads/);
   assert.match(flow.detail, /\$18K 5m volume/);
   assert.doesNotMatch(flow.detail, /0 buy-side|0 sell-side|Flow is balanced/);
+});
+
+test("deduplication chooses current facts over a deeper expired pool still labeled current", () => {
+  const nowMs = Date.parse("2026-08-26T01:00:00Z");
+  const fresh = exactPool({ liquidity_usd: 10_000 });
+  const expired = exactPool({ pool_address: "0x0000000000000000000000000000000000000099", liquidity_usd: 1_000_000, observed_at: new Date(nowMs - 120_001).toISOString() });
+  for (const rows of [[fresh, expired], [expired, fresh]]) {
+    assert.equal(bestExactSpotMarketPerToken(rows, { nowMs })[0], fresh);
+  }
+  for (const observed_at of [null, "invalid", new Date(nowMs + 1).toISOString()]) {
+    assert.equal(spotMarketFactFreshness({ ...fresh, observed_at }, nowMs).current, false);
+  }
+});
+
+test("undated and stale routes cannot displace a deeper current pool", () => {
+  const nowMs = Date.parse("2026-08-26T01:00:00Z");
+  const deep = exactPool({ liquidity_usd: 500_000 });
+  for (const observed_at of [null, "bad-date", new Date(nowMs - 120_001).toISOString(), new Date(nowMs + 1).toISOString()]) {
+    const shallow = exactPool({ pool_address: "0x0000000000000000000000000000000000000099", liquidity_usd: 10_000, routeability: { availability: "available", freshness: "current", observed_at, routeable_size_usd: 50_000 } });
+    assert.equal(spotRouteIsCurrent(shallow, nowMs), false);
+    assert.equal(bestExactSpotMarketPerToken([shallow, deep], { nowMs })[0], deep);
+  }
+});
+
+test("capitalization and complete transaction counts preserve missing versus zero", () => {
+  for (const value of [null, undefined, "", 0, -1, "invalid"]) assert.equal(spotMarketCapitalization({ market_cap_usd: value, fdv_usd: 450_000 }), null);
+  assert.equal(spotMarketCapitalization({ market_cap_usd: "5000", fdv_usd: 450_000 }), 5_000);
+  assert.equal(spotTransactionCount({ buys_5m: 4, sells_5m: null }), null);
+  assert.equal(spotTransactionCount({ buys_5m: null, sells_5m: 4 }), null);
+  assert.equal(spotTransactionCount({ buys_5m: 0, sells_5m: 0 }), 0);
+  assert.equal(spotTransactionCount({ buys_1h: 4, sells_1h: 3 }, "1h"), 7);
 });

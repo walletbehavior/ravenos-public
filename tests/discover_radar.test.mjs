@@ -237,14 +237,18 @@ test("the selected-window move outranks a larger historical-window print while p
   assert.ok(selected.priority > historical.priority);
 });
 
-test("zero market-cap falls back to available FDV without fabricating a collapse", () => {
-  const result = build([pool({
-    market: { market_cap_usd: 0, fdv_usd: 450_000 },
-    registry: { first_seen_market_cap_usd: 200_000 },
-  })]);
-  const discovery = result.rows[0].discovery;
-  assert.equal(Math.round(discovery.path.change_since_first_observation_pct), 125);
-  assert.notEqual(discovery.primary_behavior_state.value, "capitulation");
+test("missing or zero capitalization never compares FDV with historical market cap", () => {
+  for (const marketCap of [null, 0, -1, "", "invalid"]) {
+    const discovery = build([pool({
+      market: { market_cap_usd: marketCap, fdv_usd: 450_000, liquidity_usd: 1_000 },
+      registry: { first_seen_market_cap_usd: 200_000 },
+    })]).rows[0].discovery;
+    assert.equal(discovery.path.change_since_first_observation_pct, null);
+    assert.notEqual(discovery.primary_behavior_state.value, "breakout");
+    assert.notEqual(discovery.primary_behavior_state.value, "capitulation");
+    assert.equal(discovery.risk_flags.some(flag => flag.value === "high_market_cap_to_liquidity"), false);
+    assert.match(discovery.cohort_key, /:unavailable:/);
+  }
 });
 
 test("an observed registry high is not presented as the market all-time high", () => {
@@ -751,4 +755,40 @@ test("the complete radar projection validates and remains monitor-ineligible", (
   assert.equal(validated.state, "forming");
   assert.equal(validated.classifier.evaluation_state, "forming");
   assert.equal("shadow_evaluation" in validated.classifier, false);
+});
+
+test("expired and undated route claims cannot improve discovery rank or capacity", () => {
+  const noRoute = build([pool()]).rows[0].discovery;
+  for (const observedAt of [null, "bad-date", new Date(NOW_MS - 120_001).toISOString(), new Date(NOW_MS + 1_000).toISOString()]) {
+    const discovery = build([pool({ routeability: {
+      availability: "available", freshness: "current", observed_at: observedAt,
+      routeable_size_usd: 1_000_000, estimated_slippage_bps: 1,
+    } })]).rows[0].discovery;
+    assert.equal(discovery.routeability.availability, "unavailable");
+    assert.equal(discovery.routeability.routeable_size_usd, null);
+    assert.deepEqual(discovery.ranking, noRoute.ranking);
+  }
+  const current = build([pool({ routeability: {
+    availability: "available", freshness: "current", observed_at: OBSERVED_AT,
+    routeable_size_usd: 5_000, estimated_slippage_bps: 4,
+  } })]).rows[0].discovery;
+  assert.equal(current.routeability.routeable_size_usd, 5_000);
+});
+
+test("future market timestamps and expired fractional seconds never enter current discovery", () => {
+  assert.equal(build([pool({ observed_at: new Date(NOW_MS + 1).toISOString() })]).rows.length, 0);
+  assert.equal(build([pool({ observed_at: new Date(NOW_MS - 120_001).toISOString() })]).rows.length, 0);
+  assert.equal(build([pool({ observed_at: new Date(NOW_MS - 120_000).toISOString() })]).rows.length, 1);
+});
+
+
+test("a current unusable route retains its risk warning without positive capacity", () => {
+  const discovery = build([pool({ routeability: {
+    availability: "available", freshness: "current", observed_at: OBSERVED_AT,
+    routeable: false, routeable_size_usd: 5_000, estimated_slippage_bps: 4,
+  } })]).rows[0].discovery;
+  assert.equal(discovery.risk_flags.some(flag => flag.value === "unrouteable"), true);
+  assert.equal(discovery.routeability.routeable, false);
+  assert.equal(discovery.routeability.routeable_size_usd, 0);
+  assert.equal(discovery.routeability.estimated_slippage_bps, null);
 });

@@ -6,6 +6,44 @@ function finite(value) {
   return Number.isFinite(result) ? result : null;
 }
 
+// Valuation bases are distinct: a provider's zero/invalid capitalization is
+// unavailable, and FDV must never stand in for circulating market cap.
+export function spotMarketCapitalization(market = {}) {
+  const value = finite(market?.market_cap_usd);
+  return value !== null && value > 0 ? value : null;
+}
+
+export function spotTransactionCount(market = {}, timeframe = "5m") {
+  const buys = finite(market?.[`buys_${timeframe}`]);
+  const sells = finite(market?.[`sells_${timeframe}`]);
+  return buys !== null && sells !== null && buys >= 0 && sells >= 0 ? buys + sells : null;
+}
+
+export function spotMarketFactFreshness(row = {}, nowMs = Date.now()) {
+  const contract = row?.discovery?.facts?.freshness;
+  const observedAt = row?.discovery?.facts?.observed_at || row?.observed_at;
+  const observedMs = Date.parse(String(observedAt || ""));
+  const ageMs = Number.isFinite(observedMs) ? nowMs - observedMs : null;
+  const declaredCurrent = contract
+    ? contract.state === "current" && finite(contract.target_seconds) === 120
+    : row?.context_state === "current";
+  return {
+    current: declaredCurrent && ageMs !== null && ageMs >= 0 && ageMs <= 120_000,
+    age_seconds: ageMs === null ? null : Math.max(0, Math.floor(ageMs / 1_000)),
+    observed_at: observedAt,
+  };
+}
+
+// Discovery route evidence is a short-lived research fact, never permission to
+// sign. Terminal must still acquire and review its own exact quote.
+export function spotRouteIsCurrent(row = {}, nowMs = Date.now()) {
+  const route = row?.discovery?.routeability || row?.routeability || {};
+  const observedMs = Date.parse(String(route.observed_at || ""));
+  const ageMs = nowMs - observedMs;
+  return route.availability === "available" && route.freshness === "current"
+    && route.routeable !== false && Number.isFinite(ageMs) && ageMs >= 0 && ageMs <= 120_000;
+}
+
 const EVM_DISCOVER_CHAINS = new Set(["robinhood", "base", "bsc", "ethereum"]);
 
 function canonicalSpotTokenKey(row = {}, fallbackIndex = 0) {
@@ -18,11 +56,10 @@ function canonicalSpotTokenKey(row = {}, fallbackIndex = 0) {
   return `${chain}:${EVM_DISCOVER_CHAINS.has(chain) ? address.toLowerCase() : address}`;
 }
 
-function exactPoolPreference(row = {}, timeframe = "5m") {
-  const factState = row?.discovery?.facts?.freshness?.state;
-  const factsCurrent = factState ? factState === "current" : row?.context_state === "current";
+function exactPoolPreference(row = {}, timeframe = "5m", nowMs = Date.now()) {
+  const factsCurrent = spotMarketFactFreshness(row, nowMs).current;
   const route = row?.discovery?.routeability || row?.routeability || {};
-  const routeCurrent = route.availability === "available" && route.freshness !== "stale";
+  const routeCurrent = spotRouteIsCurrent(row, nowMs);
   const observedAt = Date.parse(String(row?.observed_at || route?.observed_at || ""));
   return Object.freeze({
     factsCurrent: factsCurrent ? 1 : 0,
@@ -35,9 +72,9 @@ function exactPoolPreference(row = {}, timeframe = "5m") {
   });
 }
 
-function preferExactPool(candidate, selected, timeframe) {
-  const left = exactPoolPreference(candidate, timeframe);
-  const right = exactPoolPreference(selected, timeframe);
+function preferExactPool(candidate, selected, timeframe, nowMs) {
+  const left = exactPoolPreference(candidate, timeframe, nowMs);
+  const right = exactPoolPreference(selected, timeframe, nowMs);
   for (const field of ["factsCurrent", "routeCurrent", "routeableSize", "liquidity", "volume", "observedAt"]) {
     if (left[field] !== right[field]) return left[field] > right[field];
   }
@@ -49,12 +86,12 @@ function preferExactPool(candidate, selected, timeframe) {
  * Keep one independently usable exact market for each chain/token and never
  * collapse same-symbol contracts or cross-chain representations together.
  */
-export function bestExactSpotMarketPerToken(rows = [], { timeframe = "5m" } = {}) {
+export function bestExactSpotMarketPerToken(rows = [], { timeframe = "5m", nowMs = Date.now() } = {}) {
   const selected = new Map();
   for (const [index, row] of (Array.isArray(rows) ? rows : []).entries()) {
     const key = canonicalSpotTokenKey(row, index);
     const prior = selected.get(key);
-    if (!prior || preferExactPool(row, prior, timeframe)) selected.set(key, row);
+    if (!prior || preferExactPool(row, prior, timeframe, nowMs)) selected.set(key, row);
   }
   return [...selected.values()];
 }

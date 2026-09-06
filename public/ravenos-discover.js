@@ -4,6 +4,9 @@ import {
   bestExactSpotMarketPerToken,
   buildDeskFrame,
   opportunityLifecycle,
+  spotMarketCapitalization,
+  spotMarketFactFreshness,
+  spotRouteIsCurrent,
   validateAttentionBenchmark,
 } from "/ravenos-discover-intelligence.js";
 import { mountTradingViewListedTape } from "/ravenos-tradingview-adapter.js";
@@ -157,14 +160,6 @@ function finite(value) {
   if (value === null || value === undefined || value === "") return null;
   const result = Number(value);
   return Number.isFinite(result) ? result : null;
-}
-
-function marketCapValue(market = {}) {
-  const marketCap = finite(market.market_cap_usd);
-  if (marketCap !== null && marketCap > 0) return marketCap;
-  const fdv = finite(market.fdv_usd);
-  if (fdv !== null && fdv > 0) return fdv;
-  return marketCap ?? fdv;
 }
 
 function title(value, fallback = "Unavailable") {
@@ -1008,22 +1003,8 @@ function spotMetric(row, metric, timeframe = state.spotTimeframe) {
 }
 
 const DISCOVER_MARKET_FACT_TARGET_SECONDS = 120;
-const DISCOVER_CLASSIFIER_VERSION = "2026-09-03.2";
+const DISCOVER_CLASSIFIER_VERSION = "2026-09-06.1";
 const DISCOVER_REVIVAL_SCAN_SCHEMA = "ravenos.discover_revival_scan.v3";
-
-function spotMarketFactFreshness(row = {}, nowMs = Date.now()) {
-  const contract = row?.discovery?.facts?.freshness || {};
-  const observedAt = row?.discovery?.facts?.observed_at || row?.observed_at;
-  const observedMs = Date.parse(String(observedAt || ""));
-  const ageSeconds = Number.isFinite(observedMs)
-    ? Math.max(0, Math.floor((nowMs - observedMs) / 1_000))
-    : null;
-  const current = contract.state === "current"
-    && finite(contract.target_seconds) === DISCOVER_MARKET_FACT_TARGET_SECONDS
-    && ageSeconds !== null
-    && ageSeconds <= DISCOVER_MARKET_FACT_TARGET_SECONDS;
-  return { current, age_seconds: ageSeconds, observed_at: observedAt };
-}
 
 function spotMarketFactAgeLabel(row = {}, nowMs = Date.now()) {
   const facts = spotMarketFactFreshness(row, nowMs);
@@ -1068,7 +1049,7 @@ function survivesCurrentSpotMarket(row = {}) {
   const age = finite(row.age_seconds);
   const price = finite(market.price_usd);
   const liquidity = finite(market.liquidity_usd);
-  const marketCap = marketCapValue(market);
+  const marketCap = spotMarketCapitalization(market);
   const change1h = finite(market.price_change_1h_pct);
   const change24h = finite(market.price_change_24h_pct);
   if (age !== null && age > 3_600) return false;
@@ -1580,7 +1561,7 @@ function updateSpotAgeLabels(nowMs = Date.now()) {
     const row = byId.get(anchor.dataset.tokenRowId);
     if (!row) continue;
     const nextFreshness = spotMarketFactFreshness(row, nowMs).current ? "current" : "stale";
-    if (anchor.dataset.freshness !== nextFreshness) freshnessTransition = true;
+    if (anchor.dataset.freshness !== nextFreshness || anchor.dataset.routeCurrent !== String(spotRouteIsCurrent(row, nowMs))) freshnessTransition = true;
   }
   if (freshnessTransition) {
     renderSpotPulse(state.spotRows);
@@ -1681,7 +1662,7 @@ function spotWindowFlow(row) {
 
 function advancedFiltersMatch(row) {
   const market = row?.market || {};
-  if (!numericFilterMatches(marketCapValue(market), "marketCap")) return false;
+  if (!numericFilterMatches(spotMarketCapitalization(market), "marketCap")) return false;
   if (!numericFilterMatches(spotMetric(row, "volume_usd"), "volume")) return false;
   if (!numericFilterMatches(market.liquidity_usd, "liquidity")) return false;
   if (!numericFilterMatches(market.holder_count, "holders")) return false;
@@ -1710,8 +1691,9 @@ function advancedFiltersMatch(row) {
   const bundledPct = bundle?.availability === "available" ? finite(bundle.value) : null;
   if (!numericFilterMatches(bundledPct, "bundle")) return false;
   const route = row?.discovery?.routeability;
-  if (state.spotRouteFilter === "routeable" && !(route?.availability === "available" && finite(route.routeable_size_usd) > 0)) return false;
-  if (state.spotRouteFilter === "unavailable" && route?.availability === "available") return false;
+  const routeCurrent = spotRouteIsCurrent(row);
+  if (state.spotRouteFilter === "routeable" && !(routeCurrent && finite(route.routeable_size_usd) > 0)) return false;
+  if (state.spotRouteFilter === "unavailable" && routeCurrent) return false;
   if (state.spotChangedOnly && !state.spotSessionChanged.has(spotRowId(row))) return false;
   if (!assetTaxonomyMatches(row)) return false;
   return true;
@@ -1972,8 +1954,7 @@ function spotRiskDecision(risks = [], current = true) {
 
 function spotRouteDecision(row, current = true) {
   const route = row?.discovery?.routeability || {};
-  const freshness = text(route.freshness, "").toLowerCase();
-  if (!current || route.availability !== "available" || !["current", "fresh", "live"].includes(freshness)) return null;
+  if (!current || !spotRouteIsCurrent(row)) return null;
   const size = finite(route.routeable_size_usd);
   const slippage = finite(route.estimated_slippage_bps);
   const parts = [];
@@ -2107,9 +2088,13 @@ function renderSpotEvidence(shell, row) {
   appendEvidenceItem(overview, "Change since first observed", finite(discovery.path?.change_since_first_observation_pct) === null ? "Unavailable" : percent(discovery.path.change_since_first_observation_pct));
   appendEvidenceItem(overview, "ATH distance", finite(discovery.path?.ath_distance_pct) === null ? "Unavailable" : percent(discovery.path.ath_distance_pct));
   appendEvidenceItem(overview, "Recorded-high distance", finite(discovery.path?.recorded_high_distance_pct) === null ? "Unavailable" : percent(discovery.path.recorded_high_distance_pct));
-  appendEvidenceItem(overview, "Market-cap / liquidity", factFreshness.current && marketCapValue(row.market) !== null && finite(row.market?.liquidity_usd) > 0 ? `${(marketCapValue(row.market) / row.market.liquidity_usd).toFixed(1)}×` : "Unavailable");
-  appendEvidenceItem(overview, "Routeable size", discovery.routeability?.availability === "available" && finite(discovery.routeability.routeable_size_usd) !== null ? compact(discovery.routeability.routeable_size_usd, { currency: true }) : "Unavailable");
-  appendEvidenceItem(overview, "Estimated slippage", discovery.routeability?.availability === "available" && finite(discovery.routeability.estimated_slippage_bps) !== null ? `${Number(discovery.routeability.estimated_slippage_bps).toFixed(1)} bps` : "Unavailable");
+  const evidenceMarketCap = factFreshness.current ? spotMarketCapitalization(row.market) : null;
+  const evidenceFdv = factFreshness.current && finite(row.market?.fdv_usd) > 0 ? finite(row.market.fdv_usd) : null;
+  appendEvidenceItem(overview, "Market cap", evidenceMarketCap === null ? "Unavailable" : compact(evidenceMarketCap, { currency: true }));
+  appendEvidenceItem(overview, "Fully diluted valuation", evidenceFdv === null ? "Unavailable" : compact(evidenceFdv, { currency: true }));
+  appendEvidenceItem(overview, "Market-cap / liquidity", factFreshness.current && spotMarketCapitalization(row.market) !== null && finite(row.market?.liquidity_usd) > 0 ? `${(spotMarketCapitalization(row.market) / row.market.liquidity_usd).toFixed(1)}×` : "Unavailable");
+  appendEvidenceItem(overview, "Routeable size", spotRouteIsCurrent(row) && finite(discovery.routeability.routeable_size_usd) !== null ? compact(discovery.routeability.routeable_size_usd, { currency: true }) : "Unavailable");
+  appendEvidenceItem(overview, "Estimated slippage", spotRouteIsCurrent(row) && finite(discovery.routeability.estimated_slippage_bps) !== null ? `${Number(discovery.routeability.estimated_slippage_bps).toFixed(1)} bps` : "Unavailable");
   appendEvidenceItem(overview, "Bundle percentage", discovery.control_intelligence?.bundled_pct?.availability === "available" && finite(discovery.control_intelligence.bundled_pct.value) !== null ? `${Number(discovery.control_intelligence.bundled_pct.value).toFixed(1)}%` : "Unavailable");
   appendEvidenceItem(overview, "Holder concentration", discovery.control_intelligence?.top_holder_concentration_pct?.availability === "available" && finite(discovery.control_intelligence.top_holder_concentration_pct.value) !== null ? `${Number(discovery.control_intelligence.top_holder_concentration_pct.value).toFixed(1)}%` : "Unavailable");
   appendEvidenceItem(overview, "Stored observations", String(discovery.registry?.observation_count || 0));
@@ -2207,6 +2192,7 @@ function updateSpotTokenRow(anchor, row, index) {
   anchor.dataset.tokenAddress = text(row.token_address, "");
   anchor.dataset.identityScope = text(row.identity_scope, "");
   anchor.dataset.freshness = factFreshness.current ? "current" : "stale";
+  anchor.dataset.routeCurrent = String(spotRouteIsCurrent(row));
   anchor.dataset.flowState = activityState;
   anchor.dataset.flowTone = tone;
   anchor.dataset.signalScore = String(usableRadarScore(state.spotSort === "activity" ? activityScore : velocityScore) ?? "");
@@ -2287,18 +2273,20 @@ function updateSpotTokenRow(anchor, row, index) {
   anatomy.textContent = "";
   renderTokenStat(anatomy, "Vol", !factFreshness.current || finite(spotMetric(row, "volume_usd")) === null ? "" : compact(spotMetric(row, "volume_usd"), { currency: true }));
   renderTokenStat(anatomy, "Liq", !factFreshness.current || finite(row.market?.liquidity_usd) === null ? "" : compact(row.market.liquidity_usd, { currency: true }));
-  const marketCap = factFreshness.current ? marketCapValue(row.market) : null;
-  renderTokenStat(anatomy, finite(row.market?.market_cap_usd) > 0 ? "MCap" : "FDV", marketCap === null ? "" : compact(marketCap, { currency: true }));
+  const marketCap = factFreshness.current ? spotMarketCapitalization(row.market) : null;
+  const fdv = factFreshness.current && finite(row.market?.fdv_usd) > 0 ? finite(row.market.fdv_usd) : null;
+  renderTokenStat(anatomy, "MCap", marketCap === null ? "Unknown" : compact(marketCap, { currency: true }));
+  if (marketCap === null && fdv !== null) renderTokenStat(anatomy, "FDV", compact(fdv, { currency: true }));
   const marketCapLiquidity = marketCap !== null && finite(row.market?.liquidity_usd) > 0
     ? marketCap / row.market.liquidity_usd
     : null;
   renderTokenStat(anatomy, "MC/Liq", marketCapLiquidity === null ? "" : `${marketCapLiquidity.toFixed(marketCapLiquidity < 10 ? 1 : 0)}×`);
   const traders = factFreshness.current ? spotMetric(row, "traders") : null;
-  const transactions = factFreshness.current ? (spotMetric(row, "buys") || 0) + (spotMetric(row, "sells") || 0) : 0;
+  const transactions = factFreshness.current ? spotWindowFlow(row).transactions : null;
   renderTokenStat(
     anatomy,
     traders === null ? "Tx" : "Traders",
-    traders === null ? (transactions > 0 ? compact(transactions) : "") : compact(traders),
+    traders === null ? (transactions === null ? "Unknown" : compact(transactions)) : compact(traders),
   );
   renderTokenStat(anatomy, "Holders", !factFreshness.current || finite(row.market?.holder_count) === null ? "" : compact(row.market.holder_count));
   const bondingProgress = finite(row?.lifecycle_evidence?.progress_bps);
@@ -3231,7 +3219,7 @@ function mergeSpotRadarRows(registryRows = [], currentRows = []) {
         ...retainedDiscovery,
         ...currentDiscovery,
         raven_evidence_state: raven,
-        routeability: retainedDiscovery.routeability?.availability === "available" ? retainedDiscovery.routeability : currentDiscovery.routeability,
+        routeability: spotRouteIsCurrent(retained) ? retainedDiscovery.routeability : currentDiscovery.routeability,
         control_intelligence: retainedDiscovery.control_intelligence?.availability === "available" ? retainedDiscovery.control_intelligence : currentDiscovery.control_intelligence,
         exact_identity: currentDiscovery.exact_identity,
         registry: {

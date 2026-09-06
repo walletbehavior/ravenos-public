@@ -926,7 +926,7 @@ test("Worker expands Jupiter discovery with bounded exact-pool batches", async (
   }
 });
 
-test("Worker reuses persistent exact-market history before publishing current acceleration", async () => {
+test("Worker reuses previous-classifier exact-market history before publishing current acceleration", async () => {
   const poolAddress = "0x1111111111111111111111111111111111111111";
   const tokenAddress = "0x2222222222222222222222222222222222222222";
   const quoteAddress = "0x3333333333333333333333333333333333333333";
@@ -980,11 +980,12 @@ test("Worker reuses persistent exact-market history before publishing current ac
     actionable: false,
     execution_available: false,
   }], { timeframe: "5m", generatedAt, nowMs: Date.parse(generatedAt), sourceState: "shadow" });
+  const legacyHistory = JSON.parse(JSON.stringify(history).replaceAll("2026-09-06.1", "2026-09-03.2"));
   const originProjection = projection("opportunities", "ravenos_opportunity_census_public_origin_v1", {
     schema_version: "ravenos_opportunity_census_public_v1",
     source_state: "delayed",
     opportunities: { rows: [] },
-    discovery_radar: history,
+    discovery_radar: legacyHistory,
   }, isoAgo(5_000), 3_600);
   const previousFetch = globalThis.fetch;
   globalThis.fetch = async (input, init = {}) => {
@@ -1007,6 +1008,7 @@ test("Worker reuses persistent exact-market history before publishing current ac
     assert.equal(response.status, 200);
     const payload = await response.json();
     assert.equal(payload.state, "current");
+    assert.equal(payload.discovery_radar.classifier.version, "2026-09-06.1");
     assert.equal(payload.freshness.state, "current");
     assert.equal(payload.provenance.role, "current_plus_retained_exact_pool_market_activity");
     assert.equal(payload.discovery_lanes.retained_exact_markets, 1);
@@ -1614,3 +1616,51 @@ test("legacy commercial and synthetic token surfaces redirect to truthful curren
     assert.equal(new URL(response.headers.get("location")).pathname, target);
   }
 });
+
+for (const missingEvidence of ["fdv_only", "partial_activity", "inconsistent_windows"]) {
+  test(`Worker does not promote ${missingEvidence} as a low-cap or dormant supplemental market`, async () => {
+    // Each scenario starts with an empty isolate-local market cache.
+    const isolatedWorker = (await import(`../worker.mjs?supplement-evidence=${missingEvidence}`)).default;
+    const previousFetch = globalThis.fetch;
+    globalThis.fetch = async (input) => {
+      const url = new URL(String(input));
+      if (url.origin === new URL(ORIGIN).origin && url.pathname.endsWith("/opportunities.json")) return jsonResponse({}, 503);
+      const page = Number(url.searchParams.get("page"));
+      const payload = geckoTrendingFixture("bsc", {
+        pool: `0x${(800 + page).toString(16).padStart(40, "0")}`,
+        token: `0x${(900 + page).toString(16).padStart(40, "0")}`,
+        quote: `0x${(1000 + page).toString(16).padStart(40, "0")}`,
+        symbol: `PAGE${page}`,
+      });
+      const market = payload.data[0].attributes;
+      if (page === 3) market.market_cap_usd = "60000";
+      if (page === 2 && missingEvidence === "fdv_only") {
+        market.market_cap_usd = null;
+        market.fdv_usd = "9000";
+      }
+      if (page === 2 && missingEvidence === "partial_activity") {
+        market.transactions.h1 = { buys: 3, sells: null };
+        market.transactions.h24 = { buys: 3, sells: null };
+      }
+      if (page === 2 && missingEvidence === "inconsistent_windows") {
+        market.transactions.h1 = { buys: 3, sells: 1 };
+        market.transactions.h24 = { buys: 2, sells: 1 };
+      }
+      return jsonResponse(payload);
+    };
+    try {
+      const response = await isolatedWorker.fetch(new Request("https://ravenos.xyz/api/onchain/trending?chains=bsc&duration=1h"), {
+        ...environment(), RAVENOS_RELEASE_ID: `supplement-evidence-${missingEvidence}`,
+        ONCHAIN_CHART_PROVIDER: "coingecko", ONCHAIN_CHART_PROVIDER_PLAN: "basic",
+        ONCHAIN_CHART_PROVIDER_COMMERCIAL: "true", ONCHAIN_CHART_PROVIDER_SECRET: "fixture-only",
+      });
+      assert.equal(response.status, 200);
+      const body = await response.json();
+      assert.deepEqual(body.rows.map(row => row.symbol), ["PAGE1", "PAGE3", "PAGE2"]);
+      if (missingEvidence === "fdv_only") {
+        assert.equal(body.rows[2].market.market_cap_usd, null);
+        assert.equal(body.rows[2].market.fdv_usd, 9_000);
+      }
+    } finally { globalThis.fetch = previousFetch; }
+  });
+}
