@@ -12,6 +12,16 @@ import {
   waitForTerminalLive,
 } from "./terminal-live-fixtures.mjs";
 
+async function openMarketInfo(page) {
+  const disclosure = page.locator("#deskMarketInfo");
+  if (!(await disclosure.evaluate(node => node.open))) await disclosure.locator(":scope > summary").click();
+}
+
+async function clickMarketInfoControl(page, selector) {
+  await openMarketInfo(page);
+  await page.locator(selector).click();
+}
+
 async function chartHash(page) {
   const screenshot = await page.locator("#terminalChart").screenshot();
   return createHash("sha256").update(screenshot).digest("hex");
@@ -63,6 +73,7 @@ test("Terminal loads exact Hyperliquid facts, a real chart, and joined Raven con
   await expect(page.locator("#terminalComparableN")).toHaveText("128");
   await expect(page.locator("#terminalComparablePositive")).toHaveText("53.1%");
   await expect(page.locator("#terminalComparableNote")).toHaveText("In 128 completed Raven observations for SOL-PERP, 53.1% ended with a positive price return over 24h. Historical frequency—not a forecast.");
+  await page.locator('[data-terminal-pane-button="raven"]').click();
   await expect(page.locator("#terminalPlanSection")).toBeVisible();
   await expect(page.locator("#terminalPlanEntry")).toContainText("$148");
   await expect(page.locator("#terminalPlanTarget")).toContainText("+3.10%");
@@ -87,6 +98,7 @@ test("Terminal loads exact Hyperliquid facts, a real chart, and joined Raven con
   await expect(page.locator("#terminalAnatomyTitle")).toHaveText("Depth, positioning, and venue conditions");
   await expect(page.locator("#terminalAnatomyState")).toContainText("current market");
   await expect(page.locator("#terminalAnatomy4")).toContainText("2.66 bps");
+  await page.locator('[data-terminal-pane-button="book"]').click();
   await expect(page.locator("#terminalMarketRail")).toBeVisible();
   await expect(page.locator("#terminalBook .terminal-book-row")).toHaveCount(8);
   await expect(page.locator("#terminalBookState")).toContainText("4 × 4");
@@ -94,10 +106,11 @@ test("Terminal loads exact Hyperliquid facts, a real chart, and joined Raven con
   await expect(page.locator("#terminalTape .terminal-tape-row")).toHaveCount(4);
   await expect(page.locator("#terminalTapeState")).toHaveText("4 public txns");
   await expect(page.locator("#terminalMarketRail")).not.toContainText(/unknown|unavailable|missing/i);
+  await page.locator('[data-terminal-pane-button="trade"]').click();
   await expect(page.locator("#terminalTradeReviewSection")).toBeVisible();
   await expect.poll(() => page.locator("#terminalTradeReviewSection").evaluate((node) => getComputedStyle(node).order)).toBe("1");
   await expect(page.locator("#terminalFingerprint")).toHaveText("hyperliquid:perp:SOL");
-  await page.locator("#terminalSourceDetail > summary").click();
+  await clickMarketInfoControl(page, "#terminalSourceDetail > summary");
   await expect(page.locator("#terminalSourceProvider")).toHaveText("Hyperliquid");
   await expect(page.locator("#terminalSourceInterval")).toContainText("Direct 1h bars");
   await expect(page.getByRole("link", { name: /Lightweight Charts.*TradingView/i })).toBeVisible();
@@ -105,6 +118,7 @@ test("Terminal loads exact Hyperliquid facts, a real chart, and joined Raven con
   await expect(page.locator("#terminalChartMarkerInspector")).toBeVisible();
   await expect(page.locator("#terminalChartMarkerSource")).toContainText("Timestamped Raven observation");
   await expect(page.getByRole("button", { name: "Inspect Behavioral setup" })).toHaveAttribute("aria-pressed", "true");
+  await page.locator("#terminalChartMarkerEvidence").click();
   await expect(page.locator("#terminalMarkerDetail")).toBeVisible();
   await expect(page.locator("#terminalMarkerSource")).toContainText("Timestamped Raven observation");
   await expect(page.locator("#terminalMarkerMaturity")).toHaveText("Matured");
@@ -187,6 +201,7 @@ test("an exact Discover Raven observation survives a missing generic context joi
   });
   await page.goto("/terminal/?asset=SOL-PERP&instrument_id=hyperliquid%3Aperp%3ASOL&launch=raven");
   await waitForTerminalLive(page, { instrument: "SOL-PERP" });
+  await page.locator('[data-terminal-pane-button="raven"]').click();
   await expect(page.locator("#terminalContextSection")).toBeVisible();
   await expect(page.locator("#terminalWhy")).toContainText("Pressure reaccelerated");
   await expect(page.locator("#terminalReadSummary")).toBeHidden();
@@ -209,6 +224,7 @@ test("Terminal adds a real public account ledger and selected-market position co
   await page.goto("/terminal/");
   await waitForTerminalLive(page, { lane: "perps", instrument: "SOL-PERP" });
 
+  await page.locator('[data-terminal-pane-button="account"]').click();
   await expect(page.locator("#terminalAccountDock")).toBeVisible();
   await page.locator("#terminalAccountAddress").fill(HYPERLIQUID_ACCOUNT_ADDRESS);
   await page.getByRole("button", { name: "Load account" }).click();
@@ -435,20 +451,21 @@ test("mobile Terminal keeps the Txns label across perp pane changes without hori
   await expect(page.locator("#terminalMarketRail")).toBeVisible();
   await expect(page.locator("#terminalBook .terminal-book-row")).toHaveCount(8);
   await expect(page.locator("#terminalTape .terminal-tape-row")).toHaveCount(4);
-  await expect(page.locator("#terminalChart")).toBeHidden();
+  await expect(page.locator("#terminalChart")).toBeVisible();
 
   await page.locator('[data-terminal-pane-button="trade"]').click();
   await expect(page.locator("#terminalTradeReviewSection")).toBeVisible();
   await expect(page.locator("#terminalAlphaSection")).toBeHidden();
   await expect(page.locator("#terminalPreviewResult")).toBeVisible();
 
+  await page.locator("#terminalTradeTicketClose").click();
   await page.locator('[data-terminal-pane-button="raven"]').click();
   await expect(page.locator("#terminalAlphaSection")).toBeVisible();
   await expect(page.locator("#terminalTradeReviewSection")).toBeHidden();
 
   await page.locator('[data-terminal-pane-button="account"]').click();
   await expect(page.locator("#terminalAccountDock")).toBeVisible();
-  await expect(page.locator("#terminalChart")).toBeHidden();
+  await expect(page.locator("#terminalChart")).toBeVisible();
   await expect(page.locator("#terminalMarketRail")).toBeHidden();
   await expect(page.locator(".terminal-intelligence")).toBeHidden();
   await page.locator("#terminalAccountAddress").fill(HYPERLIQUID_ACCOUNT_ADDRESS);
@@ -528,7 +545,7 @@ test("mobile marker inspection remains visible on Chart and Full evidence focuse
   await page.goto("/terminal/");
   await waitForTerminalLive(page, { lane: "perps", instrument: "SOL-PERP" });
 
-  await page.locator("#terminalReadTrigger").click();
+  await clickMarketInfoControl(page, "#terminalReadTrigger");
   await expect(page.locator(".terminal-live")).toHaveAttribute("data-terminal-pane", "raven");
   await expect(page.locator("body")).not.toHaveClass(/ros-context-open/);
   await expect.poll(() => page.evaluate(() => document.activeElement?.id)).toBe("terminalContextSection");
@@ -719,8 +736,8 @@ test("chart basics expose intervals, verified indicators, readable crosshair dat
   await expect(page.locator("#terminalTimeframeControl")).toBeHidden();
   await expect(chart.locator('[data-rpw-indicator="ema20"]')).toHaveAttribute("aria-pressed", "true");
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_LAST_INDICATOR_STATE__?.ema20?.points || 0)).toBeGreaterThan(20);
-  await expect(chart.locator("[data-rpw-read-cell]")).toBeHidden();
-  await expect(chart.locator("[data-rpw-read-cell]")).not.toContainText(/unknown|unavailable|missing/i);
+  await expect(page.locator("[data-rpw-read-cell]")).toBeHidden();
+  await expect(page.locator("[data-rpw-read-cell]")).not.toContainText(/unknown|unavailable|missing/i);
   await expect(chart.locator("[data-rpw-window]")).toContainText(/1h Change.*1h Volume.*1h Range.*candles/is);
   await expect(chart.locator("[data-rpw-ranges], [data-rpw-timeframes], [data-rpw-range]")).toHaveCount(0);
   expect(calls.some((call) => call.market === "perpetuals" && call.timeframe === "1h" && call.limit === 720 && !call.before)).toBe(true);
@@ -1085,7 +1102,9 @@ test("spot search loads one exact pool and joins only its admitted current Raven
   await expect(page.locator("#terminalInstrumentImage")).toHaveAttribute("src", "https://assets.geckoterminal.com/token-fixture.png");
   await page.locator('[data-terminal-pane-button="raven"]').click();
   await expect(page.locator("#terminalContextSection")).toBeVisible();
+  await openMarketInfo(page);
   await expect(page.locator("#terminalReadTrigger")).toBeVisible();
+  await page.locator("#deskMarketInfo > summary").click();
   await expect(page.locator("#terminalReadHeadline")).toHaveText("JUP · Reacceleration");
   await expect(page.locator("#terminalReadSummary")).toContainText("volume, buyers, and active traders expanded");
   await expect(page.locator("#terminalWhy")).toContainText("20m before broader attention");
@@ -1149,6 +1168,8 @@ test("spot search loads one exact pool and joins only its admitted current Raven
   await expect(page.locator("#terminalProfileChips")).not.toContainText("Developer holds");
   await expect(page.locator("#terminalProfileCredit")).toHaveText("Data provided by CoinGecko");
   await expect(page.locator(".terminal-pane-nav")).toBeVisible();
+  if (await page.locator("#terminalProjectLinksPopover").isVisible()) await page.locator("#terminalProjectLinksClose").click();
+  await openMarketInfo(page);
   await expect(page.locator("#terminalMarketTools")).toBeVisible();
   await expect(page.locator("#terminalQuickAddress")).toHaveText("fixtur…ddress");
   await expect(page.locator("#terminalQuickAddress")).toHaveAttribute("title", "fixture-token-address");
@@ -1162,6 +1183,7 @@ test("spot search loads one exact pool and joins only its admitted current Raven
   await expect(page.locator('[data-terminal-pane-button="raven"]')).toBeEnabled();
   await page.locator('[data-terminal-pane-button="holders"]').click();
   await expect(page.locator("#terminalAnatomySection")).toBeFocused();
+  await openMarketInfo(page);
   const projectTrigger = page.locator("#terminalProjectLinksTrigger");
   await expect(projectTrigger).toBeVisible();
   await expect(projectTrigger).toHaveText("Links & CA");
@@ -1207,7 +1229,7 @@ test("spot search loads one exact pool and joins only its admitted current Raven
   expect(anatomyFacts.join(" ")).not.toMatch(/Unavailable|Not projected/i);
   await expect(page.locator("#terminalAnatomySection")).not.toContainText("Review unavailable");
   await expect(page.locator("#terminalFingerprint")).toHaveText("solana:fixture-pair-address:fixture-token-address:fixture-quote-address");
-  await page.locator("#terminalSourceDetail > summary").click();
+  await clickMarketInfoControl(page, "#terminalSourceDetail > summary");
   await expect(page.locator("#terminalSourceProvider")).toHaveText("DexPaprika");
   await expect(page.locator("#terminalSourceInterval")).toContainText("Direct 1h bars");
   await expect(page.locator("#terminalSourceContinuity")).toContainText(/Verified/i);
@@ -1252,7 +1274,7 @@ test("project links fail closed on a mismatched profile while exact-CA actions r
   await mockTerminalLiveApis(page, { profileIdentityMismatch: true });
   await page.goto("/terminal/?instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&token_address=fixture-token-address&quote_address=fixture-quote-address");
   await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1h" });
-  await page.locator("#terminalProjectLinksTrigger").click();
+  await clickMarketInfoControl(page, "#terminalProjectLinksTrigger");
   await expect(page.locator("#terminalProjectLinksPopover")).toBeVisible();
   await expect(page.locator("#terminalProfileLinks a")).toHaveCount(0);
   await expect(page.locator("#terminalProjectLinksEmpty")).toBeVisible();
@@ -1260,6 +1282,8 @@ test("project links fail closed on a mismatched profile while exact-CA actions r
   await expect(page.locator("#terminalProjectAddress")).toHaveText("fixture-token-address");
   await expect(page.locator("#terminalProjectSearchX")).toHaveAttribute("href", /q=fixture-token-address/);
   await expect(page.locator("#terminalProjectCredit")).toBeHidden();
+  if (await page.locator("#terminalProjectLinksPopover").isVisible()) await page.locator("#terminalProjectLinksClose").click();
+  await openMarketInfo(page);
   await expect(page.locator("#terminalMarketTools")).toBeVisible();
   await expect(page.locator("#terminalQuickLinks a")).toHaveCount(0);
   await expect(page.locator("#terminalQuickAddress")).toHaveText("fixtur…ddress");
@@ -1274,6 +1298,7 @@ test("token research menu routes exact-market checks without making users hunt t
 
   const popover = page.locator("#terminalProjectLinksPopover");
   const trigger = page.locator("#terminalProjectLinksTrigger");
+  await openMarketInfo(page);
   await trigger.click();
   await expect(page.locator("#terminalProjectRiskState")).not.toHaveText("");
   await expect(page.locator("#terminalProjectHolderState")).toHaveText(/View list|owners/);
@@ -1286,6 +1311,7 @@ test("token research menu routes exact-market checks without making users hunt t
   await expect(page.locator("#terminalActiveTraders")).toBeVisible();
   expect(new URL(page.url()).searchParams.get("activity_view")).toBe("wallets");
 
+  await openMarketInfo(page);
   await trigger.click();
   await expect(page.locator("#terminalProjectWalletState")).toHaveText("3 wallets");
   await page.locator('[data-project-research-action="holders"]').click();
@@ -1294,12 +1320,14 @@ test("token research menu routes exact-market checks without making users hunt t
   await expect(page.locator("#terminalHolderList")).toHaveAttribute("open", "");
   await expect(page.locator("#terminalHolderListRows .terminal-holder-row")).toHaveCount(2);
 
+  await openMarketInfo(page);
   await trigger.click();
   await expect(page.locator("#terminalProjectHolderState")).toContainText("owners");
   await page.locator('[data-project-research-action="risk"]').click();
   await expect(popover).toBeHidden();
   await expect(page.locator("#terminalRiskScreen")).toBeVisible();
 
+  await openMarketInfo(page);
   await trigger.click();
   await page.locator('[data-project-research-action="raven"]').click();
   await expect(popover).toBeHidden();
@@ -1357,7 +1385,7 @@ test("free top-holder rows have a dedicated, readable 390px Terminal pane", asyn
   await expect(page.locator("#terminalHolderListRows .terminal-holder-row")).toHaveCount(50);
   await expect(page.locator("#terminalHolderCheck")).not.toContainText(/smart money|whale/i);
   await expect(page.locator("#terminalHolderCheck")).toContainText("Exact pool excluded");
-  await page.locator("#terminalProjectLinksTrigger").click();
+  await clickMarketInfoControl(page, "#terminalProjectLinksTrigger");
   await expect(page.locator("#terminalProjectLinksPopover")).toBeVisible();
   const documentOverflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   const holderOverflow = await page.locator("#terminalHolderList").evaluate((element) => element.scrollWidth - element.clientWidth);
@@ -1550,7 +1578,7 @@ test("desktop spot Terminal keeps the chart beside a focused trade dock without 
   await expect(page.locator("#terminalSpotRiskCompact")).toHaveText("Watch");
 
   const chartBounds = await chart.boundingBox();
-  const ticketBounds = await ticket.boundingBox();
+  const ticketBounds = await page.locator(".terminal-intelligence").boundingBox();
   const actionBounds = await page.locator("#terminalSpotQuoteAction").boundingBox();
   const chartRight = (chartBounds?.x || 0) + (chartBounds?.width || 0);
   const dockGap = (ticketBounds?.x || 0) - chartRight;
@@ -1563,7 +1591,7 @@ test("desktop spot Terminal keeps the chart beside a focused trade dock without 
   await page.locator('[data-terminal-pane-button="activity"]').click();
   await expect(chart).toBeVisible();
   await expect(page.locator("#terminalSpotActivitySection")).toBeVisible();
-  await expect(ticket).toBeHidden();
+  await expect(ticket).toBeVisible();
   await page.locator('[data-terminal-pane-button="holders"]').click();
   await expect(chart).toBeVisible();
   await expect(page.locator("#terminalAnatomySection")).toBeVisible();
@@ -1959,8 +1987,9 @@ test("Velocity launch opens the exact pool with an automatic Raven overlay and t
   await expect(page.locator("#terminalChartPlanStrip")).toBeVisible();
   await expect(page.locator("#terminalChartPlanSummary")).toHaveText("Entry + 3 TP + Risk");
   await expect(page.locator("#terminalChartRavenLayerCount")).toHaveText(/\d+ Raven layers active/);
-  await expect(page.locator("#terminalChart [data-rpw-read-cell]")).toBeVisible();
-  await expect(page.locator("#terminalChart [data-rpw-read-cell]")).toContainText(/Raven Read.*Trend ↑.*RSI/s);
+  await expect(page.locator("[data-rpw-read-cell]")).toBeHidden();
+  await expect(page.locator("#terminalAlphaStack")).toContainText("Chart setup");
+  await expect(page.locator("[data-rpw-read-cell]")).toContainText(/Raven Read.*Trend ↑.*RSI/s);
   await expect(page.locator("#terminalAlphaStack")).toContainText("TP strategy");
   await expect(page.locator("#terminalAlphaStack")).toContainText("Defensive de-risk");
   await expect(page.locator("#terminalAlphaStack")).toContainText("Token-wide activity · selected pool revalidated");
@@ -2045,7 +2074,7 @@ test("severe exact-market risk interrupts the chart and removes Raven action pro
   await expect(page.locator("#terminalAlphaSection")).toBeHidden();
   await expect(page.locator("#terminalPlanSection")).toBeHidden();
   await expect(page.locator("#terminalChartPlanStrip")).toBeHidden();
-  await expect(page.locator("#terminalChart [data-rpw-read-cell]")).toBeHidden();
+  await expect(page.locator("[data-rpw-read-cell]")).toBeHidden();
   await expect(page.locator("#terminalChart [data-rpw-marker-index]")).toBeHidden();
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.active_overlay_count)).toBe(0);
 
@@ -2074,7 +2103,7 @@ test("severe risk survives an early holder response and clears only for the next
   await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1h" });
 
   await expect(page.locator("#terminalRiskInterrupt")).toBeVisible();
-  await expect(page.locator("#terminalChart [data-rpw-read-cell]")).toBeHidden();
+  await expect(page.locator("[data-rpw-read-cell]")).toBeHidden();
   await expect(page.locator("#terminalChart .rpw")).toHaveClass(/rpw-read-suppressed/);
   await expect(page.locator("#terminalChart [data-rpw-marker-index]")).toBeHidden();
 
@@ -2238,6 +2267,7 @@ test("Raven research levels load into the ticket only after an explicit user act
   await page.goto("/terminal/");
   await waitForTerminalLive(page, { instrument: "SOL-PERP" });
   await expect(page.locator("#terminalPreviewPrice")).toHaveValue("");
+  await page.locator('[data-terminal-pane-button="raven"]').click();
   await page.locator("#terminalPlanLoad").click();
   await expect(page.getByRole("button", { name: "Limit", exact: true })).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator("#terminalPreviewPrice")).toHaveValue("148");
@@ -2459,7 +2489,7 @@ test("market evidence stays compact, readable and consistent across desktop and 
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.screenshot({ path: testInfo.outputPath(`terminal-polish-${name}.png`), fullPage: true });
   }
-  await page.locator("#terminalMarketEvidence summary").click();
+  await clickMarketInfoControl(page, "#terminalMarketEvidence summary");
   await expect(page.locator("#terminalEvidenceValuation")).toContainText("supply has not been reverified");
   await page.clock.install();
   await page.clock.fastForward(301000);

@@ -1,3 +1,4 @@
+import { createTerminalDesk } from "./ravenos-terminal-desk.js";
 import { ravenOSContext, savedMonitorHandoffHref } from "./ravenos-context-store.js";
 import {
   RAVENOS_CHART_TIMEFRAMES,
@@ -11,6 +12,9 @@ import { mountTradingViewChart } from "./ravenos-tradingview-adapter.js";
 import { requestLegalAcceptance } from "./ravenos-legal-client.js";
 
 document.body.classList.add("ros-terminal-live-shell");
+
+let terminalDesk = null;
+let exactPoolLookupSequence = 0;
 
 const TIMEFRAMES = new Set(RAVENOS_CHART_TIMEFRAMES);
 const SAVED_INDICATORS = new Set(["ema20", "ema50", "vwap", "bb20", "rsi14", "macd"]);
@@ -860,6 +864,7 @@ function setTerminalPane(pane = "chart", { restoreScroll = true, focusId = "" } 
   const mobile = terminalUsesPaneNavigation();
   if (mobile && previous !== next) state.paneScrollPositions[previous] = Math.max(0, window.scrollY || 0);
   if (root) root.dataset.terminalPane = next;
+  terminalDesk?.pane(next);
   for (const button of document.querySelectorAll("[data-terminal-pane-button]")) {
     button.setAttribute("aria-pressed", String(button.dataset.terminalPaneButton === next));
   }
@@ -880,7 +885,7 @@ function setTerminalPane(pane = "chart", { restoreScroll = true, focusId = "" } 
     if (mobile && restoreScroll) {
       const fallback = document.querySelector(`[data-terminal-pane-button="${next}"]`)?.getBoundingClientRect?.().top + (window.scrollY || 0);
       const saved = state.paneScrollPositions[next];
-      const top = Number.isFinite(saved) ? saved : Number.isFinite(fallback) ? Math.max(0, fallback - 8) : 0;
+      const top = next === "chart" ? 0 : Number.isFinite(saved) ? saved : Number.isFinite(fallback) ? Math.max(0, fallback - 8) : 0;
       window.scrollTo({ top, behavior: "auto" });
     }
     if (focusId) document.getElementById(focusId)?.focus?.({ preventScroll: true });
@@ -980,6 +985,8 @@ function captureCurrentRavenOverlayTypes(nextTypes = null) {
 }
 
 function updateMonitorHandoff() {
+  const deskIdentity = currentProjectIdentity();
+  terminalDesk?.update(state.lane === "perps" ? { lane: "perps", asset: state.selected?.asset, label: state.selected?.asset } : state.lane === "equity" ? { lane: "equity", instrumentId: state.selected?.instrument_id || state.selected?.instrument?.instrument_id, asset: state.selected?.symbol || state.selected?.instrument?.symbol, label: state.selected?.symbol || state.selected?.instrument?.symbol } : deskIdentity ? { lane: "spot", chain: deskIdentity.chain, pool: deskIdentity.poolAddress, token: deskIdentity.tokenAddress, quote: deskIdentity.quoteAddress, label: deskIdentity.label } : null);
   const link = document.getElementById("terminalMonitorLink");
   if (!link) return;
   const subject = ravenOSContext.getState().subject;
@@ -5055,7 +5062,7 @@ function clearMarkerInspection() {
 function showFullMarkerEvidence() {
   if (!state.selectedMarker) return false;
   renderMarkerDetail(state.selectedMarker);
-  if (state.lane === "spot" || terminalUsesPaneNavigation()) setTerminalPane("raven", { restoreScroll: false });
+  setTerminalPane("raven", { restoreScroll: false });
   afterTerminalPaneVisible(() => {
     const detail = document.getElementById("terminalMarkerDetail");
     detail?.scrollIntoView?.({ block: "start", behavior: "smooth" });
@@ -5732,7 +5739,7 @@ function focusPlanPreview() {
     announceRavenAction("A current Raven plan is not available for this exact market.");
     return false;
   }
-  if (state.lane === "spot" || terminalUsesPaneNavigation()) setTerminalPane("raven", { restoreScroll: false });
+  setTerminalPane("raven", { restoreScroll: false });
   afterTerminalPaneVisible(() => {
     const section = document.getElementById("terminalPlanSection");
     section?.scrollIntoView?.({ block: "start", behavior: "smooth" });
@@ -5754,7 +5761,7 @@ function focusTerminalRaven() {
           ? document.getElementById("terminalRavenEmptySection")
           : null;
   if (!target) return false;
-  if (state.lane === "spot" || terminalUsesPaneNavigation()) setTerminalPane("raven", { restoreScroll: false });
+  setTerminalPane("raven", { restoreScroll: false });
   afterTerminalPaneVisible(() => {
     target.scrollIntoView?.({ block: "start", behavior: "smooth" });
     target.focus?.({ preventScroll: true });
@@ -8926,6 +8933,9 @@ async function renderExplicitSelectionUnavailable({ instrumentId = "", asset = "
 }
 
 async function loadExactPool(instrumentId, { updateUrl = false, tokenAddress = "", quoteAddress = "" } = {}) {
+  const lookupSequence = ++exactPoolLookupSequence;
+  const selectionGeneration = state.selectionGeneration;
+  const lookupCurrent = () => lookupSequence === exactPoolLookupSequence && selectionGeneration === state.selectionGeneration;
   const identity = parsePoolIdentity(instrumentId);
   if (!identity || !exactPoolRequestIdentityValid(identity, { tokenAddress, quoteAddress })) {
     await renderExplicitSelectionUnavailable({ instrumentId, lane: "spot", reason: "The requested exact-pool identity is malformed." });
@@ -8938,6 +8948,7 @@ async function loadExactPool(instrumentId, { updateUrl = false, tokenAddress = "
     });
     if (tokenAddress) pairParams.set("tokenAddress", tokenAddress);
     const { response, payload } = await fetchJson(`/api/dexscreener/pair?${pairParams.toString()}`);
+    if (!lookupCurrent()) return;
     const rows = response.ok && Array.isArray(payload?.results) ? payload.results : [];
     const row = rows.find((item) => String(item.pairAddress || "").toLowerCase() === identity.pairAddress.toLowerCase()
       && String(item.chainId || "").toLowerCase() === identity.chainId.toLowerCase());
@@ -8955,6 +8966,7 @@ async function loadExactPool(instrumentId, { updateUrl = false, tokenAddress = "
     setLane("spot", { updateUrl: false, selectDefault: false });
     await selectSpot(row, { updateUrl });
   } catch {
+    if (!lookupCurrent()) return;
     await renderExplicitSelectionUnavailable({ instrumentId, lane: "spot", reason: "Exact-pool lookup is currently unavailable." });
   }
 }
@@ -9341,6 +9353,26 @@ async function loadBuildIdentity() {
 }
 
 async function boot() {
+  terminalDesk = createTerminalDesk({
+    inspectPane: pane => inspectTerminalPane(pane),
+    resizeChart: () => state.workspace?.chartHandle?.resize?.(),
+    openMarket: async market => {
+      if (market.lane === "perps") {
+        if (!state.markets.some(row => row.asset === market.asset)) await loadMarkets();
+        if (!state.markets.some(row => row.asset === market.asset)) throw new Error("market_unavailable");
+        setLane("perps", { selectDefault: false });
+        await selectPerp(market.asset);
+      } else if (market.lane === "equity") {
+        const generation = state.selectionGeneration;
+        const resolved = await resolveListedSelection({ instrumentId: market.instrumentId, asset: market.asset });
+        if (generation !== state.selectionGeneration) return;
+        if (!resolved.row) throw new Error("market_unavailable");
+        await selectAtlasInstrument(resolved.row);
+      } else {
+        await loadExactPool(`${market.chain}:pool:${market.pool}`, { updateUrl: true, tokenAddress: market.token, quoteAddress: market.quote });
+      }
+    },
+  });
   renderChainCoverage();
   const params = new URLSearchParams(location.search);
   const copyReview = requestedCopyReview(params);
@@ -9376,6 +9408,7 @@ async function boot() {
     },
   });
   if (!state.workspace) throw new Error("chart_runtime_unavailable");
+  terminalDesk?.attachChart(state.workspace);
   bindControls();
   setMarketPreviewSide("long");
   setOrderPlanType("market", { seed: false });

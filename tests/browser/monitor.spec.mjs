@@ -255,6 +255,7 @@ test("unwatch, individual deletion, and delete-all are explicit customer control
 
 test("Terminal exposes an explicit exact-market Raven Monitor handoff", async ({ page }) => {
   await page.goto("/terminal/?asset=SOL-PERP&instrument_id=hyperliquid%3Aperp%3ASOL&instrument_type=perpetual&asset_class=crypto&identity_scope=exact_instrument&chain=hyperliquid&venue=hyperliquid&market=perp&timeframe=4h", { waitUntil: "domcontentloaded" });
+  await page.locator("#deskMarketInfo > summary").click();
   const link = page.locator("#terminalMonitorLink");
   await expect(link).toBeVisible({ timeout: 15_000 });
   const href = new URL(await link.getAttribute("href"));
@@ -269,6 +270,7 @@ test("Terminal exposes an explicit exact-market Raven Monitor handoff", async ({
 
 test("Terminal handoff and restore preserve an explicitly empty indicator set", async ({ page }) => {
   await page.goto("/terminal/?asset=SOL-PERP&instrument_id=hyperliquid%3Aperp%3ASOL&instrument_type=perpetual&asset_class=crypto&identity_scope=exact_instrument&chain=hyperliquid&venue=hyperliquid&market=perp&timeframe=4h&indicators=", { waitUntil: "domcontentloaded" });
+  await page.locator("#deskMarketInfo > summary").click();
   const link = page.locator("#terminalMonitorLink");
   await expect(link).toBeVisible({ timeout: 15_000 });
   await expect(page.locator("#terminalChart [data-rpw-indicator-count]")).toHaveText("0");

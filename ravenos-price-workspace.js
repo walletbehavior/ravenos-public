@@ -864,10 +864,17 @@ export class PriceWorkspace {
     this.paintTrades();
   }
 
+  setReadHost(host) {
+    const cell = this.readCell || this.container.querySelector("[data-rpw-read-cell]");
+    if (!host || !cell) return;
+    this.readCell = cell;
+    host.append(cell);
+  }
+
   paintChartRead() {
-    const cell = this.container.querySelector("[data-rpw-read-cell]");
-    const value = this.container.querySelector("[data-rpw-read]");
-    const detail = this.container.querySelector("[data-rpw-read-detail]");
+    const cell = this.readCell || this.container.querySelector("[data-rpw-read-cell]");
+    const value = cell?.querySelector("[data-rpw-read]");
+    const detail = cell?.querySelector("[data-rpw-read-detail]");
     if (!cell || !value || !detail) return null;
     const technicalAnalysis = this.renderInput?.showRavenAnnotations === false
       ? null
@@ -2003,6 +2010,8 @@ export class PriceWorkspace {
     if (this._overlayKeyHandler) document.removeEventListener("keydown", this._overlayKeyHandler);
     if (this._visibilityHandler) document.removeEventListener("visibilitychange", this._visibilityHandler);
     this.destroyChart();
+    this.readCell?.remove();
+    this.readCell = null;
     this.container.replaceChildren();
   }
 }

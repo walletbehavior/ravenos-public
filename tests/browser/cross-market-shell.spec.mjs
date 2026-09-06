@@ -2213,6 +2213,7 @@ test("Terminal loads exact ETF candles and Atlas context without inventing Raven
   await page.goto("/terminal/?asset=SPY&instrument_id=etf%3Anyse-arca%3Aspy&instrument_type=etf&asset_class=etf&market=equities");
   await expect(page.locator("#terminalInstrument")).toHaveText("SPY");
   await expect(page.locator("#terminalPickerMeta")).toHaveText("etf:nyse-arca:spy");
+  await expect(page.locator(".desk-market-row[data-active='true']")).toContainText("SPY");
   await expect(page.locator("#terminalVenueLabel")).toHaveText("NYSE Arca");
   await expect(page.locator("#terminalWhyLabel")).toHaveText("Why it matters");
   await expect(page.locator("#terminalWhy")).toContainText("Options are balanced");
@@ -2756,6 +2757,7 @@ test("a pasted message resolves the exact BNB token and opens its provider-backe
   await expect(page.locator("#terminalCapabilityLabel")).toContainText(/Spot · GMEB pair · \d+ chart candles · trading coming later/);
   await expect(page.locator("#terminalChart canvas").first()).toBeVisible();
 
+  await page.locator("#deskMarketInfo > summary").click();
   await page.locator("#terminalChainCoverage > summary").click();
   const coverage = page.locator("#terminalChainCoverageGrid");
   await expect(coverage.locator("article")).toHaveCount(12);
