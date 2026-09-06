@@ -1,3 +1,4 @@
+import { enhanceDesk } from "./ravenos-desk-tools.js";
 // Presentation preferences contain public market identities only, never account or order state.
 export const DESK_STORAGE_KEY = "ravenos.terminal.desk.v1";
 const EVM = /^0x[0-9a-f]{40}$/i;
@@ -38,7 +39,7 @@ export function createTerminalDesk({ openMarket, inspectPane, resizeChart }) {
   let stored;
   try { stored = JSON.parse(localStorage.getItem(DESK_STORAGE_KEY)); } catch { /* Unavailable storage uses session defaults. */ }
   const prefs = deskPreferences(stored);
-  let active = null, pending = false, lastRender = "";
+  let active = null, pending = false, lastRender = "", tools = null;
   root.classList.add("terminal-desk");
   root.dataset.deskDock = prefs.layout === "analysis" ? "raven" : "trade";
   root.dataset.deskData = "none";
@@ -103,15 +104,19 @@ export function createTerminalDesk({ openMarket, inspectPane, resizeChart }) {
     requestAnimationFrame(() => resizeChart?.());
   }
   function render() {
-    const signature = JSON.stringify([prefs.markets, prefs.pinned, active?.key, pending]);
+    const signature = JSON.stringify([prefs.markets, prefs.pinned, active?.key, pending, tools?.signature()]);
     if (signature === lastRender) return;
     lastRender = signature;
     const rows = document.getElementById("deskMarketRows");
+    const focusedKey = document.activeElement?.closest(".desk-market-row")?.dataset.key;
+    const focusedPin = document.activeElement?.classList.contains("desk-market-pin");
     rows.replaceChildren();
-    const ordered = [...prefs.markets].sort((a, b) => Number(prefs.pinned.includes(b.key)) - Number(prefs.pinned.includes(a.key)));
+    const sorted = [...prefs.markets].sort((a, b) => Number(prefs.pinned.includes(b.key)) - Number(prefs.pinned.includes(a.key)));
+    const ordered = tools?.ordered(sorted) || sorted;
     for (const market of ordered) {
       const row = document.createElement("div");
       row.className = "desk-market-row";
+      row.dataset.key = market.key;
       row.dataset.active = String(market.key === active?.key);
       const button = document.createElement("button");
       button.type = "button";
@@ -136,14 +141,15 @@ export function createTerminalDesk({ openMarket, inspectPane, resizeChart }) {
       pin.setAttribute("aria-label", `${pinned ? "Unpin" : "Pin"} ${market.label}`);
       pin.setAttribute("aria-pressed", String(pinned));
       pin.addEventListener("click", () => { prefs.pinned = pinned ? prefs.pinned.filter(key => key !== market.key) : [...prefs.pinned, market.key].slice(-20); save(); render(); });
-      row.append(button, pin); rows.append(row);
+      row.append(button, pin); tools?.decorate(row, market); rows.append(row);
     }
-    if (!ordered.length) rows.textContent = "Markets you open appear here.";
+    if (focusedKey) [...rows.children].find(row => row.dataset.key === focusedKey)?.querySelector(focusedPin ? ".desk-market-pin" : ".desk-market-open")?.focus();
+    if (!ordered.length) rows.textContent = "No markets in this list. Search a market or add the selected market using Manage lists.";
   }
   toolbar.querySelector("#deskMarketsToggle").addEventListener("click", () => { prefs.rail = !prefs.rail; save(); apply(); });
   toolbar.querySelector("#deskLayout").addEventListener("change", event => { prefs.layout = event.target.value; save(); apply(); if (prefs.layout === "analysis") inspectPane("raven"); });
   document.getElementById("deskAddMarket").addEventListener("click", () => window.RavenOSShell?.openCommandPalette?.());
-  document.getElementById("deskClearMarkets").addEventListener("click", () => { prefs.markets = prefs.markets.filter(row => prefs.pinned.includes(row.key) || row.key === active?.key); save(); render(); });
+  document.getElementById("deskClearMarkets").addEventListener("click", () => { prefs.markets = prefs.markets.filter(row => prefs.pinned.includes(row.key) || row.key === active?.key || tools?.retains(row.key)); save(); render(); });
   for (const button of root.querySelectorAll("[data-desk-tab], [data-desk-action]")) button.addEventListener("click", () => inspectPane(button.dataset.deskTab || button.dataset.deskAction));
   document.addEventListener("pointerdown", event => { const disclosure = document.getElementById("deskMarketInfo"); if (!disclosure.contains(event.target) && !document.getElementById("terminalProjectLinksPopover")?.contains(event.target)) disclosure.open = false; });
   document.addEventListener("keydown", event => {
@@ -175,6 +181,7 @@ export function createTerminalDesk({ openMarket, inspectPane, resizeChart }) {
     const next = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1 : (index + (event.key === "ArrowDown" ? 1 : -1) + buttons.length) % buttons.length;
     event.preventDefault(); buttons[next]?.focus();
   });
+  tools = enhanceDesk({root,toolbar,rail,dock,prefs,save,apply,render,openMarket,inspectPane});
   if (narrow.matches) prefs.rail = false;
   apply(); render();
   return {
@@ -183,6 +190,7 @@ export function createTerminalDesk({ openMarket, inspectPane, resizeChart }) {
       host.className = "desk-chart-read-host";
       dockNav.after(host);
       workspace.setReadHost(host);
+      tools.attach(workspace);
       host.querySelector(".rpw-quick-read")?.classList.add("desk-chart-read");
     },
     update(input) {
@@ -190,9 +198,10 @@ export function createTerminalDesk({ openMarket, inspectPane, resizeChart }) {
       active = market;
       if (market && prefs.markets[0]?.key !== market.key) {
         const others = prefs.markets.filter(row => row.key !== market.key);
-        prefs.markets = [market, ...others.filter(row => prefs.pinned.includes(row.key)), ...others.filter(row => !prefs.pinned.includes(row.key))].slice(0, 20);
+        prefs.markets = [market, ...others.filter(row => prefs.pinned.includes(row.key) || tools?.retains(row.key)), ...others.filter(row => !prefs.pinned.includes(row.key) && !tools?.retains(row.key))].slice(0, 20);
         save();
       }
+      tools.update(market);
       for (const button of dockNav.querySelectorAll("button")) {
         button.hidden = root.querySelector(`[data-terminal-pane-button="${button.dataset.deskTab}"]`)?.hidden === true;
       }

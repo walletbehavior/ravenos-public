@@ -558,13 +558,13 @@ export class PriceWorkspace {
     this.renderInput = {};
     this.state = {
       schemaVersion: RAVENOS_PRICE_WORKSPACE_SCHEMA,
-      state: PRICE_WORKSPACE_STATES.DATA_UNAVAILABLE,
+      state: options.initialLoading ? PRICE_WORKSPACE_STATES.LOADING : PRICE_WORKSPACE_STATES.DATA_UNAVAILABLE,
       source: "",
       observedAt: null,
       marketIdentity: "",
       timeframe: options.timeframe || "1h",
       candles: [],
-      message: "Select a supported market.",
+      message: options.initialLoading ? "Loading your selected market." : "Select a supported market.",
       lineage: null,
       instrument: null,
       capabilities: {},
@@ -630,7 +630,7 @@ export class PriceWorkspace {
   publishConnectionState() {
     this.paintState();
     this.options.onStateChange?.({ ...this.state });
-    document.dispatchEvent(new CustomEvent("ravenos:priceworkspace", { detail: { ...this.state } }));
+    if (this.options.broadcastEvents !== false) document.dispatchEvent(new CustomEvent("ravenos:priceworkspace", { detail: { ...this.state } }));
   }
 
   bindTimeframes() {
@@ -811,7 +811,7 @@ export class PriceWorkspace {
     this.setTimeframe(this.state.timeframe);
     this.paintState();
     this.options.onStateChange?.({ ...this.state });
-    document.dispatchEvent(new CustomEvent("ravenos:priceworkspace", { detail: { ...this.state } }));
+    if (this.options.broadcastEvents !== false) document.dispatchEvent(new CustomEvent("ravenos:priceworkspace", { detail: { ...this.state } }));
     return this.state;
   }
 
@@ -917,7 +917,7 @@ export class PriceWorkspace {
     if (fingerprint !== this.lastChartReadFingerprint) {
       this.lastChartReadFingerprint = fingerprint;
       this.options.onChartReadChange?.(read);
-      document.dispatchEvent(new CustomEvent("ravenos:chartread", { detail: read }));
+      if (this.options.broadcastEvents !== false) document.dispatchEvent(new CustomEvent("ravenos:chartread", { detail: read }));
     }
     return read;
   }
@@ -1363,7 +1363,7 @@ export class PriceWorkspace {
         };
         this.render(this.renderInput);
       }
-      document.dispatchEvent(new CustomEvent("ravenos:chartenrichment", { detail: { ...this.state } }));
+      if (this.options.broadcastEvents !== false) document.dispatchEvent(new CustomEvent("ravenos:chartenrichment", { detail: { ...this.state } }));
       return true;
     } catch {
       if (sequence === this.requestSequence) this.setState({ enrichmentState: "unavailable" });
@@ -1487,7 +1487,7 @@ export class PriceWorkspace {
       const geometry = this.chartHandle?.measure?.() || null;
       if (!geometry) return;
       this.state.chartGeometry = geometry;
-      window.__RAVENOS_CHART_GEOMETRY__ = {
+      if (this.options.broadcastEvents !== false) window.__RAVENOS_CHART_GEOMETRY__ = {
         instrument_id: this.state.instrument?.canonical_id || null,
         timeframe: this.state.timeframe,
         ...geometry,
@@ -1595,7 +1595,7 @@ export class PriceWorkspace {
       this.render(this.renderInput);
       this.paintWindowAnalytics(this.chartHandle?.visibleLogicalRange?.() || this.visibleRange);
       this.publishGeometry?.();
-      document.dispatchEvent(new CustomEvent("ravenos:chartbackfill", { detail: { instrumentId: this.state.instrument?.canonical_id, added: candles.length } }));
+      if (this.options.broadcastEvents !== false) document.dispatchEvent(new CustomEvent("ravenos:chartbackfill", { detail: { instrumentId: this.state.instrument?.canonical_id, added: candles.length } }));
       return candles.length;
     } finally {
       this.backfillPending = false;
@@ -1658,7 +1658,7 @@ export class PriceWorkspace {
       this.acceptProviderTransition(payload);
       for (const candle of normalizeCandles(payload.candles)) this.applyCandle(candle);
       this.state.marketState = { ...this.state.marketState, ...(payload.market_state || {}) };
-      document.dispatchEvent(new CustomEvent("ravenos:chartresync", { detail: { instrumentId: this.state.instrument?.canonical_id, state: "completed" } }));
+      if (this.options.broadcastEvents !== false) document.dispatchEvent(new CustomEvent("ravenos:chartresync", { detail: { instrumentId: this.state.instrument?.canonical_id, state: "completed" } }));
     } catch {
       this.state.connectionState = "degraded";
       this.paintState();
@@ -1873,7 +1873,7 @@ export class PriceWorkspace {
     this.state.marketActivityState = "active";
     this.schedulePaint();
     if (currentAdvanced) {
-      document.dispatchEvent(new CustomEvent("ravenos:charttape", {
+      if (this.options.broadcastEvents !== false) document.dispatchEvent(new CustomEvent("ravenos:charttape", {
         detail: {
           instrument_id: instrumentId,
           market_identity: this.state.marketIdentity,
@@ -1940,9 +1940,9 @@ export class PriceWorkspace {
     if (event.type === "gap.detected") this.state.connectionState = "reconnecting";
     this.state.observedAt = event.observed_at || new Date().toISOString();
     this.schedulePaint();
-    document.dispatchEvent(new CustomEvent("ravenos:chartevent", { detail: event }));
+    if (this.options.broadcastEvents !== false) document.dispatchEvent(new CustomEvent("ravenos:chartevent", { detail: event }));
     if (["price.update", "orderbook.snapshot"].includes(event.type)) {
-      document.dispatchEvent(new CustomEvent("ravenos:chartmarket", {
+      if (this.options.broadcastEvents !== false) document.dispatchEvent(new CustomEvent("ravenos:chartmarket", {
         detail: {
           instrument: this.state.instrument,
           marketState: { ...this.state.marketState },

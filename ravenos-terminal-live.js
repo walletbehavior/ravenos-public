@@ -9394,6 +9394,7 @@ async function boot() {
     timeframe: state.timeframe,
     indicators: [...new Set(String(params.has("indicators") ? params.get("indicators") : "ema20").split(",").map((value) => value.trim()).filter((value) => SAVED_INDICATORS.has(value)))],
     tradeLimit: 60,
+    initialLoading: true,
     onTimeframeChange: (timeframe) => {
       if (!TIMEFRAMES.has(timeframe)) return;
       document.getElementById("timeframeSelect").value = timeframe;
@@ -9585,6 +9586,7 @@ const marketEvidenceTimer = setInterval(() => {
 window.addEventListener("pagehide", () => clearInterval(marketEvidenceTimer), { once: true });
 
 boot().catch((error) => {
+  state.workspace?.showUnavailable({ message: "Market connection failed. Reload the desk to try again.", source: "Market connection unavailable" });
   setState("terminalMarketFreshness", "unavailable", "Unavailable");
   setState("terminalContextFreshness", "unavailable", "Unavailable");
   setText("terminalChartStatus", "The verified market path could not be established. No substitute data is shown.");
