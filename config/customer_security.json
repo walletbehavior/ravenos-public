@@ -22,9 +22,9 @@
     "robinhood_uses_existing_fallback": true
   },
   "pro_rewards_release": {
-    "stage": "accounting_and_ui_deployed_activation_pending",
-    "trials_enabled": false,
-    "cashback_enabled": false,
+    "stage": "no_card_trial_and_cashback_accrual_live",
+    "trials_enabled": true,
+    "cashback_enabled": true,
     "claims_enabled": false,
     "auto_apply_enabled": false,
     "subscription_credit_enabled": false,
@@ -33,8 +33,9 @@
     "affiliate_commissions_enabled": false,
     "affiliate_public_profile_cta_enabled": false,
     "affiliate_payouts_enabled": false,
-    "existing_user_trial_policy": "disabled",
-    "activation_requirements": ["effective_legal_terms", "verified_stripe_price_and_webhook", "funded_verified_reward_claim_service"]
+    "existing_user_trial_policy": "opt_in",
+    "trial_eligibility_start_at": "2026-09-07T00:08:07Z",
+    "remaining_financial_activation_requirements": ["effective_legal_terms", "verified_stripe_price_and_webhook", "funded_verified_reward_claim_service"]
   },
   "active_capabilities": [
     "account_creation",

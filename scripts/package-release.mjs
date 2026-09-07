@@ -48,6 +48,10 @@ const heliusHistoryActive = walletIntelligenceActive && customerSecurity.wallet_
 const alchemyHistoryActive = evmWalletLookupActive && customerSecurity.wallet_history_providers?.alchemy_release_enabled === true;
 const productRelease = customerSecurity.pro_rewards_release || {};
 const productFlag = (key) => productRelease[key] === true ? "1" : "0";
+const trialEligibilityStart = Math.floor(Date.parse(productRelease.trial_eligibility_start_at || "") / 1000);
+if (productRelease.trials_enabled && (!Number.isSafeInteger(trialEligibilityStart) || trialEligibilityStart <= 0)) {
+  throw new Error("Trial activation requires a deterministic account-creation eligibility cutoff");
+}
 const privyJwksBootstrapActive = customerSecurity.privy_wallets?.public_jwks_bootstrap_release_enabled === true;
 const privyEvmWalletCanaryActive = privyJwksBootstrapActive
   && customerSecurity.privy_wallets?.dashboard_jwt_configuration_saved === true
@@ -191,6 +195,7 @@ const releaseWrangler = {
     RAVENOS_PRO_CASHBACK_SUBSCRIPTION_CREDIT_ENABLED: productFlag("subscription_credit_enabled"),
     RAVENOS_PRO_ACCOUNT_BILLING_ENABLED: productFlag("billing_enabled"),
     RAVENOS_PRO_TRIAL_EXISTING_USERS: productRelease.existing_user_trial_policy === "opt_in" ? "opt_in" : "disabled",
+    RAVENOS_PRO_TRIAL_ELIGIBILITY_START_AT: String(Number.isSafeInteger(trialEligibilityStart) ? trialEligibilityStart : 0),
     RAVENOS_AFFILIATE_ENROLLMENT_ENABLED: productFlag("affiliate_enrollment_enabled"),
     RAVENOS_AFFILIATE_COMMISSIONS_ENABLED: productFlag("affiliate_commissions_enabled"),
     RAVENOS_AFFILIATE_PUBLIC_PROFILE_CTA_ENABLED: productFlag("affiliate_public_profile_cta_enabled"),

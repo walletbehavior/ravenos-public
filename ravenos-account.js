@@ -1435,6 +1435,7 @@ async function loadProductRewards() {
     }));
     if (!invoices.childElementCount) { const item = document.createElement("li"); item.textContent = "No Pro invoices yet."; invoices.append(item); }
     if (!flags.cashback && available === 0n) setText("accountRewardsStatus", "Rewards are not enabled yet. Your Raven login and existing features are unchanged.");
+    else if (flags.cashback && !rewards.claims_ready && (!flags.subscription_credit || !flags.billing)) setText("accountRewardsStatus", "Cashback accrual is live. Claims, subscription credits, and paid Pro checkout are not open yet. Your trial ends without an automatic charge.");
   } catch { /* Account login and wallet access never depend on rewards. */ }
 }
 function updateClaimNetwork() {

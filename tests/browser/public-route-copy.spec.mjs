@@ -241,7 +241,8 @@ test("plans page presents the no-card trial and routes chosen Pro billing throug
   await expect(page.locator('[data-plan="desk"]')).toContainText("$499");
   await expect(page.locator('[data-plan="enterprise"]')).toContainText("Custom");
   await expect(page.getByRole("link", { name: "Open Standard" })).toHaveAttribute("href", "/discover/");
-  await expect(page.getByRole("link", { name: "Explore Pro access" })).toHaveAttribute("href", "https://app.ravenos.xyz/account/");
+  await expect(page.getByRole("link", { name: "Start free Pro trial" })).toHaveAttribute("href", "https://app.ravenos.xyz/account/");
+  await expect(page.getByText("Free trial live for eligible accounts. No automatic charge.")).toBeVisible();
   await expect(page.locator(".ros-activity-strip")).toHaveCount(0);
   await expect(page.locator("[data-stripe-checkout], [data-stripe-portal]")).toHaveCount(0);
   const text = await visibleBodyText(page);

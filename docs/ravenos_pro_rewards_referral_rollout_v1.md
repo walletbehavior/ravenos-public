@@ -6,7 +6,7 @@ The September 2026 release ships the finished application and accounting work wi
 
 `lib/customer_product.mjs` defines 100 bps for Standard, paid Pro and trial Pro, 30% Pro cashback, $149 monthly Pro, a 30-day no-card trial and zero additional Copy surcharge. The final customer decision keeps cashback based on the confirmed customer Raven fee before provider retention. On a $1,000 Jupiter trade, a $10 customer fee, $2 provider share and $3 Pro cashback leave $5 Raven net execution revenue. Provider share, collector receipt and customer fee are separate evidence fields. Hyperliquid is excluded.
 
-Eligible verified new accounts receive a deterministic local trial when trial activation is enabled. No Stripe customer, card or automatic charge is created merely by trial start or expiry. Identity history prevents repeat trials; existing-user eligibility defaults off with an explicit opt-in migration policy available. Multiple verified identities remain an unresolved abuse vector. Voluntary Stripe conversion preserves the remaining trial except inside the documented final 48-hour checkout guard.
+Eligible verified new accounts receive a deterministic local trial when trial activation is enabled. No Stripe customer, card or automatic charge is created merely by trial start or expiry. Identity history prevents repeat trials; existing accounts are eligible only through an explicit one-time opt-in. The immutable release cutoff is 2026-09-07 00:08:07 UTC: subsequent accounts can retry trial creation on login after a temporary rewards outage, using the original account creation date. Earlier users are never silently backfilled. Multiple verified identities remain an unresolved abuse vector. Voluntary Stripe conversion preserves the remaining trial except inside the documented final 48-hour checkout guard.
 
 Rewards use integer micro-USDC, floor rounding, immutable execution entitlement snapshots and an append-only ledger. Only matched confirmed fee receipts earn available cashback. Quotes remain estimates; failed, mismatched or unreconciled fees cannot become available. Gross customer fee, provider costs, collector receipt, reward liability and net execution revenue are traceable. Reversals append adjustments; spent rewards produce a visible outstanding adjustment. Rewards do not expire or disappear with membership changes.
 
@@ -19,10 +19,10 @@ Referrals extend the existing stable codes and immutable account attribution. Th
 ## Release boundaries
 
 - Wallet drill-through, search, holdings/history, Copy review handoff and emerging-market discovery are released. Advanced intelligence remains Pro-gated. Automatic live Copy is not enabled; EVM history does not complete a persistent multichain wallet screener.
-- Account rewards/referral surfaces and financial services are deployed behind explicit flags. Trials, cashback activation, claims, subscription credits, new billing, affiliate enrollment/commissions and public referral CTAs remain off in this release.
-- The light landing welcome appears only when trials are enabled. Pricing explicitly states that trial/rewards activation is pending.
+- The 30-day no-card trial and confirmed-fee cashback accrual are enabled. Claims, subscription credits, auto-apply, new billing, affiliate enrollment/commissions and public referral CTAs remain disabled. Existing trading execution controls are unchanged; enabling accrual does not enable execution or fabricate earned rewards.
+- The light landing welcome advertises the live no-card trial. Pricing and Account disclose that claims, subscription credits and paid checkout are not open yet. No payment method is needed for signup or trial opt-in.
 - Existing login, Privy ownership boundaries, external wallet review, Hyperliquid behavior and existing execution canary gates are preserved. This release does not authorize or broadcast trades, claims or affiliate payments.
-- Legal versions remain review candidates. Enablement requires exact effective legal records and the existing legal activation controls, not merely published draft pages.
+- Legal versions remain review candidates. Paid subscription, claim and affiliate activation retain the existing effective-document controls. Trial activation does not assert counsel approval or alter the legal-assent rollout state.
 
 ## Database and operations
 

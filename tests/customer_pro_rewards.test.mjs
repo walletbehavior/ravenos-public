@@ -5,6 +5,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { trialEligibility, resolveProductAccess, ensureProTrial, readProductAccess, expireProTrials } from "../lib/customer_pro.mjs";
 import { cashbackMicros, publicProductPolicy } from "../lib/customer_product.mjs";
 import { feePolicyFor } from "../lib/customer_trade/fee_policy.mjs";
+import { routeCustomerIdentity } from "../lib/customer_identity.mjs";
 
 const NOW = 1788739200;
 const USER = "usr_" + "a".repeat(32);
@@ -57,6 +58,71 @@ test("existing users require the configured opt-in policy and prior paid users c
   assert.equal(trialEligibility({ verified: true, existing_policy: "opt_in", explicit_request: true }).eligible, true);
   assert.equal(trialEligibility({ verified: true, account_created: true, paid_history: true }).eligible, false);
   assert.equal(trialEligibility({ verified: true, account_created: true, security_hold: true }).status, "ABUSE_BLOCKED");
+});
+
+test("managed signup persists a trial with real account SQL while billing is unavailable", async () => {
+  const db = sqliteStore();
+  const origin = "https://app.ravenos.xyz";
+  const env = {
+    RAVENOS_CUSTOMER_ACCOUNTS_ENABLE: "1", RAVENOS_AUTH_ORIGIN: origin,
+    RAVENOS_AUTH_REDIRECT_URI: `${origin}/api/v1/auth/callback`,
+    WORKOS_CLIENT_ID: "client_test_ravenos", WORKOS_API_KEY: "sk_test_not_returned",
+    RAVENOS_AUTH_HASH_PEPPER: "test-identity-pepper-for-rewards", RAVENOS_CUSTOMER_DB: db,
+    RAVENOS_PRO_FREE_TRIAL_ENABLED: "1", RAVENOS_PRO_ACCOUNT_BILLING_ENABLED: "0",
+    RAVENOS_PRO_TRIAL_ELIGIBILITY_START_AT: String(NOW),
+    RAVENOS_PRO_TRIAL_EXISTING_USERS: "opt_in",
+  };
+  const calls = [];
+  const fetchImpl = async (url) => {
+    calls.push(String(url));
+    assert.equal(String(url), "https://api.workos.com/user_management/authenticate");
+    return Response.json({ user: { id: "user_signup_trial", email: "signup@example.test", email_verified: true }, authentication_method: "GoogleOAuth" });
+  };
+  async function signIn(intent, now) {
+    const start = await routeCustomerIdentity(new Request(`${origin}/api/v1/auth/start`, {
+      method: "POST", headers: { origin, "sec-fetch-site": "same-origin", "content-type": "application/json", "cf-connecting-ip": "203.0.113.4" },
+      body: JSON.stringify({ provider: "google", intent, return_to: "/account/" }),
+    }), env, { nowMs: now * 1000 });
+    assert.equal(start.status, 200);
+    const location = new URL((await start.json()).authorization_url);
+    const cookie = start.headers.get("set-cookie").match(/__Host-ravenos_auth_state=([^;,]+)/)[1];
+    const result = await routeCustomerIdentity(new Request(`${origin}/api/v1/auth/callback?code=test_code&state=${location.searchParams.get("state")}`, {
+      headers: { cookie: `__Host-ravenos_auth_state=${cookie}` },
+    }), env, { nowMs: (now + 1) * 1000, fetchImpl });
+    assert.equal(result.status, 303);
+    assert.match(result.headers.get("set-cookie"), /__Host-ravenos_session=/);
+  }
+  await signIn("sign_up", NOW);
+  const account = db.raw.prepare("SELECT user_id, created_at FROM ravenos_users").get();
+  const trial = db.raw.prepare("SELECT * FROM ravenos_pro_trials").get();
+  assert.equal(trial.user_id, account.user_id);
+  assert.equal(trial.trial_started_at, account.created_at);
+  assert.equal(trial.trial_ends_at, account.created_at + 30 * 86400);
+  assert.equal((await readProductAccess(db, account.user_id, { now: NOW + 2 })).state, "PRO_TRIAL_ACTIVE");
+  await signIn("sign_in", NOW + 60);
+  assert.equal(db.raw.prepare("SELECT COUNT(*) AS n FROM ravenos_pro_trials").get().n, 1);
+  assert.equal(db.raw.prepare("SELECT COUNT(*) AS n FROM ravenos_pro_subscriptions").get().n, 0);
+  await expireProTrials(db, trial.trial_ends_at);
+  assert.equal((await readProductAccess(db, account.user_id, { now: trial.trial_ends_at })).state, "STANDARD");
+  assert.equal(calls.length, 2);
+  db.raw.close();
+});
+
+test("activation cutoff retries a new account trial without silently enrolling existing accounts", async () => {
+  const db = sqliteStore(); user(db);
+  const env = { RAVENOS_PRO_FREE_TRIAL_ENABLED: "1", RAVENOS_AUTH_HASH_PEPPER: "test-identity-pepper-for-rewards", RAVENOS_CUSTOMER_DB: db,
+    RAVENOS_PRO_TRIAL_ELIGIBILITY_START_AT: String(NOW), RAVENOS_PRO_TRIAL_EXISTING_USERS: "opt_in" };
+  const existing = { user_id: USER, created: false, state: "active", user_created_at: NOW - 1 };
+  await ensureProTrial(env, existing, identity, { now: NOW + 1 });
+  assert.equal(db.raw.prepare("SELECT COUNT(*) AS n FROM ravenos_pro_trials").get().n, 0);
+  const access = await ensureProTrial(env, existing, identity, { now: NOW + 2, explicit_request: true });
+  assert.equal(access.state, "PRO_TRIAL_ACTIVE");
+  assert.equal(access.trial.trial_started_at, NOW + 2);
+  const newId = "usr_" + "c".repeat(32); user(db, newId);
+  const recovered = await ensureProTrial(env, { ...existing, user_id: newId, user_created_at: NOW }, { ...identity, provider_subject: "user_recovered", email: "recovered@example.test" }, { now: NOW + 100 });
+  assert.equal(recovered.state, "PRO_TRIAL_ACTIVE");
+  assert.equal(recovered.trial.trial_started_at, NOW);
+  db.raw.close();
 });
 
 test("native Standard and Pro fees are 100 bps, with a separate rebate and no Copy surcharge", () => {
