@@ -163,6 +163,7 @@ const state = {
   spotQuoteRefreshTimer: null,
   spotQuoteAbortController: null,
   spotQuoteStatus: "idle",
+  spotQuoteFailure: null,
   spotQuoteExpiresAt: 0,
   spotQuoteFingerprint: "",
   spotQuoteFollow: false,
@@ -1640,11 +1641,11 @@ function renderSpotLiveExecution() {
     return;
   }
   if (!currentSpotLiveReady()) {
-    setText("terminalSpotLiveState", "Review first");
+    setText("terminalSpotLiveState", state.spotQuoteFailure?.title || "Review first");
     action.hidden = false;
-    action.textContent = "Review current route";
+    action.textContent = state.spotQuoteFailure ? "Check again" : "Review current route";
     action.dataset.liveAction = "review";
-    setText("terminalSpotLiveMessage", state.spotTicketSide === "buy" ? `A current ${accountingSymbol} exit proof is required.` : "Refresh the exact sell route.");
+    setText("terminalSpotLiveMessage", state.spotQuoteFailure?.message || (state.spotTicketSide === "buy" ? `Review the buy and current return route to ${accountingSymbol}.` : "Refresh the exact sell route."));
     updateSpotExecutionRail({ quoted: spotQuoteStillCurrent(), exitVerified: false });
     return;
   }
@@ -6626,6 +6627,7 @@ function clearSpotQuoteResult(message = "Select a size and review a current rout
   state.spotQuoteAbortController = null;
   state.spotQuote = null;
   state.spotQuoteStatus = "idle";
+  state.spotQuoteFailure = null;
   state.spotQuoteExpiresAt = 0;
   state.spotQuoteFingerprint = "";
   state.spotLiveTicket = null;
@@ -7145,11 +7147,11 @@ function spotQuoteReason(reason) {
     amount_below_minimum: "Increase the amount before requesting a route.",
     amount_above_maximum: "Reduce the amount before requesting a route.",
     sell_balance_required: "Connect a wallet for percentage sizing or enter an exact token amount.",
-    insufficient_balance: "That percentage or amount exceeds the current exact-token balance.",
+    insufficient_balance: "This wallet has insufficient funds for the selected amount. Nothing was sent.",
     selected_mint_unavailable: "Token decimals could not be verified from the configured Solana RPC.",
     native_source_valuation_unavailable: "SOL entry value could not be verified against USDC. No partial route was shown.",
     jito_not_available: "Jito routing is not available in quote/review mode.",
-    allowance_required: "This asset needs a separate 0x allowance first. No approval was created automatically.",
+    allowance_required: "The spending token needs wallet approval before this trade can be prepared. No approval or trade was sent.",
     robinhood_stock_token_trading_restricted: "Stock-token trading is unavailable in this terminal.",
     robinhood_native_sell_settlement_not_supported: "RH sells currently settle to USDG.",
     robinhood_chain_switch_failed: "Open Robinhood Chain in your wallet and try again.",
@@ -7169,6 +7171,24 @@ function spotQuoteReason(reason) {
     robinhood_live_execution_disabled: "Robinhood Chain trading is temporarily off.",
   };
   return messages[String(reason || "")] || "A current exact route is unavailable. Nothing was prepared.";
+}
+
+// A failed wallet preparation is not evidence that the reverse market has no route.
+function spotQuoteFailureSummary(payload) {
+  const blockers = Array.isArray(payload?.details?.blockers) ? payload.details.blockers : [];
+  const reason = blockers.includes("insufficient_balance") ? "insufficient_balance" : String(payload?.unavailable_reason || payload?.error || "");
+  const walletBlock = new Set(["insufficient_balance", "insufficient_native_gas_balance", "allowance_required"]).has(reason);
+  const exitFailure = new Set(["evm_exit_quote_unresolved", "robinhood_exit_quote_unresolved", "live_exit_proof_required"]).has(reason);
+  const title = reason === "insufficient_balance" ? "Insufficient funds" : reason === "insufficient_native_gas_balance" ? "Gas required" : reason === "allowance_required" ? "Approval required" : "Review incomplete";
+  const message = walletBlock
+    ? `${spotQuoteReason(reason)} The exit check has not completed; this does not mean there is no sell route.`
+    : exitFailure ? `Raven could not verify a current return route to ${spotAccountingSymbol()}. Nothing was sent.` : spotQuoteReason(reason);
+  return {
+    title, message,
+    exit_state: exitFailure ? "unavailable" : "idle",
+    exit_label: exitFailure ? "Unverified" : walletBlock ? "Not checked" : "Check incomplete",
+    exit_note: walletBlock ? `${title} · review stopped` : "No current exit evidence",
+  };
 }
 
 function displayQuoteAmount(value, fallbackSymbol = "") {
@@ -7297,9 +7317,13 @@ function scheduleSpotQuoteExpiry(payload) {
 
 function renderSpotQuote(payload, clientRttMs, { snapshot, fingerprint } = {}) {
   if (!payload?.ok) {
-    clearSpotQuoteResult(spotQuoteReason(payload?.unavailable_reason || payload?.error), { invalidate: false });
-    setText("terminalSpotQuoteState", "Try again");
-    setSpotTicketExitSummary("unavailable", "Unavailable", "No stale route shown");
+    const failure = spotQuoteFailureSummary(payload);
+    clearSpotQuoteResult(failure.message, { invalidate: false });
+    state.spotQuoteFailure = failure;
+    state.spotQuoteStatus = "blocked";
+    setText("terminalSpotQuoteState", failure.title);
+    setSpotTicketExitSummary(failure.exit_state, failure.exit_label, failure.exit_note);
+    renderSpotLiveExecution();
     return;
   }
   if (!spotQuoteResponseMatches(payload, snapshot) || fingerprint !== spotTicketFingerprint()) {
@@ -7423,6 +7447,7 @@ async function requestSpotQuote({ automatic = false, expectedFingerprint = "" } 
   state.spotLiveProviderQuote = null;
   state.spotLiveResult = null;
   state.spotQuoteStatus = automatic ? "refreshing" : "quoting";
+  state.spotQuoteFailure = null;
   state.spotQuoteFingerprint = fingerprint;
   state.spotQuoteExpiresAt = 0;
   clearTimeout(state.spotQuoteExpiryTimer);

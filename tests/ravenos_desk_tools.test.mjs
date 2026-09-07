@@ -91,3 +91,13 @@ test("live canonical provider identities qualify only the selected market", () =
     false,
   );
 });
+
+test("selected chart prices are reused only with the same verified market identity", async () => {
+  const { quoteFromCurrentChart } = await import("../ravenos-desk-tools.js");
+  const market = { lane: "spot", chain: "base", pool: "0xpool", token: "0xtoken", quote: "0xquote", label: "TOKEN/USDC" };
+  const state = { state: "live", instrument: { instrument_type: "spot_pool", identity_scope: "exact_pool", chain: "base", pool_address: "0xpool", token_address: "0xtoken" }, marketIdentity: "base:pool:0xpool", candles: [{time:1,close:0.00000591,volume:4}], observedAt: "2026-09-07T03:00:00Z", source: "Exact pool chart" };
+  assert.equal(quoteFromCurrentChart(market, state)?.price, 0.00000591);
+  assert.equal(quoteFromCurrentChart({...market, token:"0xother"},state), null);
+  assert.equal(quoteFromCurrentChart(market,{...state,state:"loading"}),null);
+  assert.equal(quoteFromCurrentChart(market,{...state,state:"error"}),null);
+});
