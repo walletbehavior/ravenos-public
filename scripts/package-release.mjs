@@ -188,6 +188,7 @@ const releaseWrangler = {
     RAVENOS_WALLET_INTELLIGENCE_ENABLED: walletIntelligenceActive ? "1" : "0",
     RAVENOS_WALLET_COPY_ROUTES_ENABLED: walletIntelligenceActive ? "1" : "0",
     RAVENOS_WALLET_SCREENER_ENABLED: walletScreenerActive ? "1" : "0",
+    RAVENOS_WALLET_MARKET_EVIDENCE_ENABLED: walletScreenerActive && customerSecurity.wallet_copy?.retained_market_evidence_release_enabled === true ? "1" : "0",
     RAVENOS_WALLET_UNIVERSE_ENABLED: walletScreenerActive && baseWrangler.vars?.RAVENOS_WALLET_UNIVERSE_ENABLED === "1" ? "1" : "0",
     RAVENOS_WALLET_UNIVERSE_MARKETS_PER_CYCLE: String(baseWrangler.vars?.RAVENOS_WALLET_UNIVERSE_MARKETS_PER_CYCLE || "4"),
     RAVENOS_WALLET_UNIVERSE_REQUESTS_PER_HOUR: String(baseWrangler.vars?.RAVENOS_WALLET_UNIVERSE_REQUESTS_PER_HOUR || "48"),

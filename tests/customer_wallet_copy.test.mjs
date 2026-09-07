@@ -1083,3 +1083,31 @@ test("customer Copy API rejects underpriced policy before registering a watch", 
   assert.equal(response.status, 201);
   assert.equal((await json(response)).watch.policy.hypothetical_raven_fee_bps, 100);
 });
+
+test("observed view skips performance screening; analyzed view skips observations; neither loads providers", async () => {
+  const store=memoryStore();let screens=0,seen=0;
+  store.screenSourceWallets=async()=>{screens++;return {rows:[],total:0};};
+  store.listSeenWallets=async(query,options)=>{seen++;assert.equal(query.view,"observed");assert.equal(options.market_evidence_enabled,true);return {rows:[],total:0};};
+  const provider={async loadHistory(){throw Error("must not load history when browsing");}};
+  const activeEnv=env({RAVENOS_WALLET_SCREENER_ENABLED:"1",RAVENOS_WALLET_MARKET_EVIDENCE_ENABLED:"1"});
+  const observed=await routeCustomerWalletCopy(request("/api/v1/wallet-copy/screener",{method:"POST",body:{view:"observed",observed:{signal:"repeat_activity"}}}),activeEnv,deps(store,provider));
+  assert.equal(observed.status,200);assert.equal((await json(observed)).profile_screen_performed,false);assert.equal(screens,0);assert.equal(seen,1);
+  const analyzed=await routeCustomerWalletCopy(request("/api/v1/wallet-copy/screener",{method:"POST",body:{view:"analyzed"}}),activeEnv,deps(store,provider));
+  assert.equal(analyzed.status,200);assert.equal((await json(analyzed)).seen_wallets,null);assert.equal(screens,1);assert.equal(seen,1);
+});
+
+test("advanced observed activity is server-gated to Pro and disabled infrastructure does not silently ignore filters", async () => {
+  const store=memoryStore();let reads=0;store.listSeenWallets=async()=>{reads++;return {rows:[],total:0};};
+  const activeEnv=env({RAVENOS_WALLET_SCREENER_ENABLED:"1",RAVENOS_WALLET_MARKET_EVIDENCE_ENABLED:"1"});
+  for(const observed of [{signal:"two_sided"},{sort:"activity"},{signal:"multiple_markets"}]) {
+    const result=await routeCustomerWalletCopy(request("/api/v1/wallet-copy/screener",{method:"POST",body:{view:"observed",page_size:12,observed}}),activeEnv,deps(store,{},[]));
+    assert.equal(result.status,403);
+  }
+  assert.equal(reads,0);
+  const basic=await routeCustomerWalletCopy(request("/api/v1/wallet-copy/screener",{method:"POST",body:{view:"observed",page_size:12,observed:{history:"cached",active_within_hours:6}}}),activeEnv,deps(store,{},[]));
+  assert.equal(basic.status,200);assert.equal(reads,1);
+  const unavailable=await routeCustomerWalletCopy(request("/api/v1/wallet-copy/screener",{method:"POST",body:{view:"observed",observed:{signal:"two_sided"}}}),{...activeEnv,RAVENOS_WALLET_MARKET_EVIDENCE_ENABLED:"0"},deps(store,{}));
+  assert.equal(unavailable.status,503);assert.equal((await json(unavailable)).error,"wallet_market_evidence_disabled");assert.equal(reads,1);
+  const malformed=await routeCustomerWalletCopy(request("/api/v1/wallet-copy/screener",{method:"POST",body:{observed:{signal:"profit"}}}),activeEnv,deps(store,{}));
+  assert.equal(malformed.status,400);assert.equal((await json(malformed)).error,"wallet_screener_observation_invalid");
+});

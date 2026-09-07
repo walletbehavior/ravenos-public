@@ -76,14 +76,7 @@
             <div class="copy-wallet-query"><select id="copyWalletChain" aria-label="Wallet chain"><option value="solana">Solana</option><option value="robinhood">Robinhood</option><option value="bsc">BNB</option><option value="base">Base</option><option value="ethereum">Ethereum</option></select><input id="copyWalletAddress" name="address" inputmode="text" autocomplete="off" spellcheck="false" placeholder="7Kx…9qP" maxlength="44" required /><button type="submit">Analyze wallet</button></div>
             <p id="copySearchStatus" aria-live="polite">Choose wallet.</p>
           </form>
-          <aside class="copy-proof-card">
-            <span>Evidence stack</span>
-            <ol>
-              <li><strong>Reconstructable?</strong></li>
-              <li><strong>Repeatable?</strong></li>
-              <li><strong>Copyable?</strong></li>
-            </ol>
-          </aside>
+
         </div>
 
         <section class="copy-screener" id="copyScreener" hidden>
@@ -101,7 +94,7 @@
               <strong id="copyScreenerCount">Loading index</strong>
             </div>
           </header>
-          <p class="copy-index-coverage" id="copyScreenerCoverage">Browse multichain observations. Address lookup fills missing evidence.</p>
+          <p class="copy-index-coverage" id="copyScreenerCoverage">Stored multichain observations.</p>
           <div class="copy-universe-views copy-chain-rail" role="group" aria-label="Wallet evidence view">
             <button type="button" data-wallet-view="observed" aria-pressed="false">Observed wallets</button>
             <button type="button" data-wallet-view="analyzed" aria-pressed="false">Analyzed profiles</button>
@@ -175,7 +168,15 @@
           <div class="copy-screener-results" id="copyScreenerResults"></div>
           <section class="copy-seen-wallets" id="copySeenWallets" hidden>
             <header><h3>Seen by Raven</h3><strong id="copySeenCount"></strong></header>
-            <p>Browse stored public activity, then inspect a wallet for its history. Performance filters are in Analyzed profiles. Observations alone do not prove profitability or copyability.</p>
+            <p>Stored observations do not prove profitability or copyability.</p>
+            <form id="copyObservedFilters" class="copy-observed-filters" aria-label="Observed wallet filters">
+              <label><span>Seen within</span><select id="copyObservedActive"><option value="">Any retained time</option><option value="1">Last hour</option><option value="6">Last 6 hours</option><option value="24">Last 24 hours</option></select></label>
+              <label><span>History</span><select id="copyObservedHistory"><option value="any">Any history state</option><option value="cached">History cached</option><option value="not_analyzed">Not analyzed yet</option></select></label>
+              <label data-observed-advanced hidden><span>Pool activity · Pro</span><select id="copyObservedSignal"><option value="any">Any observed activity</option><option value="repeat_activity">3+ transactions in one pool</option><option value="multiple_markets">Seen in multiple pools</option><option value="two_sided">Both buys and sells</option></select></label>
+              <label data-observed-advanced hidden><span>Order by · Pro</span><select id="copyObservedSort"><option value="recent">Most recently seen</option><option value="activity">Busiest sampled pool</option><option value="markets">Most observed pools</option></select></label>
+              <div class="copy-observed-actions"><button type="submit">Filter wallets</button><button type="button" id="copyObservedReset">Reset</button></div>
+            </form>
+            <p id="copyObservedScope" hidden>24-hour pool samples; incomplete coverage, not wallet-wide volume or returns.</p>
             <div id="copySeenResults"></div>
           </section>
           <footer class="copy-screener-pages" id="copyScreenerPages" hidden><button type="button" id="copyScreenPrevious">← Previous</button><span id="copyScreenPage">Page 1</span><button type="button" id="copyScreenNext">Next →</button></footer>

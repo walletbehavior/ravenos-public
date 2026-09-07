@@ -521,7 +521,7 @@ function position() {
   };
 }
 
-async function install(page, shared, { authenticated = true, entitled = true } = {}) {
+async function install(page, shared, { authenticated = true, entitled = true, marketEvidence = false } = {}) {
   await page.route("**/api/v1/auth/session", (route) => route.fulfill({
     status: 200,
     contentType: "application/json",
@@ -541,7 +541,7 @@ async function install(page, shared, { authenticated = true, entitled = true } =
           state: "available",
           copy_product: { standard_execution_fee_bps: 100, pro_execution_fee_bps: 100, pro_cashback_percent: 30, copy_additional_fee_bps: 0 },
           access: { tier: entitled ? "pro" : "free", advanced_wallet_intelligence: entitled, basic_wallet_lookup: true, basic_wallet_screener: true, raven_copy_subscription_required: false },
-          activation: { wallet_intelligence: true, wallet_screener: true, shadow_copy: true, live_copy: false },
+          activation: { wallet_intelligence: true, wallet_screener: true, wallet_market_evidence: marketEvidence, shadow_copy: true, live_copy: false },
           execution_boundary: { signing: false, broadcasting: false, custody: false, live_copy: false, fee_collection: false },
         }),
       });
@@ -1116,4 +1116,64 @@ test("history status refresh reads the shared index without requesting fresh pro
   await expect(page.locator("#copyWalletAddress")).toHaveValue(WALLET);
   await page.getByRole("button", { name: "Start Raven Copy", exact: true }).click();
   await expect.poll(() => shared.requests.some(row => row.path.endsWith("/watches") && row.method === "POST")).toBe(true);
+});
+
+async function observedEvidenceFixture(page, queries) {
+  await page.route("**/api/v1/wallet-copy/screener", async route => {
+    const query=route.request().postDataJSON();queries.push(query);
+    const market={chain:"base",pool_address:`0x${"ab".repeat(20)}`,token_address:EVM_TOKEN,quote_token_address:`0x${"cd".repeat(20)}`,instrument_id:`base:pool:0x${"ab".repeat(20)}`};
+    await route.fulfill({status:200,contentType:"application/json",body:JSON.stringify({ok:true,rows:[],scope:{chain:query.chain},
+      pagination:{page:query.page,page_size:12,total_matching_rows:0,total_pages:0,maximum_page:1000},
+      index_coverage:{chains:[{chain:"base",seen_wallets:1540,indexed_wallets:12},{chain:"solana",seen_wallets:1270,indexed_wallets:2}]},
+      seen_wallets:{total:24,market_evidence_enabled:true,provider_request_performed:false,rows:[
+        {source_wallet_id:EVM_SOURCE_ID,source_wallet:{chain:"base",address:EVM_WALLET},history_available:true,last_observed_at:"2026-09-07T18:00:00Z",
+          market_evidence:{state:"available",observed_market_count:2,busiest_pool_transactions:8,two_sided_pool_observed:true,
+            samples:[{market,unique_transactions:8,buy_transactions:5,sell_transactions:3,largest_sampled_swap_usd_micros:"149123456",window:{last_observed_at:"2026-09-07T18:00:00Z"}}]}},
+        {source_wallet_id:SOURCE_ID,source_wallet:{chain:"solana",address:WALLET},history_available:false,last_observed_at:"2026-09-07T17:00:00Z",market_evidence:{state:"not_observed",samples:[]}}
+      ]}})});
+  });
+}
+
+test("observed-wallet context filters cached samples, links exact markets and stays contained on mobile", async ({page}) => {
+  const shared={watch:null,decision:null,position:null,requests:[]},queries=[];
+  await install(page,shared,{marketEvidence:true});await observedEvidenceFixture(page,queries);
+  await page.goto("/account/copy/?wallets=observed");
+  await expect(page.locator("#copyObservedSignal")).toBeVisible();
+  await expect(page.locator("#copySeenResults")).toContainText("Busiest pool · transactions");
+  await expect(page.locator("#copySeenResults")).toContainText("This does not mean the wallet was inactive.");
+  await page.locator("#copyScreenNext").click();await expect(page.locator("#copyScreenPage")).toHaveText("Page 2 of 2");
+  await page.getByLabel("Pool activity · Pro").selectOption("two_sided");
+  await page.getByLabel("Seen within").selectOption("24");
+  await page.getByRole("combobox",{name:"History",exact:true}).selectOption("cached");
+  await page.getByRole("button",{name:"Filter wallets",exact:true}).click();
+  await expect(page.locator("#copyScreenPage")).toHaveText("Page 1 of 2");
+  expect(queries.at(-1)).toMatchObject({view:"observed",page:1,observed:{signal:"two_sided",active_within_hours:24,history:"cached"}});
+  expect(queries.at(-1).filters).toBeUndefined();
+  expect(shared.requests.some(row=>row.path.endsWith("/inspect"))).toBe(false);
+  await page.reload();await expect(page.getByLabel("Pool activity · Pro")).toHaveValue("two_sided");
+  await page.getByText("Inspect pool samples",{exact:true}).click();
+  await expect(page.locator(".copy-observed-evidence")).toContainText("$149.12");
+  const href=await page.locator(".copy-observed-evidence a").getAttribute("href"),url=new URL(href,"https://ravenos.xyz");
+  expect(url.pathname).toBe("/terminal/");expect(url.searchParams.get("token_address")).toBe(EVM_TOKEN);
+  expect(url.searchParams.get("pair_address")).toBe(`0x${"ab".repeat(20)}`);expect(url.searchParams.get("chain")).toBe("base");
+  expect(url.searchParams.has("copy_review")).toBe(false);
+  await page.setViewportSize({width:1440,height:1000});await page.locator("#copySeenWallets").scrollIntoViewIfNeeded();
+  await captureVisual(page,"wallet-market-context-desktop");
+  await page.setViewportSize({width:390,height:844});await page.locator("#copySeenWallets").scrollIntoViewIfNeeded();
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)).toBe(false);
+  await captureVisual(page,"wallet-market-context-mobile");
+  await page.getByRole("button",{name:"Reset",exact:true}).last().click();
+  await expect(page.getByLabel("Pool activity · Pro")).toHaveValue("any");
+  expect(new URL(page.url()).searchParams.has("obs_signal")).toBe(false);
+});
+
+test("Standard can browse stored history states while advanced pool filters remain Pro-only", async ({page}) => {
+  const shared={watch:null,decision:null,position:null,requests:[]},queries=[];
+  await install(page,shared,{entitled:false,marketEvidence:true});await observedEvidenceFixture(page,queries);
+  await page.goto("/account/copy/?wallets=observed&obs_signal=two_sided&obs_sort=activity");
+  await expect(page.locator("#copySeenResults .copy-seen-wallet")).toHaveCount(2);
+  await expect(page.locator("#copyObservedSignal")).toBeHidden();await expect(page.locator("#copyObservedSort")).toBeHidden();
+  await expect(page.getByRole("combobox",{name:"History",exact:true})).toBeVisible();
+  expect(queries[0].observed).toMatchObject({signal:"any",sort:"recent"});
+  expect(shared.requests.some(row=>row.path.endsWith("/inspect"))).toBe(false);
 });

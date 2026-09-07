@@ -1189,7 +1189,19 @@ function positionCard(position) {
   return card;
 }
 
+function observedRequest() {
+  const advanced = state.access.advanced_wallet_intelligence && state.activation.wallet_market_evidence;
+  return { signal: advanced ? document.getElementById("copyObservedSignal").value : "any",
+    sort: advanced ? document.getElementById("copyObservedSort").value : "recent",
+    history: document.getElementById("copyObservedHistory").value,
+    active_within_hours: document.getElementById("copyObservedActive").value ? Number(document.getElementById("copyObservedActive").value) : null };
+}
+
 function screenerRequest() {
+  if (state.screener.view === "observed") return {
+    view: "observed", observed: observedRequest(), chain: state.screener.chain, network: "mainnet",
+    page: state.screener.page, page_size: 12,
+  };
   const optionalNumber = (id) => {
     const value = document.getElementById(id).value;
     return value === "" ? null : Number(value);
@@ -1227,6 +1239,8 @@ function screenerRequest() {
   if (mechanical) clauses.push({ field: "mechanical_pattern_state", operator: "eq", value: mechanical });
   return {
     chain: state.screener.chain,
+    view: state.screener.view || "combined",
+    observed: state.screener.view === "analyzed" ? {} : observedRequest(),
     network: "mainnet",
     filters: {
       active_within_hours: optionalNumber("copyScreenActive"),
@@ -1251,6 +1265,10 @@ function syncScreenerUrl() {
   const fields = {
     chain: state.screener.chain === "all" ? null : state.screener.chain,
     wallets: state.screener.view,
+    obs_signal: document.getElementById("copyObservedSignal").value,
+    obs_history: document.getElementById("copyObservedHistory").value,
+    obs_active: document.getElementById("copyObservedActive").value,
+    obs_sort: document.getElementById("copyObservedSort").value,
     screen: state.screener.preset,
     active: document.getElementById("copyScreenActive").value,
     trades: document.getElementById("copyScreenTrades").value,
@@ -1283,7 +1301,7 @@ function syncScreenerUrl() {
   };
   document.querySelectorAll("[data-discovery-key]").forEach((input) => { fields[`df_${input.dataset.discoveryKey}`] = input.value; });
   for (const [key, value] of Object.entries(fields)) {
-    if (value === null || value === undefined || value === "" || (key === "evidence" && value === "any") || (key === "sort" && value === "last_trade_desc")) url.searchParams.delete(key);
+    if (value === null || value === undefined || value === "" || (key.startsWith("obs_") && ["any", "recent"].includes(value)) || (key === "evidence" && value === "any") || (key === "sort" && value === "last_trade_desc")) url.searchParams.delete(key);
     else url.searchParams.set(key, String(value).slice(0, 64));
   }
   history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
@@ -1294,6 +1312,13 @@ function hydrateScreenerFromUrl() {
   const view = params.get("wallets");
   if (["observed", "analyzed"].includes(view)) state.screener.view = view;
   else if (params.has("screen") || params.has("sort") || [...params.keys()].some(key => key.startsWith("df_"))) state.screener.view = "analyzed";
+  for (const [key, id] of Object.entries({obs_signal:"copyObservedSignal",obs_history:"copyObservedHistory",obs_active:"copyObservedActive",obs_sort:"copyObservedSort"})) {
+    const value = params.get(key), input = document.getElementById(id);
+    if (value !== null && [...input.options].some(option => option.value === value)) {
+      if (["obs_signal", "obs_sort"].includes(key) && !(state.access.advanced_wallet_intelligence && state.activation.wallet_market_evidence)) continue;
+      input.value = value; state.screener.view ??= "observed";
+    }
+  }
   const chain = params.get("chain");
   if (new Set(["all", "solana", "robinhood", "base", "ethereum", "bsc"]).has(chain)) state.screener.chain = chain;
   if (state.access.advanced_wallet_intelligence) document.querySelectorAll("[data-discovery-key]").forEach((input) => { input.value = (params.get(`df_${input.dataset.discoveryKey}`) || "").slice(0, 64); });
@@ -1597,6 +1622,55 @@ function screenerCard(wallet) {
   return card;
 }
 
+function sampledUsd(micros) {
+  if (!/^\d{1,19}$/.test(String(micros || ""))) return "USD mark unavailable";
+  const units = BigInt(micros), cents = (units % 1000000n / 10000n).toString().padStart(2, "0");
+  return "$" + (units / 1000000n).toLocaleString("en-US") + "." + cents;
+}
+
+function seenWalletCard(wallet) {
+  const card = document.createElement("article"); card.className = "copy-seen-wallet";
+  const identity = document.createElement("div"), address = document.createElement("strong"), detail = document.createElement("p");
+  address.textContent = `${shortAddress(wallet.source_wallet.address)} · ${chainLabel(wallet.source_wallet.chain)}`;
+  address.title = wallet.source_wallet.address;
+  detail.textContent = `Observed ${when(wallet.last_observed_at)} · ${wallet.history_available ? "bounded history cached" : "history not analyzed"}`;
+  identity.append(address, detail);
+  const inspect = document.createElement("button"); inspect.type = "button"; inspect.textContent = "Inspect wallet";
+  inspect.addEventListener("click", async () => {
+    setInspectChain(wallet.source_wallet.chain, { announce: false });
+    await inspectWalletAddress(wallet.source_wallet.address, inspect);
+    if (!profileNode.hidden) profileNode.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+  card.append(identity, inspect);
+  const evidence = wallet.market_evidence;
+  if (evidence?.state === "available") {
+    const facts = document.createElement("dl"); facts.className = "copy-observed-facts";
+    facts.append(fact("Pools seen · 24h", evidence.observed_market_count), fact("Busiest pool · transactions", evidence.busiest_pool_transactions),
+      fact("Buy + sell in same pool", evidence.two_sided_pool_observed ? "Observed" : "Not in sample"));
+    const details = document.createElement("details"), summary = document.createElement("summary");
+    details.className = "copy-observed-evidence"; summary.textContent = "Inspect pool samples"; details.append(summary);
+    for (const sample of (evidence.samples || []).slice(0, 3)) {
+      const row = document.createElement("div"), link = document.createElement("a"), description = document.createElement("p");
+      const market = sample.market || {}, url = new URL("/terminal/", location.origin);
+      for (const [key, value] of Object.entries({chain:market.chain,market:"spot",instrument_type:"exact_pool",instrument_scope:"exact_pool",
+        instrument_id:market.instrument_id,pair_address:market.pool_address,token_address:market.token_address,quote_address:market.quote_token_address,panel:"txns"})) {
+        if (typeof value === "string") url.searchParams.set(key, value);
+      }
+      link.href = url.pathname + url.search; link.textContent = `Pool ${shortAddress(market.pool_address)} →`;
+      description.textContent = `${sample.unique_transactions} transactions · ${sample.buy_transactions} buy / ${sample.sell_transactions} sell · largest sampled swap ${sampledUsd(sample.largest_sampled_swap_usd_micros)} · ${when(sample.window?.last_observed_at)}`;
+      row.append(link, description); details.append(row);
+    }
+    const note = document.createElement("p");
+    note.textContent = `Latest ${Math.min(3, evidence.samples?.length || 0)} of ${evidence.observed_market_count} observed pools. Multi-pool activity is not summed into wallet volume. A transaction can contain both a buy and a sell.`;
+    details.append(note); card.append(facts, details);
+  } else if (evidence) {
+    const note = document.createElement("p"); note.className = "copy-observed-missing";
+    note.textContent = "No retained pool-trade sample from the last 24 hours. This does not mean the wallet was inactive.";
+    card.append(note);
+  }
+  return card;
+}
+
 function renderScreener(payload) {
   const wallets = Array.isArray(payload.rows) ? payload.rows : Array.isArray(payload.wallets) ? payload.wallets : Array.isArray(payload.results) ? payload.results : [];
   const seenWallets = payload.seen_wallets?.rows || [];
@@ -1640,26 +1714,11 @@ function renderScreener(payload) {
   const seenSection = document.getElementById("copySeenWallets");
   seenSection.hidden = !observed;
   setText("copySeenCount", `${seenTotal.toLocaleString()} observed`);
-  document.getElementById("copySeenResults").replaceChildren(...(seenWallets.length ? seenWallets.map((wallet) => {
-    const card = document.createElement("article");
-    card.className = "copy-seen-wallet";
-    const identity = document.createElement("div");
-    const address = document.createElement("strong");
-    address.textContent = `${shortAddress(wallet.source_wallet.address)} · ${chainLabel(wallet.source_wallet.chain)}`;
-    const detail = document.createElement("p");
-    detail.textContent = `Observed ${when(wallet.last_observed_at)} · ${wallet.history_available ? "bounded history cached" : "history not analyzed"}`;
-    identity.append(address, detail);
-    const inspect = document.createElement("button");
-    inspect.type = "button";
-    inspect.textContent = "Inspect wallet";
-    inspect.addEventListener("click", async () => {
-      setInspectChain(wallet.source_wallet.chain, { announce: false });
-      await inspectWalletAddress(wallet.source_wallet.address, inspect);
-      if (!profileNode.hidden) profileNode.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-    card.append(identity, inspect);
-    return card;
-  }) : [empty("No retained observations", "Choose another chain or inspect an address. Browsing does not start a wallet-history lookup.")]));
+  const marketEvidence = payload.seen_wallets?.market_evidence_enabled === true;
+  document.querySelectorAll("[data-observed-advanced]").forEach(node => { node.hidden = !(marketEvidence && state.access.advanced_wallet_intelligence); });
+  document.getElementById("copyObservedScope").hidden = !marketEvidence;
+  document.getElementById("copySeenResults").replaceChildren(...(seenWallets.length ? seenWallets.map(seenWalletCard)
+    : [empty("No retained observations match", "Adjust the observed-wallet filters, choose another chain or inspect an address. Browsing does not start a wallet-history lookup.")]));
   const pages = document.getElementById("copyScreenerPages");
   pages.hidden = state.screener.total_pages <= 1;
   setText("copyScreenPage", `Page ${state.screener.page} of ${Math.max(1, state.screener.total_pages)}`);
@@ -1906,6 +1965,12 @@ document.querySelectorAll("[data-wallet-view]").forEach(button => button.addEven
   syncScreenerUrl();
   await loadScreener();
 }));
+document.getElementById("copyObservedFilters").addEventListener("submit", async event => {
+  event.preventDefault(); state.screener.page = 1; state.screener.view = "observed"; syncScreenerUrl(); await loadScreener();
+});
+document.getElementById("copyObservedReset").addEventListener("click", async () => {
+  document.getElementById("copyObservedFilters").reset(); state.screener.page = 1; syncScreenerUrl(); await loadScreener();
+});
 document.getElementById("copyScreenerFilters").addEventListener("submit", async (event) => {
   event.preventDefault();
   state.screener.page = 1;

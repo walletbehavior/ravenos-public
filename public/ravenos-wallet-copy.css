@@ -500,3 +500,45 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .copy-index-coverage { padding-inline: 16px; color: var(--copy-muted); line-height: 1.5; }
 .copy-universe-views { grid-template-columns: repeat(2, minmax(0, 1fr)); width: auto; max-width: 440px; margin: 0 16px 12px; }
 .copy-universe-views button { height: auto; min-height: 44px; padding: 10px 12px; line-height: 1.3; }
+
+.copy-observed-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr)); gap: 12px; margin: 20px 0 12px; }
+.copy-observed-filters label { display: grid; gap: 6px; min-width: 0; color: var(--copy-muted); font-size: 12px; }
+.copy-observed-filters select { width: 100%; min-width: 0; height: auto; min-height: 44px; padding: 9px; border: 1px solid var(--copy-line); border-radius: 5px; background: var(--copy-panel, #101823); color: var(--copy-text); font-size: 13px; }
+.copy-observed-actions { display: flex; align-items: end; gap: 8px; }
+.copy-observed-actions button { height: auto; min-height: 44px; padding: 9px 12px; border: 1px solid var(--copy-line-strong); border-radius: 5px; background: transparent; color: var(--copy-text); font-size: 13px; cursor: pointer; }
+.copy-observed-actions button[type="submit"] { color: var(--copy-green); border-color: rgba(111, 218, 166, .45); background: rgba(111, 218, 166, .1); }
+.copy-observed-actions button:hover { border-color: var(--copy-green); }
+.copy-observed-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); flex: 0 0 100%; gap: 12px; margin: 0; }
+.copy-observed-facts dt { color: var(--copy-muted); font-size: 11px; line-height: 1.5; }
+.copy-observed-facts dd { margin: 4px 0 0; font-size: 14px; font-variant-numeric: tabular-nums; }
+.copy-observed-evidence, .copy-observed-missing { flex: 0 0 100%; min-width: 0; }
+.copy-observed-evidence summary { cursor: pointer; color: var(--copy-muted); font-size: 13px; padding: 10px 0; }
+.copy-observed-evidence > div { padding: 12px 0; border-top: 1px solid var(--copy-line); }
+.copy-observed-evidence a { display: inline-block; padding: 7px 0; color: var(--copy-green); font-size: 13px; }
+.copy-observed-evidence p { overflow-wrap: anywhere; }
+@media (max-width: 600px) {
+  .copy-observed-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .copy-observed-actions { grid-column: 1 / -1; }
+  .copy-observed-actions button { flex: 1; }
+  .copy-observed-facts { gap: 10px; }
+  .copy-observed-facts dd { font-size: 12px; }
+}
+
+/* Put the working wallet universe ahead of introductory chrome. */
+.copy-page[data-copy-state="active"] .copy-hero { min-height: 0; align-items: center; gap: 20px; padding-block: 20px; }
+.copy-page[data-copy-state="active"] .copy-hero h1 { font-size: clamp(30px, 3.4vw, 44px); line-height: 1.02; }
+.copy-page[data-copy-state="active"] .copy-mode-card { gap: 7px; padding: 12px 16px; box-shadow: none; }
+.copy-find-grid { grid-template-columns: minmax(0, 1fr); }
+.copy-wallet-search { grid-template-columns: minmax(170px, .3fr) minmax(0, 1fr); grid-template-areas: "label query" "status query"; gap: 6px 20px; padding: 18px 20px; }
+.copy-wallet-search > span { display: none; }
+.copy-wallet-search > label { grid-area: label; font-size: 20px; letter-spacing: -.02em; }
+.copy-wallet-search > .copy-wallet-query { grid-area: query; align-self: center; }
+.copy-wallet-search > p { grid-area: status; }
+.copy-wallet-search input, .copy-wallet-search select, .copy-wallet-search button { height: 46px; }
+@media (max-width: 600px) {
+  .copy-page[data-copy-state="active"] .copy-hero { gap: 14px; padding: 18px 14px; }
+  .copy-wallet-search { grid-template-columns: minmax(0, 1fr); grid-template-areas: "label" "query" "status"; padding: 14px; gap: 10px; }
+  .copy-wallet-search > .copy-wallet-query { grid-template-columns: 108px minmax(0, 1fr); gap: 6px; }
+  .copy-wallet-search .copy-wallet-query button { grid-column: 1 / -1; border-radius: 5px; }
+  .copy-wallet-search .copy-wallet-query input, .copy-wallet-search .copy-wallet-query select { border: 1px solid var(--copy-line-strong); border-radius: 5px; }
+}
