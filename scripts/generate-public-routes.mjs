@@ -169,6 +169,7 @@ for (const asset of [
   "ravenos-shell.js",
   "ravenos-legal-client.js",
   "ravenos-wallet-connect.js",
+  "ravenos-embedded-wallet-view.js",
   "ravenos-context-store.js",
   "ravenos-intelligence-contract.js",
   "ravenos-chart-data-plane.js",

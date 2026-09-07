@@ -104,14 +104,15 @@ export function createRavenPrivyWalletClient(options) {
     return token;
   }
 
-  async function providers() {
+  async function providers({ ecosystem = null } = {}) {
     if (!user) throw new Error("privy_user_required");
+    if (ecosystem !== null && !["evm", "solana"].includes(ecosystem)) throw new Error("privy_wallet_ecosystem_invalid");
     const entropy = getEntropyDetailsFromUser(user);
     const evmWallet = getUserEmbeddedEthereumWallet(user);
     const solanaWallet = getUserEmbeddedSolanaWallet(user);
     return {
-      evm: evmWallet ? await privy.embeddedWallet.getEthereumProvider({ wallet: evmWallet, ...entropy }) : null,
-      solana: solanaWallet ? await privy.embeddedWallet.getSolanaProvider(solanaWallet, entropy.entropyId, entropy.entropyIdVerifier) : null,
+      evm: ecosystem !== "solana" && evmWallet ? await privy.embeddedWallet.getEthereumProvider({ wallet: evmWallet, ...entropy }) : null,
+      solana: ecosystem !== "evm" && solanaWallet ? await privy.embeddedWallet.getSolanaProvider(solanaWallet, entropy?.entropyId, entropy?.entropyIdVerifier) : null,
     };
   }
 

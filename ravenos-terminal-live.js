@@ -1133,6 +1133,7 @@ function browserWalletProvider() {
 }
 
 function embeddedWalletManualSigningAvailable(provider = browserWalletProvider()) {
+  if (provider?.ravenWalletViewOnly === true) return false;
   return !ravenEmbeddedEvmProviders.has(provider)
     || state.privyWallet.config?.capabilities?.manual_signing === true;
 }
@@ -1179,9 +1180,9 @@ async function loadPrivyWalletFactory() {
   return state.privyWalletBundle;
 }
 
-async function loadPrivyWalletConfiguration() {
+async function loadPrivyWalletConfiguration({ refresh = false } = {}) {
   if (state.liveAuth?.authenticated !== true) return null;
-  if (state.privyWallet.config?.available === true) return state.privyWallet.config;
+  if (!refresh && state.privyWallet.config?.available === true) return state.privyWallet.config;
   try {
     const { response, payload } = await fetchJson("/api/v1/wallets/privy");
     if (!response.ok || payload?.available !== true) return null;
@@ -1194,9 +1195,18 @@ async function loadPrivyWalletConfiguration() {
 }
 
 async function connectRavenEmbeddedWallet(chainType = "evm") {
-  const cfg = await loadPrivyWalletConfiguration();
+  let phase = "session";
+  try {
+  const cfg = await loadPrivyWalletConfiguration({ refresh: true });
   const ecosystem = chainType === "solana" ? "solana" : "evm";
   if (!cfg?.capabilities?.[ecosystem]) throw new Error("privy_wallet_unavailable");
+  const existingWallet = cfg.wallets?.find(wallet => wallet.ecosystem === ecosystem);
+  if (existingWallet && cfg.capabilities.manual_signing !== true) {
+    const provider = createEmbeddedWalletView(existingWallet);
+    state.privyWallet.provider = provider;
+    if (ecosystem === "evm") ravenEmbeddedEvmProviders.add(provider);
+    return { provider, wallet: existingWallet };
+  }
   const csrf = String(state.liveAuth?.csrf_token || "");
   if (!csrf) throw new Error("recent_authentication_required");
   const factory = await loadPrivyWalletFactory();
@@ -1208,9 +1218,13 @@ async function connectRavenEmbeddedWallet(chainType = "evm") {
   if (!session.response.ok || !session.payload?.token) throw new Error(session.payload?.error || "privy_session_unavailable");
   const client = state.privyWallet.client || factory.create({ appId: cfg.app_id, clientId: cfg.client_id });
   state.privyWallet.client = client;
+  phase = "authenticate";
   await client.sync(session.payload.token);
+  phase = "create";
   const wallets = await client.provision({ evm: ecosystem === "evm", solana: ecosystem === "solana" });
+  phase = "verify";
   const identityToken = await client.identityToken();
+  phase = "link";
   const linked = await fetchJson("/api/v1/wallets/privy/link", {
     method: "POST",
     headers: {
@@ -1222,12 +1236,26 @@ async function connectRavenEmbeddedWallet(chainType = "evm") {
   });
   if (!linked.response.ok || linked.payload?.linked !== true) throw new Error(linked.payload?.error || "privy_link_failed");
   state.privyWallet.wallets = Array.isArray(linked.payload.wallets) ? linked.payload.wallets : [];
-  const providers = await client.providers();
+  if (cfg.capabilities.manual_signing !== true) {
+    const wallet = state.privyWallet.wallets.find(row => row.ecosystem === ecosystem);
+    const provider = createEmbeddedWalletView(wallet);
+    state.privyWallet.provider = provider;
+    if (ecosystem === "evm") ravenEmbeddedEvmProviders.add(provider);
+    return { provider, wallet };
+  }
+  phase = "open";
+  const providers = await client.providers({ ecosystem });
   const provider = ecosystem === "evm" ? providers.evm : providers.solana;
   if (!provider) throw new Error("privy_wallet_provider_unavailable");
   state.privyWallet.provider = provider;
   if (ecosystem === "evm") ravenEmbeddedEvmProviders.add(provider);
   return { provider, wallet: wallets?.[ecosystem] || state.privyWallet.wallets.find((row) => row.ecosystem === ecosystem) || null };
+  } catch (error) {
+    // Only an allowlisted phase leaves the connection flow. Never render provider error bodies or tokens.
+    const failure = new Error(`raven_wallet_${phase}_failed`);
+    failure.walletPhase = phase;
+    throw failure;
+  }
 }
 
 async function chooseExternalWallet(chainType = "evm") {
@@ -1261,6 +1289,10 @@ async function chooseExternalWallet(chainType = "evm") {
   const list = document.createElement("div");
   list.className = "terminal-wallet-choice-list";
   dialog.append(header, intro, list);
+  const connectionError = document.createElement("p");
+  connectionError.setAttribute("role", "alert");
+  connectionError.hidden = true;
+  dialog.insertBefore(connectionError, list);
   if (state.liveAuth?.authenticated !== true) {
     const signIn = document.createElement("a");
     signIn.className = "terminal-wallet-sign-in";
@@ -1289,14 +1321,26 @@ async function chooseExternalWallet(chainType = "evm") {
         onChoose: async () => {
           if (settled || row.disabled) return;
           row.disabled = true;
+          connectionError.hidden = true;
           row.querySelector(".terminal-wallet-choice-state").textContent = "Opening";
           try {
             const result = await connectRavenEmbeddedWallet(chainType);
             finish(result.provider);
             dialog.close();
-          } catch {
+          } catch (error) {
             row.disabled = false;
             row.querySelector(".terminal-wallet-choice-state").textContent = "Try again";
+            const detail = {
+              session: "Your wallet session could not start. Refresh Raven and try again.",
+              authenticate: "The wallet service could not verify your login. Sign in to Raven again and retry.",
+              create: "Your selected wallet could not be restored or created. Your existing wallets are preserved.",
+              verify: "Your wallet identity could not be verified. Retry without creating another wallet.",
+              link: "Raven could not reconnect your saved wallet. Retry; your wallet is still yours.",
+              open: "Your wallet is linked, but its connection could not open on this device. Retry once the wallet service is ready.",
+            }[error?.walletPhase] || "Wallet connection could not finish. Please retry.";
+            connectionError.textContent = detail;
+            connectionError.hidden = false;
+            connectionError.scrollIntoView({ block: "nearest" });
           }
         },
       });
@@ -9595,3 +9639,4 @@ boot().catch((error) => {
   window.RavenOSShell?.setCapabilities?.({ market: "Data unavailable", wallet: "No customer session", mode: "Read only", signing: "Sign off", broadcast: "Broadcast off", evidence: "Evidence unavailable" });
   window.__RAVENOS_TERMINAL_BOOT_ERROR__ = error instanceof Error ? error.message : "terminal_boot_failed";
 });
+import { createEmbeddedWalletView } from "./ravenos-embedded-wallet-view.js";
