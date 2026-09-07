@@ -204,6 +204,10 @@ const releaseWrangler = {
     RAVENOS_PRO_CASHBACK_AUTO_APPLY_ENABLED: productFlag("auto_apply_enabled"),
     RAVENOS_PRO_CASHBACK_SUBSCRIPTION_CREDIT_ENABLED: productFlag("subscription_credit_enabled"),
     RAVENOS_PRO_ACCOUNT_BILLING_ENABLED: productFlag("billing_enabled"),
+    ...(productRelease.stripe_infrastructure_ready === true ? {
+      RAVENOS_STRIPE_PRO_PRICE_ID: productRelease.stripe_monthly_price_id,
+      RAVENOS_STRIPE_PORTAL_CONFIGURATION_ID: productRelease.stripe_portal_configuration_id,
+    } : {}),
     RAVENOS_PRO_TRIAL_EXISTING_USERS: productRelease.existing_user_trial_policy === "opt_in" ? "opt_in" : "disabled",
     RAVENOS_PRO_TRIAL_ELIGIBILITY_START_AT: String(Number.isSafeInteger(trialEligibilityStart) ? trialEligibilityStart : 0),
     RAVENOS_AFFILIATE_ENROLLMENT_ENABLED: productFlag("affiliate_enrollment_enabled"),
@@ -259,6 +263,7 @@ const packageManifest = {
     "RAVENOS_SPOT_CHART_ORIGIN_TOKEN",
     chartProviderConfig.provider_secret_binding || "ONCHAIN_CHART_PROVIDER_SECRET",
     "JUPITER_API_KEY",
+    ...(productRelease.stripe_infrastructure_ready === true ? ["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"] : []),
     ...(heliusHistoryActive ? ["HELIUS_API_KEY"] : []),
     ...(alchemyHistoryActive ? ["ALCHEMY_BASE_RPC_URL", "ALCHEMY_ETH_RPC_URL", "ALCHEMY_BSC_RPC_URL"] : []),
     ...(publicHolderListsActive ? ["RAVENOS_PUBLIC_SOLANA_HOLDERS_RPC_URL"] : []),

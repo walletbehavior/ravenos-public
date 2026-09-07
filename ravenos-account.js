@@ -47,9 +47,56 @@ function renderPrivyWallets(wallets = []) {
     address.textContent = wallet.address;
     address.title = wallet.address;
     detail.textContent = "Embedded · user controlled";
-    row.append(label, address, detail);
+    const controls = document.createElement("div");
+    controls.className = "account-wallet-actions";
+    const copy = document.createElement("button");
+    copy.type = "button";
+    copy.textContent = "Copy address";
+    copy.addEventListener("click", async () => {
+      try { await navigator.clipboard.writeText(wallet.address); copy.textContent = "Address copied"; }
+      catch { copy.textContent = "Select the address to copy"; }
+    });
+    const exportButton = document.createElement("button");
+    exportButton.type = "button";
+    exportButton.textContent = "Secure export";
+    exportButton.addEventListener("click", () => exportPrivyWallet(wallet, exportButton));
+    const guide = document.createElement("details");
+    guide.className = "account-wallet-funding";
+    const summary = document.createElement("summary");
+    summary.textContent = "Funding this wallet";
+    const instructions = document.createElement("p");
+    instructions.textContent = wallet.ecosystem === "solana"
+      ? "Send SOL or canonical USDC on Solana to this address. Keep a little SOL for network fees. Choose Solana on the sending service and start with a small test transfer."
+      : "Use this address on the supported EVM network you choose. Balances stay on that network. Match the network and token on the sending service, keep its native token for gas, and start with a small test transfer.";
+    const bridging = document.createElement("p");
+    bridging.textContent = "The same address does not move funds between networks. Cross-chain funding needs a separate route. Check the asset and network in Terminal before funding.";
+    controls.append(copy, exportButton);
+    guide.append(summary, instructions, bridging);
+    row.append(label, address, detail, controls, guide);
     return row;
   }));
+}
+
+async function exportPrivyWallet(wallet, button) {
+  if (!state.csrf || !state.privy.wallets.some(row => row.ecosystem === wallet.ecosystem && row.address === wallet.address)) return;
+  button.disabled = true;
+  button.textContent = "Opening secure export…";
+  try {
+    const { openSecureWalletExport } = await import("./ravenos-privy-export.js");
+    const getExternalJwt = async () => {
+      try {
+        // Recovery/export for an already-linked identity is exempt from new
+        // trading assent. No subscription or signing entitlement is required.
+        const { response, payload } = await getJson("/api/v1/wallets/privy/session", {
+          method: "POST", headers: { "content-type": "application/json", "x-ravenos-csrf": state.csrf }, body: "{}",
+        });
+        return response.ok && typeof payload?.token === "string" ? payload.token : undefined;
+      } catch { return undefined; }
+    };
+    openSecureWalletExport({ appId: state.privy.config.app_id, clientId: state.privy.config.client_id, wallet, getExternalJwt });
+    button.textContent = "Secure export";
+  } catch { button.textContent = "Export unavailable · retry"; }
+  finally { button.disabled = false; }
 }
 
 function renderPrivyState(payload) {

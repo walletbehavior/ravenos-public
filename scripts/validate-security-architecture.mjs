@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { RAVEN_PRO_EXECUTION_FEE_BPS } from "../lib/customer_product.mjs";
 
 const root = process.cwd();
 const configPath = join(root, "config/customer_security.json");
@@ -24,10 +25,10 @@ assert.equal(config.customer_username.user_selected, true);
 assert.equal(config.customer_username.normalized_lowercase_ascii, true);
 assert.equal(config.customer_username.globally_unique_case_insensitive, true);
 assert.equal(config.customer_username.csrf_required_for_mutations, true);
-assert.equal(config.legal_acceptance.implementation_status, "counsel_review_candidate");
+assert.equal(config.legal_acceptance.implementation_status, "approved_effective_release");
 assert.equal(config.legal_acceptance.all_activation_controls_default_off, true);
-assert.equal(config.legal_acceptance.release_activation_enabled, false);
-assert.equal(config.legal_acceptance.counsel_approved, false);
+assert.equal(config.legal_acceptance.release_activation_enabled, true);
+assert.equal(config.legal_acceptance.counsel_approved, true);
 assert.equal(config.legal_acceptance.exact_document_version_and_hash_required, true);
 assert.equal(config.legal_acceptance.server_validates_account_creation_assent, true);
 assert.equal(config.legal_acceptance.acceptance_append_only, true);
@@ -453,12 +454,12 @@ assert.equal(config.customer_live_execution_canary.solana_exact_transaction_revi
 assert.equal(config.customer_live_execution_canary.solana_unsigned_simulation_required, true);
 assert.equal(config.customer_live_execution_canary.solana_onchain_economic_reconciliation_required, true);
 assert.equal(config.customer_live_execution_canary.solana_live_raven_fee_bps, 100);
-assert.equal(config.customer_live_execution_canary.solana_pro_raven_fee_bps, 70);
+assert.equal(config.customer_live_execution_canary.solana_pro_raven_fee_bps, RAVEN_PRO_EXECUTION_FEE_BPS);
 assert.equal(config.customer_live_execution_canary.solana_fee_collection_available, true);
 assert.equal(config.customer_live_execution_canary.solana_fee_quote_and_simulation_evidence_required, true);
 assert.equal(config.customer_live_execution_canary.solana_fee_onchain_reconciliation_required, true);
 assert.equal(config.customer_live_execution_canary.evm_live_raven_fee_bps, 100);
-assert.equal(config.customer_live_execution_canary.evm_pro_raven_fee_bps, 70);
+assert.equal(config.customer_live_execution_canary.evm_pro_raven_fee_bps, RAVEN_PRO_EXECUTION_FEE_BPS);
 assert.equal(config.customer_live_execution_canary.evm_fee_collection_available, true);
 assert.equal(config.customer_live_execution_canary.evm_fee_accounting_chain_local, true);
 assert.equal(config.customer_live_execution_canary.robinhood_chain_live_execution_candidate, true);

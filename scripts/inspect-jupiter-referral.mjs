@@ -2,6 +2,7 @@
 import { writeFile } from "node:fs/promises";
 import { Connection, PublicKey, SystemProgram, Transaction, TransactionInstruction } from "@solana/web3.js";
 import { RAVEN_JUPITER_REFERRAL as id, verifyRavenJupiterReferral } from "../lib/customer_trade/jupiter_referral.mjs";
+import { RAVEN_STANDARD_EXECUTION_FEE_BPS, RAVEN_PRO_EXECUTION_FEE_BPS, RAVEN_PRO_CASHBACK_PERCENT } from "../lib/customer_product.mjs";
 
 const output = process.argv[2];
 if (!output) throw new Error("Usage: node scripts/inspect-jupiter-referral.mjs OUTPUT.json");
@@ -18,7 +19,8 @@ try { verifyRavenJupiterReferral(state, id.account); } catch (error) {
   blocker = error.code;
 }
 const report = { generated_at: new Date().toISOString(), identity: id, state, blocker, broadcast: false,
-  fee_proof: { standard_bps: 100, pro_bps: 70, unsigned_swap_instruction_proof: "pending", live_canary: "not_authorized" } };
+  fee_proof: { standard_bps: RAVEN_STANDARD_EXECUTION_FEE_BPS, pro_bps: RAVEN_PRO_EXECUTION_FEE_BPS,
+    pro_cashback_percent: RAVEN_PRO_CASHBACK_PERCENT, unsigned_swap_instruction_proof: "pending", live_canary: "not_run" } };
 if (blocker) {
   const associatedProgram = new PublicKey("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");
   const derived = PublicKey.findProgramAddressSync([keys[0].toBuffer(), new PublicKey(id.token_program).toBuffer(), new PublicKey(id.usdc_mint).toBuffer()], associatedProgram)[0];

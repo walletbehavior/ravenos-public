@@ -410,3 +410,19 @@
 .account-wallet-apps a, .account-wallet-chooser button { box-sizing: border-box; display: flex; justify-content: center; align-items: center; width: 100%; min-height: 48px; padding: 12px; border: 1px solid #355e51; border-radius: 8px; background: #142b24; color: #a1dac0; text-decoration: none; font: inherit; font-size: 16px; }
 .account-wallet-chooser button { border-color: #35434b; background: transparent; color: #c8d0d8; cursor: pointer; }
 .account-wallet-apps a:focus-visible, .account-wallet-chooser button:focus-visible, .account-privy-choice select:focus-visible { outline: 2px solid #a1dac0; outline-offset: 3px; }
+
+.account-wallet-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.account-wallet-actions button { padding: 9px 12px; min-height: 40px; border: 1px solid var(--ws-border); border-radius: 6px; background: #101923; color: var(--ws-text); font: 600 11px var(--ws-mono); cursor: pointer; }
+.account-privy-wallet strong { overflow-wrap: anywhere; white-space: normal; user-select: all; }
+.account-wallet-funding { margin-top: 5px; color: var(--ws-muted); font: 12px/1.55 var(--ws-sans, sans-serif); }
+.account-wallet-funding summary { padding: 8px 0; cursor: pointer; color: var(--ws-text); }
+.account-wallet-funding p { margin: 8px 0 0; }
+.raven-wallet-export-overlay { position: fixed; inset: 0; z-index: 12000; display: grid; place-items: center; padding: 20px; background: #000b; }
+.raven-wallet-export-dialog { width: min(480px, 100%); max-height: 85dvh; overflow: auto; border: 1px solid var(--ws-border); border-radius: 14px; padding: 24px; background: #101923; color: var(--ws-text); }
+.raven-wallet-export-dialog header { display: flex; align-items: center; gap: 14px; justify-content: space-between; margin-bottom: 20px; }
+.raven-wallet-export-dialog h2 { font-size: 18px; }
+.raven-wallet-export-dialog code { overflow-wrap: anywhere; font-size: 12px; }
+.raven-wallet-export-dialog p { margin: 18px 0; color: var(--ws-muted); line-height: 1.6; font-size: 13px; }
+.raven-wallet-export-dialog button { padding: 10px 14px; border: 1px solid var(--ws-border); border-radius: 6px; background: #142c23; color: #80d3aa; cursor: pointer; min-height: 42px; }
+.raven-wallet-export-dialog button:disabled { opacity: .5; cursor: wait; }
+.raven-wallet-export-confirm { width: 100%; }

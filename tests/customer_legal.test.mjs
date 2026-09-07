@@ -23,10 +23,12 @@ import {
 
 const ORIGIN = "https://app.ravenos.xyz";
 const NOW = 1_788_652_800;
+const REVIEW_DOCUMENTS = CustomerLegalDocuments.map(document => ({...document,status:"review_candidate",effective_at:null}));
 const EFFECTIVE_DOCUMENTS = CustomerLegalDocuments.map((document) => Object.freeze({
   ...document,
   status: "effective",
   effective_at: "2026-09-06T00:00:00.000Z",
+  published_at: "2026-09-06T00:00:00.000Z",
 }));
 
 function enabledEnv() {
@@ -133,7 +135,7 @@ test("legal runtime requires explicit enable, counsel approval, database, and ef
     RAVENOS_LEGAL_ACCEPTANCE_ENABLED: "1",
     RAVENOS_LEGAL_COUNSEL_APPROVED: "1",
   }).state, "database_unavailable");
-  const candidate = resolveCustomerLegalRuntime(enabledEnv());
+  const candidate = resolveCustomerLegalRuntime(enabledEnv(), {documents:REVIEW_DOCUMENTS});
   assert.equal(candidate.state, "documents_not_effective");
   assert.equal(candidate.ready, false);
   assert.equal(resolveCustomerLegalRuntime(enabledEnv(), { documents: EFFECTIVE_DOCUMENTS.slice(0, -1) }).state, "document_registry_incomplete");
@@ -199,11 +201,11 @@ test("legal submissions bind exact version, hash, and acknowledgement", () => {
   ))), /legal_acceptance_invalid/);
 });
 
-test("public manifest exposes review candidates without making them effective when enforcement is off", async () => {
+test("public manifest reports effective documents while enforcement remains independently controlled", async () => {
   const manifest = publicCustomerLegalManifest({});
   assert.equal(manifest.acceptance_enforced, false);
   assert.equal(manifest.documents.length, 6);
-  assert(manifest.documents.every((document) => document.status === "review_candidate"));
+  assert(manifest.documents.every((document) => document.status === "effective"));
   assert.equal(manifest.safeguards.withdrawal_survives_decline, true);
 
   const response = await routeCustomerLegal(request("/api/v1/legal/documents"), {});
@@ -211,7 +213,7 @@ test("public manifest exposes review candidates without making them effective wh
   assert.match(response.headers.get("cache-control") || "", /public/);
   assert.equal((await response.json()).state, "disabled");
 
-  const accidentallyFlagged = publicCustomerLegalManifest(enabledEnv());
+  const accidentallyFlagged = publicCustomerLegalManifest(enabledEnv(), {documents:REVIEW_DOCUMENTS});
   assert.equal(accidentallyFlagged.state, "documents_not_effective");
   assert.equal(accidentallyFlagged.acceptance_enforced, false);
   assert(accidentallyFlagged.documents.every((document) => document.status === "review_candidate"));
@@ -275,15 +277,17 @@ test("requested enforcement fails closed if counsel approval disappears, without
   assert.equal(disabled.state, "not_enforced");
 });
 
-test("legal migration seeds exact candidates and makes documents and acceptances append-only", () => {
+test("legal migration appends exact effective versions and makes documents and acceptances append-only", () => {
   const database = new DatabaseSync(":memory:");
   database.exec(readFileSync("customer-migrations/0001_customer_identity.sql", "utf8"));
   database.exec(readFileSync("customer-migrations/0033_customer_legal.sql", "utf8"));
   database.exec(readFileSync("customer-migrations/0035_customer_pro_rewards_legal.sql", "utf8"));
+  database.exec(readFileSync("customer-migrations/0037_customer_effective_legal.sql", "utf8"));
   const documents = database.prepare("SELECT * FROM ravenos_legal_documents ORDER BY document_type").all();
-  assert.equal(documents.length, CustomerLegalDocuments.length + 5);
+  assert.equal(documents.length, CustomerLegalDocuments.length + 11);
   for (const current of CustomerLegalDocuments) assert(documents.some(row => row.document_type === current.document_type && row.document_version === current.version && row.content_hash === current.content_hash));
-  assert(documents.every((document) => document.status === "review_candidate"));
+  assert.equal(documents.filter(document => document.status === "effective").length, 6);
+  assert.equal(documents.filter(document => document.status === "review_candidate").length, 11);
   assert(documents.every((document) => /^[0-9a-f]{64}$/.test(document.content_hash)));
   assert(documents.every((document) => document.accepted_predecessor_json === "[]"));
   database.prepare(`
@@ -315,6 +319,7 @@ test("new identity and account-creation assent commit atomically", async () => {
   database.exec(readFileSync("customer-migrations/0028_customer_username.sql", "utf8"));
   database.exec(readFileSync("customer-migrations/0033_customer_legal.sql", "utf8"));
   database.exec(readFileSync("customer-migrations/0035_customer_pro_rewards_legal.sql", "utf8"));
+  database.exec(readFileSync("customer-migrations/0037_customer_effective_legal.sql", "utf8"));
   const store = createD1CustomerIdentityStore(new SqliteD1Database(database));
   const identity = {
     issuer: "https://api.workos.com/user_management",

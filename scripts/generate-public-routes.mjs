@@ -185,6 +185,7 @@ for (const asset of [
   "ravenos-terminal-review-foundation.js",
   "ravenos-wallet-execution.js",
   "ravenos-privy-wallet.js",
+    "ravenos-privy-export.js",
   "ravenos-workspace.css",
   "ravenos-discover.css",
   "ravenos-discover-intelligence.js",

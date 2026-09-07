@@ -1,0 +1,8 @@
+-- Approved release: append new document versions; retain every prior document and acceptance.
+INSERT INTO ravenos_legal_documents (document_type,document_version,title,canonical_path,content_hash,status,update_classification,requires_reacceptance,accepted_predecessor_json,effective_at,published_at,created_at) VALUES
+('terms','2026-09-07.release-1','Terms of Service','/terms/','e5ccd2f8601773b36269a8127a570d3c93c2dc17475178f5f8d2ac95622649ad','effective','material_update',1,'[]',1788786000,1788786000,1788786000),
+('privacy','2026-09-07.release-1','Privacy Policy','/privacy/','70dfffe5d709c3db339537537c0573bd220010e79a9cb6a804f4da5b6a789457','effective','material_update',1,'[]',1788786000,1788786000,1788786000),
+('trading_risk','2026-09-07.release-1','Digital Asset & Trading Risk Disclosure','/legal/trading-risk/','83ccef0bbdc0b036790937928f8532bd8b9b81ebcb2a4824df70ae92f851e04b','effective','material_update',1,'[]',1788786000,1788786000,1788786000),
+('copy_trading','2026-09-07.release-1','Copy Trading & Automated Execution Disclosure','/legal/copy-trading/','eded7abe44a3bdbdcfd72b94504bc75f82a4eaccdfa95cb6a06059966e3481c0','effective','material_update',1,'[]',1788786000,1788786000,1788786000),
+('affiliate_terms','2026-09-07.release-1','Affiliate & Referral Program Terms','/legal/affiliate/','731f4e53373d2cc0ea7d6844b559bb1bfd890d293b0f9e5457d1a703c491dc00','effective','material_update',1,'[]',1788786000,1788786000,1788786000),
+('community_guidelines','2026-09-07.release-1','Community Guidelines','/legal/community-guidelines/','a59a636f09c4146065aec5ec4e1dcd39f6c942d089f28af82322826b5e111026','effective','material_update',1,'[]',1788786000,1788786000,1788786000);

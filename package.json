@@ -5,7 +5,7 @@
   "scripts": {
     "build:wallet-execution": "esbuild client/ravenos-wallet-execution-entry.js --bundle --minify --format=iife --target=es2022 --outfile=ravenos-wallet-execution.js",
     "build:privy-wallet": "esbuild client/ravenos-privy-wallet-entry.js --bundle --minify --format=esm --target=es2022 --outfile=ravenos-privy-wallet.js",
-    "prebuild": "npm run build:wallet-execution && npm run build:privy-wallet && node scripts/generate-public-routes.mjs && node scripts/generate-build-manifest.mjs && node scripts/prepare-deploy-assets.mjs",
+    "prebuild": "npm run build:wallet-execution && npm run build:privy-wallet && npm run build:privy-export && node scripts/generate-public-routes.mjs && node scripts/generate-build-manifest.mjs && node scripts/prepare-deploy-assets.mjs",
     "build": "node scripts/cloudflare-build-check.mjs && npm run validate:security && npm run validate:no-leak",
     "test:discover-radar": "node --test --experimental-test-isolation=none tests/discover_radar.test.mjs",
     "test:community": "node --test --experimental-test-isolation=none tests/customer_community.test.mjs",
@@ -41,11 +41,11 @@
     "validate:chart-anchors": "node scripts/validate-chart-anchors.mjs",
     "validate:chart-anchors:keyless-diagnostic": "node scripts/validate-chart-anchors.mjs --allow-keyless-diagnostic",
     "validate:chart-anchors:full": "node scripts/validate-chart-anchors.mjs --full",
-    "pages:build": "npm run build:wallet-execution && npm run build:privy-wallet && node scripts/generate-public-routes.mjs && node scripts/generate-build-manifest.mjs && node scripts/prepare-deploy-assets.mjs && node scripts/cloudflare-build-check.mjs",
+    "pages:build": "npm run build:wallet-execution && npm run build:privy-wallet && npm run build:privy-export && node scripts/generate-public-routes.mjs && node scripts/generate-build-manifest.mjs && node scripts/prepare-deploy-assets.mjs && node scripts/cloudflare-build-check.mjs",
     "build:pages": "npm run pages:build",
     "cf:build": "npm run pages:build",
     "export": "npm run pages:build",
-    "generate": "npm run build:wallet-execution && npm run build:privy-wallet && node scripts/generate-public-routes.mjs && node scripts/generate-build-manifest.mjs && node scripts/prepare-deploy-assets.mjs",
+    "generate": "npm run build:wallet-execution && npm run build:privy-wallet && npm run build:privy-export && node scripts/generate-public-routes.mjs && node scripts/generate-build-manifest.mjs && node scripts/prepare-deploy-assets.mjs",
     "generate:routes": "node scripts/generate-public-routes.mjs",
     "release:package": "npm run build && node scripts/package-release.mjs",
     "release:stage": "npm exec --yes --package=node@22.23.1 -- node scripts/stage-release.mjs",
@@ -57,7 +57,8 @@
     "deploy:whoami": "npm exec --yes --package=node@22.23.1 -- node scripts/run-local-wrangler.mjs whoami",
     "deploy:dry-run": "npm run build && npm exec --yes --package=node@22.23.1 -- node scripts/run-local-wrangler.mjs deploy --dry-run",
     "test:product": "node --test --experimental-test-isolation=none tests/customer_pro_rewards.test.mjs tests/customer_rewards_ledger.test.mjs tests/customer_product_routes.test.mjs tests/customer_pro_billing.test.mjs tests/customer_reward_claims.test.mjs tests/customer_referral_conversion.test.mjs tests/customer_finance_operations.test.mjs",
-    "test:wallet-history": "node --test --experimental-test-isolation=none tests/customer_wallet_history_providers.test.mjs tests/source_wallet_backfill.test.mjs"
+    "test:wallet-history": "node --test --experimental-test-isolation=none tests/customer_wallet_history_providers.test.mjs tests/source_wallet_backfill.test.mjs",
+    "build:privy-export": "esbuild client/ravenos-privy-export-entry.jsx --bundle --minify --format=esm --target=es2022 --define:process.env.NODE_ENV=\\\"production\\\" --outfile=ravenos-privy-export.js"
   },
   "engines": {
     "node": "22.x"
@@ -66,8 +67,14 @@
     "@defuse-protocol/one-click-sdk-typescript": "0.1.25",
     "@nktkas/hyperliquid": "^0.33.3",
     "@privy-io/js-sdk-core": "0.73.0",
+    "@privy-io/react-auth": "3.40.0",
+    "@solana-program/memo": "0.10.0",
     "@solana/web3.js": "1.98.4",
     "bs58": "^6.0.0",
+    "ox": "0.8.9",
+    "permissionless": "0.2.57",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
     "tweetnacl": "^1.0.3",
     "viem": "2.56.0"
   },
@@ -75,7 +82,11 @@
     "jayson": {
       "uuid": "11.1.1",
       "stream-json": "3.6.0"
-    }
+    },
+    "axios": "1.20.0",
+    "decode-uri-component": "0.5.0",
+    "ws": "8.21.3",
+    "uuid@<11.1.1": "11.1.1"
   },
   "devDependencies": {
     "@playwright/test": "^1.55.0",

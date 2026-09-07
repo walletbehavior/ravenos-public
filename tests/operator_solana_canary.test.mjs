@@ -14,6 +14,7 @@ import {
   SOLANA_MAINNET_GENESIS_HASH,
   SOLANA_USDC_MINT,
   SOLANA_WRAPPED_MINT,
+  SOLANA_UNREVIEWED_DEX_EXCLUSIONS,
   parseExactSolanaTerminalContext,
   runCustomerSolanaLivePreflight,
   runOperatorSolanaCanaryPreflight,
@@ -40,24 +41,34 @@ function key(seed) {
   return Buffer.alloc(32, seed);
 }
 
-function fixtureTransaction(walletAddress, programAddress = JUPITER_PROGRAM, dynamicCount = 1, feeIndex = null) {
+function fixtureTransaction(walletAddress, programAddress = JUPITER_PROGRAM, dynamicCount = 1, feeIndex = null, feeContext = null) {
   const wallet = Buffer.from(bs58.decode(walletAddress));
   const program = Buffer.from(bs58.decode(programAddress));
   const lookupAddress = key(22);
   const dynamicAccounts = Array.from({ length: dynamicCount }, (_, index) => key(23 + index));
   if (feeIndex !== null) dynamicAccounts[feeIndex] = Buffer.from(bs58.decode(RAVEN_JUPITER_REFERRAL.usdc_fee_account));
+  const feeData = Buffer.alloc(41);
+  Buffer.from("d19853937cfed8e9", "hex").copy(feeData);
+  feeData.writeBigUInt64LE(1_000_000n, 9);
+  feeData.writeBigUInt64LE(420_000n, 17);
+  feeData.writeUInt16LE(50, 25);
+  feeData.writeUInt16LE(feeContext?.bps ?? 100, 27);
+  feeData.writeUInt32LE(feeContext?.routeCount ?? 1, 31);
+  const instructionAccounts = feeContext ? [1, 0, 5, 5, 5, 5, 2, 3, 4, 4, 1, 1, 5 + feeIndex] : [0, 2];
+  const instructionData = feeContext ? feeData : Buffer.from([9, 10]);
   const instruction = Buffer.concat([
     Buffer.from([1]),
-    shortVec(2),
-    Buffer.from([0, 2]),
-    shortVec(2),
-    Buffer.from([9, 10]),
+    shortVec(instructionAccounts.length),
+    Buffer.from(instructionAccounts),
+    shortVec(instructionData.length),
+    instructionData,
   ]);
   const message = Buffer.concat([
-    Buffer.from([0x80, 1, 0, 1]),
-    shortVec(2),
+    Buffer.from([0x80, 1, 0, feeContext ? 4 : 1]),
+    shortVec(feeContext ? 5 : 2),
     wallet,
     program,
+    ...(feeContext ? [bs58.decode(feeContext.inputMint), bs58.decode(feeContext.outputMint), bs58.decode(TOKEN_PROGRAM)] : []),
     key(7),
     shortVec(1),
     instruction,
@@ -184,13 +195,15 @@ function runtime({
   const usesUsdc = (side === "buy" ? fundingKind : settlementKind) === "canonical_usdc";
   const hasReferral = Boolean(referralAccount);
   const resolvedDynamicCount = Math.max(dynamicCount, 1 + Number(hasWrappedState) + Number(usesUsdc) + Number(hasReferral));
-  const transaction = fixtureTransaction(wallet, program, resolvedDynamicCount, hasReferral ? 1 + Number(hasWrappedState) + Number(usesUsdc) : null);
   const inputMint = side === "buy"
     ? fundingKind === "canonical_usdc" ? SOLANA_USDC_MINT : SOLANA_WRAPPED_MINT
     : context.token;
   const outputMint = side === "buy"
     ? context.token
     : settlementKind === "canonical_usdc" ? SOLANA_USDC_MINT : SOLANA_WRAPPED_MINT;
+  const feeMint = hasReferral && usesUsdc ? SOLANA_USDC_MINT : inputMint;
+  const transaction = fixtureTransaction(wallet, program, resolvedDynamicCount, hasReferral ? 1 + Number(hasWrappedState) + Number(usesUsdc) : null,
+    hasReferral ? { inputMint, outputMint, bps: referralFeeBps, routeCount: routePlan?.length || 1 } : null);
   const selectedPreAmount = preTokenBalance ?? (side === "buy" ? 0 : 1_000_000);
   const selectedPostAmount = postTokenBalance ?? (side === "buy" ? 420_000 : 0);
   const authoritativePreWalletBalance = preWalletBalance ?? walletBalance;
@@ -232,7 +245,7 @@ function runtime({
       assert.equal(target.searchParams.get("priorityFeeLamports"), OperatorSolanaCanaryLimits.maximum_priority_fee_lamports);
       assert.equal(target.searchParams.get("broadcastFeeType"), "maxCap");
       assert.equal(target.searchParams.get("excludeRouters"), "jupiterz,dflow,okx");
-      assert.equal(target.searchParams.get("excludeDexes"), "Hadron,ZeroFi");
+      assert.equal(target.searchParams.get("excludeDexes"), SOLANA_UNREVIEWED_DEX_EXCLUSIONS.join(","));
       assert.equal(target.searchParams.get("referralAccount"), referralAccount);
       assert.equal(target.searchParams.get("referralFee"), hasReferral ? String(referralFeeBps) : null);
       return response({
@@ -251,10 +264,10 @@ function runtime({
         feeBps: hasReferral ? providerReferralFeeBps : 10,
         platformFee: {
           feeBps: hasReferral ? providerReferralFeeBps : 10,
-          feeMint: inputMint,
+          feeMint,
           amount: hasReferral ? platformFeeAmount : "0",
         },
-        feeMint: inputMint,
+        feeMint,
         ...(providerReferralAccount ? { referralAccount: providerReferralAccount } : {}),
         priceImpact,
         priceImpactPct: String(priceImpact / 100),
@@ -331,7 +344,7 @@ function runtime({
             ? [preWrappedBalance === null ? null : tokenAccount(SOLANA_WRAPPED_MINT, wallet, preWrappedBalance, preWrappedAccountLamports)]
             : []),
           ...(usesUsdc ? [tokenAccount(SOLANA_USDC_MINT, wallet, authoritativePreUsdcBalance)] : []),
-          ...(hasReferral ? [tokenAccount(inputMint, referralAccount, referralPreBalance)] : []),
+          ...(hasReferral ? [tokenAccount(feeMint, referralAccount, referralPreBalance)] : []),
           ...transaction.dynamicAddresses.slice(1 + Number(hasWrappedState) + Number(usesUsdc) + Number(hasReferral)).map(() => null),
         ],
       } });
@@ -364,7 +377,7 @@ function runtime({
               ? [postWrappedBalance === null ? null : tokenAccount(SOLANA_WRAPPED_MINT, wallet, postWrappedBalance, postWrappedAccountLamports)]
               : []),
             ...(usesUsdc ? [tokenAccount(SOLANA_USDC_MINT, wallet, simulatedPostUsdcBalance)] : []),
-            ...(hasReferral ? [tokenAccount(inputMint, referralAccount, referralPostBalance)] : []),
+            ...(hasReferral ? [tokenAccount(feeMint, referralAccount, referralPostBalance)] : []),
             ...transaction.dynamicAddresses.slice(1 + Number(hasWrappedState) + Number(usesUsdc) + Number(hasReferral)).map(() => null),
           ],
           innerInstructions: [{ index: 0, instructions: [] }],
@@ -775,3 +788,26 @@ for (const tier of ["Standard", "Pro"]) test(`${tier} referral preflight keeps 1
 });
 
 test("retired native Pro 70 bps requests fail before any provider call",async()=>{const value=runtime({fundingKind:"canonical_usdc",referralAccount:RAVEN_JUPITER_REFERRAL.account,referralFeeBps:70});let calls=0;await assert.rejects(runCustomerSolanaLivePreflight(requestFor(value,{wallet_role:"customer",funding_kind:"canonical_usdc",settlement_kind:"canonical_usdc",referral_account:RAVEN_JUPITER_REFERRAL.account,referral_fee_bps:70}),{rpc_url:"https://rpc.example",jupiter_api_key:"fixture-key",fetch_impl:async()=>{calls++;throw new Error("unexpected_provider_call");}}),/fee/);assert.equal(calls,0);});
+
+for (const tier of ["Standard", "Paid Pro", "Trial Pro"]) test(`${tier} accepts current Jupiter v2 response without platformFee.amount`, async () => {
+  const value = runtime({ fundingKind: "canonical_usdc", referralAccount: RAVEN_JUPITER_REFERRAL.account, platformFeeAmount: undefined });
+  const result = await runCustomerSolanaLivePreflight(requestFor(value, { wallet_role: "customer", funding_kind: "canonical_usdc", settlement_kind: "canonical_usdc", referral_account: RAVEN_JUPITER_REFERRAL.account, referral_fee_bps: 100 }), {
+    rpc_url: "https://rpc.example", jupiter_api_key: "fixture-key", fetch_impl: async (url, init) => {
+      const reply = await value.fetchImpl(url, init);
+      if (!String(url).includes("api.jup.ag")) return reply;
+      const body = await reply.json(); delete body.platformFee.amount; return response(body);
+    },
+  });
+  assert.equal(result.quote.platform_fee_amount_base_units, "10000");
+  assert.equal(result.quote.platform_fee_amount_source, "exact_input_fee_calculation");
+  assert.equal(result.transaction_review.fee_instruction_evidence.fee_bps, 100);
+});
+
+test("output USDC fee absent from provider quote requires exact independent simulated receipt", async () => {
+  const value = runtime({ side: "sell", settlementKind: "canonical_usdc", referralAccount: RAVEN_JUPITER_REFERRAL.account, platformFeeAmount: null, referralPostBalance: 4242 });
+  const input = requestFor(value, { side: "sell", wallet_role: "customer", funding_kind: "canonical_usdc", settlement_kind: "canonical_usdc", referral_account: RAVEN_JUPITER_REFERRAL.account, referral_fee_bps: 100 });
+  const result = await runCustomerSolanaLivePreflight(input, {rpc_url: "https://rpc.example", jupiter_api_key: "fixture-key", fetch_impl: value.fetchImpl});
+  assert.equal(result.quote.platform_fee_amount_base_units, "4242");
+  assert.equal(result.quote.platform_fee_amount_source, "independent_simulation");
+  assert.equal(result.simulation.referral_fee_balance_evidence.observed_credit_base_units, "4242");
+});

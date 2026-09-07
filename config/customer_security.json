@@ -30,29 +30,45 @@
     "viewing_key_ingestion": false,
     "private_spend_key_ingestion": false,
     "research_wallet_destinations": "published_test_vectors_only",
-    "production_activation_requires": ["user_controlled_wallet_integration", "settlement_and_refund_evidence", "privacy_and_security_review", "counsel_review"]
+    "production_activation_requires": [
+      "user_controlled_wallet_integration",
+      "settlement_and_refund_evidence",
+      "privacy_and_security_review",
+      "counsel_review"
+    ]
   },
   "wallet_history_providers": {
     "helius_release_enabled": true,
     "alchemy_release_enabled": true,
-    "alchemy_chains": ["base", "ethereum", "bsc"],
+    "alchemy_chains": [
+      "base",
+      "ethereum",
+      "bsc"
+    ],
     "robinhood_uses_existing_fallback": true
   },
   "pro_rewards_release": {
-    "stage": "no_card_trial_and_cashback_accrual_live",
+    "stage": "billing_rewards_credit_referrals_active_claims_pending",
+    "stripe_infrastructure_ready": true,
+    "stripe_monthly_price_id": "price_1TlSQc1VWvkKnSWZ66YK9vPy",
+    "stripe_portal_configuration_id": "bpc_1UD1yg1VWvkKnSWZ6Kby8Beu",
     "trials_enabled": true,
     "cashback_enabled": true,
     "claims_enabled": false,
-    "auto_apply_enabled": false,
-    "subscription_credit_enabled": false,
-    "billing_enabled": false,
-    "affiliate_enrollment_enabled": false,
-    "affiliate_commissions_enabled": false,
-    "affiliate_public_profile_cta_enabled": false,
+    "auto_apply_enabled": true,
+    "subscription_credit_enabled": true,
+    "billing_enabled": true,
+    "affiliate_enrollment_enabled": true,
+    "affiliate_commissions_enabled": true,
+    "affiliate_public_profile_cta_enabled": true,
     "affiliate_payouts_enabled": false,
     "existing_user_trial_policy": "opt_in",
     "trial_eligibility_start_at": "2026-09-07T00:08:07Z",
-    "remaining_financial_activation_requirements": ["effective_legal_terms", "verified_stripe_price_and_webhook", "funded_verified_reward_claim_service"]
+    "remaining_financial_activation_requirements": [
+      "paid_subscription_settlement_canary",
+      "funded_verified_reward_claim_service",
+      "operator_deferred_entity_and_contacts"
+    ]
   },
   "active_capabilities": [
     "account_creation",
@@ -72,7 +88,11 @@
     "kind": "managed_identity",
     "implementation": "workos_authkit",
     "production_tenant_configured": true,
-    "requested_methods": ["GoogleOAuth", "Password", "MagicAuth"],
+    "requested_methods": [
+      "GoogleOAuth",
+      "Password",
+      "MagicAuth"
+    ],
     "passkeys_enabled": false,
     "custom_auth_domain_required_for_passkeys": true,
     "passkeys_deferred_reason": "A production custom authentication domain is a paid add-on and has not been approved.",
@@ -96,7 +116,7 @@
     "raw_username_logged_in_security_events": false
   },
   "legal_acceptance": {
-    "implementation_status": "counsel_review_candidate",
+    "implementation_status": "approved_effective_release",
     "document_registry": "lib/customer_legal_registry.mjs",
     "migration": "customer-migrations/0033_customer_legal.sql",
     "review_hub": "https://ravenos.xyz/legal/",
@@ -105,8 +125,8 @@
       "RAVENOS_LEGAL_COUNSEL_APPROVED"
     ],
     "all_activation_controls_default_off": true,
-    "release_activation_enabled": false,
-    "counsel_approved": false,
+    "release_activation_enabled": true,
+    "counsel_approved": true,
     "exact_document_version_and_hash_required": true,
     "server_validates_account_creation_assent": true,
     "acceptance_append_only": true,
@@ -116,7 +136,9 @@
     "withdrawal_blocked_by_update": false,
     "wallet_export_blocked_by_update": false,
     "wallet_recovery_blocked_by_update": false,
-    "informational_predecessor_equivalence_must_be_explicit": true
+    "informational_predecessor_equivalence_must_be_explicit": true,
+    "operator_approval_date": "2026-09-07",
+    "entity_and_contacts_deferred_by_operator": true
   },
   "community": {
     "implementation_status": "production_release_authorized_pending_promotion",
@@ -150,7 +172,9 @@
     "user_reported_performance_board_eligible": false,
     "simulated_performance_board_eligible": false,
     "popularity_affects_performance_rank": false,
-    "positive_recognition_kinds": ["useful"],
+    "positive_recognition_kinds": [
+      "useful"
+    ],
     "negative_recognition_available": false,
     "comments_available": false,
     "direct_messages_available": false,
@@ -197,7 +221,12 @@
   "session_policy": {
     "kind": "opaque_revocable_server_side",
     "cookie_name": "__Host-ravenos_session",
-    "cookie_attributes": ["Secure", "HttpOnly", "SameSite=Lax", "Path=/"],
+    "cookie_attributes": [
+      "Secure",
+      "HttpOnly",
+      "SameSite=Lax",
+      "Path=/"
+    ],
     "domain_attribute_permitted": false,
     "minimum_entropy_bits": 256,
     "idle_timeout_seconds": 1800,
@@ -287,7 +316,13 @@
     "exact_market_identity_required": true,
     "canonical_usdc_address_required": true,
     "observation_retention_days": 30,
-    "checkpoint_horizons_seconds": [300, 3600, 14400, 86400, 604800],
+    "checkpoint_horizons_seconds": [
+      300,
+      3600,
+      14400,
+      86400,
+      604800
+    ],
     "maximum_checkpoints_per_invocation": 8,
     "customer_identity_persisted": false,
     "wallet_or_network_address_persisted": false,
@@ -362,9 +397,23 @@
     "basic_wallet_screener_included": true,
     "raven_copy_subscription_required": false,
     "pro_required_for_advanced_cohorts_behavior_profit_quality_deep_history_and_copyability": true,
-    "supported_chains": ["solana", "robinhood", "bsc", "base", "ethereum"],
-    "persistently_indexed_chains": ["solana", "robinhood"],
-    "bounded_on_demand_evm_lookup_chains": ["robinhood", "bsc", "base", "ethereum"],
+    "supported_chains": [
+      "solana",
+      "robinhood",
+      "bsc",
+      "base",
+      "ethereum"
+    ],
+    "persistently_indexed_chains": [
+      "solana",
+      "robinhood"
+    ],
+    "bounded_on_demand_evm_lookup_chains": [
+      "robinhood",
+      "bsc",
+      "base",
+      "ethereum"
+    ],
     "bounded_on_demand_evm_lookup_provider": "blockscout_pro_v2",
     "bounded_on_demand_evm_lookup_release_enabled": true,
     "bounded_on_demand_evm_lookup_cache_api_seconds": 60,
@@ -384,7 +433,12 @@
     "shadow_copy_release_enabled": true,
     "shared_source_observation": true,
     "shared_observer_queue_implemented": true,
-    "shared_observer_transport_contracts": ["rpc_poll", "geyser_grpc", "shredstream", "replay"],
+    "shared_observer_transport_contracts": [
+      "rpc_poll",
+      "geyser_grpc",
+      "shredstream",
+      "replay"
+    ],
     "constant_k_nexus_adapter_implemented": true,
     "constant_k_nexus_live_probe_completed": true,
     "constant_k_nexus_receiver_contract_implemented": true,
@@ -473,7 +527,12 @@
     "subscriber_proportional_rpc_polling": false,
     "provider_and_finality_deliveries_append_only": true,
     "observer_queue_restart_safe": true,
-    "observer_latency_percentiles_recorded": [50, 90, 95, 99],
+    "observer_latency_percentiles_recorded": [
+      50,
+      90,
+      95,
+      99
+    ],
     "subscriber_relationships_private": true,
     "raw_provider_payloads_persisted": false,
     "signer_material_persisted": false,
@@ -482,7 +541,13 @@
     "historical_and_prospective_evidence_separate": true,
     "shared_prospective_copyability_matrix_implemented": true,
     "shared_prospective_copyability_matrix_active": true,
-    "shared_prospective_copyability_order_sizes_usdc": [25, 100, 500, 1000, 5000],
+    "shared_prospective_copyability_order_sizes_usdc": [
+      25,
+      100,
+      500,
+      1000,
+      5000
+    ],
     "shared_prospective_copyability_reference_size_usdc": 100,
     "shared_prospective_copyability_source_trade_evaluated_once": true,
     "shared_prospective_copyability_subscriber_identity_included": false,
@@ -572,7 +637,13 @@
     "authenticated_origin_only": false,
     "free_tier_capability": true,
     "exact_pool_and_mint_identity_required": true,
-    "supported_chains": ["solana", "robinhood", "base", "bsc", "ethereum"],
+    "supported_chains": [
+      "solana",
+      "robinhood",
+      "base",
+      "bsc",
+      "ethereum"
+    ],
     "evm_implementation_status": "production_provider_validated_activation_pending",
     "evm_provider": "blockscout",
     "evm_complete_holder_census_claimed": false,
@@ -620,7 +691,13 @@
     "authenticated_origin_only": false,
     "free_tier_capability": true,
     "exact_pool_token_and_quote_identity_required": true,
-    "supported_chains": ["solana", "base", "bsc", "ethereum", "robinhood"],
+    "supported_chains": [
+      "solana",
+      "base",
+      "bsc",
+      "ethereum",
+      "robinhood"
+    ],
     "maximum_provider_trade_rows": 300,
     "maximum_public_trade_rows": 120,
     "maximum_public_trader_rows": 24,
@@ -706,7 +783,7 @@
     "solana_unsigned_simulation_required": true,
     "solana_onchain_economic_reconciliation_required": true,
     "solana_live_raven_fee_bps": 100,
-    "solana_pro_raven_fee_bps": 70,
+    "solana_pro_raven_fee_bps": 100,
     "solana_fee_collection_available": true,
     "solana_fee_provider": "Jupiter Referral Program",
     "solana_fee_provider_share_pct": 20,
@@ -715,7 +792,7 @@
     "solana_fee_onchain_reconciliation_required": true,
     "evm_live_raven_fee_bps": 100,
     "evm_live_release_activation_ready": true,
-    "evm_pro_raven_fee_bps": 70,
+    "evm_pro_raven_fee_bps": 100,
     "evm_fee_collection_available": true,
     "evm_fee_accounting_chain_local": true,
     "robinhood_chain_live_execution_candidate": true,
@@ -791,7 +868,10 @@
   },
   "privy_wallets": {
     "implementation_status": "owner_evm_wallet_canary_release_ready",
-    "authenticated_surfaces": ["https://app.ravenos.xyz/account/", "https://app.ravenos.xyz/terminal/"],
+    "authenticated_surfaces": [
+      "https://app.ravenos.xyz/account/",
+      "https://app.ravenos.xyz/terminal/"
+    ],
     "public_jwks_route": "GET /api/v1/wallets/privy/jwks",
     "public_jwks_may_bootstrap_before_wallet_activation": true,
     "public_jwks_bootstrap_release_enabled": true,
@@ -805,7 +885,10 @@
     "wallet_creation_requires_user_action": true,
     "explicit_user_allowlist_required": true,
     "wildcard_allowlist_for_initial_canary": false,
-    "embedded_wallets": ["solana", "evm"],
+    "embedded_wallets": [
+      "solana",
+      "evm"
+    ],
     "one_evm_address_across_supported_evm_chains": true,
     "external_wallets_remain_supported": true,
     "private_key_material_stored_by_ravenos": false,
@@ -900,54 +983,330 @@
     "docs/legal/COUNSEL_REVIEW_CHECKLIST.md"
   ],
   "verification_scenarios": [
-    { "id": "SEC-SES-001", "name": "session fixation and rotation", "gate": "stage_a", "status": "verified_current", "evidence": "tests/customer_identity.test.mjs; isolated release preview" },
-    { "id": "SEC-SES-002", "name": "expired session", "gate": "stage_a", "status": "verified_current", "evidence": "tests/customer_identity.test.mjs" },
-    { "id": "SEC-SES-003", "name": "revoked session", "gate": "stage_a", "status": "verified_current", "evidence": "tests/customer_identity.test.mjs; tests/browser/account.spec.mjs" },
-    { "id": "SEC-CSRF-001", "name": "cross-site state-changing request", "gate": "stage_a", "status": "verified_current", "evidence": "tests/customer_identity.test.mjs; authenticated-origin request boundary" },
-    { "id": "SEC-ID-001", "name": "user-selected username replaces identity-provider first and family names on customer-facing surfaces", "gate": "customer_username_local_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_identity.test.mjs; tests/browser/account.spec.mjs; privacy/index.html" },
-    { "id": "SEC-COM-001", "name": "community identity remains private until explicit username-backed profile opt-in", "gate": "community_local_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_community.test.mjs; tests/browser/community.spec.mjs; customer-migrations/0029_customer_community.sql" },
-    { "id": "SEC-COM-002", "name": "community disclosures, following, and recognition remain owner-controlled, CSRF-bound, and public-safe", "gate": "community_local_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_community.test.mjs; tests/browser/community.spec.mjs; public no-leak validation" },
-    { "id": "SEC-REF-001", "name": "referral code and attribution remain opaque, deliberate, one-time, self-referral-safe, and CSRF-bound", "gate": "referral_local_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_referrals.test.mjs; tests/browser/referrals.spec.mjs; customer-migrations/0030_customer_referrals.sql" },
-    { "id": "SEC-REF-002", "name": "customer referral actions cannot create entitlement, subscription truth, earnings, credit, payout, or execution authority", "gate": "referral_local_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_referrals.test.mjs; docs/ravenos_referrals_v1.md; public no-leak validation" },
-    { "id": "SEC-AUTHZ-001", "name": "privilege and entitlement bypass", "gate": "stage_a", "status": "verified_current", "evidence": "authenticated portfolio preview and session authorization tests in tests/portfolio_governor_preview.test.mjs and tests/customer_identity.test.mjs" },
-    { "id": "SEC-AUTHZ-002", "name": "cross-user object access", "gate": "stage_a", "status": "verified_current", "evidence": "same-user session inventory, cross-account wallet-reference refusal, and request-fingerprint coalescing tests" },
-    { "id": "SEC-RSCH-001", "name": "saved research-state ownership and exact identity", "gate": "saved_monitor_local_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_research_state.test.mjs; tests/browser/monitor.spec.mjs" },
-    { "id": "SEC-RSCH-002", "name": "saved research-state CSRF, quotas, deletion, and XSS", "gate": "saved_monitor_local_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_research_state.test.mjs; tests/browser/monitor.spec.mjs" },
-    { "id": "SEC-ENT-001", "name": "server-owned entitlement ownership, lifecycle and fail-closed resolution", "gate": "entitlement_foundation_local_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_entitlements.test.mjs" },
-    { "id": "SEC-ENT-002", "name": "private authenticated projection split and Atlas display-rights non-override", "gate": "entitlement_foundation_local_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_entitlements.test.mjs; tests/browser/account-entitlements.spec.mjs; tests/browser/pro-intelligence.spec.mjs; tests/browser/public-intelligence.spec.mjs; Atlas regression suites" },
-    { "id": "SEC-ALT-001", "name": "exact-market monitor ownership, entitlement, CSRF and lifecycle enforcement", "gate": "raven_monitor_local_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_monitor_alerts.test.mjs; tests/browser/monitor-alerts.spec.mjs" },
-    { "id": "SEC-ALT-002", "name": "qualified transition dedupe, batching, retention, deletion and prohibited-data boundary", "gate": "raven_monitor_local_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_monitor_alerts.test.mjs; public no-leak and Worker-response validation" },
-    { "id": "SEC-WOBS-001", "name": "shared wallet observer exact identity, one-decode dedupe, lease recovery, retry bounds and prohibited-data boundary", "gate": "wallet_observer_staging_candidate", "status": "verified_local_candidate", "evidence": "tests/source_wallet_observer.test.mjs; tests/source_wallet_transports.test.mjs; customer-migrations/0010_source_wallet_observer.sql; artifacts/ravenos_wallet_observer_live_validation_2026-08-30.json; public no-leak validation" },
-    { "id": "SEC-WOBS-002", "name": "Nexus machine ingress exact-host, HMAC freshness, manifest binding, replay safety and checkpoint-after-ack", "gate": "wallet_observer_staging_candidate", "status": "verified_local_candidate", "evidence": "tests/source_wallet_ingress.test.mjs; tests/constant_k_nexus_wallet_ingress_client.test.mjs; customer-migrations/0013_source_wallet_ingress.sql; public no-leak validation" },
-    { "id": "SEC-WOBS-003", "name": "Nexus reviewed-program discovery coverage, short-lived provider acknowledgement, durable candidate receipt, cursor replay safety, privacy and exact-watch claim separation", "gate": "wallet_observer_staging_candidate", "status": "verified_local_candidate", "evidence": "tests/constant_k_nexus_discovery_coverage.test.mjs; tests/constant_k_nexus_discovery_manifest_cli.test.mjs; tests/constant_k_nexus_wallet_discovery_receiver.test.mjs; scripts/run-constant-k-wallet-discovery-receiver.mjs; public no-leak validation" },
-    { "id": "SEC-COPY-001", "name": "owner-bound authenticated wallet research and copy watches, Pro-only advanced projections, CSRF, quotas and private subscriber relationships", "gate": "wallet_copy_local_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_wallet_copy.test.mjs; tests/browser/wallet-copy.spec.mjs" },
-    { "id": "SEC-COPY-002", "name": "source and follower evidence separation with live copy, signing, broadcasting and fee collection source-disabled", "gate": "wallet_copy_local_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_trade_wallet_copy.test.mjs; tests/customer_wallet_copy.test.mjs; public no-leak and Worker-response validation" },
-    { "id": "SEC-COPY-003", "name": "privacy-thresholded aggregate follower-demand stress with no allocation, fill, identity, or execution claim", "gate": "wallet_copy_local_candidate", "status": "verified_local_candidate", "evidence": "tests/source_wallet_copy_crowding.test.mjs; customer-migrations/0022_source_wallet_copy_crowding.sql; public no-leak validation" },
-    { "id": "SEC-PRIVY-001", "name": "optional Privy identity binds only to the authenticated Raven user and remains idempotent", "gate": "privy_wallet_local_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_privy_wallets.test.mjs; customer-migrations/0032_privy_embedded_wallets.sql" },
-    { "id": "SEC-PRIVY-002", "name": "Privy wallet metadata contains no private or recovery material and all signing controls remain default-off", "gate": "privy_wallet_local_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_privy_wallets.test.mjs; docs/wallets/privy-recovery.md" },
-    { "id": "SEC-LEGAL-001", "name": "account creation and protected activation assent is server-bound to an immutable document version and content hash", "gate": "legal_counsel_review_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_legal.test.mjs; tests/customer_identity.test.mjs; customer-migrations/0033_customer_legal.sql" },
-    { "id": "SEC-LEGAL-002", "name": "terms reacceptance cannot block sign-in, privacy reduction, receipt reconciliation, withdrawal, wallet export, or wallet recovery", "gate": "legal_counsel_review_candidate", "status": "verified_local_candidate", "evidence": "tests/customer_legal.test.mjs; tests/legal_documents.test.mjs; docs/legal/LEGAL_ACCEPTANCE_ARCHITECTURE.md" },
-    { "id": "SEC-WAL-001", "name": "wallet nonce replay", "gate": "stage_b", "status": "required_not_implemented" },
-    { "id": "SEC-WAL-002", "name": "wrong wallet domain", "gate": "stage_b", "status": "required_not_implemented" },
-    { "id": "SEC-WAL-003", "name": "wrong wallet chain", "gate": "stage_b", "status": "required_not_implemented" },
-    { "id": "SEC-WAL-004", "name": "expired wallet challenge", "gate": "stage_b", "status": "required_not_implemented" },
-    { "id": "SEC-WAL-005", "name": "duplicate wallet linking", "gate": "stage_b", "status": "required_not_implemented" },
-    { "id": "SEC-WAL-006", "name": "link or unlink without recent reauthentication", "gate": "stage_b", "status": "required_not_implemented" },
-    { "id": "SEC-BIL-001", "name": "forged Stripe webhook", "gate": "stage_c", "status": "required_not_implemented" },
-    { "id": "SEC-BIL-002", "name": "replayed or duplicate Stripe webhook", "gate": "stage_c", "status": "required_not_implemented" },
-    { "id": "SEC-BIL-003", "name": "out-of-order Stripe events", "gate": "stage_c", "status": "required_not_implemented" },
-    { "id": "SEC-ENUM-001", "name": "account enumeration", "gate": "stage_a", "status": "external_review_required", "evidence": "generic RavenOS callback failures verified; hosted recovery and timing remain provider-managed" },
-    { "id": "SEC-EDGE-001", "name": "WAF and endpoint rate-limit behavior", "gate": "stage_a", "status": "external_review_required", "evidence": "application-side account, wallet, and network keyed preview limits are tested; managed edge-rule review remains defense-in-depth" },
-    { "id": "SEC-XSS-001", "name": "narrator and metadata XSS payloads", "gate": "stage_a", "status": "verified_current", "evidence": "textContent-only account and portfolio rendering plus strict CSP browser tests" },
-    { "id": "SEC-CSP-001", "name": "authenticated-origin CSP enforcement", "gate": "stage_a", "status": "verified_current", "evidence": "tests/browser/account.spec.mjs; isolated release preview headers" },
-    { "id": "SEC-LEAK-001", "name": "secrets absent from assets and responses", "gate": "current", "status": "verified_current" },
-    { "id": "SEC-TX-001", "name": "transaction and reviewed-quote mismatch", "gate": "stage_d", "status": "required_not_implemented" },
-    { "id": "SEC-TX-002", "name": "stale quote signing", "gate": "stage_d", "status": "required_not_implemented" },
-    { "id": "SEC-TX-003", "name": "altered route or fee recipient", "gate": "stage_d", "status": "required_not_implemented" },
-    { "id": "SEC-TX-004", "name": "wrong transaction wallet", "gate": "stage_d", "status": "required_not_implemented" },
-    { "id": "SEC-TX-005", "name": "wrong transaction chain", "gate": "stage_d", "status": "required_not_implemented" },
-    { "id": "SEC-TX-006", "name": "duplicate broadcast", "gate": "stage_e", "status": "required_not_implemented" },
-    { "id": "SEC-TX-007", "name": "signing disabled while flags are off", "gate": "current", "status": "verified_current" },
-    { "id": "SEC-REL-001", "name": "cohesive release and rollback identity", "gate": "current", "status": "verified_current" }
+    {
+      "id": "SEC-SES-001",
+      "name": "session fixation and rotation",
+      "gate": "stage_a",
+      "status": "verified_current",
+      "evidence": "tests/customer_identity.test.mjs; isolated release preview"
+    },
+    {
+      "id": "SEC-SES-002",
+      "name": "expired session",
+      "gate": "stage_a",
+      "status": "verified_current",
+      "evidence": "tests/customer_identity.test.mjs"
+    },
+    {
+      "id": "SEC-SES-003",
+      "name": "revoked session",
+      "gate": "stage_a",
+      "status": "verified_current",
+      "evidence": "tests/customer_identity.test.mjs; tests/browser/account.spec.mjs"
+    },
+    {
+      "id": "SEC-CSRF-001",
+      "name": "cross-site state-changing request",
+      "gate": "stage_a",
+      "status": "verified_current",
+      "evidence": "tests/customer_identity.test.mjs; authenticated-origin request boundary"
+    },
+    {
+      "id": "SEC-ID-001",
+      "name": "user-selected username replaces identity-provider first and family names on customer-facing surfaces",
+      "gate": "customer_username_local_candidate",
+      "status": "verified_local_candidate",
+      "evidence": "tests/customer_identity.test.mjs; tests/browser/account.spec.mjs; privacy/index.html"
+    },
+    {
+      "id": "SEC-COM-001",
+      "name": "community identity remains private until explicit username-backed profile opt-in",
+      "gate": "community_local_candidate",
+      "status": "verified_local_candidate",
+      "evidence": "tests/customer_community.test.mjs; tests/browser/community.spec.mjs; customer-migrations/0029_customer_community.sql"
+    },
+    {
+      "id": "SEC-COM-002",
+      "name": "community disclosures, following, and recognition remain owner-controlled, CSRF-bound, and public-safe",
+      "gate": "community_local_candidate",
+      "status": "verified_local_candidate",
+      "evidence": "tests/customer_community.test.mjs; tests/browser/community.spec.mjs; public no-leak validation"
+    },
+    {
+      "id": "SEC-REF-001",
+      "name": "referral code and attribution remain opaque, deliberate, one-time, self-referral-safe, and CSRF-bound",
+      "gate": "referral_local_candidate",
+      "status": "verified_local_candidate",
+      "evidence": "tests/customer_referrals.test.mjs; tests/browser/referrals.spec.mjs; customer-migrations/0030_customer_referrals.sql"
+    },
+    {
+      "id": "SEC-REF-002",
+      "name": "customer referral actions cannot create entitlement, subscription truth, earnings, credit, payout, or execution authority",
+      "gate": "referral_local_candidate",
+      "status": "verified_local_candidate",
+      "evidence": "tests/customer_referrals.test.mjs; docs/ravenos_referrals_v1.md; public no-leak validation"
+    },
+    {
+      "id": "SEC-AUTHZ-001",
+      "name": "privilege and entitlement bypass",
+      "gate": "stage_a",
+      "status": "verified_current",
+      "evidence": "authenticated portfolio preview and session authorization tests in tests/portfolio_governor_preview.test.mjs and tests/customer_identity.test.mjs"
+    },
+    {
+      "id": "SEC-AUTHZ-002",
+      "name": "cross-user object access",
+      "gate": "stage_a",
+      "status": "verified_current",
+      "evidence": "same-user session inventory, cross-account wallet-reference refusal, and request-fingerprint coalescing tests"
+    },
+    {
+      "id": "SEC-RSCH-001",
+      "name": "saved research-state ownership and exact identity",
+      "gate": "saved_monitor_local_candidate",
+      "status": "verified_local_candidate",
+      "evidence": "tests/customer_research_state.test.mjs; tests/browser/monitor.spec.mjs"
+    },
+    {
+      "id": "SEC-RSCH-002",
+      "name": "saved research-state CSRF, quotas, deletion, and XSS",
+      "gate": "saved_monitor_local_candidate",
+      "status": "verified_local_candidate",
+      "evidence": "tests/customer_research_state.test.mjs; tests/browser/monitor.spec.mjs"
+    },
+    {
+      "id": "SEC-ENT-001",
+      "name": "server-owned entitlement ownership, lifecycle and fail-closed resolution",
+      "gate": "entitlement_foundation_local_candidate",
+      "status": "verified_local_candidate",
+      "evidence": "tests/customer_entitlements.test.mjs"
+    },
+    {
+      "id": "SEC-ENT-002",
+      "name": "private authenticated projection split and Atlas display-rights non-override",
+      "gate": "entitlement_foundation_local_candidate",
+      "status": "verified_local_candidate",
+      "evidence": "tests/customer_entitlements.test.mjs; tests/browser/account-entitlements.spec.mjs; tests/browser/pro-intelligence.spec.mjs; tests/browser/public-intelligence.spec.mjs; Atlas regression suites"
+    },
+    {
+      "id": "SEC-ALT-001",
+      "name": "exact-market monitor ownership, entitlement, CSRF and lifecycle enforcement",
+      "gate": "raven_monitor_local_candidate",
+      "status": "verified_local_candidate",
+      "evidence": "tests/customer_monitor_alerts.test.mjs; tests/browser/monitor-alerts.spec.mjs"
+    },
+    {
+      "id": "SEC-ALT-002",
+      "name": "qualified transition dedupe, batching, retention, deletion and prohibited-data boundary",
+      "gate": "raven_monitor_local_candidate",
+      "status": "verified_local_candidate",
+      "evidence": "tests/customer_monitor_alerts.test.mjs; public no-leak and Worker-response validation"
+    },
+    {
+      "id": "SEC-WOBS-001",
+      "name": "shared wallet observer exact identity, one-decode dedupe, lease recovery, retry bounds and prohibited-data boundary",
+      "gate": "wallet_observer_staging_candidate",
+      "status": "verified_local_candidate",
+      "evidence": "tests/source_wallet_observer.test.mjs; tests/source_wallet_transports.test.mjs; customer-migrations/0010_source_wallet_observer.sql; artifacts/ravenos_wallet_observer_live_validation_2026-08-30.json; public no-leak validation"
+    },
+    {
+      "id": "SEC-WOBS-002",
+      "name": "Nexus machine ingress exact-host, HMAC freshness, manifest binding, replay safety and checkpoint-after-ack",
+      "gate": "wallet_observer_staging_candidate",
+      "status": "verified_local_candidate",
+      "evidence": "tests/source_wallet_ingress.test.mjs; tests/constant_k_nexus_wallet_ingress_client.test.mjs; customer-migrations/0013_source_wallet_ingress.sql; public no-leak validation"
+    },
+    {
+      "id": "SEC-WOBS-003",
+      "name": "Nexus reviewed-program discovery coverage, short-lived provider acknowledgement, durable candidate receipt, cursor replay safety, privacy and exact-watch claim separation",
+      "gate": "wallet_observer_staging_candidate",
+      "status": "verified_local_candidate",
+      "evidence": "tests/constant_k_nexus_discovery_coverage.test.mjs; tests/constant_k_nexus_discovery_manifest_cli.test.mjs; tests/constant_k_nexus_wallet_discovery_receiver.test.mjs; scripts/run-constant-k-wallet-discovery-receiver.mjs; public no-leak validation"
+    },
+    {
+      "id": "SEC-COPY-001",
+      "name": "owner-bound authenticated wallet research and copy watches, Pro-only advanced projections, CSRF, quotas and private subscriber relationships",
+      "gate": "wallet_copy_local_candidate",
+      "status": "verified_local_candidate",
+      "evidence": "tests/customer_wallet_copy.test.mjs; tests/browser/wallet-copy.spec.mjs"
+    },
+    {
+      "id": "SEC-COPY-002",
+      "name": "source and follower evidence separation with live copy, signing, broadcasting and fee collection source-disabled",
+      "gate": "wallet_copy_local_candidate",
+      "status": "verified_local_candidate",
+      "evidence": "tests/customer_trade_wallet_copy.test.mjs; tests/customer_wallet_copy.test.mjs; public no-leak and Worker-response validation"
+    },
+    {
+      "id": "SEC-COPY-003",
+      "name": "privacy-thresholded aggregate follower-demand stress with no allocation, fill, identity, or execution claim",
+      "gate": "wallet_copy_local_candidate",
+      "status": "verified_local_candidate",
+      "evidence": "tests/source_wallet_copy_crowding.test.mjs; customer-migrations/0022_source_wallet_copy_crowding.sql; public no-leak validation"
+    },
+    {
+      "id": "SEC-PRIVY-001",
+      "name": "optional Privy identity binds only to the authenticated Raven user and remains idempotent",
+      "gate": "privy_wallet_local_candidate",
+      "status": "verified_local_candidate",
+      "evidence": "tests/customer_privy_wallets.test.mjs; customer-migrations/0032_privy_embedded_wallets.sql"
+    },
+    {
+      "id": "SEC-PRIVY-002",
+      "name": "Privy wallet metadata contains no private or recovery material and all signing controls remain default-off",
+      "gate": "privy_wallet_local_candidate",
+      "status": "verified_local_candidate",
+      "evidence": "tests/customer_privy_wallets.test.mjs; docs/wallets/privy-recovery.md"
+    },
+    {
+      "id": "SEC-LEGAL-001",
+      "name": "account creation and protected activation assent is server-bound to an immutable document version and content hash",
+      "gate": "legal_counsel_review_candidate",
+      "status": "verified_local_candidate",
+      "evidence": "tests/customer_legal.test.mjs; tests/customer_identity.test.mjs; customer-migrations/0033_customer_legal.sql"
+    },
+    {
+      "id": "SEC-LEGAL-002",
+      "name": "terms reacceptance cannot block sign-in, privacy reduction, receipt reconciliation, withdrawal, wallet export, or wallet recovery",
+      "gate": "legal_counsel_review_candidate",
+      "status": "verified_local_candidate",
+      "evidence": "tests/customer_legal.test.mjs; tests/legal_documents.test.mjs; docs/legal/LEGAL_ACCEPTANCE_ARCHITECTURE.md"
+    },
+    {
+      "id": "SEC-WAL-001",
+      "name": "wallet nonce replay",
+      "gate": "stage_b",
+      "status": "required_not_implemented"
+    },
+    {
+      "id": "SEC-WAL-002",
+      "name": "wrong wallet domain",
+      "gate": "stage_b",
+      "status": "required_not_implemented"
+    },
+    {
+      "id": "SEC-WAL-003",
+      "name": "wrong wallet chain",
+      "gate": "stage_b",
+      "status": "required_not_implemented"
+    },
+    {
+      "id": "SEC-WAL-004",
+      "name": "expired wallet challenge",
+      "gate": "stage_b",
+      "status": "required_not_implemented"
+    },
+    {
+      "id": "SEC-WAL-005",
+      "name": "duplicate wallet linking",
+      "gate": "stage_b",
+      "status": "required_not_implemented"
+    },
+    {
+      "id": "SEC-WAL-006",
+      "name": "link or unlink without recent reauthentication",
+      "gate": "stage_b",
+      "status": "required_not_implemented"
+    },
+    {
+      "id": "SEC-BIL-001",
+      "name": "forged Stripe webhook",
+      "gate": "stage_c",
+      "status": "required_not_implemented"
+    },
+    {
+      "id": "SEC-BIL-002",
+      "name": "replayed or duplicate Stripe webhook",
+      "gate": "stage_c",
+      "status": "required_not_implemented"
+    },
+    {
+      "id": "SEC-BIL-003",
+      "name": "out-of-order Stripe events",
+      "gate": "stage_c",
+      "status": "required_not_implemented"
+    },
+    {
+      "id": "SEC-ENUM-001",
+      "name": "account enumeration",
+      "gate": "stage_a",
+      "status": "external_review_required",
+      "evidence": "generic RavenOS callback failures verified; hosted recovery and timing remain provider-managed"
+    },
+    {
+      "id": "SEC-EDGE-001",
+      "name": "WAF and endpoint rate-limit behavior",
+      "gate": "stage_a",
+      "status": "external_review_required",
+      "evidence": "application-side account, wallet, and network keyed preview limits are tested; managed edge-rule review remains defense-in-depth"
+    },
+    {
+      "id": "SEC-XSS-001",
+      "name": "narrator and metadata XSS payloads",
+      "gate": "stage_a",
+      "status": "verified_current",
+      "evidence": "textContent-only account and portfolio rendering plus strict CSP browser tests"
+    },
+    {
+      "id": "SEC-CSP-001",
+      "name": "authenticated-origin CSP enforcement",
+      "gate": "stage_a",
+      "status": "verified_current",
+      "evidence": "tests/browser/account.spec.mjs; isolated release preview headers"
+    },
+    {
+      "id": "SEC-LEAK-001",
+      "name": "secrets absent from assets and responses",
+      "gate": "current",
+      "status": "verified_current"
+    },
+    {
+      "id": "SEC-TX-001",
+      "name": "transaction and reviewed-quote mismatch",
+      "gate": "stage_d",
+      "status": "required_not_implemented"
+    },
+    {
+      "id": "SEC-TX-002",
+      "name": "stale quote signing",
+      "gate": "stage_d",
+      "status": "required_not_implemented"
+    },
+    {
+      "id": "SEC-TX-003",
+      "name": "altered route or fee recipient",
+      "gate": "stage_d",
+      "status": "required_not_implemented"
+    },
+    {
+      "id": "SEC-TX-004",
+      "name": "wrong transaction wallet",
+      "gate": "stage_d",
+      "status": "required_not_implemented"
+    },
+    {
+      "id": "SEC-TX-005",
+      "name": "wrong transaction chain",
+      "gate": "stage_d",
+      "status": "required_not_implemented"
+    },
+    {
+      "id": "SEC-TX-006",
+      "name": "duplicate broadcast",
+      "gate": "stage_e",
+      "status": "required_not_implemented"
+    },
+    {
+      "id": "SEC-TX-007",
+      "name": "signing disabled while flags are off",
+      "gate": "current",
+      "status": "verified_current"
+    },
+    {
+      "id": "SEC-REL-001",
+      "name": "cohesive release and rollback identity",
+      "gate": "current",
+      "status": "verified_current"
+    }
   ]
 }

@@ -10,27 +10,28 @@ function fileFor(document) {
   return `${document.canonical_path.replace(/^\//, "")}index.html`;
 }
 
-test("every legal review candidate is present, visibly non-effective, and content-hash bound", () => {
+test("every effective legal document is present, visibly dated, and content-hash bound", () => {
   for (const document of CustomerLegalDocuments) {
     const path = fileFor(document);
     const bytes = readFileSync(path);
     const source = bytes.toString("utf8");
     assert.equal(createHash("sha256").update(bytes).digest("hex"), document.content_hash, path);
-    assert.match(source, /Not effective/i, path);
-    assert.match(source, /counsel[- ]review/i, path);
+    assert.equal(document.status, "effective");
+    assert.match(source, /Effective September 7, 2026/i, path);
+    assert.doesNotMatch(source, /Not effective|counsel-review candidate/i, path);
     assert.match(source, new RegExp(document.version.replaceAll(".", "\\.")), path);
     assert(!/RavenOS is definitively not (?:a )?(?:broker|custodian|investment adviser|money transmitter)/i.test(source), path);
     assert(!/RavenOS is not (?:a )?(?:bank|broker-dealer|investment adviser|custodian|fiduciary|money transmitter)/i.test(source), path);
   }
 });
 
-test("candidate package preserves the critical product and risk distinctions", () => {
-  const terms = readFileSync("legal/review/terms/index.html", "utf8");
-  const privacy = readFileSync("legal/review/privacy/index.html", "utf8");
-  const risk = readFileSync("legal/review/trading-risk/index.html", "utf8");
-  const copy = readFileSync("legal/review/copy-trading/index.html", "utf8");
-  const affiliate = readFileSync("legal/review/affiliate/index.html", "utf8");
-  const community = readFileSync("legal/review/community-guidelines/index.html", "utf8");
+test("effective package preserves the critical product and risk distinctions", () => {
+  const terms = readFileSync("terms/index.html", "utf8");
+  const privacy = readFileSync("privacy/index.html", "utf8");
+  const risk = readFileSync("legal/trading-risk/index.html", "utf8");
+  const copy = readFileSync("legal/copy-trading/index.html", "utf8");
+  const affiliate = readFileSync("legal/affiliate/index.html", "utf8");
+  const community = readFileSync("legal/community-guidelines/index.html", "utf8");
 
   assert.match(terms, /user’s selected external wallet signs/i);
   assert.match(terms, /explicitly authorize recurring monthly billing/i);
@@ -51,10 +52,12 @@ test("candidate package preserves the critical product and risk distinctions", (
   assert.match(community, /make a profile private without first accepting/i);
 });
 
-test("current effective-looking pages are preserved separately from review candidates", () => {
+test("current documents retain access to the immutable earlier drafts", () => {
   const hub = readFileSync("legal/index.html", "utf8");
   assert.match(hub, /Current public documents/);
-  assert.match(hub, /Drafts not effective/i);
+  assert.match(hub, /Archived documents/i);
+  assert.match(readFileSync("legal/review/terms/index.html", "utf8"), /Not effective/i);
+  assert.doesNotThrow(() => readFileSync("legal/archive/2026-08-26/terms/index.html"));
   assert.doesNotThrow(() => readFileSync("terms/index.html"));
   assert.doesNotThrow(() => readFileSync("privacy/index.html"));
 });

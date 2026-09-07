@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import { earn,rewardFixture,NOW,USER } from "./customer_rewards_ledger.test.mjs";
 import { rewardBalance,setAutoApply } from "../lib/customer_rewards.mjs";
-import { continueWithPro,applyRewardsToPro,reconcileProInvoice,processAccountStripeEvent,verifyProStripeSignature } from "../lib/customer_pro_billing.mjs";
+import { continueWithPro,applyRewardsToPro,reconcileProInvoice,processAccountStripeEvent,verifyProStripeSignature,proBillingPortal } from "../lib/customer_pro_billing.mjs";
 import { readProductAccess } from "../lib/customer_pro.mjs";
 import { referredFixture } from "./customer_referral_conversion.test.mjs";
 
@@ -133,4 +133,17 @@ test("another invoice's payment cannot fund this subscription invoice",async()=>
  const f=await billingFixture();f.charge.invoice="in_different123";
  await assert.rejects(reconcileProInvoice(f.env,f.invoice.id,{stripe:f.stripe,now:NOW}),/payment_unverified/);
  assert.equal(f.db.raw.prepare("SELECT COUNT(*) n FROM ravenos_pro_invoices").get().n,0);
+});
+
+
+test("billing portal uses the configured cancellation policy without creating a subscription",async()=>{
+ const f=await billingFixture();
+ f.env.RAVENOS_STRIPE_PORTAL_CONFIGURATION_ID="bpc_reviewed123";
+ const calls=[];
+ const result=await proBillingPortal(f.env,USER,{stripe:async(path,options)=>{calls.push({path,...options});return {url:"https://billing.stripe.com/p/session_fixture"};}});
+ assert.equal(calls.length,1);
+ assert.equal(calls[0].path,"/v1/billing_portal/sessions");
+ assert.equal(calls[0].data.configuration,"bpc_reviewed123");
+ assert.equal(calls[0].data.customer,"cus_account123");
+ assert.equal(result.portal_url,"https://billing.stripe.com/p/session_fixture");
 });

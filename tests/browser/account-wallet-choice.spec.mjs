@@ -1,3 +1,5 @@
+import { buildSync } from "esbuild";
+import { resolve } from "node:path";
 import { expect, test } from "@playwright/test";
 
 const EVM = { ecosystem: "evm", address: "0x1111111111111111111111111111111111111111" };
@@ -129,4 +131,46 @@ test("Phantom's namespaced EVM provider connects after a wallet-browser handoff"
   await expect(page.locator("#accountWalletConnectStatus")).toHaveText("Phantom connected · no signature");
   expect(await page.evaluate(() => globalThis.__EVM_METHODS__)).toEqual(["eth_requestAccounts"]);
   await expect(page.getByRole("dialog")).toHaveCount(0);
+});
+
+const exportBundle = buildSync({ entryPoints: ["client/ravenos-privy-export-entry.jsx"], bundle: true, format: "esm", write: false,
+  define: { "process.env.NODE_ENV": '"production"' },
+  alias: { "@privy-io/react-auth": resolve("tests/fixtures/privy_export_react_sdk.jsx"), "@privy-io/react-auth/solana": resolve("tests/fixtures/privy_export_solana_sdk.mjs") },
+}).outputFiles[0].text;
+
+for (const wallet of [EVM, SOL]) test(`funding and secure ${wallet.ecosystem} export stay separate from wallet creation and trading`, async ({page,baseURL}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const calls = await accountFixture(page,baseURL,{wallets:[wallet]});
+  await page.addInitScript(wallet=>{
+    globalThis.__EXPORT_CALLS__=[];
+    globalThis.__EXPORT_USER__={linkedAccounts:[{type:"wallet",walletClientType:"privy",chainType:wallet.ecosystem==="evm"?"ethereum":"solana",address:wallet.address}]};
+  },wallet);
+  await page.route("**/ravenos-privy-export.js",route=>route.fulfill({contentType:"application/javascript",body:exportBundle}));
+  await page.goto("/account/");
+  await page.getByText("Funding this wallet",{exact:true}).click();
+  await expect(page.locator(".account-wallet-funding")).toContainText(wallet.ecosystem==="solana"?"canonical USDC on Solana":"Balances stay on that network");
+  await expect(page.locator(".account-wallet-funding")).toContainText("small test transfer");
+  expect(calls).toEqual([]);
+  await page.getByRole("button",{name:"Secure export",exact:true}).click();
+  await expect(page.getByRole("dialog")).toContainText("Raven cannot read it");
+  await expect.poll(()=>page.evaluate(()=>globalThis.__EXPORT_SESSION_READY__)).toBe(true);
+  expect(await page.evaluate(()=>globalThis.__EXPORT_CALLS__)).toEqual([]);
+  await page.locator(".raven-wallet-export-dialog").screenshot({path:test.info().outputPath(`secure-export-${wallet.ecosystem}.png`)});
+  await page.getByRole("button",{name:"Open secure export",exact:true}).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  expect(await page.evaluate(()=>globalThis.__EXPORT_CALLS__)).toEqual([wallet]);
+  expect(calls).toEqual(["/api/v1/wallets/privy/session"]);
+  expect(await page.evaluate(()=>globalThis.__PROVISION_CALLS__)).toEqual([]);
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth-innerWidth)).toBeLessThanOrEqual(2);
+});
+
+test("an export identity mismatch never reaches the provider export method",async({page,baseURL})=>{
+  await accountFixture(page,baseURL,{wallets:[EVM]});
+  await page.addInitScript(()=>{globalThis.__EXPORT_CALLS__=[];globalThis.__EXPORT_USER__={linkedAccounts:[]};});
+  await page.route("**/ravenos-privy-export.js",route=>route.fulfill({contentType:"application/javascript",body:exportBundle}));
+  await page.goto("/account/");
+  await page.getByRole("button",{name:"Secure export",exact:true}).click();
+  await expect(page.getByRole("button",{name:"Open secure export",exact:true})).toBeDisabled();
+  await page.getByRole("button",{name:"Close",exact:true}).click();
+  expect(await page.evaluate(()=>globalThis.__EXPORT_CALLS__)).toEqual([]);
 });

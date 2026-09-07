@@ -4,6 +4,7 @@ import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 
 import bs58 from "bs58";
+import { RAVEN_JUPITER_REFERRAL } from "../lib/customer_trade/jupiter_referral.mjs";
 import nacl from "tweetnacl";
 
 import {
@@ -38,8 +39,9 @@ function key(seed) {
 function unsignedV0Transaction(walletBytes) {
   const message = Buffer.concat([
     Buffer.from([0x80, 1, 0, 0]),
-    shortVec(1),
+    shortVec(2),
     walletBytes,
+    bs58.decode(RAVEN_JUPITER_REFERRAL.usdc_fee_account),
     key(7),
     shortVec(0),
     shortVec(0),
@@ -52,7 +54,7 @@ function fixture({ now = Date.now() } = {}) {
   const walletAddress = bs58.encode(wallet.publicKey);
   const poolAddress = bs58.encode(key(8));
   const tokenAddress = bs58.encode(key(9));
-  const referralAccount = bs58.encode(key(12));
+  const referralAccount = RAVEN_JUPITER_REFERRAL.account;
   const collectorAddress = bs58.encode(key(13));
   const transaction = unsignedV0Transaction(Buffer.from(wallet.publicKey));
   const decoded = decodeSolanaTransaction(transaction);
@@ -65,6 +67,7 @@ function fixture({ now = Date.now() } = {}) {
     transaction_review: {
       message_hash: decoded.message_hash,
       transaction_hash: decoded.transaction_hash,
+      fee_instruction_evidence: { fee_account: RAVEN_JUPITER_REFERRAL.usdc_fee_account, fee_bps: 100, positive_slippage_bps: 0 },
     },
     intent: {
       terminal_instrument_id: `solana:pool:${poolAddress}`,
@@ -103,6 +106,7 @@ function fixture({ now = Date.now() } = {}) {
       native_balance_evidence: { maximum_allowed_debit_lamports: "6000" },
       referral_fee_balance_evidence: {
         independently_simulated: true,
+        fee_account: RAVEN_JUPITER_REFERRAL.usdc_fee_account,
         referral_account: referralAccount,
         fee_mint: SOLANA_USDC_MINT,
         fee_bps: 100,
@@ -277,8 +281,14 @@ test("settled balances cannot prove a fee when the actual transaction message di
  assert.equal(result.evidence.economic_result_verified,false);
 });
 
-test("reconciliation proves selected-token credit, canonical-USDC debit, and bounded native fees", async () => {
+async function settledFixture(mutate = () => {}, { sell = false } = {}) {
   const value = fixture();
+  if (sell) {
+    const ticket = structuredClone(value.prepared.ticket);
+    Object.assign(ticket.reviewed_order, { side: "sell", input_mint: value.tokenAddress, output_mint: SOLANA_USDC_MINT, input_amount_base_units: "1000000", minimum_output_amount_base_units: "900000" });
+    value.prepared = { ticket };
+  }
+  value.prepared = { ticket: structuredClone(value.prepared.ticket) };
   const signed=signFixture(value);
   const signature=decodeSolanaTransaction(signed).signatures[0].signature_base58;
   const reconciled = await reconcileSolanaExecution({
@@ -293,10 +303,10 @@ test("reconciliation proves selected-token credit, canonical-USDC debit, and bou
       }
       if (request.method === "getTransaction") {
         if(request.params[1].encoding==="base64")return response({jsonrpc:"2.0",id:request.id,result:{slot:55,transaction:[signed,"base64"]}});
-        return response({ jsonrpc: "2.0", id: request.id, result: {
+        const transaction = {
           slot: 55,
           blockTime: 1_788_278_400,
-          transaction: { signatures:[signature],message: { accountKeys: [{ pubkey: value.walletAddress }] } },
+          transaction: { signatures:[signature],message: { accountKeys: [{ pubkey: value.walletAddress }, { pubkey: RAVEN_JUPITER_REFERRAL.usdc_fee_account }] } },
           meta: {
             err: null,
             fee: 6000,
@@ -305,19 +315,32 @@ test("reconciliation proves selected-token credit, canonical-USDC debit, and bou
             preTokenBalances: [
               { owner: value.walletAddress, mint: value.tokenAddress, uiTokenAmount: { amount: "0" } },
               { owner: value.walletAddress, mint: SOLANA_USDC_MINT, uiTokenAmount: { amount: "2000000" } },
-              { owner: value.referralAccount, mint: SOLANA_USDC_MINT, uiTokenAmount: { amount: "0" } },
+              { accountIndex: 1, owner: value.referralAccount, mint: SOLANA_USDC_MINT, uiTokenAmount: { amount: "0" } },
             ],
             postTokenBalances: [
               { owner: value.walletAddress, mint: value.tokenAddress, uiTokenAmount: { amount: "420000" } },
               { owner: value.walletAddress, mint: SOLANA_USDC_MINT, uiTokenAmount: { amount: "1000000" } },
-              { owner: value.referralAccount, mint: SOLANA_USDC_MINT, uiTokenAmount: { amount: "8000" } },
+              { accountIndex: 1, owner: value.referralAccount, mint: SOLANA_USDC_MINT, uiTokenAmount: { amount: "8000" } },
             ],
           },
-        } });
+        };
+        if (sell) {
+          transaction.meta.preTokenBalances[0].uiTokenAmount.amount = "1000000";
+          transaction.meta.postTokenBalances[0].uiTokenAmount.amount = "0";
+          transaction.meta.postTokenBalances[1].uiTokenAmount.amount = "2990000";
+          transaction.meta.postTokenBalances[2].uiTokenAmount.amount = "10000";
+        }
+        mutate(transaction, value.prepared.ticket);
+        return response({ jsonrpc: "2.0", id: request.id, result: transaction });
       }
       throw new Error(`unexpected_rpc_method:${request.method}`);
     },
   });
+  return { value, reconciled, signature };
+}
+
+test("reconciliation proves selected-token credit, canonical-USDC debit, and bounded native fees", async () => {
+  const { value, reconciled, signature } = await settledFixture();
   assert.equal(reconciled.state, "provider_confirmed");
   assert.equal(reconciled.signature, signature);
   assert.equal(reconciled.evidence.economic_result_verified, true);
@@ -328,6 +351,39 @@ test("reconciliation proves selected-token credit, canonical-USDC debit, and bou
   assert.equal(reconciled.evidence.raven_fee.observed_collector_credit_base_units, "8000");
   assert.equal(reconciled.evidence.gross_raven_fee_verified,true);
   assert.equal(reconciled.evidence.settled_message_hash,value.prepared.ticket.transaction.message_hash);
+});
+
+
+for (const [name, mutate, reason] of [
+  ["different token account owned by referral", tx => { tx.transaction.message.accountKeys[1].pubkey = bs58.encode(key(19)); }, "settled_referral_fee_account_missing"],
+  ["wrong balance index", tx => { tx.meta.postTokenBalances[2].accountIndex = 2; }, "settled_referral_fee_account_mismatch"],
+  ["wrong fee owner", tx => { tx.meta.postTokenBalances[2].owner = bs58.encode(key(19)); }, "settled_referral_fee_account_mismatch"],
+  ["duplicate fee balance", tx => { tx.meta.postTokenBalances.push(tx.meta.postTokenBalances[2]); }, "settled_referral_fee_account_mismatch"],
+  ["fee shortfall", tx => { tx.meta.postTokenBalances[2].uiTokenAmount.amount = "7999"; }, "settled_referral_fee_credit_mismatch"],
+  ["legacy 70 bps ticket", (_tx, ticket) => { ticket.fee = { ...ticket.fee, fee_bps: 70 }; }, "settled_referral_fee_policy_invalid"],
+]) {
+  test(`settlement rejects ${name}`, async () => {
+    const { reconciled } = await settledFixture(mutate);
+    assert.equal(reconciled.state, "indeterminate");
+    assert.equal(reconciled.evidence.reason, reason);
+    assert.equal(reconciled.evidence.economic_result_verified, false);
+  });
+}
+
+test("output fee uses actual settlement amount and recomputes collector minimum", async () => {
+  const { reconciled } = await settledFixture(tx => {
+    tx.meta.postTokenBalances[1].uiTokenAmount.amount = "3039500";
+    tx.meta.postTokenBalances[2].uiTokenAmount.amount = "10500";
+  }, { sell: true });
+  assert.equal(reconciled.state, "provider_confirmed");
+  assert.equal(reconciled.evidence.raven_fee.gross_fee_amount_base_units, "10500");
+  assert.equal(reconciled.evidence.raven_fee.minimum_collector_credit_base_units, "8400");
+});
+
+test("an output fee without exactly 1% of observed gross output remains unresolved", async () => {
+  const { reconciled } = await settledFixture(tx => { tx.meta.postTokenBalances[2].uiTokenAmount.amount = "7000"; }, { sell: true });
+  assert.equal(reconciled.state, "indeterminate");
+  assert.equal(reconciled.evidence.reason, "settled_output_referral_fee_mismatch");
 });
 
 test("missing or mismatched Solana fee evidence cannot create a signable ticket", () => {
