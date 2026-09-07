@@ -78,12 +78,9 @@ function renderPrivyState(payload) {
 
 async function loadPrivyFactory() {
   if (globalThis.__RAVENOS_PRIVY_WALLET_FACTORY__?.create) return globalThis.__RAVENOS_PRIVY_WALLET_FACTORY__;
-  const { response, payload } = await getJson("/ravenos_asset_manifest.json");
-  const assetUrl = String(payload?.assets?.["ravenos-privy-wallet.js"]?.url || "");
-  if (!response.ok || !/^\/assets\/ravenos-privy-wallet\.[0-9a-f]{16}\.js$/.test(assetUrl)) {
-    throw new Error("privy_sdk_unavailable");
-  }
-  await import(assetUrl);
+  // Release packaging rewrites this dependency to its immutable asset URL.
+  // The authenticated origin intentionally does not serve the build manifest.
+  await import("./ravenos-privy-wallet.js");
   if (!globalThis.__RAVENOS_PRIVY_WALLET_FACTORY__?.create) throw new Error("privy_sdk_unavailable");
   return globalThis.__RAVENOS_PRIVY_WALLET_FACTORY__;
 }

@@ -201,6 +201,17 @@ test("origin connectivity preflight resolves its probes from the immutable asset
   assert.doesNotMatch(source, /["']\/ravenos-shell\.css["']/);
 });
 
+test("the packaged Account loads its exact Privy bundle without fetching a blocked build manifest", () => {
+  const assets = JSON.parse(readFileSync(".deploy-public/ravenos_asset_manifest.json", "utf8")).assets;
+  const account = assets["ravenos-account.js"];
+  const wallet = assets["ravenos-privy-wallet.js"];
+  assert(account.dependencies.includes("ravenos-privy-wallet.js"));
+  const source = readFileSync(`.deploy-public/${account.path}`, "utf8");
+  assert(source.includes(`import("${wallet.url}")`));
+  assert(!source.includes("/ravenos_asset_manifest.json"));
+  assert.equal(readFileSync(`.deploy-public/${wallet.path}`, "utf8").length > 0, true);
+});
+
 test("release packaging carries the versioned on-chain provider gate without hard-wiring CoinGecko", () => {
   const source = readFileSync("scripts/package-release.mjs", "utf8");
   assert.match(source, /ravenos-discover-intelligence\.js/);
