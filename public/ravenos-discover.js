@@ -1044,7 +1044,29 @@ function hasDegenRelevantSpotActivity(row) {
   ].map(finite).some((value) => value !== null && value > 0);
 }
 
-function survivesCurrentSpotMarket(row = {}) {
+function reportedLaunchpadLifecycle(row = {}) {
+  const evidence = row.lifecycle_evidence;
+  const chain = text(row.chain_id || row.chain, "").toLowerCase();
+  const namespace = { solana: "solana:mainnet-beta", robinhood: "eip155:4663", base: "eip155:8453", bsc: "eip155:56", ethereum: "eip155:1" }[chain];
+  const observed = Date.parse(evidence?.observed_at || "");
+  return evidence?.schema_version === "ravenos.token_lifecycle.dexch.v1"
+    && evidence.provider === "dexch"
+    && evidence.evidence_class === "DEXCH_REPORTED"
+    && evidence.token_address === row.token_address
+    && namespace && evidence.chain_id === namespace
+    && ["BONDING", "GRADUATED"].includes(evidence.state)
+    && evidence.raven_verified === false
+    && evidence.execution_authority === false
+    && Array.isArray(evidence.quality?.contradictions)
+    && evidence.quality.contradictions.length === 0
+    && Number.isFinite(observed) && Math.abs(Date.now() - observed) <= DISCOVER_MARKET_FACT_TARGET_SECONDS * 1_000;
+}
+
+function lifecycleBrowseActive() {
+  return ["new", "bonding", "migrated"].includes(state.spotCohort);
+}
+
+function survivesCurrentSpotMarket(row = {}, { allowQuietLifecycle = false } = {}) {
   if (!spotMarketFactFreshness(row).current) return false;
   const market = row.market || {};
   const age = finite(row.age_seconds);
@@ -1060,6 +1082,10 @@ function survivesCurrentSpotMarket(row = {}) {
   if ((change1h !== null && change1h <= -85) || (change24h !== null && change24h <= -95)) return false;
   if ([market.liquidity_change_5m_pct, market.liquidity_change_1h_pct, market.liquidity_change_24h_pct]
     .map(finite).some((value) => value !== null && value <= -85)) return false;
+
+  // Lifecycle browsing includes quiet launches, without waiving identity,
+  // freshness, collapsed-liquidity or severe-loss checks above.
+  if (allowQuietLifecycle && reportedLaunchpadLifecycle(row)) return true;
 
   const volume5m = finite(market.volume_usd_5m);
   const volume1h = finite(market.volume_usd_1h);
@@ -1735,8 +1761,9 @@ function spotRankedRows() {
       && (state.spotLane !== "opportunities" || currentFacts)
       && (state.spotSort !== "raven" || currentFacts)
       && (retained || (
-        survivesCurrentSpotMarket(row)
-        && (broadDegenScan ? hasDegenRelevantSpotActivity(row) : hasDecisionUsefulSpotActivity(row))
+        survivesCurrentSpotMarket(row, { allowQuietLifecycle: lifecycleBrowseActive() })
+        && ((lifecycleBrowseActive() && reportedLaunchpadLifecycle(row))
+          || (broadDegenScan ? hasDegenRelevantSpotActivity(row) : hasDecisionUsefulSpotActivity(row)))
       ));
   });
   if (state.spotSort === "raven") {
@@ -2638,7 +2665,9 @@ function renderSpotPulse(rows = state.spotRows, { forceOrder = false } = {}) {
   };
   const view = views[state.spotSort] || views.velocity;
   document.getElementById("discoverSpotPulseTitle").textContent = view.title;
-  document.getElementById("discoverSpotPulseSummary").textContent = state.spotLane === "opportunities" && state.spotSort !== "raven"
+  document.getElementById("discoverSpotPulseSummary").textContent = lifecycleBrowseActive() && state.spotSort !== "raven"
+    ? "Reported lifecycle · quiet markets included · current evidence required."
+    : state.spotLane === "opportunities" && state.spotSort !== "raven"
     ? `High signal only. ${view.summary}`
     : state.spotEmergingFirst && state.spotSort !== "raven" ? `Emerging markets first · ${view.summary}` : view.summary;
   document.getElementById("discoverSpotWhyColumn").textContent = view.column;
@@ -3167,7 +3196,8 @@ function currentOnchainPulsePayload(payload) {
   if (payloadIds.length !== radarIds.length || payloadIds.some((value, index) => value !== radarIds[index])) throw new Error("onchain_radar_row_identity_mismatch");
   const rows = discoveryRadar.rows.filter((row) => {
     const chain = text(row?.chain_id || row?.chain, "").toLowerCase();
-    const sourceValid = row?.source_type === "market_activity" || (
+    const sourceValid = row?.source_type === "market_activity"
+      || (row?.source_type === "launchpad_discovery" && reportedLaunchpadLifecycle(row)) || (
       row?.source_type === "jupiter_velocity"
       && row?.discovery_source === "jupiter_toptrending"
       && row?.jupiter?.category === "toptrending"
@@ -3186,7 +3216,7 @@ function currentOnchainPulsePayload(payload) {
       && row?.execution_available === false
       && row?.raven_signal === false
       && row?.discovery?.raven_evidence_state?.raven_signal === false
-      && survivesCurrentSpotMarket(row);
+      && survivesCurrentSpotMarket(row, { allowQuietLifecycle: true });
   });
   return {
     rows,
@@ -3641,6 +3671,7 @@ function bind() {
   document.querySelectorAll("[data-spot-cohort]").forEach((button) => button.addEventListener("click", () => {
     state.spotCohort = button.dataset.spotCohort;
     state.spotRevivalOnly = false;
+    if (lifecycleBrowseActive()) state.spotLane = "all";
     renderSpotPulse(state.spotRows, { forceOrder: true });
   }));
   document.querySelectorAll("[data-spot-market-cap]").forEach((button) => button.addEventListener("click", () => {

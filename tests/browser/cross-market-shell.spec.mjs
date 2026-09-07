@@ -34,6 +34,71 @@ const markets = [
   },
 ];
 
+function quietLaunchpadRow(source, symbol, lifecycle) {
+  const row = structuredClone(source);
+  row.symbol = symbol;
+  row.name = symbol;
+  row.source_type = "launchpad_discovery";
+  row.migration_cohort = { value: lifecycle === "BONDING" ? "pre_migration" : "post_migration", source_scope: "dexch_provider_reported_lifecycle", freshness: "current", derivation: "provider_reported" };
+  row.lifecycle_evidence = {
+    schema_version: "ravenos.token_lifecycle.dexch.v1", provider: "dexch", evidence_class: "DEXCH_REPORTED",
+    chain_id: row.chain_id === "solana" ? "solana:mainnet-beta" : "eip155:4663", token_address: row.token_address,
+    state: lifecycle, observed_at: new Date().toISOString(), raven_verified: false, execution_authority: false,
+    quality: { contradictions: [] }, progress_bps: lifecycle === "BONDING" ? 1200 : 10000,
+  };
+  row.market = { ...row.market, price_usd: 0.00002, market_cap_usd: 20_000, liquidity_usd: 2_000 };
+  for (const window of ["5m", "1h", "24h"]) {
+    for (const metric of ["volume_usd", "buys", "sells", "traders", "buyers", "sellers"]) row.market[`${metric}_${window}`] = 0;
+    row.market[`price_change_${window}_pct`] = 0;
+  }
+  row.registry = { state: "tracking", observation_count: 1, retained_after_trending: false };
+  return row;
+}
+
+for (const width of [1440, 390]) test(`Discover lifecycle controls show quiet reported launches at ${width}px`, async ({ page }) => {
+  await page.setViewportSize({ width, height: 1000 });
+  const bonding = quietLaunchpadRow(solanaPulseRow, "BONDQUIET", "BONDING");
+  const graduated = quietLaunchpadRow(robinhoodPulseRow, "GRADQUIET", "GRADUATED");
+  await mockWorkspaceApis(page, { pulseRowsOverride: [bonding, graduated] });
+  await page.goto("/discover/");
+  await page.locator('#discoverRefineMarkets > summary').click();
+  await page.locator('[data-spot-lane="opportunities"]').click();
+  await expect(page.locator('.discover-token-row')).toHaveCount(0);
+  await page.locator('.discover-lifecycle-quickbar [data-spot-cohort="bonding"]').click();
+  await expect(page.locator('.discover-token-row')).toHaveCount(1);
+  await expect(page.locator('#discoverTokenTapeList')).toContainText('BONDQUIET');
+  await expect(page.locator('[data-spot-lane="all"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#discoverSpotPulseSummary')).toContainText('quiet markets included');
+  await page.locator('.discover-lifecycle-quickbar [data-spot-cohort="migrated"]').click();
+  await expect(page.locator('.discover-token-row')).toHaveCount(1);
+  await expect(page.locator('#discoverTokenTapeList')).toContainText('GRADQUIET');
+  await page.locator('.discover-lifecycle-quickbar [data-spot-cohort="all"]').click();
+  await expect(page.locator('.discover-token-row')).toHaveCount(0);
+});
+
+test('Discover lifecycle admission rejects mismatched, stale, contradictory and collapsed launch evidence', async ({ page }) => {
+  const mutations = [
+    row => { row.lifecycle_evidence.token_address = '0x0000000000000000000000000000000000000001'; },
+    row => { row.lifecycle_evidence.chain_id = 'eip155:1'; },
+    row => { row.lifecycle_evidence.observed_at = new Date(Date.now() - 300_000).toISOString(); },
+    row => { row.lifecycle_evidence.quality.contradictions = ['lifecycle_conflict']; },
+    row => { row.market.liquidity_usd = 0; },
+    row => { row.market.price_change_1h_pct = -90; },
+  ];
+  const rows = mutations.map((mutate, i) => {
+    const row = quietLaunchpadRow(robinhoodPulseRow, `REJECT${i}`, 'GRADUATED');
+    row.pool_address = `0x${(900 + i).toString(16).padStart(40, '0')}`;
+    row.instrument_id = `robinhood:pool:${row.pool_address}`;
+    mutate(row);
+    return row;
+  });
+  await mockWorkspaceApis(page, { pulseRowsOverride: rows });
+  await page.goto('/discover/');
+  await page.locator('.discover-lifecycle-quickbar [data-spot-cohort="migrated"]').click();
+  await expect(page.locator('.discover-token-row')).toHaveCount(0);
+  await expect(page.locator('#discoverTokenTapeList')).not.toContainText('REJECT');
+});
+
 test("Discover runs a rights-safe live tape for perps, major stocks, and ETFs", async ({ page }) => {
   await mockWorkspaceApis(page);
   await page.goto("/discover/");
