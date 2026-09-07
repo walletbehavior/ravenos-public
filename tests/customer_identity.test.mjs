@@ -36,6 +36,24 @@ function configuredEnv() {
   };
 }
 
+test("database quota failures stay inside auth boundaries without leaking errors or clearing cookies", async () => {
+  const privateError = "D1_ERROR: account quota exceeded; internal connection details";
+  const brokenStore = {
+    async rateLimit() { throw new Error(privateError); },
+    async findSession() { throw new Error(privateError); },
+  };
+  const start = await startJsonFlow(brokenStore, { intent: "sign_in" });
+  const session = await routeCustomerIdentity(request("/api/v1/auth/session", {
+    headers: { cookie: `__Host-ravenos_session=ses_${"a".repeat(48)}` },
+  }), configuredEnv(), { store: brokenStore, nowMs: NOW_MS });
+  for (const response of [start, session]) {
+    assert.equal(response.status, 503);
+    assert.equal(response.headers.get("retry-after"), "30");
+    assert.equal(response.headers.get("set-cookie"), null);
+    assert.deepEqual(await response.json(), { ok: false, error: "account_service_unavailable" });
+  }
+});
+
 class MemoryIdentityStore {
   constructor() {
     this.authStates = new Map();

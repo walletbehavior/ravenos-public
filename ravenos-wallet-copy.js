@@ -1805,7 +1805,14 @@ async function boot() {
   const returnTo = `/account/copy/${returnParams.size ? `?${returnParams}` : ""}`;
   document.querySelectorAll('input[name="return_to"]').forEach((input) => { input.value = returnTo; });
   const session = await api("/api/v1/auth/session");
-  if (!session.response.ok || session.payload?.authenticated !== true) {
+  if (!session.response.ok) {
+    page.dataset.copyState = "unavailable";
+    unavailable.hidden = false;
+    setText("copyWorkspaceState", "Account service unavailable");
+    setText("copyUnavailableReason", "Your session could not be checked. Please try again shortly. Your account and saved research are unchanged.");
+    return;
+  }
+  if (session.payload?.authenticated !== true) {
     page.dataset.copyState = "signed-out";
     signIn.hidden = false;
     setText("copyWorkspaceState", "Sign in required");

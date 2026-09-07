@@ -630,6 +630,17 @@ async function install(page, shared, { authenticated = true, entitled = true } =
   });
 }
 
+test("an unavailable session check does not present a signed-in user as signed out", async ({ page }) => {
+  const shared = { watch: null, decision: null, position: null, requests: [] };
+  await install(page, shared);
+  await page.route("**/api/v1/auth/session", route => route.fulfill({status:503,contentType:"application/json",body:JSON.stringify({ok:false,error:"account_service_unavailable"})}));
+  await page.goto("/account/copy/");
+  await expect(page.locator("#copyUnavailable")).toBeVisible();
+  await expect(page.locator("#copySignIn")).toBeHidden();
+  await expect(page.locator("#copyUnavailableReason")).toContainText("Your session could not be checked");
+  expect(shared.requests.some(row=>row.path.endsWith("/inspect"))).toBe(false);
+});
+
 test("signed-out visitors see auth while free accounts receive the basic wallet workspace", async ({ page }) => {
   const signedOut = { watch: null, decision: null, position: null, requests: [] };
   await install(page, signedOut, { authenticated: false });
