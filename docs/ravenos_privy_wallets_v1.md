@@ -51,3 +51,41 @@ The Account CSP permits only Privy's documented secure iframe and API/RPC origin
 Implemented: opt-in UI, custom-auth token, public JWKS bootstrap, rotation-safe Privy identity verification, browser SDK boundary, dual-wallet provisioning, durable public-metadata association, account isolation, idempotency, usage ledger, external-wallet coexistence, and a Terminal EVM provider seam that reuses Raven's fee-bound 0x execution review.
 
 Dashboard JWT configuration and identity-token return are now saved and reload-verified. The next owner-only acceptance step is an authenticated EVM wallet creation/link with no signature or value movement. Not yet claimed: a safe EVM signature/submission, Robinhood Chain compatibility, Solana signing, withdrawal/export, or funded Terminal trade. Solana stays disabled until Raven's Jupiter fee account is configured and independently verified.
+
+
+## September 6, 2026: wallet choice and iPhone connection repair
+
+Privy JWT authentication must allow the client-side environment because Raven's
+browser SDK calls custom-auth directly. Server-side support remains enabled. The
+app's existing issuer, audience, public JWKS, identity-token verification, and
+explicit Raven user allowlist are unchanged. The owner confirmed creation of the
+EVM wallet from iPhone Chrome after this dashboard correction.
+
+Account now offers Solana, EVM, or both, bounded by the server's provisioning
+capabilities. A linked EVM wallet no longer hides the control to add Solana.
+Creation only occurs on an explicit click. The current owner allowlist can create
+both ecosystems; manual and delegated embedded-wallet signing remain disabled.
+Solana trade activation remains separately blocked pending its execution release.
+A provisioning failure may be retried against the same provider wallet identity.
+
+For external wallets without an injected provider, Account offers official
+Phantom/Solflare/MetaMask wallet-browser links. This opens Raven inside the wallet
+app; it does not establish a WalletConnect session back in Chrome or Safari.
+Users may need to sign in again there, then connect. Links exclude authentication
+parameters, fragments, and private account state. Existing injected-provider
+connections remain read-only and tab-local. Terminal shares the same URL helper
+and loads Privy via its immutable packaged dependency.
+
+### Funding model
+
+Wallet ecosystem and payment asset are independent choices. Terminal's existing
+Auto setting resolves to same-chain canonical USDC; native-asset payment is an
+explicit alternative where the existing route supports it. EVM sell settlement
+continues to use its supported USDC path. Creating both wallets does not combine
+balances, bridge funds, or reserve trading authority.
+
+Cross-chain USDC funding should use the existing verified bridge-quote model:
+source wallet/network, destination network, canonical asset, fees, arrival
+estimate, and explicit confirmation. Funds must arrive and the trade must be
+re-quoted before execution. The current quote/shadow infrastructure is not a live
+bridge launch. Hyperliquid keeps its separate deposit and margin workflow.

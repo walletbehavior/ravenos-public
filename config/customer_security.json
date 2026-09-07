@@ -781,6 +781,7 @@
     "dashboard_web_client_configured": true,
     "dashboard_custom_auth_plugin_enabled": true,
     "dashboard_jwt_configuration_saved": true,
+    "dashboard_client_auth_enabled": true,
     "dashboard_identity_token_return_enabled": true,
     "raven_identity_remains_canonical": true,
     "existing_users_migrated_automatically": false,
@@ -801,7 +802,8 @@
     "terminal_reuses_fee_bound_zero_x_review": true,
     "owner_evm_wallet_canary_release_enabled": true,
     "owner_evm_wallet_provisioning_enabled": true,
-    "solana_activation_blocked_on_jupiter_fee_configuration": true,
+    "owner_solana_wallet_provisioning_enabled": true,
+    "solana_execution_blocked_on_jupiter_fee_configuration": true,
     "default_wallet_onboarding": false,
     "production_activation_completed": false,
     "activation_controls": [

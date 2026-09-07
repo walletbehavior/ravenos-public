@@ -186,10 +186,15 @@
             <div>
               <strong id="accountPrivyTitle">Create wallets when you want to trade.</strong>
               <p id="accountPrivyStatus" aria-live="polite">Raven login stays the same.</p>
+              <label class="account-privy-choice" id="accountPrivyChoice" hidden>
+                Wallet type
+                <select id="accountPrivyEcosystem" aria-label="Wallet type"></select>
+              </label>
             </div>
             <button id="accountPrivyCreate" type="button">Create Raven Wallet</button>
           </div>
           <div class="account-privy-wallets" id="accountPrivyWallets" hidden></div>
+          <p class="account-privy-funding-note">Solana has its own address. One EVM address works across supported EVM networks. Both can hold USDC and native assets; choose what to pay with in Terminal. Balances stay on each network.</p>
           <footer>Optional · external wallets still work · delegation off</footer>
         </section>
 

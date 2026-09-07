@@ -201,14 +201,17 @@ test("origin connectivity preflight resolves its probes from the immutable asset
   assert.doesNotMatch(source, /["']\/ravenos-shell\.css["']/);
 });
 
-test("the packaged Account loads its exact Privy bundle without fetching a blocked build manifest", () => {
+test("packaged Account and Terminal load their exact Privy bundle without fetching a blocked build manifest", () => {
   const assets = JSON.parse(readFileSync(".deploy-public/ravenos_asset_manifest.json", "utf8")).assets;
-  const account = assets["ravenos-account.js"];
   const wallet = assets["ravenos-privy-wallet.js"];
-  assert(account.dependencies.includes("ravenos-privy-wallet.js"));
-  const source = readFileSync(`.deploy-public/${account.path}`, "utf8");
-  assert(source.includes(`import("${wallet.url}")`));
-  assert(!source.includes("/ravenos_asset_manifest.json"));
+  for (const name of ["ravenos-account.js", "ravenos-terminal-live.js"]) {
+    const entry = assets[name];
+    assert(entry.dependencies.includes("ravenos-privy-wallet.js"));
+    assert(entry.dependencies.includes("ravenos-wallet-connect.js"));
+    const source = readFileSync(`.deploy-public/${entry.path}`, "utf8");
+    assert(source.includes(`import("${wallet.url}")`));
+    assert(!source.includes("/ravenos_asset_manifest.json"));
+  }
   assert.equal(readFileSync(`.deploy-public/${wallet.path}`, "utf8").length > 0, true);
 });
 
@@ -242,7 +245,9 @@ test("release packaging carries the versioned on-chain provider gate without har
   assert.match(source, /privy_evm_wallet_canary_enabled: privyEvmWalletCanaryActive/);
   assert.match(source, /RAVENOS_PRIVY_ENABLED: privyEvmWalletCanaryActive \? "1" : "0"/);
   assert.match(source, /RAVENOS_PRIVY_EVM_ENABLED: privyEvmWalletCanaryActive \? "1" : "0"/);
-  assert.match(source, /RAVENOS_PRIVY_SOLANA_ENABLED: "0"/);
+  assert.match(source, /RAVENOS_PRIVY_SOLANA_ENABLED: privySolanaWalletCanaryActive \? "1" : "0"/);
+  assert.match(source, /dashboard_client_auth_enabled === true/);
+  assert.match(source, /owner_solana_wallet_provisioning_enabled === true/);
   assert.match(source, /RAVENOS_PRIVY_MANUAL_SIGNING_ENABLED: "0"/);
   assert.match(source, /RAVENOS_PRIVY_DELEGATED_SIGNING_ENABLED: "0"/);
   assert.match(source, /"RAVENOS_PRIVY_CUSTOM_AUTH_PRIVATE_JWK"/);

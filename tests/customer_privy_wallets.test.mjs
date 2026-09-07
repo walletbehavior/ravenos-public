@@ -252,7 +252,20 @@ test("migration stores public metadata only and usage is append-only", async () 
     userId: `usr_${"a".repeat(32)}`, privyUserId: "did:privy:sqlite-user", now: NOW,
     wallets: [{ ecosystem: "evm", address: "0x1111111111111111111111111111111111111111", provider_wallet_id: "wallet-1" }],
   });
+  const original = (await store.listWallets(`usr_${"a".repeat(32)}`))[0];
   assert.equal((await store.listWallets(`usr_${"a".repeat(32)}`)).length, 1);
+  await store.link({
+    userId: `usr_${"a".repeat(32)}`, privyUserId: "did:privy:sqlite-user", now: NOW + 1,
+    wallets: [
+      { ecosystem: "evm", address: "0x1111111111111111111111111111111111111111", provider_wallet_id: "wallet-1" },
+      { ecosystem: "solana", address: "Stake11111111111111111111111111111111111111", provider_wallet_id: "wallet-2" },
+    ],
+  });
+  const expanded = await store.listWallets(`usr_${"a".repeat(32)}`);
+  assert.equal(expanded.length, 2);
+  assert.equal(expanded.find((wallet) => wallet.ecosystem === "evm").wallet_record_id, original.wallet_record_id);
+  assert.equal(expanded.find((wallet) => wallet.ecosystem === "evm").public_address, original.public_address);
+  assert.deepEqual(await store.listWallets(`usr_${"b".repeat(32)}`), []);
   assert.throws(() => db.exec("UPDATE ravenos_privy_usage_events SET quantity = 2"), /append_only/);
   db.close();
 });

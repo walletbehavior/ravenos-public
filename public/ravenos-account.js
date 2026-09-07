@@ -1,3 +1,4 @@
+import { walletLaunchHref } from "./ravenos-wallet-connect.js";
 import { requestLegalAcceptance } from "./ravenos-legal-client.js";
 
 const page = document.querySelector(".account-page");
@@ -72,8 +73,25 @@ function renderPrivyState(payload) {
   setText("accountPrivyStatus", payload.linked
     ? `${wallets.length} ${wallets.length === 1 ? "wallet" : "wallets"} ready. Raven login remains separate.`
     : `Creates your ${walletLabel} without changing your login.`);
-  button.hidden = payload.linked;
+  const missing = ["solana", "evm"].filter((ecosystem) => capabilities[ecosystem] === true
+    && !wallets.some((wallet) => wallet.ecosystem === ecosystem));
+  const select = document.getElementById("accountPrivyEcosystem");
+  const previous = select.value;
+  const choices = missing.length === 2 ? ["both", ...missing] : missing;
+  select.replaceChildren(...choices.map((value) => new Option(
+    value === "both" ? "Solana + EVM" : value === "solana" ? "Solana" : "EVM", value,
+  )));
+  if (choices.includes(previous)) select.value = previous;
+  document.getElementById("accountPrivyChoice").hidden = missing.length === 0;
+  button.hidden = missing.length === 0;
+  updatePrivyCreateLabel();
   renderPrivyWallets(wallets);
+}
+
+function updatePrivyCreateLabel() {
+  const selected = document.getElementById("accountPrivyEcosystem").value;
+  const label = selected === "both" ? "Solana + EVM wallets" : selected === "solana" ? "Solana wallet" : "EVM wallet";
+  document.getElementById("accountPrivyCreate").textContent = `${state.privy.wallets.length ? "Add" : "Create"} ${label}`;
 }
 
 async function loadPrivyFactory() {
@@ -100,9 +118,16 @@ async function createPrivyWallets() {
   const button = document.getElementById("accountPrivyCreate");
   const status = document.getElementById("accountPrivyStatus");
   if (!state.csrf || !state.privy.config?.available) return;
+  const select = document.getElementById("accountPrivyEcosystem");
+  const selected = select.value;
+  if (!["both", "solana", "evm"].includes(selected)) return;
+  const requested = { evm: selected === "both" || selected === "evm", solana: selected === "both" || selected === "solana" };
+  if (Object.keys(requested).some((key) => requested[key] && state.privy.config.capabilities?.[key] !== true)) return;
   button.disabled = true;
+  select.disabled = true;
+  let phase = "start";
   status.dataset.tone = "";
-  status.textContent = "Creating secure wallets…";
+  status.textContent = "Preparing your wallet…";
   try {
     const factory = await loadPrivyFactory();
     const session = await getJsonWithLegalAcceptance("/api/v1/wallets/privy/session", {
@@ -116,8 +141,15 @@ async function createPrivyWallets() {
       clientId: state.privy.config.client_id,
     });
     state.privy.client = client;
+    if (Object.keys(requested).some((key) => requested[key] && session.payload.wallets?.[key] !== true)) {
+      throw new Error("privy_wallet_capability_changed");
+    }
+    phase = "authenticate";
     await client.sync(session.payload.token);
-    await client.provision(session.payload.wallets || {});
+    phase = "create";
+    status.textContent = "Creating your selected wallet…";
+    await client.provision(requested);
+    phase = "link";
     const identityToken = await client.identityToken();
     const linked = await getJsonWithLegalAcceptance("/api/v1/wallets/privy/link", {
       method: "POST",
@@ -134,9 +166,15 @@ async function createPrivyWallets() {
     status.dataset.tone = "error";
     status.textContent = error?.message === "privy_identity_conflict"
       ? "This wallet identity is already linked to another Raven account."
-      : "Wallet setup could not finish. Your Raven login is unchanged.";
+      : error?.message === "privy_wallet_capability_changed"
+        ? "This wallet type is no longer available. Refresh to see current options."
+        : phase === "authenticate" ? "The wallet service could not verify your session. Please try again."
+          : phase === "link" ? "We could not finish linking your wallet. Retry to recover it without creating a duplicate."
+            : phase === "create" ? "Wallet creation could not finish. Please retry; any wallet already created will be recovered."
+              : "Wallet setup could not start. Your Raven login is unchanged.";
   } finally {
     button.disabled = false;
+    select.disabled = false;
   }
 }
 
@@ -360,13 +398,50 @@ function bindBrowserWalletEvents(chain, provider) {
   }
 }
 
+function openWalletAppChooser(chain) {
+  document.getElementById("accountWalletAppChooser")?.remove();
+  const dialog = document.createElement("dialog");
+  dialog.id = "accountWalletAppChooser";
+  dialog.className = "account-wallet-chooser";
+  dialog.setAttribute("aria-labelledby", "accountWalletAppTitle");
+  dialog.setAttribute("aria-describedby", "accountWalletAppDescription");
+  const title = document.createElement("h3");
+  title.id = "accountWalletAppTitle";
+  title.textContent = `Connect a ${chain} wallet`;
+  const description = document.createElement("p");
+  description.id = "accountWalletAppDescription";
+  description.textContent = "On iPhone Chrome or Safari, open Raven inside your wallet app. Sign in there if asked, then tap Connect. This does not connect the wallet to your Chrome or Safari tab.";
+  const choices = document.createElement("div");
+  choices.className = "account-wallet-apps";
+  for (const name of chain === "Solana" ? ["Phantom", "Solflare"] : ["MetaMask", "Phantom"]) {
+    const link = document.createElement("a");
+    link.href = walletLaunchHref(name, chain.toLowerCase(), "https://app.ravenos.xyz/account/");
+    link.rel = "noopener noreferrer";
+    link.textContent = `Open ${name}`;
+    choices.append(link);
+  }
+  const help = document.createElement("p");
+  help.textContent = "On desktop, unlock your wallet extension and retry. You can also create a Raven Wallet below.";
+  const close = document.createElement("button");
+  close.type = "button";
+  close.textContent = "Back to account";
+  close.addEventListener("click", () => dialog.close());
+  dialog.append(title, description, choices, help, close);
+  dialog.addEventListener("close", () => {
+    dialog.remove();
+    document.getElementById(chain === "Solana" ? "accountConnectSolana" : "accountConnectEvm")?.focus();
+  }, { once: true });
+  document.body.append(dialog);
+  dialog.showModal();
+}
+
 async function connectBrowserWallet(chain) {
   const status = document.getElementById("accountWalletConnectStatus");
   if (status) status.dataset.tone = "";
   const selected = chain === "Solana" ? solanaWalletProvider() : evmWalletProvider();
   if (!selected) {
-    if (status) status.dataset.tone = "error";
-    return renderBrowserWallet(`${chain} wallet not detected.`);
+    renderBrowserWallet("Open Raven in your wallet app to connect.");
+    return openWalletAppChooser(chain);
   }
   renderBrowserWallet("Connecting…");
   try {
@@ -1580,3 +1655,5 @@ function bindRewardsControls() {
   });
 }
 bindRewardsControls();
+
+document.getElementById("accountPrivyEcosystem")?.addEventListener("change", updatePrivyCreateLabel);

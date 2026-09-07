@@ -1,3 +1,4 @@
+import { walletLaunchHref } from "./ravenos-wallet-connect.js";
 import { createTerminalDesk, deskFeeLabel, deskPercentFromBps } from "./ravenos-terminal-desk.js";
 import { ravenOSContext, savedMonitorHandoffHref } from "./ravenos-context-store.js";
 import {
@@ -1136,26 +1137,6 @@ function embeddedWalletManualSigningAvailable(provider = browserWalletProvider()
     || state.privyWallet.config?.capabilities?.manual_signing === true;
 }
 
-function walletLaunchHref(wallet, chainType) {
-  const current = location.href;
-  const encoded = encodeURIComponent(current);
-  const ref = encodeURIComponent(location.origin);
-  if (chainType === "solana") {
-    if (wallet === "Phantom") return `https://phantom.app/ul/browse/${encoded}?ref=${ref}`;
-    if (wallet === "Solflare") return `https://solflare.com/ul/v1/browse/${encoded}?ref=${ref}`;
-    if (wallet === "Backpack") return "https://backpack.app/";
-    if (wallet === "Glow") return "https://glow.app/";
-    return null;
-  }
-  if (wallet === "MetaMask") return `https://metamask.app.link/dapp/${location.host}${location.pathname}${location.search}`;
-  if (wallet === "Coinbase Wallet") return `https://go.cb-w.com/dapp?cb_url=${encoded}`;
-  if (wallet === "Trust Wallet") return `https://link.trustwallet.com/open_url?coin_id=60&url=${encoded}`;
-  if (wallet === "Rabby") return "https://rabby.io/";
-  if (wallet === "Rainbow") return "https://rainbow.me/";
-  if (wallet === "Phantom") return "https://phantom.app/";
-  return null;
-}
-
 function walletChoiceButton({ name, detail, detected, onChoose, href = null, stateText = null }) {
   const row = href ? document.createElement("a") : document.createElement("button");
   row.className = "terminal-wallet-choice";
@@ -1186,12 +1167,8 @@ async function loadPrivyWalletFactory() {
   if (globalThis.__RAVENOS_PRIVY_WALLET_FACTORY__?.create) return globalThis.__RAVENOS_PRIVY_WALLET_FACTORY__;
   if (!state.privyWalletBundle) {
     state.privyWalletBundle = (async () => {
-      const { response, payload } = await fetchJson("/ravenos_asset_manifest.json");
-      const assetUrl = String(payload?.assets?.["ravenos-privy-wallet.js"]?.url || "");
-      if (!response.ok || !/^\/assets\/ravenos-privy-wallet\.[0-9a-f]{16}\.js$/.test(assetUrl)) {
-        throw new Error("privy_sdk_unavailable");
-      }
-      await import(assetUrl);
+      // Packaged as an immutable dependency, including on the authenticated origin.
+      await import("./ravenos-privy-wallet.js");
       if (!globalThis.__RAVENOS_PRIVY_WALLET_FACTORY__?.create) throw new Error("privy_sdk_unavailable");
       return globalThis.__RAVENOS_PRIVY_WALLET_FACTORY__;
     })().catch((error) => {

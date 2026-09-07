@@ -397,3 +397,16 @@
 .account-finance-controls { display:flex;flex-wrap:wrap;gap:12px;align-items:center;padding:14px; }
 .account-finance-controls select, .account-finance-controls button { min-height:42px;background:#0a1019;border:1px solid var(--ws-border-strong);color:var(--ws-text);border-radius:6px;padding:8px 12px; }
 #accountFinanceStatus { padding:0 14px 14px;font-size:12px;line-height:1.6;color:var(--ws-muted); }
+
+.account-privy-choice { display: grid; gap: 8px; margin-top: 12px; color: var(--text-muted, #a2aab5); font-size: 12px; }
+.account-privy-choice[hidden] { display: none; }
+.account-privy-choice select { min-height: 44px; width: 100%; min-width: 180px; border: 1px solid #35434b; border-radius: 8px; padding: 10px 12px; background: #101820; color: #e5ecf0; font: inherit; font-size: 16px; }
+.account-privy-funding-note { margin: 0; padding: 16px; border-top: 1px solid #26333d; color: #a2aab5; font-size: 12px; line-height: 1.6; }
+.account-wallet-chooser { box-sizing: border-box; width: min(440px, calc(100vw - 32px)); max-height: calc(100dvh - 48px); margin: auto; padding: 24px; overflow-y: auto; border: 1px solid #35434b; border-radius: 16px; background: #0d151d; color: #e5ecf0; }
+.account-wallet-chooser::backdrop { background: #000b; }
+.account-wallet-chooser h3 { margin: 0 0 14px; font-size: 20px; }
+.account-wallet-chooser p { color: #a2aab5; font-size: 14px; line-height: 1.6; }
+.account-wallet-apps { display: grid; gap: 12px; margin: 22px 0; }
+.account-wallet-apps a, .account-wallet-chooser button { box-sizing: border-box; display: flex; justify-content: center; align-items: center; width: 100%; min-height: 48px; padding: 12px; border: 1px solid #355e51; border-radius: 8px; background: #142b24; color: #a1dac0; text-decoration: none; font: inherit; font-size: 16px; }
+.account-wallet-chooser button { border-color: #35434b; background: transparent; color: #c8d0d8; cursor: pointer; }
+.account-wallet-apps a:focus-visible, .account-wallet-chooser button:focus-visible, .account-privy-choice select:focus-visible { outline: 2px solid #a1dac0; outline-offset: 3px; }

@@ -119,7 +119,7 @@ test("Stage A activates only managed accounts and revocable sessions", () => {
   assert.equal(security.shadow_route_sampling.signing_available, false);
   assert.equal(security.shadow_route_sampling.submission_available, false);
   assert(security.blocked_capabilities.includes("persistent_alerts_production_activation"));
-  assert.equal(security.entitlement_foundation.implementation_status, "local_dormant_foundation");
+  assert.equal(security.entitlement_foundation.implementation_status, "trial_and_paid_pro_release_ready");
   assert.equal(security.entitlement_foundation.surface, "https://app.ravenos.xyz/account/intelligence/");
   assert.equal(security.entitlement_foundation.all_activation_controls_default_off, true);
   assert.equal(security.entitlement_foundation.coordinated_projection_split_required, true);
