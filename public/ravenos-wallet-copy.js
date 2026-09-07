@@ -1599,7 +1599,7 @@ function renderScreener(payload) {
   state.screener = {
     chain: payload.scope?.chain || state.screener.chain,
     page: Number(payload.pagination?.page || payload.page || state.screener.page || 1),
-    total_pages: Math.min(25, Math.max(Number(payload.pagination?.total_pages || payload.total_pages || 0), Math.ceil(seenTotal / pageSize))),
+    total_pages: Math.min(Number(payload.pagination?.maximum_page || 25), Math.max(Number(payload.pagination?.total_pages || payload.total_pages || 0), Math.ceil(seenTotal / pageSize))),
     total: Number(payload.pagination?.total_matching_rows || payload.pagination?.total || payload.total || wallets.length),
     wallets,
     preset: state.screener.preset,

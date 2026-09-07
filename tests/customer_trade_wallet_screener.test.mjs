@@ -192,7 +192,7 @@ test("request validation rejects unknown controls, unallowlisted sorts, and unbo
   assert.throws(() => normalizeWalletScreenerRequest({ filters: { min_known_cost_basis_pct: 100.01 } }, { now: NOW }), /min_known_cost_basis_pct_invalid/);
   assert.throws(() => normalizeWalletScreenerRequest({ filters: { min_win_rate_pct: false } }, { now: NOW }), /min_win_rate_pct_invalid/);
   assert.throws(() => normalizeWalletScreenerRequest({ filters: { min_roi_pct: -100.01 } }, { now: NOW }), /min_roi_pct_invalid/);
-  assert.throws(() => normalizeWalletScreenerRequest({ page: 26 }, { now: NOW }), /wallet_screener_page_invalid/);
+  assert.throws(() => normalizeWalletScreenerRequest({ page: 1001 }, { now: NOW }), /wallet_screener_page_invalid/);
   assert.throws(() => normalizeWalletScreenerRequest({ page_size: 31 }, { now: NOW }), /wallet_screener_page_size_invalid/);
   assert.throws(() => normalizeWalletScreenerRequest({}, { now: "not-a-time" }), /wallet_screener_now_invalid/);
 });
@@ -505,8 +505,9 @@ test("response is bounded, paginated, honest about universe coverage, and exclud
   assert.equal(response.rows.length, 1);
   assert.equal(response.projection_exclusions, 1);
   assert.equal(response.pagination.total_matching_rows, 101);
-  assert.equal(response.pagination.total_pages, 25);
-  assert.equal(response.pagination.result_window_limited, true);
+  assert.equal(response.pagination.total_pages, 51);
+  assert.equal(response.pagination.maximum_page, 1000);
+  assert.equal(response.pagination.result_window_limited, false);
   assert.equal(response.pagination.has_previous, true);
   assert.equal(response.pagination.has_next, true);
   assert.equal(response.scope.claim, "bounded_raven_index_only");

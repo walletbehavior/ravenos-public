@@ -903,6 +903,22 @@ test("Raven Copy has a direct navigation target", async ({ page }) => {
   await expect(page.getByRole("tab", { name: /Raven Copy/ })).toHaveAttribute("aria-selected", "true");
 });
 
+test("the shared wallet universe exposes hundreds of pages without triggering analysis", async ({ page }) => {
+  const shared = { watch: null, decision: null, position: null, requests: [] };
+  await install(page, shared);
+  await page.route("**/api/v1/wallet-copy/screener", async route => {
+    const query=route.request().postDataJSON();
+    await route.fulfill({status:200,contentType:"application/json",body:JSON.stringify({ok:true,rows:[],scope:{chain:"all"},
+      pagination:{page:query.page,page_size:12,total_matching_rows:0,total_pages:0,maximum_page:1000},
+      seen_wallets:{rows:[{source_wallet_id:SOURCE_ID,source_wallet:{chain:"solana",address:WALLET},last_observed_at:"2026-09-07T12:00:00Z"}],total:6000,provider_request_performed:false}})});
+  });
+  await page.goto("/account/copy/");
+  await expect(page.locator("#copyScreenPage")).toHaveText("Page 1 of 500");
+  await page.locator("#copyScreenNext").click();
+  await expect(page.locator("#copyScreenPage")).toHaveText("Page 2 of 500");
+  expect(shared.requests.some(row=>row.path.endsWith("/inspect"))).toBe(false);
+});
+
 test("mobile wallet screener keeps filters, source evidence, and analysis controls contained", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   const shared = { watch: null, decision: null, position: null, requests: [] };

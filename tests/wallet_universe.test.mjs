@@ -7,10 +7,27 @@ import {sqliteStore} from './customer_pro_rewards.test.mjs';
 import {createD1CustomerWalletCopyStore} from '../lib/customer_wallet_copy.mjs';
 import {marketUniverseIdentity,createWalletUniverseStore,runWalletUniverse} from '../lib/customer_trade/wallet_universe.mjs';
 import {normalizeSourceWalletChainIdentity} from '../lib/customer_trade/source_wallet_chain_identity.mjs';
+import {normalizeWalletScreenerRequest,buildWalletScreenerResponse} from '../lib/customer_trade/wallet_screener.mjs';
 const NOW=1788800000;
 const address=n=>bs58.encode(Buffer.alloc(32,n));
 const market=(chain,n=1)=>({chain,pool_address:chain==='solana'?address(n):'0x'+n.toString(16).padStart(64,'0'),token_address:chain==='solana'?address(n+1):'0x'+(n+1).toString(16).padStart(40,'0'),quote_token_address:chain==='solana'?address(n+2):'0x'+(n+2).toString(16).padStart(40,'0')});
 const env=db=>({RAVENOS_CUSTOMER_DB:db,RAVENOS_WALLET_UNIVERSE_ENABLED:'1',RAVENOS_WALLET_INTELLIGENCE_ENABLED:'1',RAVENOS_WALLET_SCREENER_ENABLED:'1'});
+
+test('thousands of retained wallets are reachable beyond the former 25-page window without history requests',async()=>{
+ const db=sqliteStore(),store=createD1CustomerWalletCopyStore(db);
+ const insert=db.raw.prepare(`INSERT INTO ravenos_source_wallets (source_wallet_id,chain,network,chain_id,vm_family,address,observation_state,provider_scope,first_requested_at,last_observed_at,updated_at) VALUES (?,'base','mainnet','8453','evm',?,'requested','retained_public_trade',?,?,?)`);
+ for(let i=1;i<=6000;i++){const id=normalizeSourceWalletChainIdentity({chain:'base',network:'mainnet',address:'0x'+i.toString(16).padStart(40,'0')});insert.run(id.source_wallet_id,id.address,NOW,NOW-i,NOW);}
+ const query=normalizeWalletScreenerRequest({chain:'all',page:500,page_size:12},{now:NOW});
+ const seen=await store.listSeenWallets(query);assert.equal(seen.total,6000);assert.equal(seen.rows.length,12);assert.equal(seen.provider_request_performed,false);
+ assert.equal(seen.rows[11].source_wallet.address,'0x'+(6000).toString(16).padStart(40,'0'));
+ const projection=buildWalletScreenerResponse({query,rows:[],total:6000,now:NOW});assert.equal(projection.pagination.total_pages,500);assert.equal(projection.pagination.has_next,false);assert.equal(projection.pagination.maximum_page,1000);
+ assert.equal(db.raw.prepare('SELECT COUNT(*) n FROM ravenos_source_wallet_backfill_jobs').get().n,0);
+});
+
+test('release packaging carries the enabled universe budget into the deployed Worker',()=>{
+ const source=readFileSync('scripts/package-release.mjs','utf8');
+ for(const name of ['RAVENOS_WALLET_UNIVERSE_ENABLED','RAVENOS_WALLET_UNIVERSE_MARKETS_PER_CYCLE','RAVENOS_WALLET_UNIVERSE_REQUESTS_PER_HOUR'])assert(source.includes(name+':'));
+});
 
 test('multichain migration preserves existing identities, profiles and foreign keys verbatim',()=>{
  const raw=new DatabaseSync(':memory:');

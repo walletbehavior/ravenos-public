@@ -11,3 +11,10 @@ Migrations 0038/0039 expand existing wallet/event chain constraints to Base/Ethe
 Before production import: apply and verify the migration on preview, export a production D1 backup, apply the migration, check foreign keys and retained row counts, then import the validated observation file idempotently. The bootstrap importer refuses mismatched chain/address provenance, excludes pool/token identities and never rewrites observer cursors.
 
 Commands: `npm run test:wallet-universe`; `npm run test:stack`; `node scripts/harvest-wallet-universe.mjs <retained-markets.json> <observations.jsonl> <maximum-market-requests>`; `node scripts/import-wallet-universe.mjs <observations.jsonl> [--apply]`.
+# Production verification follow-up
+
+The initial production import accepted 5,567 observed wallets from 100 retained market projections. Two observations became older than the 24-hour ingestion window between harvest and import and were correctly excluded. Combined with prior observations, the production index contained 5,671 chain-qualified wallet identities at 17:23 UTC on September 7, 2026. These are observations, not 5,671 performance-qualified profiles.
+
+Live account checks found a legacy 25-page UI limit and a release-packaging omission for the new scheduler settings. The follow-up change passes the explicit scheduler enable/budget settings through release packaging and exposes a server-bounded 1,000-page window. A populated 6,000-wallet database test reaches page 500 without history calls. Browser tests cover the same 500-page display and paging.
+
+The independent rewards treasury implementation is in `services/rewards-treasury/`; it is not activated by the public-site release. Funding, scoped treasury credentials and a tiny claim canary remain prerequisites. Automatic Copy, cross-chain limit execution and live Zcash shielding have not been made production-ready by the wallet-universe work.
