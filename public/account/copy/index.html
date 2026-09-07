@@ -226,7 +226,7 @@
           </section>
           <section class="copy-history-state copy-pro-only" id="copyDeepHistory" hidden aria-live="polite">
             <div><span>History reconstruction</span><strong id="copyDeepHistoryHeadline">Deep history queued</strong><p id="copyDeepHistoryDetail">Indexing history…</p></div>
-            <div class="copy-history-progress"><progress id="copyDeepHistoryProgress" max="100" value="0">0%</progress><small id="copyDeepHistoryCount">0 signatures indexed</small></div>
+            <div class="copy-history-progress"><progress id="copyDeepHistoryProgress" max="100" value="0">0%</progress><small id="copyDeepHistoryCount">0 signatures indexed</small><button type="button" class="button-secondary" id="copyRefreshHistoryStatus">Refresh history status</button></div>
           </section>
           <section class="copy-profile-thesis copy-pro-only" id="copyProfileThesis" hidden aria-label="Raven wallet research thesis">
             <header><span>Raven research thesis</span><strong id="copyThesisState">Evidence forming</strong></header>
@@ -319,7 +319,7 @@
             <label><span>Maximum round trip</span><div class="copy-input-unit"><input id="copyPolicyFriction" type="number" min="0" max="100" step="0.1" value="5" /><small>%</small></div></label>
             <label><span>Minimum liquidity</span><div class="copy-input-unit"><input id="copyPolicyLiquidity" type="number" min="0" max="10000000000" step="1000" value="25000" /><small>USD</small></div></label>
             <label><span>Maximum delay</span><div class="copy-input-unit"><input id="copyPolicyDelay" type="number" min="0.25" max="600" step="0.25" value="30" /><small>SEC</small></div></label>
-            <label><span>Hypothetical Raven fee</span><select id="copyPolicyFee"><option value="0">0.00%</option><option value="5">0.05% · 5 bps</option><option value="10" selected>0.10% · 10 bps</option><option value="20">0.20% · 20 bps</option><option value="25">0.25% · 25 bps</option><option value="50">0.50% · 50 bps</option></select></label>
+            <div><span>Raven execution fee</span><strong id="copyPolicyFee">Loading current policy</strong><p id="copyPolicyCashback"></p></div>
           </div>
           <div class="copy-safeguards">
             <label><input type="checkbox" id="copyRequireExit" checked /><span>Require an executable reverse-USDC exit</span></label>

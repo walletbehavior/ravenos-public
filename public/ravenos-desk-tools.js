@@ -118,12 +118,11 @@ export function quoteMatchesMarket(market, payload) {
   if (payload?.ok !== true || !payload.instrument) return false;
   const instrument = normalizeChartInstrument(payload.instrument);
   const request = marketRequest(market);
-  if (
-    payload.market_identity &&
-    payload.market_identity !== request.marketIdentity &&
-    payload.market_identity !== instrument.canonical_id
-  )
-    return false;
+  // The chart API also emits the legacy chain:pool key. Accept that alias
+  // only alongside the exact chain, pool and token checks below.
+  const identities = [request.marketIdentity, instrument.canonical_id];
+  if (market.lane === "spot") identities.push(`${market.chain}:${market.pool}`);
+  if (payload.market_identity && !identities.includes(payload.market_identity)) return false;
   if (market.lane === "perps")
     return (
       instrument.instrument_type === "perpetual" &&

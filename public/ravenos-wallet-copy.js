@@ -11,6 +11,7 @@ const SOLANA_WRAPPED_NATIVE = "So11111111111111111111111111111111111111112";
 const state = {
   csrf: "",
   activation: {},
+  product: {},
   access: { tier: "free", advanced_wallet_intelligence: false },
   inspect_chain: "solana",
   profile_request: 0,
@@ -22,6 +23,7 @@ const state = {
   deep_history: null,
   deep_poll_token: 0,
   deep_poll_attempts: 0,
+  deep_poll_timer: null,
   events: [],
   activity: { filter: "all", next_cursor: null, has_more: false, provider_has_more: false, matching_event_count: 0, loading: false, on_demand_only: false },
   on_demand_events: [],
@@ -719,7 +721,7 @@ function renderDeepHistory(history) {
     ? 100
     : Math.min(99, (signatures / maximum) * 100);
   const labels = {
-    queued: ["Deep history queued", "Shared backfill pending."],
+    queued: [signatures ? "Indexing older activity" : "Deep history queued", "Shared history updates in batches. This page checks Raven’s cache."],
     leased: ["Indexing older activity", "Normalizing provider evidence."],
     retry_wait: ["History retry queued", "Cursor preserved."],
     complete: ["Provider history exhausted", "Oldest available page reached."],
@@ -742,22 +744,26 @@ function deepHistoryPending(history) {
 
 function scheduleDeepHistoryPoll(token) {
   if (!state.activation.wallet_screener || !deepHistoryPending(state.deep_history) || !state.source_wallet_id || state.deep_poll_attempts >= 12) return;
-  state.deep_poll_attempts += 1;
-  window.setTimeout(async () => {
+  clearTimeout(state.deep_poll_timer);
+  const delay = [15_000, 30_000, 60_000][state.deep_poll_attempts] || 120_000;
+  state.deep_poll_timer = window.setTimeout(async () => {
     if (token !== state.deep_poll_token || !state.source_wallet_id) return;
+    if (document.hidden) { scheduleDeepHistoryPoll(token); return; }
+    state.deep_poll_attempts += 1;
     const result = await api(`${API}/wallets/${encodeURIComponent(state.source_wallet_id)}`);
     if (token !== state.deep_poll_token) return;
     if (result.response.ok) renderProfile(result.payload, { scroll: false, from_poll: true });
     else scheduleDeepHistoryPoll(token);
-  }, 10_000);
+  }, delay);
 }
 
 function renderProfile(payload, { scroll = true, from_poll: fromPoll = false } = {}) {
   if (!fromPoll) {
+    clearTimeout(state.deep_poll_timer);
     state.deep_poll_token += 1;
     state.deep_poll_attempts = 0;
   }
-  state.policy_source = null;
+  if (!fromPoll) state.policy_source = null;
   const previousHoldings = state.profile?.source_wallet?.address === payload.profile?.source_wallet?.address ? state.profile?.holdings_snapshot : null;
   state.profile = fromPoll && previousHoldings ? { ...payload.profile, holdings_snapshot: previousHoldings } : payload.profile;
   state.prospective_copyability = payload.prospective_copyability || null;
@@ -772,7 +778,7 @@ function renderProfile(payload, { scroll = true, from_poll: fromPoll = false } =
   }
   const onDemandOnly = payload.persistence?.state === "on_demand_only";
   profileNode.hidden = false;
-  policyNode.hidden = true;
+  if (!fromPoll) policyNode.hidden = true;
   const shadowButton = document.getElementById("copyStartSetup");
   const shadowAvailable = state.activation.shadow_copy === true && profileChain === "solana";
   shadowButton.disabled = !shadowAvailable;
@@ -972,6 +978,8 @@ function renderProfile(payload, { scroll = true, from_poll: fromPoll = false } =
 
 function policyPayload() {
   const size = Number(document.getElementById("copyPolicySize").value);
+  const feeBps = state.product.standard_execution_fee_bps;
+  if (!Number.isSafeInteger(feeBps) || feeBps <= 0) throw new Error("Current Copy fee policy unavailable. Refresh this page.");
   return {
     mode: "RAVEN_COPY",
     sizing: { kind: "FIXED_USDC", fixed_usdc: size },
@@ -994,7 +1002,7 @@ function policyPayload() {
       skip_freeze_authority_when_evidenced: document.getElementById("copySkipFreeze").checked,
     },
     funding_assumption: "PREPOSITIONED_SOLANA_USDC_SHADOW",
-    hypothetical_raven_fee_bps: Number(document.getElementById("copyPolicyFee").value),
+    hypothetical_raven_fee_bps: feeBps,
   };
 }
 
@@ -1745,12 +1753,15 @@ async function savePolicy(event) {
     setText("copyPolicyStatus", "Inspect the source wallet again before saving a copy policy.");
     return;
   }
+  let policy;
+  try { policy = policyPayload(); }
+  catch { setText("copyPolicyStatus", "Current fee policy unavailable. Refresh this page."); return; }
   const button = event.currentTarget.querySelector('button[type="submit"]');
   button.disabled = true;
   setText("copyPolicyStatus", "Saving policy…");
   const result = await api(`${API}/watches`, {
     method: "POST",
-    body: JSON.stringify({ address: source.address, label: document.getElementById("copyPolicyLabel").value, policy: policyPayload() }),
+    body: JSON.stringify({ address: source.address, label: document.getElementById("copyPolicyLabel").value, policy }),
   });
   button.disabled = false;
   if (!result.response.ok) {
@@ -1795,6 +1806,12 @@ async function boot() {
   }
   applyAccess(summary.payload.access || {});
   state.activation = summary.payload.activation || {};
+  state.product = summary.payload.copy_product || {};
+  const feeBps = state.product.standard_execution_fee_bps;
+  setText("copyPolicyFee", Number.isSafeInteger(feeBps) ? `${(feeBps / 100).toFixed(2)}% · simulated in Shadow` : "Current fee unavailable");
+  setText("copyPolicyCashback", Number.isSafeInteger(state.product.pro_cashback_percent)
+    ? `No additional Copy surcharge. Active Pro members receive ${state.product.pro_cashback_percent}% of confirmed Raven fees back. Shadow results exclude cashback and earn no rewards.`
+    : "Same fee as Terminal. No additional Copy surcharge.");
   page.dataset.copyState = "active";
   workspace.hidden = false;
   setText("copyWorkspaceState", state.access.advanced_wallet_intelligence ? "Pro intelligence ready" : "Wallet tools ready");
@@ -1819,6 +1836,23 @@ bindAuthStartForms();
 document.querySelectorAll("[data-copy-view]").forEach((button) => button.addEventListener("click", () => switchView(button.dataset.copyView)));
 document.getElementById("copyWalletSearch").addEventListener("submit", inspectWallet);
 document.getElementById("copyWalletChain").addEventListener("change", (event) => setInspectChain(event.currentTarget.value));
+document.getElementById("copyRefreshHistoryStatus").addEventListener("click", async (event) => {
+  const sourceId = state.source_wallet_id;
+  if (!sourceId) return;
+  const button = event.currentTarget;
+  const token = ++state.deep_poll_token;
+  clearTimeout(state.deep_poll_timer);
+  state.deep_poll_attempts = 0;
+  button.disabled = true;
+  try {
+    const result = await api(`${API}/wallets/${encodeURIComponent(sourceId)}`);
+    if (token !== state.deep_poll_token || sourceId !== state.source_wallet_id) return;
+    if (result.response.ok) renderProfile(result.payload, { scroll: false, from_poll: true });
+    else setText("copyDeepHistoryDetail", "History status unavailable. Retained evidence is unchanged.");
+  } catch {
+    if (token === state.deep_poll_token) setText("copyDeepHistoryDetail", "History status unavailable. Try again shortly.");
+  } finally { button.disabled = false; }
+});
 document.getElementById("copyRefreshProfile").addEventListener("click", (event) => inspectWalletAddress(state.address, event.currentTarget, { refresh: true }));
 document.getElementById("copySaveProfile").addEventListener("click", async (event) => {
   const button = event.currentTarget;
