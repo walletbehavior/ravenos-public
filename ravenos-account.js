@@ -331,9 +331,13 @@ function solanaWalletProvider() {
 }
 
 function evmWalletProvider() {
-  return typeof globalThis.ethereum?.request === "function"
-    ? { name: "EVM", provider: globalThis.ethereum }
-    : null;
+  const candidates = [
+    ["EVM", globalThis.ethereum],
+    ["Phantom", globalThis.phantom?.ethereum],
+    ["Backpack", globalThis.backpack?.ethereum],
+  ];
+  const [name, provider] = candidates.find(([, candidate]) => typeof candidate?.request === "function") || [];
+  return provider ? { name, provider } : null;
 }
 
 function solanaAddress(value) {

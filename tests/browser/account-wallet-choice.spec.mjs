@@ -112,3 +112,21 @@ test("iPhone Chrome without injected wallets offers a safe app handoff without c
   expect(stored.session).toEqual([]);
   await context.close();
 });
+
+
+test("Phantom's namespaced EVM provider connects after a wallet-browser handoff", async ({ page, baseURL }) => {
+  await accountFixture(page, baseURL);
+  await page.addInitScript((address) => {
+    globalThis.__EVM_METHODS__ = [];
+    globalThis.phantom = { ethereum: { request: async ({ method }) => {
+      globalThis.__EVM_METHODS__.push(method);
+      return method === "eth_requestAccounts" ? [address] : [];
+    } } };
+  }, EVM.address);
+  await page.goto("/account/");
+  await page.locator("#accountConnectEvm").click();
+  await expect(page.locator("#accountWalletConnectionState")).toHaveText("Connected");
+  await expect(page.locator("#accountWalletConnectStatus")).toHaveText("Phantom connected · no signature");
+  expect(await page.evaluate(() => globalThis.__EVM_METHODS__)).toEqual(["eth_requestAccounts"]);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+});
