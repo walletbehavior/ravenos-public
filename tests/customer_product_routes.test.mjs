@@ -26,6 +26,7 @@ test("account rewards are scoped to the authenticated account and never expose t
  const owner=await (await routeCustomerProduct(request(""),f.env,dependencies())).json();
  const other=await (await routeCustomerProduct(request(""),f.env,dependencies(OTHER))).json();
  assert.equal(owner.rewards.available_micros,"3000000");
+ assert.equal(owner.rewards.terms_url,"/terms/#raven-rewards");
  assert.equal(other.rewards.available_micros,"0");
  assert.deepEqual(other.rewards.history,[]);
  assert.equal(JSON.stringify(owner).includes("treasury_wallet"),false);
