@@ -282,7 +282,7 @@
     "fee_charging_available": false
   },
   "entitlement_foundation": {
-    "implementation_status": "local_dormant_foundation",
+    "implementation_status": "trial_and_paid_pro_release_ready",
     "surface": "https://app.ravenos.xyz/account/intelligence/",
     "authenticated_origin_only": true,
     "routes": [
@@ -292,6 +292,8 @@
     ],
     "all_activation_controls_default_off": true,
     "resolution_release_enabled": true,
+    "intelligence_release_enabled": true,
+    "paper_agents_release_enabled": true,
     "coordinated_projection_split_required": true,
     "free_projection_limits": {
       "perps_markets": 6,

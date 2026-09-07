@@ -29,6 +29,8 @@ const publicEvmHolderListsActive = customerSecurity.public_holder_lists?.evm_can
 const communityActive = customerSecurity.community?.release_activation_enabled === true;
 const referralsActive = customerSecurity.referrals?.release_activation_enabled === true;
 const entitlementResolutionActive = customerSecurity.entitlement_foundation?.resolution_release_enabled === true;
+const proIntelligenceActive = entitlementResolutionActive && customerSecurity.entitlement_foundation?.intelligence_release_enabled === true;
+const proPaperAgentsActive = entitlementResolutionActive && customerSecurity.entitlement_foundation?.paper_agents_release_enabled === true;
 const walletIntelligenceActive = customerSecurity.wallet_copy?.read_only_intelligence_release_enabled === true;
 const walletScreenerActive = walletIntelligenceActive
   && customerSecurity.wallet_copy?.read_only_screener_release_enabled === true;
@@ -174,6 +176,11 @@ const releaseWrangler = {
     RAVENOS_REFERRALS_ENABLED: referralsActive ? "1" : "0",
     RAVENOS_REFERRAL_BILLING_RECONCILIATION_ENABLED: "0",
     RAVENOS_ENTITLEMENT_RESOLUTION_ENABLE: entitlementResolutionActive ? "1" : "0",
+    RAVENOS_PRO_INTELLIGENCE_ROUTES_ENABLE: proIntelligenceActive ? "1" : "0",
+    RAVENOS_PUBLIC_PROJECTION_SPLIT_ENABLE: proIntelligenceActive ? "1" : "0",
+    RAVENOS_PRO_PERPS_ADVANCED_ENABLE: proIntelligenceActive ? "1" : "0",
+    RAVENOS_PRO_PARTICIPANT_ADVANCED_ENABLE: proIntelligenceActive ? "1" : "0",
+    RAVENOS_AGENTIC_PAPER_ENABLED: proPaperAgentsActive ? "1" : "0",
     RAVENOS_WALLET_INTELLIGENCE_ENABLED: walletIntelligenceActive ? "1" : "0",
     RAVENOS_WALLET_COPY_ROUTES_ENABLED: walletIntelligenceActive ? "1" : "0",
     RAVENOS_WALLET_SCREENER_ENABLED: walletScreenerActive ? "1" : "0",
@@ -239,6 +246,8 @@ const packageManifest = {
   privy_jwks_bootstrap_enabled: privyJwksBootstrapActive,
   privy_evm_wallet_canary_enabled: privyEvmWalletCanaryActive,
   legal_acceptance_enabled: legalAcceptanceActive,
+  pro_intelligence_enabled: proIntelligenceActive,
+  pro_paper_agents_enabled: proPaperAgentsActive,
   worker_name: baseWrangler.name,
   cron_schedules: Array.isArray(baseWrangler.triggers?.crons) ? baseWrangler.triggers.crons : [],
   required_server_secret_bindings: [

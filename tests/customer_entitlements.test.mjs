@@ -326,7 +326,7 @@ test("authenticated routes enforce app origin, Fetch Metadata, no parameters, GE
   const cases = [
     [request(CUSTOMER_ENTITLEMENT_ROUTE, { origin: "https://ravenos.xyz" }), 404],
     [request(CUSTOMER_ENTITLEMENT_ROUTE, { suppliedOrigin: "https://evil.example", fetchSite: "cross-site" }), 403],
-    [request(CUSTOMER_ENTITLEMENT_ROUTE, { suppliedOrigin: null, referer: null }), 403],
+    [request(CUSTOMER_ENTITLEMENT_ROUTE, { suppliedOrigin: null, referer: "https://evil.example/" }), 403],
     [request(CUSTOMER_ENTITLEMENT_ROUTE, { fetchSite: null }), 403],
     [request(`${CUSTOMER_ENTITLEMENT_ROUTE}?plan=pro&user=${USER_B}&capability=intelligence.perps_advanced`), 400],
     [request(CUSTOMER_ENTITLEMENT_ROUTE, { method: "POST" }), 405],
@@ -340,6 +340,20 @@ test("authenticated routes enforce app origin, Fetch Metadata, no parameters, GE
   }
   assert.equal(authCalls, 0);
   assert.equal(await routeCustomerEntitlements(request("/api/v1/not-entitlements"), flagsEnv(), deps), null);
+});
+
+test("same-origin account reads without a referrer still require a session and owned grants", async () => {
+  const input = () => request(CUSTOMER_ENTITLEMENT_ROUTE, { suppliedOrigin: null, referer: null });
+  const denied = await routeCustomerEntitlements(input(), flagsEnv(), routeDeps([], { authorizeRequest: deniedAuthorization() }));
+  assert.equal(denied.status, 401);
+  const allowed = await routeCustomerEntitlements(input(), flagsEnv(), routeDeps([grant()]));
+  assert.equal(allowed.status, 200);
+  const summary = await allowed.json();
+  assert.equal(summary.capabilities.find(row => row.capability === "intelligence.perps_advanced").available, true);
+  const standard = await routeCustomerEntitlements(input(), flagsEnv(), routeDeps([]));
+  assert.equal((await standard.json()).capabilities.find(row => row.capability === "intelligence.perps_advanced").available, false);
+  const crossSite = await routeCustomerEntitlements(request(CUSTOMER_ENTITLEMENT_ROUTE, { suppliedOrigin: null, referer: null, fetchSite: "cross-site" }), flagsEnv(), routeDeps([grant()]));
+  assert.equal(crossSite.status, 403);
 });
 
 test("anonymous and unavailable identity responses remain private and non-cacheable", async () => {

@@ -202,7 +202,7 @@ assert.equal(config.shadow_route_sampling.transaction_material_persisted, false)
 assert.equal(config.shadow_route_sampling.signing_available, false);
 assert.equal(config.shadow_route_sampling.submission_available, false);
 assert.equal(config.shadow_route_sampling.fee_charging_available, false);
-assert.equal(config.entitlement_foundation.implementation_status, "local_dormant_foundation");
+assert.equal(config.entitlement_foundation.implementation_status, "trial_and_paid_pro_release_ready");
 assert.equal(config.entitlement_foundation.surface, "https://app.ravenos.xyz/account/intelligence/");
 assert.equal(config.entitlement_foundation.authenticated_origin_only, true);
 assert.equal(config.entitlement_foundation.all_activation_controls_default_off, true);
@@ -218,6 +218,8 @@ assert.equal(config.entitlement_foundation.shared_cache_allowed, false);
 assert.equal(config.entitlement_foundation.atlas_display_rights_override_available, false);
 assert.equal(config.entitlement_foundation.production_activation_completed, false);
 assert.equal(config.entitlement_foundation.resolution_release_enabled, true);
+assert.equal(config.entitlement_foundation.intelligence_release_enabled, true);
+assert.equal(config.entitlement_foundation.paper_agents_release_enabled, true);
 assert.equal(config.wallet_copy.implementation_status, "authenticated_free_basics_and_pro_advanced_candidate");
 assert.equal(config.wallet_copy.surface, "https://app.ravenos.xyz/account/copy/");
 assert.equal(config.wallet_copy.advanced_intelligence_capability, "wallet.copy");

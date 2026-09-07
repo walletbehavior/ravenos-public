@@ -59,7 +59,8 @@ export function createRavenPrivyWalletClient(options) {
       }
     };
     window.addEventListener("message", listener);
-    user = unwrapUser(await privy.user.get());
+    // Raven supplies a fresh custom-auth token in sync(). A first-time browser
+    // has no Privy refresh credentials, so user.get() here rejects before login.
     initialized = true;
   }
 

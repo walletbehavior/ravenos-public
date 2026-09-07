@@ -413,7 +413,11 @@ function proCapabilityNode(capability, projectionPayload = null) {
         ? "Pro access removed."
         : capability.state === "suspended"
           ? "Pro access paused."
-          : "Not enabled for this account.";
+          : capability.state === "not_granted"
+            ? "Included with an active Raven Pro membership."
+            : capability.state === "server_disabled"
+              ? "This workspace is temporarily unavailable."
+              : "We couldn’t load this workspace. Refresh to retry.";
   } else if (capability.capability === "wallet.copy") {
     detail.textContent = "Cohorts, behavior, profit quality, deep history, and copyability evidence.";
   } else if (capability.capability === "agents.paper") {
@@ -441,7 +445,7 @@ function proCapabilityNode(capability, projectionPayload = null) {
   return row;
 }
 
-function unavailableProCapabilities(stateLabel = "server_disabled") {
+function unavailableProCapabilities(stateLabel = "unavailable") {
   return Object.keys(PRO_CAPABILITY_DISPLAY).map((capability) => ({ capability, available: false, state: stateLabel }));
 }
 
@@ -452,8 +456,8 @@ async function loadProIntelligenceCapabilities() {
     if (!response.ok || !Array.isArray(payload?.capabilities)) {
       proPanel.dataset.proState = "unavailable";
       setText("accountProState", "Unavailable");
-      setText("accountProStatus", "Pro access isn’t available for this account yet. Public Intelligence still works.");
-      proCapabilities.replaceChildren(...unavailableProCapabilities(payload?.state || "server_disabled").map((capability) => proCapabilityNode(capability)));
+      setText("accountProStatus", "We couldn’t check your Pro features. Refresh to retry; your membership is shown below.");
+      proCapabilities.replaceChildren(...unavailableProCapabilities(payload?.state || "unavailable").map((capability) => proCapabilityNode(capability)));
       return;
     }
 
@@ -473,7 +477,9 @@ async function loadProIntelligenceCapabilities() {
     setText("accountProState", availableCount ? `${availableCount} available` : "Unavailable");
     setText("accountProStatus", availableCount
       ? "Your available Pro workspaces are ready below. They remain read-only; live trade authority is separate."
-      : "Pro access isn’t available for this account yet. Public Intelligence still works.");
+      : capabilities.some((capability) => capability.available)
+        ? "Your Pro access is active, but the workspaces couldn’t load. Refresh to retry."
+        : "No Pro workspaces are available right now. Check your membership below.");
   } catch {
     proPanel.dataset.proState = "unavailable";
     setText("accountProState", "Unavailable");

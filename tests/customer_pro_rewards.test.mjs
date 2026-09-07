@@ -6,6 +6,7 @@ import { trialEligibility, resolveProductAccess, ensureProTrial, readProductAcce
 import { cashbackMicros, publicProductPolicy } from "../lib/customer_product.mjs";
 import { feePolicyFor } from "../lib/customer_trade/fee_policy.mjs";
 import { routeCustomerIdentity } from "../lib/customer_identity.mjs";
+import { createD1CustomerEntitlementStore, routeCustomerEntitlements } from "../lib/customer_entitlements.mjs";
 
 const NOW = 1788739200;
 const USER = "usr_" + "a".repeat(32);
@@ -30,6 +31,36 @@ export function sqliteStore() {
 }
 const identity = { issuer: "https://api.workos.com", provider_subject: "user_verified", email: "verified@example.test", verified: true };
 function user(db, id = USER) { db.raw.prepare("INSERT INTO ravenos_users (user_id,state,primary_email,created_at,updated_at,last_authenticated_at) VALUES (?,'active',?,?,?,?)").run(id, identity.email, NOW, NOW, NOW); }
+
+test("a persisted no-card trial unlocks all four released Pro workspaces on no-referrer account reads", async () => {
+  const db = sqliteStore(); user(db);
+  const now = Math.floor(Date.now() / 1000);
+  const env = {
+    RAVENOS_CUSTOMER_DB: db, RAVENOS_PRO_FREE_TRIAL_ENABLED: "1", RAVENOS_AUTH_HASH_PEPPER: "test-identity-pepper-for-rewards",
+    RAVENOS_ENTITLEMENT_RESOLUTION_ENABLE: "1", RAVENOS_PRO_INTELLIGENCE_ROUTES_ENABLE: "1", RAVENOS_PUBLIC_PROJECTION_SPLIT_ENABLE: "1",
+    RAVENOS_PRO_PERPS_ADVANCED_ENABLE: "1", RAVENOS_PRO_PARTICIPANT_ADVANCED_ENABLE: "1", RAVENOS_AGENTIC_PAPER_ENABLED: "1",
+    RAVENOS_WALLET_INTELLIGENCE_ENABLED: "1", RAVENOS_WALLET_COPY_ROUTES_ENABLED: "1",
+  };
+  const access = await ensureProTrial(env, { user_id: USER, created: true, state: "active", user_created_at: now }, identity, { now });
+  assert.equal(access.state, "PRO_TRIAL_ACTIVE");
+  assert.equal(access.trial.card_required, false);
+  const check = async (userId, at) => {
+    const response = await routeCustomerEntitlements(new Request("https://app.ravenos.xyz/api/v1/entitlements", { headers: { "sec-fetch-site": "same-origin" } }), env, {
+      entitlementStore: createD1CustomerEntitlementStore(db),
+      authorizeRequest: async () => ({ principal: { user_id: userId }, now: at, response_headers: new Headers() }),
+      consumeRateLimit: async () => ({ allowed: true }),
+    });
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get("cache-control"), /private.*no-store/);
+    return (await response.json()).capabilities.filter((capability) => capability.available).map((capability) => capability.capability).sort();
+  };
+  assert.deepEqual(await check(USER, now), ["agents.paper", "intelligence.participant_advanced", "intelligence.perps_advanced", "wallet.copy"]);
+  assert.deepEqual(await check("usr_" + "b".repeat(32), now), []);
+  assert.deepEqual(await check(USER, access.trial.trial_ends_at), []);
+  assert.equal(db.raw.prepare("SELECT COUNT(*) AS n FROM ravenos_pro_subscriptions").get().n, 0);
+  assert.equal(db.raw.prepare("SELECT trial_ends_at FROM ravenos_pro_trials").get().trial_ends_at, access.trial.trial_ends_at);
+  db.raw.close();
+});
 
 test("eligible new verified account receives exactly 30 days with no card or Stripe subscription", async () => {
   const db = sqliteStore(); user(db);

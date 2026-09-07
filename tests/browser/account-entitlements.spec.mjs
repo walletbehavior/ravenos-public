@@ -1,4 +1,6 @@
 import { expect, test } from "@playwright/test";
+import { createServer } from "node:http";
+import { routeCustomerEntitlements } from "../../lib/customer_entitlements.mjs";
 
 function configPayload(origin) {
   return {
@@ -39,6 +41,58 @@ function capability(capabilityKey, state, available = false) {
   return { capability: capabilityKey, namespace: "intelligence", implementation_state: "implemented_dormant", available, state, revision: available ? 2 : null };
 }
 
+test("mobile no-referrer account requests reach the real entitlement boundary and open all released workspaces", async ({ page, baseURL }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const user = `usr_${"a".repeat(32)}`;
+  const now = Math.floor(Date.now() / 1000);
+  let observedHeaders;
+  // Read the headers at an actual HTTP server. Playwright interception runs
+  // before Chromium attaches Sec-Fetch-Site, so a route mock cannot prove this.
+  const server = createServer(async (request, reply) => {
+    if (request.url !== "/api/v1/entitlements") {
+      const upstream = await fetch(`${baseURL}${request.url}`);
+      reply.writeHead(upstream.status, { "content-type": upstream.headers.get("content-type") || "text/plain", "referrer-policy": "no-referrer" });
+      reply.end(Buffer.from(await upstream.arrayBuffer()));
+      return;
+    }
+    observedHeaders = request.headers;
+    const response = await routeCustomerEntitlements(new Request("https://app.ravenos.xyz/api/v1/entitlements", { headers: observedHeaders }), {
+      RAVENOS_ENTITLEMENT_RESOLUTION_ENABLE: "1", RAVENOS_PRO_INTELLIGENCE_ROUTES_ENABLE: "1", RAVENOS_PUBLIC_PROJECTION_SPLIT_ENABLE: "1",
+      RAVENOS_PRO_PERPS_ADVANCED_ENABLE: "1", RAVENOS_PRO_PARTICIPANT_ADVANCED_ENABLE: "1", RAVENOS_AGENTIC_PAPER_ENABLED: "1",
+      RAVENOS_WALLET_INTELLIGENCE_ENABLED: "1", RAVENOS_WALLET_COPY_ROUTES_ENABLED: "1",
+    }, {
+      authorizeRequest: async () => ({ principal: { user_id: user }, now, response_headers: new Headers() }),
+      consumeRateLimit: async () => ({ allowed: true }),
+      entitlementStore: { listOwnedGrants: async () => ["intelligence.perps_advanced", "intelligence.participant_advanced", "wallet.copy", "agents.paper"].map((key) => ({
+        grant_id: `ent_browser_fixture_${key.replaceAll(".", "_")}`, user_id: user, capability_key: key, state: "active", activation_at: now - 60, expires_at: now + 86400, revision: 1,
+      })) },
+    });
+    const body = await response.text();
+    reply.writeHead(response.status, Object.fromEntries(response.headers));
+    reply.end(body);
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const origin = `http://127.0.0.1:${server.address().port}`;
+  try {
+    await authenticatedAccount(page, origin);
+    for (const path of ["intelligence/perps", "intelligence/participants", "wallet-copy", "agents/workspace"]) {
+      await page.route(`**/api/v1/${path}`, (route) => route.fulfill({ contentType: "application/json", body: JSON.stringify({ ok: true, projection: { advanced: {} }, agents: [] }) }));
+    }
+    await page.goto(`${origin}/account/`);
+    await expect(page.locator("#accountProState")).toHaveText("4 available");
+    expect(observedHeaders["sec-fetch-site"]).toBe("same-origin");
+    expect(observedHeaders.origin).toBeUndefined();
+    expect(observedHeaders.referer).toBeUndefined();
+    await expect(page.locator(".account-pro-capability[data-state=active]")).toHaveCount(4);
+    await expect(page.locator("#accountProPanel")).not.toContainText("Server disabled");
+    const dimensions = await page.locator("#accountProPanel").evaluate((node) => ({ client: node.clientWidth, scroll: node.scrollWidth }));
+    expect(dimensions.scroll).toBeLessThanOrEqual(dimensions.client + 1);
+  } finally {
+    server.closeAllConnections();
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
 test("dormant Pro foundation is explicit, non-commercial, and does not request advanced projections", async ({ page, baseURL }) => {
   await authenticatedAccount(page, baseURL);
   let advancedRequests = 0;
@@ -58,7 +112,7 @@ test("dormant Pro foundation is explicit, non-commercial, and does not request a
   await expect(page.locator(".account-pro-capability")).toHaveCount(4);
   await expect(page.locator(".account-pro-capability").nth(2)).toContainText("Advanced Wallet Intelligence");
   await expect(page.locator(".account-pro-capability").nth(3)).toContainText("Agent Workspace");
-  await expect(page.locator("#accountProStatus")).toContainText("Pro access isn’t available");
+  await expect(page.locator("#accountProStatus")).toContainText("We couldn’t check your Pro features");
   await expect(page.getByText("Planned · not yet available.")).toBeVisible();
   await expect(page.getByRole("button", { name: /upgrade|checkout|buy|subscribe/i })).toHaveCount(0);
   await expect(page.getByRole("link", { name: /upgrade|checkout|buy|subscribe/i })).toHaveCount(0);
