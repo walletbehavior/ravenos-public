@@ -489,9 +489,14 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .copy-wallet-balances > div { min-width: 0; border-top: 1px solid var(--copy-line); padding: 10px 0; }
 .copy-wallet-balances dt { font-size: 11px; color: var(--copy-muted); }
 .copy-wallet-balances dd { margin: 5px 0 0; font-size: 13px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-:where(.copy-seen-wallets) { margin-top: 1rem; border-top: 1px solid var(--border, #293341); padding-top: 1rem; }
+.copy-seen-wallets { border-top: 1px solid var(--copy-line); padding: 16px; }
 .copy-seen-wallets > header, .copy-seen-wallet { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
 .copy-seen-wallets p { color: var(--muted, #96a4b6); font-size: .85rem; line-height: 1.5; }
 .copy-seen-wallet { padding: 1rem 0; border-bottom: 1px solid var(--border, #293341); }
 .copy-seen-wallet p { margin: .35rem 0 0; }
-.copy-seen-wallet button { min-height: 44px; padding: .65rem 1rem; }
+.copy-seen-wallet button { min-height: 44px; padding: .65rem 1rem; border: 1px solid var(--copy-line-strong); border-radius: 5px; background: transparent; color: var(--copy-text); cursor: pointer; }
+.copy-seen-wallet button:hover { background: rgba(111, 218, 166, .08); border-color: var(--copy-green); }
+
+.copy-index-coverage { padding-inline: 16px; color: var(--copy-muted); line-height: 1.5; }
+.copy-universe-views { grid-template-columns: repeat(2, minmax(0, 1fr)); width: auto; max-width: 440px; margin: 0 16px 12px; }
+.copy-universe-views button { height: auto; min-height: 44px; padding: 10px 12px; line-height: 1.3; }

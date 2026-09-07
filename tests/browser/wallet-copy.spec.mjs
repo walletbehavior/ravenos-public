@@ -882,6 +882,10 @@ test("seen wallets populate across chains without starting provider lookups and 
   });
   await page.goto("/account/copy/");
   await expect(page.locator("#copySeenResults .copy-seen-wallet")).toHaveCount(2);
+  await expect(page.getByRole("button", { name: "Observed wallets", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("#copyScreenerCount")).toHaveText("2 observed");
+  await expect(page.locator("#copyScreenerFilters")).toBeHidden();
+  await expect(page.locator("#copyPresetRail")).toBeHidden();
   expect(queries[0].chain).toBe("all");
   expect(shared.requests.some(row => row.path.endsWith("/inspect"))).toBe(false);
   await expect(page.locator("#copySeenWallets")).toContainText("do not prove profitability or copyability");
@@ -916,6 +920,25 @@ test("the shared wallet universe exposes hundreds of pages without triggering an
   await expect(page.locator("#copyScreenPage")).toHaveText("Page 1 of 500");
   await page.locator("#copyScreenNext").click();
   await expect(page.locator("#copyScreenPage")).toHaveText("Page 2 of 500");
+  await page.getByRole("button", { name: "Analyzed profiles", exact: true }).click();
+  await expect(page.locator("#copySeenWallets")).toBeHidden();
+  await expect(page.locator("#copyScreenerFilters")).toBeVisible();
+  await expect(page.locator("#copyScreenerCount")).toHaveText("0 matches");
+  await expect(page.locator("#copyScreenerPages")).toBeHidden();
+  await expect(page.locator("#copyScreenerResults")).toContainText("No matching wallet evidence");
+  await page.getByRole("button", { name: "Observed wallets", exact: true }).click();
+  await expect(page.locator("#copyScreenPage")).toHaveText("Page 1 of 500");
+  await expect(page.locator("#copyScreenerCount")).toHaveText("6,000 observed");
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Observed wallets", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.locator("#copyScreener").scrollIntoViewIfNeeded();
+  const layout = await page.evaluate(() => ({
+    seenBeforeSaved: document.getElementById("copySeenWallets").getBoundingClientRect().top < document.querySelector(".copy-saved-research").getBoundingClientRect().top,
+    overflow: document.documentElement.scrollWidth > innerWidth + 1,
+  }));
+  expect(layout).toEqual({seenBeforeSaved:true,overflow:false});
+  await captureVisual(page, "wallet-universe-observed-mobile-390");
   expect(shared.requests.some(row=>row.path.endsWith("/inspect"))).toBe(false);
 });
 

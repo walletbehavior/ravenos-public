@@ -33,7 +33,8 @@ const state = {
   positions: [],
   copyability: [],
   saved: [],
-  screener: { chain: "all", page: 1, total_pages: 0, total: 0, wallets: [], preset: null },
+  screener_request: 0,
+  screener: { chain: "all", page: 1, total_pages: 0, total: 0, wallets: [], preset: null, view: null },
   robinhood_intelligence: { activity: [], clusters: [], relationships: [] },
 };
 
@@ -1249,6 +1250,7 @@ function syncScreenerUrl() {
   const url = new URL(location.href);
   const fields = {
     chain: state.screener.chain === "all" ? null : state.screener.chain,
+    wallets: state.screener.view,
     screen: state.screener.preset,
     active: document.getElementById("copyScreenActive").value,
     trades: document.getElementById("copyScreenTrades").value,
@@ -1289,6 +1291,9 @@ function syncScreenerUrl() {
 
 function hydrateScreenerFromUrl() {
   const params = new URL(location.href).searchParams;
+  const view = params.get("wallets");
+  if (["observed", "analyzed"].includes(view)) state.screener.view = view;
+  else if (params.has("screen") || params.has("sort") || [...params.keys()].some(key => key.startsWith("df_"))) state.screener.view = "analyzed";
   const chain = params.get("chain");
   if (new Set(["all", "solana", "robinhood", "base", "ethereum", "bsc"]).has(chain)) state.screener.chain = chain;
   if (state.access.advanced_wallet_intelligence) document.querySelectorAll("[data-discovery-key]").forEach((input) => { input.value = (params.get(`df_${input.dataset.discoveryKey}`) || "").slice(0, 64); });
@@ -1309,6 +1314,7 @@ function hydrateScreenerFromUrl() {
     const value = params.get(parameter);
     const input = document.getElementById(id);
     if (value === null || !input) continue;
+    state.screener.view ??= "analyzed";
     if (input.tagName === "SELECT" && ![...input.options].some((option) => option.value === value)) continue;
     input.value = value.slice(0, 64);
   }
@@ -1596,37 +1602,45 @@ function renderScreener(payload) {
   const seenWallets = payload.seen_wallets?.rows || [];
   const seenTotal = Number(payload.seen_wallets?.total || 0);
   const pageSize = Number(payload.pagination?.page_size || 12);
+  const view = state.screener.view || (seenTotal > 0 ? "observed" : "analyzed");
+  const observed = view === "observed";
   state.screener = {
     chain: payload.scope?.chain || state.screener.chain,
     page: Number(payload.pagination?.page || payload.page || state.screener.page || 1),
-    total_pages: Math.min(Number(payload.pagination?.maximum_page || 25), Math.max(Number(payload.pagination?.total_pages || payload.total_pages || 0), Math.ceil(seenTotal / pageSize))),
+    total_pages: Math.min(Number(payload.pagination?.maximum_page || 25), observed ? Math.ceil(seenTotal / pageSize) : Number(payload.pagination?.total_pages || payload.total_pages || 0)),
     total: Number(payload.pagination?.total_matching_rows || payload.pagination?.total || payload.total || wallets.length),
     wallets,
     preset: state.screener.preset,
+    view,
   };
+  document.querySelectorAll("[data-wallet-view]").forEach(button => button.setAttribute("aria-pressed", String(button.dataset.walletView === view)));
+  document.getElementById("copyScreenerFilters").hidden = observed;
+  document.getElementById("copyPresetRail").hidden = observed;
   const scopeLabel = chainLabel(state.screener.chain);
   const coverage = payload.index_coverage;
   const chains = (coverage?.chains || []).filter((row) => state.screener.chain === "all" || row.chain === state.screener.chain);
   const indexed = chains.reduce((total, row) => total + Number(row.indexed_wallets || 0), 0);
   const seen = chains.reduce((total, row) => total + Number(row.seen_wallets || 0), 0);
   const indexEmpty = Array.isArray(coverage?.chains) && indexed === 0;
-  setText("copyScreenerCount", `${state.screener.total.toLocaleString()} match${state.screener.total === 1 ? "" : "es"}`);
+  setText("copyScreenerCount", observed ? `${seenTotal.toLocaleString()} observed` : `${state.screener.total.toLocaleString()} match${state.screener.total === 1 ? "" : "es"}`);
   setText("copyScreenerCoverage", coverage
     ? `${indexed.toLocaleString()} profiles · ${seen.toLocaleString()} registered wallets in ${scopeLabel}. Stored observations; no provider calls to browse.`
     : "Browse Raven’s stored wallet observations across supported chains. Address lookup fills missing evidence.");
-  setText("copyScreenerStatus", wallets.length
+  setText("copyScreenerStatus", observed
+    ? `${seenTotal.toLocaleString()} observed in ${scopeLabel}. Choose a wallet to analyze.`
+    : wallets.length
     ? `${wallets.length} ${scopeLabel} wallet${wallets.length === 1 ? "" : "s"} · source ≠ follower`
-    : seenWallets.length ? "Stored observations ready. Choose a wallet to analyze."
       : indexEmpty ? "Wallet profiles are still being indexed."
       : `No matching wallet in ${scopeLabel}.`);
   const host = document.getElementById("copyScreenerResults");
-  host.replaceChildren(...(wallets.length ? wallets.map(screenerCard) : seenWallets.length ? [] : [empty(indexEmpty ? "No completed profiles yet" : "No matching wallet evidence", indexEmpty
+  host.hidden = observed;
+  host.replaceChildren(...(wallets.length ? wallets.map(screenerCard) : [empty(indexEmpty ? "No completed profiles yet" : "No matching wallet evidence", indexEmpty
     ? "Raven has no completed wallet profiles for this chain selection yet. Inspect an address to request its history; changing performance filters will not create evidence."
     : "Adjust filters or inspect an address. Only retained evidence is included.")]));
   const seenSection = document.getElementById("copySeenWallets");
-  seenSection.hidden = seenTotal === 0;
-  setText("copySeenCount", `${seenTotal.toLocaleString()} seen · analysis pending`);
-  document.getElementById("copySeenResults").replaceChildren(...seenWallets.map((wallet) => {
+  seenSection.hidden = !observed;
+  setText("copySeenCount", `${seenTotal.toLocaleString()} observed`);
+  document.getElementById("copySeenResults").replaceChildren(...(seenWallets.length ? seenWallets.map((wallet) => {
     const card = document.createElement("article");
     card.className = "copy-seen-wallet";
     const identity = document.createElement("div");
@@ -1645,7 +1659,7 @@ function renderScreener(payload) {
     });
     card.append(identity, inspect);
     return card;
-  }));
+  }) : [empty("No retained observations", "Choose another chain or inspect an address. Browsing does not start a wallet-history lookup.")]));
   const pages = document.getElementById("copyScreenerPages");
   pages.hidden = state.screener.total_pages <= 1;
   setText("copyScreenPage", `Page ${state.screener.page} of ${Math.max(1, state.screener.total_pages)}`);
@@ -1655,12 +1669,16 @@ function renderScreener(payload) {
 
 async function loadScreener() {
   if (!state.activation.wallet_screener) return;
+  const requestId = ++state.screener_request;
   setText("copyScreenerStatus", `Screening ${chainLabel(state.screener.chain)}…`);
   const result = await api(`${API}/screener`, { method: "POST", body: JSON.stringify(screenerRequest()) });
+  if (requestId !== state.screener_request) return;
   if (!result.response.ok) {
     setText("copyScreenerCount", "Unavailable");
     setText("copyScreenerStatus", "Screener unavailable. Address lookup remains available.");
     document.getElementById("copyScreenerResults").replaceChildren(empty("Screener unavailable", "Try again or inspect an address."));
+    document.getElementById("copyScreenerResults").hidden = false;
+    document.getElementById("copySeenWallets").hidden = true;
     document.getElementById("copyScreenerPages").hidden = true;
     return;
   }
@@ -1874,6 +1892,13 @@ document.getElementById("copyStartSetup").addEventListener("click", () => {
 });
 document.getElementById("copyCancelSetup").addEventListener("click", () => { policyNode.hidden = true; });
 document.getElementById("copyPolicy").addEventListener("submit", savePolicy);
+document.querySelectorAll("[data-wallet-view]").forEach(button => button.addEventListener("click", async () => {
+  if (button.dataset.walletView === state.screener.view) return;
+  state.screener.view = button.dataset.walletView;
+  state.screener.page = 1;
+  syncScreenerUrl();
+  await loadScreener();
+}));
 document.getElementById("copyScreenerFilters").addEventListener("submit", async (event) => {
   event.preventDefault();
   state.screener.page = 1;
