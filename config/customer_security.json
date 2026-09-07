@@ -787,7 +787,7 @@
     "solana_fee_collection_available": true,
     "solana_fee_provider": "Jupiter Referral Program",
     "solana_fee_provider_share_pct": 20,
-    "solana_live_release_activation_ready": false,
+    "solana_live_release_activation_ready": true,
     "solana_fee_quote_and_simulation_evidence_required": true,
     "solana_fee_onchain_reconciliation_required": true,
     "evm_live_raven_fee_bps": 100,
@@ -864,7 +864,8 @@
       "RAVENOS_ZEROX_API_KEY"
     ],
     "all_activation_controls_default_off": true,
-    "production_activation_completed": false
+    "production_activation_completed": false,
+    "solana_fee_activation_evidence": "docs/fees/verification/2026-09-07-jupiter-unsigned-fees.json"
   },
   "privy_wallets": {
     "implementation_status": "owner_evm_wallet_canary_release_ready",
@@ -903,7 +904,7 @@
     "owner_evm_wallet_canary_release_enabled": true,
     "owner_evm_wallet_provisioning_enabled": true,
     "owner_solana_wallet_provisioning_enabled": true,
-    "solana_execution_blocked_on_jupiter_fee_configuration": true,
+    "solana_execution_blocked_on_jupiter_fee_configuration": false,
     "default_wallet_onboarding": false,
     "production_activation_completed": false,
     "activation_controls": [

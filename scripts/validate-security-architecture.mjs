@@ -110,12 +110,27 @@ assert.equal(config.privy_wallets.terminal_reuses_fee_bound_zero_x_review, true)
 assert.equal(config.privy_wallets.owner_evm_wallet_canary_release_enabled, true);
 assert.equal(config.privy_wallets.owner_evm_wallet_provisioning_enabled, true);
 assert.equal(config.privy_wallets.owner_solana_wallet_provisioning_enabled, true);
-assert.equal(config.privy_wallets.solana_execution_blocked_on_jupiter_fee_configuration, true);
+assert.equal(config.privy_wallets.solana_execution_blocked_on_jupiter_fee_configuration, false);
 assert.equal(config.privy_wallets.default_wallet_onboarding, false);
 assert.equal(config.privy_wallets.production_activation_completed, false);
 assert.equal(config.privy_wallets.all_activation_controls_default_off, true);
 assert.ok(config.privy_wallets.activation_controls.includes("RAVENOS_PRIVY_WALLET_USERS"));
-assert.equal(config.customer_live_execution_canary.solana_live_release_activation_ready, false);
+assert.equal(config.customer_live_execution_canary.solana_live_release_activation_ready, true);
+const solanaActivationProof = JSON.parse(readFileSync(join(root, config.customer_live_execution_canary.solana_fee_activation_evidence), "utf8"));
+assert.equal(solanaActivationProof.signed, false);
+assert.equal(solanaActivationProof.broadcast, false);
+assert.equal(solanaActivationProof.standard_fee_bps, 100);
+assert.equal(solanaActivationProof.pro_fee_bps, 100);
+for (const side of ["buy", "sell"]) for (const tier of ["Standard", "Paid Pro", "Trial Pro"]) {
+  const proof = solanaActivationProof.results.find(row => row.side === side && row.tier === tier);
+  assert.equal(proof?.preflight_passed, true, `${side} ${tier} fee preflight`);
+  assert.equal(proof.simulation, "passed");
+  assert.equal(proof.fee_instruction.fee_bps, 100);
+  assert.equal(proof.referral_verification.onchain_verified, true);
+  assert.equal(proof.receipt.independently_simulated, true);
+  assert.equal(proof.receipt.fee_account, proof.referral_verification.fee_account);
+  assert.deepEqual(proof.unknown_invoked_programs, []);
+}
 assert.equal(config.customer_live_execution_canary.evm_live_release_activation_ready, true);
 for (const method of ["GoogleOAuth", "Password", "MagicAuth"]) {
   assert(config.identity_provider.requested_methods.includes(method), `missing active authentication method: ${method}`);

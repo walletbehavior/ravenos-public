@@ -1,0 +1,302 @@
+{
+  "generated_at": "2026-09-07T12:49:17.682Z",
+  "signed": false,
+  "broadcast": false,
+  "proof_scope": "unsigned mainnet construction and RPC simulation; no settlement receipt or earned cashback",
+  "standard_fee_bps": 100,
+  "pro_fee_bps": 100,
+  "pro_cashback_percent": 30,
+  "results": [
+    {
+      "side": "buy",
+      "tier": "Standard",
+      "preflight_passed": true,
+      "fee_instruction": {
+        "instruction": "shared_accounts_route_v2",
+        "instruction_index": 3,
+        "fee_bps": 100,
+        "fee_bps_byte_offset": 27,
+        "positive_slippage_bps": 0,
+        "fee_account": "AZvRGXzbBAJK5BoWMGp18wJUtJLFgc9LadY274gs6U17",
+        "fee_account_instruction_index": 12,
+        "fee_account_writable": true,
+        "input_mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "output_mint": "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263",
+        "fee_mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "input_amount_base_units": "1000000",
+        "quoted_output_amount_base_units": "31244818685"
+      },
+      "quote_fee_amount_source": "exact_input_fee_calculation",
+      "simulation": "passed",
+      "receipt": {
+        "referral_account": "CAhs68qUBmRVg4i8kh6L6VzDqAWsMtNrE8acoTo3K3Vd",
+        "fee_mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "fee_bps": 100,
+        "fee_account": "AZvRGXzbBAJK5BoWMGp18wJUtJLFgc9LadY274gs6U17",
+        "gross_fee_amount_base_units": "10000",
+        "minimum_collector_credit_base_units": "8000",
+        "pre_amount_base_units": "0",
+        "post_amount_base_units": "10000",
+        "observed_credit_base_units": "10000",
+        "independently_simulated": true
+      },
+      "reviewed_venues": [
+        "Whirlpool",
+        "Raydium CLMM"
+      ],
+      "unknown_invoked_programs": [],
+      "transaction_hash": "6b10087296cca7bca2f5b6811c463570696a70682e4d3450cd37e3aea4229623",
+      "referral_verification": {
+        "referral_account": "CAhs68qUBmRVg4i8kh6L6VzDqAWsMtNrE8acoTo3K3Vd",
+        "authority": "CEACkaNKdHVupnaiEMLGppw8RthjCdoMj8kdxJeg3MfV",
+        "project": "DkiqsTrw1u1bYFumumC7sCG2S8K25qc2vemJFHyW2wJc",
+        "fee_account": "AZvRGXzbBAJK5BoWMGp18wJUtJLFgc9LadY274gs6U17",
+        "fee_mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "context_slot": 445067703,
+        "onchain_verified": true
+      }
+    },
+    {
+      "side": "buy",
+      "tier": "Paid Pro",
+      "preflight_passed": true,
+      "fee_instruction": {
+        "instruction": "shared_accounts_route_v2",
+        "instruction_index": 3,
+        "fee_bps": 100,
+        "fee_bps_byte_offset": 27,
+        "positive_slippage_bps": 0,
+        "fee_account": "AZvRGXzbBAJK5BoWMGp18wJUtJLFgc9LadY274gs6U17",
+        "fee_account_instruction_index": 12,
+        "fee_account_writable": true,
+        "input_mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "output_mint": "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263",
+        "fee_mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "input_amount_base_units": "1000000",
+        "quoted_output_amount_base_units": "31244818685"
+      },
+      "quote_fee_amount_source": "exact_input_fee_calculation",
+      "simulation": "passed",
+      "receipt": {
+        "referral_account": "CAhs68qUBmRVg4i8kh6L6VzDqAWsMtNrE8acoTo3K3Vd",
+        "fee_mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "fee_bps": 100,
+        "fee_account": "AZvRGXzbBAJK5BoWMGp18wJUtJLFgc9LadY274gs6U17",
+        "gross_fee_amount_base_units": "10000",
+        "minimum_collector_credit_base_units": "8000",
+        "pre_amount_base_units": "0",
+        "post_amount_base_units": "10000",
+        "observed_credit_base_units": "10000",
+        "independently_simulated": true
+      },
+      "reviewed_venues": [
+        "Raydium CLMM",
+        "Whirlpool"
+      ],
+      "unknown_invoked_programs": [],
+      "transaction_hash": "ece3bb34a1d7a08cbd800cc497e4c61881b6a8feeefe632c3e479d271b686388",
+      "referral_verification": {
+        "referral_account": "CAhs68qUBmRVg4i8kh6L6VzDqAWsMtNrE8acoTo3K3Vd",
+        "authority": "CEACkaNKdHVupnaiEMLGppw8RthjCdoMj8kdxJeg3MfV",
+        "project": "DkiqsTrw1u1bYFumumC7sCG2S8K25qc2vemJFHyW2wJc",
+        "fee_account": "AZvRGXzbBAJK5BoWMGp18wJUtJLFgc9LadY274gs6U17",
+        "fee_mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "context_slot": 445067705,
+        "onchain_verified": true
+      }
+    },
+    {
+      "side": "buy",
+      "tier": "Trial Pro",
+      "preflight_passed": true,
+      "fee_instruction": {
+        "instruction": "shared_accounts_route_v2",
+        "instruction_index": 3,
+        "fee_bps": 100,
+        "fee_bps_byte_offset": 27,
+        "positive_slippage_bps": 0,
+        "fee_account": "AZvRGXzbBAJK5BoWMGp18wJUtJLFgc9LadY274gs6U17",
+        "fee_account_instruction_index": 12,
+        "fee_account_writable": true,
+        "input_mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "output_mint": "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263",
+        "fee_mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "input_amount_base_units": "1000000",
+        "quoted_output_amount_base_units": "31244818685"
+      },
+      "quote_fee_amount_source": "exact_input_fee_calculation",
+      "simulation": "passed",
+      "receipt": {
+        "referral_account": "CAhs68qUBmRVg4i8kh6L6VzDqAWsMtNrE8acoTo3K3Vd",
+        "fee_mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "fee_bps": 100,
+        "fee_account": "AZvRGXzbBAJK5BoWMGp18wJUtJLFgc9LadY274gs6U17",
+        "gross_fee_amount_base_units": "10000",
+        "minimum_collector_credit_base_units": "8000",
+        "pre_amount_base_units": "0",
+        "post_amount_base_units": "10000",
+        "observed_credit_base_units": "10000",
+        "independently_simulated": true
+      },
+      "reviewed_venues": [
+        "Whirlpool",
+        "Raydium CLMM"
+      ],
+      "unknown_invoked_programs": [],
+      "transaction_hash": "cd5c4d7ba8cc13c26de36bb5875122eae218313964a1ac1b8eebbdb53b388dd6",
+      "referral_verification": {
+        "referral_account": "CAhs68qUBmRVg4i8kh6L6VzDqAWsMtNrE8acoTo3K3Vd",
+        "authority": "CEACkaNKdHVupnaiEMLGppw8RthjCdoMj8kdxJeg3MfV",
+        "project": "DkiqsTrw1u1bYFumumC7sCG2S8K25qc2vemJFHyW2wJc",
+        "fee_account": "AZvRGXzbBAJK5BoWMGp18wJUtJLFgc9LadY274gs6U17",
+        "fee_mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "context_slot": 445067706,
+        "onchain_verified": true
+      }
+    },
+    {
+      "side": "sell",
+      "tier": "Standard",
+      "preflight_passed": true,
+      "fee_instruction": {
+        "instruction": "shared_accounts_route_v2",
+        "instruction_index": 3,
+        "fee_bps": 100,
+        "fee_bps_byte_offset": 27,
+        "positive_slippage_bps": 0,
+        "fee_account": "AZvRGXzbBAJK5BoWMGp18wJUtJLFgc9LadY274gs6U17",
+        "fee_account_instruction_index": 12,
+        "fee_account_writable": true,
+        "input_mint": "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263",
+        "output_mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "fee_mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "input_amount_base_units": "5000000000",
+        "quoted_output_amount_base_units": "157662"
+      },
+      "quote_fee_amount_source": "independent_simulation",
+      "simulation": "passed",
+      "receipt": {
+        "referral_account": "CAhs68qUBmRVg4i8kh6L6VzDqAWsMtNrE8acoTo3K3Vd",
+        "fee_mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "fee_bps": 100,
+        "fee_account": "AZvRGXzbBAJK5BoWMGp18wJUtJLFgc9LadY274gs6U17",
+        "gross_fee_amount_base_units": "1592",
+        "minimum_collector_credit_base_units": "1273",
+        "pre_amount_base_units": "0",
+        "post_amount_base_units": "1592",
+        "observed_credit_base_units": "1592",
+        "independently_simulated": true
+      },
+      "reviewed_venues": [
+        "Whirlpool"
+      ],
+      "unknown_invoked_programs": [],
+      "transaction_hash": "f83d08d8981b325991812479886790d81566636929d5b66f7446f2c89938fc51",
+      "referral_verification": {
+        "referral_account": "CAhs68qUBmRVg4i8kh6L6VzDqAWsMtNrE8acoTo3K3Vd",
+        "authority": "CEACkaNKdHVupnaiEMLGppw8RthjCdoMj8kdxJeg3MfV",
+        "project": "DkiqsTrw1u1bYFumumC7sCG2S8K25qc2vemJFHyW2wJc",
+        "fee_account": "AZvRGXzbBAJK5BoWMGp18wJUtJLFgc9LadY274gs6U17",
+        "fee_mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "context_slot": 445069270,
+        "onchain_verified": true
+      }
+    },
+    {
+      "side": "sell",
+      "tier": "Paid Pro",
+      "preflight_passed": true,
+      "fee_instruction": {
+        "instruction": "shared_accounts_route_v2",
+        "instruction_index": 3,
+        "fee_bps": 100,
+        "fee_bps_byte_offset": 27,
+        "positive_slippage_bps": 0,
+        "fee_account": "AZvRGXzbBAJK5BoWMGp18wJUtJLFgc9LadY274gs6U17",
+        "fee_account_instruction_index": 12,
+        "fee_account_writable": true,
+        "input_mint": "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263",
+        "output_mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "fee_mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "input_amount_base_units": "5000000000",
+        "quoted_output_amount_base_units": "157662"
+      },
+      "quote_fee_amount_source": "independent_simulation",
+      "simulation": "passed",
+      "receipt": {
+        "referral_account": "CAhs68qUBmRVg4i8kh6L6VzDqAWsMtNrE8acoTo3K3Vd",
+        "fee_mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "fee_bps": 100,
+        "fee_account": "AZvRGXzbBAJK5BoWMGp18wJUtJLFgc9LadY274gs6U17",
+        "gross_fee_amount_base_units": "1592",
+        "minimum_collector_credit_base_units": "1273",
+        "pre_amount_base_units": "0",
+        "post_amount_base_units": "1592",
+        "observed_credit_base_units": "1592",
+        "independently_simulated": true
+      },
+      "reviewed_venues": [
+        "Whirlpool"
+      ],
+      "unknown_invoked_programs": [],
+      "transaction_hash": "30b0809e29f84f599f85973bac6f476fce01a624432a2e818ccbc89fbf6b386b",
+      "referral_verification": {
+        "referral_account": "CAhs68qUBmRVg4i8kh6L6VzDqAWsMtNrE8acoTo3K3Vd",
+        "authority": "CEACkaNKdHVupnaiEMLGppw8RthjCdoMj8kdxJeg3MfV",
+        "project": "DkiqsTrw1u1bYFumumC7sCG2S8K25qc2vemJFHyW2wJc",
+        "fee_account": "AZvRGXzbBAJK5BoWMGp18wJUtJLFgc9LadY274gs6U17",
+        "fee_mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "context_slot": 445069272,
+        "onchain_verified": true
+      }
+    },
+    {
+      "side": "sell",
+      "tier": "Trial Pro",
+      "preflight_passed": true,
+      "fee_instruction": {
+        "instruction": "shared_accounts_route_v2",
+        "instruction_index": 3,
+        "fee_bps": 100,
+        "fee_bps_byte_offset": 27,
+        "positive_slippage_bps": 0,
+        "fee_account": "AZvRGXzbBAJK5BoWMGp18wJUtJLFgc9LadY274gs6U17",
+        "fee_account_instruction_index": 12,
+        "fee_account_writable": true,
+        "input_mint": "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263",
+        "output_mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "fee_mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "input_amount_base_units": "5000000000",
+        "quoted_output_amount_base_units": "157662"
+      },
+      "quote_fee_amount_source": "independent_simulation",
+      "simulation": "passed",
+      "receipt": {
+        "referral_account": "CAhs68qUBmRVg4i8kh6L6VzDqAWsMtNrE8acoTo3K3Vd",
+        "fee_mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "fee_bps": 100,
+        "fee_account": "AZvRGXzbBAJK5BoWMGp18wJUtJLFgc9LadY274gs6U17",
+        "gross_fee_amount_base_units": "1592",
+        "minimum_collector_credit_base_units": "1273",
+        "pre_amount_base_units": "0",
+        "post_amount_base_units": "1592",
+        "observed_credit_base_units": "1592",
+        "independently_simulated": true
+      },
+      "reviewed_venues": [
+        "Whirlpool"
+      ],
+      "unknown_invoked_programs": [],
+      "transaction_hash": "5843a14b303f5d6bb6c627d0cb0e583e18e710d490756c2dbdc7eeb4024b0a54",
+      "referral_verification": {
+        "referral_account": "CAhs68qUBmRVg4i8kh6L6VzDqAWsMtNrE8acoTo3K3Vd",
+        "authority": "CEACkaNKdHVupnaiEMLGppw8RthjCdoMj8kdxJeg3MfV",
+        "project": "DkiqsTrw1u1bYFumumC7sCG2S8K25qc2vemJFHyW2wJc",
+        "fee_account": "AZvRGXzbBAJK5BoWMGp18wJUtJLFgc9LadY274gs6U17",
+        "fee_mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "context_slot": 445069275,
+        "onchain_verified": true
+      }
+    }
+  ]
+}
