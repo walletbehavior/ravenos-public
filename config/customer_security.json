@@ -432,7 +432,7 @@
     "screener_claims_all_solana_wallets": false,
     "read_only_intelligence_release_enabled": true,
     "read_only_screener_release_enabled": true,
-    "retained_market_evidence_release_enabled": false,
+    "retained_market_evidence_release_enabled": true,
     "shadow_copy_release_enabled": true,
     "shared_source_observation": true,
     "shared_observer_queue_implemented": true,

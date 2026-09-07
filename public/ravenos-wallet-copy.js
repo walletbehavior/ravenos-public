@@ -15,6 +15,9 @@ const state = {
   access: { tier: "free", advanced_wallet_intelligence: false },
   inspect_chain: "solana",
   profile_request: 0,
+  activity_request: 0,
+  saved_request: 0,
+  saved_loaded: false,
   policy_source: null,
   address: "",
   source_wallet_id: null,
@@ -470,7 +473,9 @@ async function loadWalletActivity({ append = false } = {}) {
   setText("copyActivityStatus", append ? "Loading older…" : "Filtering…");
   const params = new URLSearchParams({ filter, limit: "12" });
   if (cursor) params.set("cursor", cursor);
-  const result = await api(`${API}/wallets/${encodeURIComponent(state.source_wallet_id)}/events?${params}`);
+  const sourceId = state.source_wallet_id, profileRequest = state.profile_request, activityRequest = ++state.activity_request;
+  const result = await api(`${API}/wallets/${encodeURIComponent(sourceId)}/events?${params}`);
+  if (sourceId !== state.source_wallet_id || profileRequest !== state.profile_request || activityRequest !== state.activity_request) return;
   if (!result.response.ok) {
     state.activity.loading = false;
     filterNode.disabled = false;
@@ -1349,6 +1354,15 @@ function hydrateScreenerFromUrl() {
 
 async function loadStoredWallet(sourceWalletId, button) {
   const requestId = ++state.profile_request;
+  state.activity_request += 1;
+  state.source_wallet_id = null;
+  state.profile = null;
+  state.prospective_copyability = null;
+  state.deep_history = null;
+  state.events = [];
+  state.activity = { filter: "all", next_cursor: null, has_more: false, provider_has_more: false, matching_event_count: 0, loading: false, on_demand_only: false };
+  state.on_demand_events = [];
+  document.getElementById("copyActivityFilter").disabled = false;
   state.policy_source = null;
   state.deep_poll_token += 1;
   policyNode.hidden = true;
@@ -1361,10 +1375,14 @@ async function loadStoredWallet(sourceWalletId, button) {
   if (!result.response.ok) {
     state.profile = null;
     profileNode.hidden = true;
-    setText("copyScreenerStatus", "That wallet analysis is unavailable. Raven did not substitute another wallet.");
+    setText("copySearchStatus", "Stored analysis is unavailable. Use Analyze wallet to request history for this exact chain and address.");
+    return false;
     return;
   }
   renderProfile(result.payload);
+  setText("copySearchStatus", `Stored analysis · ${when(result.payload.freshness?.observed_at || result.payload.profile?.generated_at)}. No provider refresh requested.`);
+  profileNode.scrollIntoView({ behavior: "smooth", block: "start" });
+  return true;
 }
 
 function savedResearchRow(save) {
@@ -1382,13 +1400,25 @@ function savedResearchRow(save) {
   const open = document.createElement("button");
   const remove = document.createElement("button");
   open.type = remove.type = "button";
-  open.textContent = "Open";
+  open.textContent = save.analysis?.state === "not_analyzed" ? "Analyze wallet" : "Open cached";
   remove.textContent = "Remove";
-  open.addEventListener("click", () => loadStoredWallet(save.source_wallet_id, open));
+  open.addEventListener("click", async () => {
+    setInspectChain(save.source_wallet.chain, { announce: false });
+    document.getElementById("copyWalletAddress").value = save.source_wallet.address;
+    if (open.textContent === "Analyze wallet") {
+      await inspectWalletAddress(save.source_wallet.address, open);
+      if (!profileNode.hidden) profileNode.scrollIntoView({ behavior: "smooth", block: "start" });
+    } else if (await loadStoredWallet(save.source_wallet_id, open) === false) open.textContent = "Analyze wallet";
+  });
   remove.addEventListener("click", async () => {
     remove.disabled = true;
-    await api(`${API}/saved-wallets/${encodeURIComponent(save.save_id)}`, { method: "DELETE", body: JSON.stringify({ confirm: "delete_saved_wallet" }) });
-    await loadSavedResearch();
+    const result = await api(`${API}/saved-wallets/${encodeURIComponent(save.save_id)}`, { method: "DELETE", body: JSON.stringify({ confirm: "delete_saved_wallet" }) });
+    remove.disabled = false;
+    if (!result.response.ok) { setText("copySavedStatus", "Could not remove this wallet. Your saved list is unchanged."); return; }
+    state.saved_request += 1;
+    state.saved = state.saved.filter(item => item.save_id !== save.save_id);
+    renderSavedResearch();
+    setText("copySavedStatus", "Wallet removed from this list.");
   });
   actions.append(open, remove);
   row.append(identity, actions);
@@ -1396,7 +1426,8 @@ function savedResearchRow(save) {
 }
 
 function renderSavedResearch() {
-  setText("copySavedCount", `${state.saved.length} saved`);
+  setText("copySavedCount", state.saved_loaded ? `${state.saved.length} saved` : "Saved wallets");
+  setText("copySavedShortcut", state.saved_loaded ? `Saved wallets (${state.saved.length}) ↓` : "Saved wallets ↓");
   const host = document.getElementById("copySavedWallets");
   if (!state.saved.length) {
     const message = document.createElement("p");
@@ -1404,12 +1435,24 @@ function renderSavedResearch() {
     host.replaceChildren(message);
     return;
   }
-  host.replaceChildren(...state.saved.map(savedResearchRow));
+  const chain = document.getElementById("copySavedChain").value, search = document.getElementById("copySavedSearch").value.trim().toLowerCase();
+  const matches = state.saved.filter(save => (chain === "all" || save.source_wallet.chain === chain)
+    && [save.label, save.list_name, save.source_wallet.address].some(value => String(value).toLowerCase().includes(search)));
+  host.replaceChildren(...matches.map(savedResearchRow));
+  if (!matches.length) { const message = document.createElement("div"); message.textContent = "No saved wallets match these filters."; host.append(message); }
 }
 
 async function loadSavedResearch() {
+  const requestId = ++state.saved_request;
   const result = await api(`${API}/saved-wallets`);
-  state.saved = result.response.ok && Array.isArray(result.payload?.saves) ? result.payload.saves : [];
+  if (requestId !== state.saved_request) return;
+  if (!result.response.ok || !Array.isArray(result.payload?.saves)) {
+    setText("copySavedStatus", state.saved_loaded ? "Refresh unavailable. Your last loaded list is still shown." : "Saved wallets are unavailable. Retry to load your list.");
+    return;
+  }
+  state.saved = result.payload.saves;
+  state.saved_loaded = true;
+  setText("copySavedStatus", "Private research lists · saving does not start Copy.");
   renderSavedResearch();
 }
 
@@ -1635,13 +1678,22 @@ function seenWalletCard(wallet) {
   address.title = wallet.source_wallet.address;
   detail.textContent = `Observed ${when(wallet.last_observed_at)} · ${wallet.history_available ? "bounded history cached" : "history not analyzed"}`;
   identity.append(address, detail);
-  const inspect = document.createElement("button"); inspect.type = "button"; inspect.textContent = "Inspect wallet";
+  const actions = document.createElement("div"); actions.className = "copy-seen-actions";
+  const save = document.createElement("button"); save.type = "button"; save.textContent = "Save";
+  save.addEventListener("click", () => saveResearchWallet(wallet.source_wallet_id, shortAddress(wallet.source_wallet.address), save));
+  const inspect = document.createElement("button"); inspect.type = "button"; inspect.textContent = wallet.history_available ? "Open cached" : "Inspect wallet";
   inspect.addEventListener("click", async () => {
     setInspectChain(wallet.source_wallet.chain, { announce: false });
+    document.getElementById("copyWalletAddress").value = wallet.source_wallet.address;
+    if (inspect.textContent === "Open cached") {
+      if (await loadStoredWallet(wallet.source_wallet_id, inspect) === false) inspect.textContent = "Inspect wallet";
+      return;
+    }
     await inspectWalletAddress(wallet.source_wallet.address, inspect);
     if (!profileNode.hidden) profileNode.scrollIntoView({ behavior: "smooth", block: "start" });
   });
-  card.append(identity, inspect);
+  actions.append(save, inspect);
+  card.append(identity, actions);
   const evidence = wallet.market_evidence;
   if (evidence?.state === "available") {
     const facts = document.createElement("dl"); facts.className = "copy-observed-facts";
@@ -1777,9 +1829,7 @@ async function loadWorkspace() {
 
 async function inspectWalletAddress(address, button, { refresh = false } = {}) {
   const requestId = ++state.profile_request;
-  state.policy_source = null;
-  state.deep_poll_token += 1;
-  state.address = String(address || "").trim();
+  state.activity_request += 1;
   state.source_wallet_id = null;
   state.profile = null;
   state.prospective_copyability = null;
@@ -1787,6 +1837,10 @@ async function inspectWalletAddress(address, button, { refresh = false } = {}) {
   state.events = [];
   state.activity = { filter: "all", next_cursor: null, has_more: false, provider_has_more: false, matching_event_count: 0, loading: false, on_demand_only: false };
   state.on_demand_events = [];
+  document.getElementById("copyActivityFilter").disabled = false;
+  state.policy_source = null;
+  state.deep_poll_token += 1;
+  state.address = String(address || "").trim();
   profileNode.hidden = true;
   policyNode.hidden = true;
   const idleLabel = button.dataset.idleLabel || button.textContent || "Analyze wallet";
@@ -2029,3 +2083,6 @@ window.RavenOSWalletCopy = Object.freeze({
   broadcasting: false,
   feeCollection: false,
 });
+
+for (const id of ["copySavedChain", "copySavedSearch"]) document.getElementById(id).addEventListener("input", renderSavedResearch);
+document.getElementById("copySavedRetry").addEventListener("click", loadSavedResearch);

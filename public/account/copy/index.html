@@ -94,6 +94,7 @@
               <strong id="copyScreenerCount">Loading index</strong>
             </div>
           </header>
+          <div class="copy-research-tools"><label for="copySaveListName">Save to <input id="copySaveListName" maxlength="48" value="Research" /></label><a id="copySavedShortcut" href="#copySavedResearch">Saved wallets ↓</a></div>
           <p class="copy-index-coverage" id="copyScreenerCoverage">Stored multichain observations.</p>
           <div class="copy-universe-views copy-chain-rail" role="group" aria-label="Wallet evidence view">
             <button type="button" data-wallet-view="observed" aria-pressed="false">Observed wallets</button>
@@ -180,9 +181,11 @@
             <div id="copySeenResults"></div>
           </section>
           <footer class="copy-screener-pages" id="copyScreenerPages" hidden><button type="button" id="copyScreenPrevious">← Previous</button><span id="copyScreenPage">Page 1</span><button type="button" id="copyScreenNext">Next →</button></footer>
-          <section class="copy-saved-research" aria-label="Saved wallet research">
-            <header><div><span>Saved wallet lists</span><strong id="copySavedCount">0 saved</strong></div><label for="copySaveListName">Save new wallets to <input id="copySaveListName" maxlength="48" value="Research" /></label></header>
-            <div id="copySavedWallets"><p>No saved wallets.</p></div>
+          <section id="copySavedResearch" class="copy-saved-research" aria-label="Saved wallet research">
+            <header><div><span>Saved wallet lists</span><strong id="copySavedCount">Saved wallets</strong></div><button type="button" id="copySavedRetry">Refresh list</button></header>
+            <div class="copy-research-tools"><select id="copySavedChain" aria-label="Saved wallet chain"><option value="all">All chains</option><option value="solana">Solana</option><option value="robinhood">Robinhood</option><option value="base">Base</option><option value="ethereum">Ethereum</option><option value="bsc">BNB</option></select><input id="copySavedSearch" type="search" aria-label="Filter saved wallets" placeholder="Name, list or address" /></div>
+            <div id="copySavedStatus" class="copy-saved-status" role="status">Loading saved wallets…</div>
+            <div id="copySavedWallets"></div>
           </section>
           <section class="copy-rh-intelligence" id="copyRobinhoodIntelligence" hidden aria-label="Robinhood Chain trader intelligence">
             <header>

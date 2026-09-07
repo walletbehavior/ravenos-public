@@ -8,7 +8,7 @@ const SOURCE_ID = `sw_sol_${"a".repeat(40)}`;
 const EVM_WALLET = `0x${"12".repeat(20)}`;
 const EVM_TOKEN = `0x${"56".repeat(20)}`;
 const EVM_TOKEN_TWO = `0x${"ab".repeat(20)}`;
-const EVM_SOURCE_ID = `sw_evm_bsc_${"b".repeat(40)}`;
+const EVM_SOURCE_ID = `sw_bsc_${"b".repeat(40)}`;
 
 function researchThesis() {
   return {
@@ -1176,4 +1176,61 @@ test("Standard can browse stored history states while advanced pool filters rema
   await expect(page.getByRole("combobox",{name:"History",exact:true})).toBeVisible();
   expect(queries[0].observed).toMatchObject({signal:"any",sort:"recent"});
   expect(shared.requests.some(row=>row.path.endsWith("/inspect"))).toBe(false);
+});
+
+test('observed wallets save privately and cached research survives refresh and removal failures', async ({page}) => {
+  const shared = {requests:[]};
+  await install(page, shared);
+  await page.route('**/api/v1/wallet-copy/screener',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,rows:[],scope:{chain:'all'},pagination:{page:1,page_size:12},seen_wallets:{total:1,rows:[{source_wallet_id:SOURCE_ID,source_wallet:{chain:'solana',address:WALLET},history_available:true,last_observed_at:'2026-09-07T12:00:00Z'}]}})}));
+  await page.goto('/account/copy/');
+  await page.locator('#copySaveListName').fill('Shortlist');
+  await page.locator('.copy-seen-wallet').getByRole('button',{name:'Save',exact:true}).click();
+  await expect(page.locator('#copySavedCount')).toHaveText('1 saved');
+  await page.locator('.copy-seen-wallet').getByRole('button',{name:'Open cached'}).click();
+  await expect(page.locator('#copyProfile')).toBeVisible();
+  expect(shared.requests.filter(row=>row.path.endsWith('/inspect'))).toHaveLength(0);
+  await page.locator('#copySavedShortcut').click();
+  await expect(page.locator('#copySavedWallets')).toContainText('Shortlist');
+  await page.locator('#copySavedChain').selectOption('base');
+  await expect(page.locator('#copySavedWallets')).toContainText('No saved wallets match');
+  await page.locator('#copySavedChain').selectOption('all');
+  await page.route('**/api/v1/wallet-copy/saved-wallets',route=>route.fulfill({status:503,contentType:'application/json',body:'{"error":"unavailable"}'}));
+  await page.locator('#copySavedRetry').click();
+  await expect(page.locator('#copySavedStatus')).toContainText('last loaded list');
+  await expect(page.locator('#copySavedWallets')).toContainText('Shortlist');
+  await page.route('**/api/v1/wallet-copy/saved-wallets/*',route=>route.fulfill({status:503,contentType:'application/json',body:'{"error":"unavailable"}'}));
+  await page.locator('#copySavedWallets').getByRole('button',{name:'Remove'}).click();
+  await expect(page.locator('#copySavedStatus')).toContainText('Could not remove');
+  await expect(page.locator('#copySavedCount')).toHaveText('1 saved');
+});
+
+test('opening Solana analysis after EVM lookup restores server-backed activity filters', async ({page})=>{
+  const shared = {requests:[]}; await install(page,shared);
+  await page.goto(`/account/copy/?wallet=${EVM_WALLET}&chain=bsc`);
+  await expect(page.locator('#copyProfile')).toBeVisible();
+  await page.getByRole('button',{name:'Open analysis',exact:true}).click();
+  await expect(page.locator('#copyWalletAddress')).toHaveValue(WALLET);
+  await page.locator('#copyActivityFilter').selectOption('unresolved');
+  await expect.poll(()=>shared.requests.some(row=>row.path.endsWith('/events')&&row.search.includes('unresolved'))).toBe(true);
+  await expect(page.locator('#copyEventCount')).toContainText('1 of 1');
+});
+
+
+test('a late activity page cannot overwrite a newly opened profile', async ({page}) => {
+  const shared = {requests:[]}; await install(page,shared);
+  let release;
+  await page.route(`**/api/v1/wallet-copy/wallets/${SOURCE_ID}/events?*`,async route=>{
+    await new Promise(resolve=>{release=resolve;});
+    await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(activityPage([event('AMBIGUOUS',4)],{filter:'unresolved',total:1}))});
+  });
+  await page.goto(`/account/copy/?wallet=${WALLET}`);
+  await expect(page.locator('#copyProfile')).toBeVisible();
+  await page.locator('#copyActivityFilter').selectOption('unresolved');
+  await expect.poll(()=>typeof release).toBe('function');
+  await page.getByRole('button',{name:'Open analysis',exact:true}).click();
+  await expect(page.locator('#copyEventCount')).toHaveText('2 of 26 retained');
+  release();
+  await page.waitForResponse(response=>response.url().includes('/events?'));
+  await expect(page.locator('#copyEventCount')).toHaveText('2 of 26 retained');
+  await expect(page.locator('#copyActivityFilter')).toHaveValue('all');
 });

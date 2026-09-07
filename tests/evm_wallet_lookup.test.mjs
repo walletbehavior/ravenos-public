@@ -366,3 +366,44 @@ test('a distributed cold EVM lookup lease prevents simultaneous provider request
  db.raw.prepare('INSERT INTO ravenos_wallet_lookup_leases VALUES (?,?,?)').run(id.source_wallet_id,'active-test',now+60);
  let calls=0;await assert.rejects(inspectRetainedEvmWallet({chain:'base',address:ADDRESS},{store,db,now,lookup:async()=>{calls++;}}),/wallet_analysis_in_progress/);assert.equal(calls,0);
 });
+
+test('saved research reopens exact-chain EVM snapshots without new provider calls and filters retained activity', async () => {
+  const { inspectRetainedEvmWallet } = await import('../lib/customer_trade/retained_evm_wallet.mjs');
+  const db = sqliteStore(), store = createD1CustomerWalletCopyStore(db), source = provider();
+  const now = 1788523260, userId = `usr_${'e'.repeat(32)}`;
+  db.raw.prepare("INSERT INTO ravenos_users (user_id,state,primary_email,created_at,updated_at,last_authenticated_at) VALUES (?,'active','cached@example.test',?,?,?)").run(userId,now,now,now);
+  const env = { RAVENOS_CUSTOMER_DB: db, RAVENOS_ENTITLEMENT_RESOLUTION_ENABLE:'1', RAVENOS_WALLET_INTELLIGENCE_ENABLED:'1', RAVENOS_WALLET_COPY_ROUTES_ENABLED:'1', RAVENOS_WALLET_SCREENER_ENABLED:'1', RAVENOS_EVM_WALLET_LOOKUP_ENABLED:'1', BLOCKSCOUT_API_KEY:KEY };
+  const deps = { walletCopyStore:store, entitlementStore:{async listOwnedGrants(){return [];}},
+    authorizeRequest:async()=>({principal:{user_id:userId},now,response_headers:new Headers()}), consumeRateLimit:async()=>({allowed:true}),
+    fetchImpl:async()=>{throw Error('cached_navigation_must_not_call_provider');} };
+  const call = async(path,method='GET',body,overrides={}) => {
+    const r = await routeCustomerWalletCopy(new Request('https://app.ravenos.xyz/api/v1/wallet-copy'+path,{method,headers:{origin:'https://app.ravenos.xyz','sec-fetch-site':'same-origin','content-type':'application/json'},body:body?JSON.stringify(body):undefined}),env,{...deps,...overrides});
+    return { status:r?.status,payload:await r?.json() };
+  };
+  for(const chain of ['robinhood','base','ethereum','bsc']) {
+    const lookup = await inspectRetainedEvmWallet({chain,address:ADDRESS,env,fetchImpl:source.fetch,now:new Date(now*1000).toISOString()},{store,db,now});
+    const id = lookup.source_wallet_id, calls = source.urls.length;
+    const saved = await call('/saved-wallets','POST',{source_wallet_id:id,list_name:'Research',label:chain});
+    assert.equal(saved.status,201,JSON.stringify(saved.payload));
+    assert.equal(saved.payload.save.analysis.state,'available');
+    assert.equal(saved.payload.save.source_wallet.chain,chain);
+    const opened = await call('/wallets/'+id);
+    assert.equal(opened.status,200,JSON.stringify(opened.payload));
+    assert.equal(opened.payload.profile.source_wallet.chain,chain);
+    assert.equal(opened.payload.provider_request_performed,false);
+    assert.equal(opened.payload.activity.scope.provider_request_performed,false);
+    assert.equal(opened.payload.profile.retained_lookup,undefined);
+    assert.deepEqual(opened.payload.transaction_decode_candidates,lookup.transaction_decode_candidates);
+    assert.equal(source.urls.length,calls);
+    assert.equal((await call('/wallets/'+id+'/events?filter=trades')).payload.events.length,0);
+    const events = await call('/wallets/'+id+'/events?filter=transfers&limit=1');
+    assert.equal(events.status,200);assert.equal(events.payload.events.length,1);
+    assert.equal(events.payload.events[0].source_wallet.chain,chain);
+    const wrong = await call('/wallets/'+id,'GET',undefined,{walletCopyStore:{...store,latestProfile:async()=>({...lookup.profile,source_wallet:{...lookup.profile.source_wallet,chain:chain==='base'?'ethereum':'base'}})}});
+    assert.equal(wrong.payload.error,'wallet_profile_identity_mismatch');
+    const foreign = await call('/saved-wallets','GET',undefined,{authorizeRequest:async()=>({principal:{user_id:`usr_${'f'.repeat(32)}`},now,response_headers:new Headers()})});
+    assert.equal(foreign.payload.saves.length,0);
+  }
+  assert.equal((await call('/saved-wallets')).payload.saves.length,4);
+  assert.equal(db.raw.prepare('SELECT count(*) n FROM ravenos_customer_wallet_copy_watches').get().n,0);
+});

@@ -669,7 +669,7 @@ test("explicit refresh is shared for five minutes and a provider outage preserve
   assert.equal(fallback.freshness.state, "retained");
 });
 
-test("lookup, saved research, and copy watches upgrade one shared history job through public demand classes", async () => {
+test("saving research does not enqueue history; inspection and copy watches retain explicit demand classes", async () => {
   const store = memoryStore();
   const provider = { async loadHistory() { return { events: [walletEvent()] }; } };
   const enqueueInputs = [];
@@ -700,7 +700,6 @@ test("lookup, saved research, and copy watches upgrade one shared history job th
   }), activeEnv, d);
   assert.deepEqual(enqueueInputs.map((input) => input.demand_class), [
     "interactive_lookup",
-    "saved_research",
     "customer_watch",
   ]);
   assert.equal(enqueueInputs.every((input) => !("user_id" in input) && !("watch_id" in input)), true);
