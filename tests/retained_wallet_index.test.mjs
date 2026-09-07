@@ -23,10 +23,12 @@ test("retained wallet browse combines chains, deduplicates identities and separa
   const db = new DatabaseSync(":memory:");
   db.exec(`CREATE TABLE ravenos_source_wallets (source_wallet_id TEXT, chain TEXT, network TEXT, address TEXT, last_observed_at INTEGER);
     CREATE TABLE ravenos_source_wallet_discovery_candidates (source_wallet_id TEXT, chain TEXT, network TEXT, address TEXT, last_observed_at INTEGER);
-    CREATE TABLE ravenos_source_wallet_current_profiles (source_wallet_id TEXT, generated_at INTEGER);
+    CREATE TABLE ravenos_source_wallet_profiles (profile_snapshot_id TEXT, schema_version TEXT);
+    CREATE TABLE ravenos_source_wallet_current_profiles (source_wallet_id TEXT, generated_at INTEGER, profile_snapshot_id TEXT);
     INSERT INTO ravenos_source_wallets VALUES ('base1','base','mainnet','0x1111111111111111111111111111111111111111',100), ('eth1','ethereum','mainnet','0x1111111111111111111111111111111111111111',101), ('sol1','solana','mainnet','sol-address',102);
     INSERT INTO ravenos_source_wallet_discovery_candidates VALUES ('sol1','solana','mainnet','sol-address',103);
-    INSERT INTO ravenos_source_wallet_current_profiles VALUES ('base1',104);`);
+    INSERT INTO ravenos_source_wallet_profiles VALUES ('profile1','ravenos.source_wallet_chain_profile.v1');
+    INSERT INTO ravenos_source_wallet_current_profiles VALUES ('base1',104,'profile1');`);
   const store = createD1CustomerWalletCopyStore(d1(db));
   const all = await store.listSeenWallets(normalizeWalletScreenerRequest({ chain: "all" }));
   assert.equal(all.total, 2);

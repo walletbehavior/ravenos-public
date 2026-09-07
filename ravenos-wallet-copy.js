@@ -1633,7 +1633,7 @@ function renderScreener(payload) {
     const address = document.createElement("strong");
     address.textContent = `${shortAddress(wallet.source_wallet.address)} · ${chainLabel(wallet.source_wallet.chain)}`;
     const detail = document.createElement("p");
-    detail.textContent = `Observed ${when(wallet.last_observed_at)} · history not analyzed`;
+    detail.textContent = `Observed ${when(wallet.last_observed_at)} · ${wallet.history_available ? "bounded history cached" : "history not analyzed"}`;
     identity.append(address, detail);
     const inspect = document.createElement("button");
     inspect.type = "button";
@@ -1721,7 +1721,7 @@ async function inspectWalletAddress(address, button, { refresh = false } = {}) {
   button.textContent = idleLabel;
   if (requestId !== state.profile_request) return;
   if (!result.response.ok) {
-    setText("copySearchStatus", result.payload?.error === "wallet_history_unavailable" ? "Public history unavailable." : "Inspection unavailable. Nothing inferred.");
+    setText("copySearchStatus", result.payload?.error === "wallet_analysis_in_progress" ? "Raven is already analyzing this wallet. Try again shortly to reuse that scan." : result.payload?.error === "wallet_history_unavailable" ? "Public history unavailable." : "Inspection unavailable. Nothing inferred.");
     return;
   }
   setText("copySearchStatus", result.payload?.evidence_mode === "retained_raven_index"

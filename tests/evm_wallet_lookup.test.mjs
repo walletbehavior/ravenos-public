@@ -1,3 +1,5 @@
+import { sqliteStore } from "./customer_pro_rewards.test.mjs";
+import { createD1CustomerWalletCopyStore } from "../lib/customer_wallet_copy.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
 
@@ -284,8 +286,9 @@ test("lookup refuses a provider response for another wallet", async () => {
   );
 });
 
-test("authenticated wallet-copy route accepts an explicit EVM chain without persisting a copy source", async () => {
+test("authenticated EVM inspection retains a shared profile without enrolling Copy", async () => {
   const source = provider();
+  const db = sqliteStore();
   const now = Math.floor(Date.parse("2026-09-04T12:01:00.000Z") / 1_000);
   const userId = `usr_${"e".repeat(32)}`;
   const response = await routeCustomerWalletCopy(new Request("https://app.ravenos.xyz/api/v1/wallet-copy/inspect", {
@@ -304,6 +307,7 @@ test("authenticated wallet-copy route accepts an explicit EVM chain without pers
     RAVENOS_WALLET_COPY_ROUTES_ENABLED: "1",
     RAVENOS_EVM_WALLET_LOOKUP_ENABLED: "1",
     BLOCKSCOUT_API_KEY: KEY,
+    RAVENOS_CUSTOMER_DB: db,
   }, {
     authorizeRequest: async () => ({
       principal: { user_id: userId, session_public_id: "ses_evm_lookup", authenticated_at: now - 60 },
@@ -321,15 +325,44 @@ test("authenticated wallet-copy route accepts an explicit EVM chain without pers
       revision: 1,
     }]; } },
     consumeRateLimit: async () => ({ allowed: true, retry_after_seconds: 0 }),
-    walletCopyStore: {},
+    walletCopyStore: createD1CustomerWalletCopyStore(db),
     fetchImpl: source.fetch,
   });
   const payload = await response.json();
   assert.equal(response.status, 200);
   assert.equal(payload.profile.source_wallet.chain, "bsc");
   assert.equal(payload.profile.source_wallet.chain_id, 56);
-  assert.equal(payload.persistence.state, "on_demand_only");
+  assert.equal(payload.persistence.state, "shared_raven_profile");
   assert.equal(payload.profile.behavior.trade_count, null);
   assert.equal(payload.profile.source_performance.realized_pnl_usdc, null);
   assert(!JSON.stringify(payload).includes(KEY));
+});
+
+test('durable EVM profiles are reused across sessions and preserve unknown P&L',async()=>{
+ const {inspectRetainedEvmWallet}=await import('../lib/customer_trade/retained_evm_wallet.mjs');
+ const db=sqliteStore(),store=createD1CustomerWalletCopyStore(db),source=provider();
+ const now=Math.floor(Date.parse('2026-09-04T12:01:00Z')/1000);
+ const input={chain:'base',address:ADDRESS,env:{RAVENOS_EVM_WALLET_LOOKUP_ENABLED:'1',BLOCKSCOUT_API_KEY:KEY},fetchImpl:source.fetch,now:new Date(now*1000).toISOString()};
+ const first=await inspectRetainedEvmWallet(input,{store,db,now});
+ const next=await inspectRetainedEvmWallet(input,{store:createD1CustomerWalletCopyStore(db),db,now:now+60});
+ assert.equal(source.urls.length,4);assert.equal(next.provider_request_performed,false);assert.equal(next.source.delivery,'shared_profile_cache');assert.equal(next.profile.generated_at,first.profile.generated_at);assert.equal(next.profile.source_performance.realized_pnl_usdc,null);
+ assert.equal(db.raw.prepare('SELECT count(*) n FROM ravenos_source_wallet_profiles').get().n,1);
+ assert.equal(db.raw.prepare('SELECT count(*) n FROM ravenos_customer_wallet_copy_watches').get().n,0);
+ const seen=await store.listSeenWallets({chain:'base',page_size:12,offset:0});
+ // Direct lookup sources acquire a timestamp through public market ingestion;
+ // cache reuse does not invent a market observation.
+ assert.equal(seen.total,0);
+ const fallback=await inspectRetainedEvmWallet({...input,refresh:true},{store,db,now:now+601,lookup:async()=>{throw Error('provider_down')}});
+ assert.equal(fallback.freshness.state,'retained_provider_unavailable');assert.equal(fallback.freshness.current_balance_claimed,false);assert.equal(fallback.profile.generated_at,first.profile.generated_at);
+ assert(!JSON.stringify(fallback).includes(KEY));
+ assert.throws(()=>db.raw.exec("UPDATE ravenos_source_wallet_profiles SET profile_json='{}'"),/append_only/);
+});
+
+test('a distributed cold EVM lookup lease prevents simultaneous provider requests',async()=>{
+ const {inspectRetainedEvmWallet}=await import('../lib/customer_trade/retained_evm_wallet.mjs');
+ const {normalizeSourceWalletChainIdentity}=await import('../lib/customer_trade/source_wallet_chain_identity.mjs');
+ const db=sqliteStore(),store=createD1CustomerWalletCopyStore(db);const now=1788523260;
+ const id=normalizeSourceWalletChainIdentity({chain:'base',network:'mainnet',address:ADDRESS});
+ db.raw.prepare('INSERT INTO ravenos_wallet_lookup_leases VALUES (?,?,?)').run(id.source_wallet_id,'active-test',now+60);
+ let calls=0;await assert.rejects(inspectRetainedEvmWallet({chain:'base',address:ADDRESS},{store,db,now,lookup:async()=>{calls++;}}),/wallet_analysis_in_progress/);assert.equal(calls,0);
 });

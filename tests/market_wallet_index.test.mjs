@@ -18,7 +18,7 @@ const active = db => ({ RAVENOS_CUSTOMER_DB: db, RAVENOS_WALLET_INTELLIGENCE_ENA
 
 test("retained market observations populate the existing Solana and Robinhood index without creating history or watches", async () => {
   const db = sqliteStore(); const store = createD1CustomerWalletCopyStore(db);
-  for (const chain of ["solana", "robinhood"]) {
+  for (const chain of ["solana", "robinhood", "base", "ethereum", "bsc"]) {
     const result = await retainMarketWallets(active(db), projection(chain), store, { now: NOW });
     assert.equal(result.retained, 1); assert.equal(result.provider_requests, 0); assert.equal(result.history_queued, false);
     const seen = await store.listSeenWallets({ chain, page_size: 12, offset: 0 });
@@ -37,7 +37,7 @@ test("public pool accounts, token accounts, contracts, mints and invalid owners 
 test("seen-wallet admission is bounded, deduplicated, chain-correct and rejects stale or unknown projections", () => {
   const p = projection(); p.holders = Array.from({ length: 50 }, (_, i) => ({ holder_address: address(i + 5), classification: "owner" }));
   assert.equal(observedMarketWallets(p, { now: NOW }).length, 20);
-  for (const changed of [{ ok: false }, { safe_public: false }, { schema_version: "unknown" }, { observed_at: new Date((NOW - 86401) * 1000).toISOString() }, { observed_at: new Date((NOW + 120) * 1000).toISOString() }, { identity: { ...p.identity, chain: "base" } }]) assert.deepEqual(observedMarketWallets({ ...p, ...changed }, { now: NOW }), []);
+  for (const changed of [{ ok: false }, { safe_public: false }, { schema_version: "unknown" }, { observed_at: new Date((NOW - 86401) * 1000).toISOString() }, { observed_at: new Date((NOW + 120) * 1000).toISOString() }, { identity: { ...p.identity, chain: "unsupported" } }]) assert.deepEqual(observedMarketWallets({ ...p, ...changed }, { now: NOW }), []);
 });
 
 test("trade-sender observations retain address provenance without claiming trade reconstruction", () => {

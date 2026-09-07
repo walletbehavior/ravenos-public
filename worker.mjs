@@ -1,3 +1,4 @@
+import { createWalletUniverseStore, runWalletUniverse } from "./lib/customer_trade/wallet_universe.mjs";
 import { routeCustomerShielded, CUSTOMER_SHIELDED_ROUTE } from "./lib/customer_shielded_routes.mjs";
 import { heliusWalletHistoryRuntime, loadHeliusWalletHistory, loadHeliusWalletPage, cachedHeliusWalletTransaction } from "./lib/customer_trade/helius_wallet_history.mjs";
 import { retainMarketWallets } from "./lib/customer_trade/market_wallet_index.mjs";
@@ -4322,6 +4323,9 @@ async function onchainMarketPulse({ env = {}, request = null, chains = [], durat
       submission_available: false,
     },
   };
+  if (env.RAVENOS_WALLET_UNIVERSE_ENABLED === "1" && env.RAVENOS_CUSTOMER_DB?.prepare) {
+    await createWalletUniverseStore(env.RAVENOS_CUSTOMER_DB).rememberMarkets(result.rows).catch(() => undefined);
+  }
   cacheSet(onchainPulseCache, cacheKey, result, onchainPulseCachePolicy(result, { jupiterConfigured }).memoryTtlMs);
   return result;
 }
@@ -11673,6 +11677,15 @@ async function routeApi(request, env, executionContext = null) {
 export default {
   async scheduled(_controller, env, context) {
     if (env?.RAVENOS_CUSTOMER_DB?.prepare) {
+      const universeWork = (async () => {
+        if (env.RAVENOS_WALLET_UNIVERSE_ENABLED !== "1") return;
+        const marketStore = createWalletUniverseStore(env.RAVENOS_CUSTOMER_DB);
+        const retainedMarkets = await discoverRegistryHistory(env, new Request("https://ravenos.xyz/ravenos/opportunities.json"));
+        await marketStore.rememberMarkets([...retainedMarkets.values()]);
+        return runWalletUniverse(env, { marketStore, walletStore: createD1CustomerWalletCopyStore(env.RAVENOS_CUSTOMER_DB),
+          loadTrades: (id) => fetchGeckoPoolTrades({env,chain:id.chain,pairAddress:id.pool_address,tokenAddress:id.token_address,quoteAddress:id.quote_token_address}) });
+      })().catch(() => console.error(JSON.stringify({event:"wallet_universe_cycle",state:"unavailable"})));
+      if (context?.waitUntil) context.waitUntil(universeWork); else await universeWork;
       const rewardMaintenance = Promise.allSettled([expireProTrials(env.RAVENOS_CUSTOMER_DB), sweepExecutionRewards(env), runRewardPayoutDispatcher(env)]);
       if (context?.waitUntil) context.waitUntil(rewardMaintenance);
       else await rewardMaintenance;

@@ -62,7 +62,8 @@
     "build:reserve": "esbuild client/ravenos-reserve-entry.js --bundle --minify --format=esm --target=es2022 --outfile=ravenos-reserve.js",
     "test:shielded": "node --test tests/shielded_reserve.test.mjs tests/shielded_research_server.test.mjs tests/customer_shielded_routes.test.mjs",
     "test:worker-runtime": "node --test tests/financial_worker_runtime.test.mjs",
-    "test:stack": "node --test --experimental-test-isolation=none tests/*.test.mjs && npm run test:browser"
+    "test:stack": "node --test --experimental-test-isolation=none tests/*.test.mjs && npm run test:browser",
+    "test:wallet-universe": "node --test --experimental-test-isolation=none tests/wallet_universe.test.mjs tests/market_wallet_index.test.mjs tests/evm_wallet_lookup.test.mjs"
   },
   "engines": {
     "node": "22.x"
