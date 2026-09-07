@@ -242,6 +242,7 @@ if (
 const flagsCapture = await capture("/api/trade/flags");
 const flags = JSON.parse(flagsCapture.text);
 const liveExecution = flags?.live_execution;
+const solanaFeesRequired = (packageManifest.required_server_secret_bindings || []).includes("RAVENOS_SOLANA_JUPITER_FEE_ENABLE");
 if (
   flags?.quote_only !== true
   || flags?.market_preview_available !== true
@@ -267,8 +268,11 @@ if (
   || flags?.trade_adapter_states?.bsc !== "wallet_execution"
   || flags?.trade_adapter_states?.base !== "wallet_execution"
   || flags?.trade_adapter_states?.ethereum !== "wallet_execution"
-  || flags?.spot_fee_preview?.actual_fee_bps !== 0
-  || flags?.spot_fee_preview?.enabled !== false
+  || flags?.spot_fee_preview?.actual_fee_bps !== (solanaFeesRequired ? 100 : 0)
+  || flags?.spot_fee_preview?.enabled !== solanaFeesRequired
+  || flags?.spot_fee_preview?.free_fee_bps !== 100
+  || flags?.spot_fee_preview?.pro_fee_bps !== 100
+  || flags?.spot_fee_preview?.pro_cashback_percent !== 30
   || flags?.evm_fee_preview?.actual_fee_bps !== 100
   || flags?.evm_fee_preview?.enabled !== true
   || !["robinhood", "bsc", "base", "ethereum"].every((chain) => (
