@@ -13,7 +13,8 @@ const CORE_ROUTE_BUDGETS = new Map([
   ["pricing/index.html", 120],
   ["behavior/index.html", 20],
   ["perps/index.html", 20],
-  ["portfolio/index.html", 12],
+  // Capital helper includes collapsed privacy, ZEC price-risk and preview boundaries.
+  ["portfolio/index.html", 160],
   ["discover/index.html", 15],
   ["atlas/index.html", 8],
   ["intelligence/index.html", 5],
@@ -39,7 +40,7 @@ test("core routes stay within the reduced narrative-copy budget", () => {
     if (words > budget) failures.push(`${file}: ${words}/${budget}`);
   }
   assert.deepEqual(failures, [], `Copy budgets exceeded:\n${failures.join("\n")}`);
-  assert.ok(total <= 800, `Core narrative total ${total} exceeds the wallet and financial-disclosure ceiling of 800 words`);
+  assert.ok(total <= 950, `Core narrative total ${total} exceeds the wallet, reserve and financial-disclosure ceiling of 950 words`);
 });
 
 test("primary Discover copy does not narrate obvious interactions", () => {

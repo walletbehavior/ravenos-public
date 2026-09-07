@@ -71,6 +71,8 @@ const runtimeAssets = [
   "ravenos-discover-intelligence.js",
   "ravenos-discover.js",
   "ravenos-portfolio.js",
+  "ravenos-reserve.js",
+  "ravenos-reserve.css",
   "ravenos-atlas.js",
   "ravenos-tradingview-adapter.js",
   "ravenos-evidence.css",

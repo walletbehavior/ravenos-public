@@ -49,6 +49,7 @@ const walletBackfillActive = walletIntelligenceActive
 const heliusHistoryActive = walletIntelligenceActive && customerSecurity.wallet_history_providers?.helius_release_enabled === true;
 const alchemyHistoryActive = evmWalletLookupActive && customerSecurity.wallet_history_providers?.alchemy_release_enabled === true;
 const productRelease = customerSecurity.pro_rewards_release || {};
+const shieldedPreview = customerSecurity.shielded_reserve_research || {};
 const productFlag = (key) => productRelease[key] === true ? "1" : "0";
 const trialEligibilityStart = Math.floor(Date.parse(productRelease.trial_eligibility_start_at || "") / 1000);
 if (productRelease.trials_enabled && (!Number.isSafeInteger(trialEligibilityStart) || trialEligibilityStart <= 0)) {
@@ -198,6 +199,13 @@ const releaseWrangler = {
     RAVENOS_EVM_WALLET_LOOKUP_ENABLED: evmWalletLookupActive ? "1" : "0",
     RAVENOS_HELIUS_WALLET_HISTORY_ENABLED: heliusHistoryActive ? "1" : "0",
     RAVENOS_ALCHEMY_WALLET_HISTORY_ENABLED: alchemyHistoryActive ? "1" : "0",
+    ZCASH_ENABLED: shieldedPreview.customer_preview_enabled === true && shieldedPreview.ZCASH_ENABLED === true ? "1" : "0",
+    SHIELDED_RESERVE_ENABLED: shieldedPreview.customer_preview_enabled === true && shieldedPreview.SHIELDED_RESERVE_ENABLED === true ? "1" : "0",
+    SHIELDED_ROUTE_QUOTES_ENABLED: shieldedPreview.customer_preview_enabled === true && shieldedPreview.SHIELDED_ROUTE_QUOTES_ENABLED === true ? "1" : "0",
+    SHIELDED_DEPLOY_ENABLED: shieldedPreview.customer_preview_enabled === true && shieldedPreview.SHIELDED_DEPLOY_ENABLED === true ? "1" : "0",
+    SHIELDED_RETURN_ENABLED: shieldedPreview.customer_preview_enabled === true && shieldedPreview.SHIELDED_RETURN_ENABLED === true ? "1" : "0",
+    SHIELDED_SEND_ENABLED: shieldedPreview.customer_preview_enabled === true && shieldedPreview.SHIELDED_SEND_ENABLED === true ? "1" : "0",
+    LIVE_SHIELDED_EXECUTION_ENABLED: "0",
     RAVENOS_PRO_FREE_TRIAL_ENABLED: productFlag("trials_enabled"),
     RAVENOS_PRO_CASHBACK_ENABLED: productFlag("cashback_enabled"),
     RAVENOS_PRO_CASHBACK_CLAIMS_ENABLED: productFlag("claims_enabled"),

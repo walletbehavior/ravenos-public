@@ -54,14 +54,14 @@ Any statement about what is “live” must be reverified against the exact depl
 
 ## Shielded Reserve / Portfolio capital helper — internal research inventory
 
-Operator-local shadow routing only; all customer flags off and live execution hard false. Existing Portfolio economic-lot accounting is extended; no new custody, pooled wallet, key service, rewards ledger or public Community data.
+September 7 update: Pro Portfolio previews are enabled using the existing account/trial access policy. Live execution remains hard false. Existing Portfolio economic-lot accounting is extended; no new custody, pooled wallet, key service, rewards ledger or public Community data.
 
 | Data | Current handling | Required before customer rollout |
 |---|---|---|
 | Public chain assets and public research destinations | Exact allowlisted asset identities and documentation/test-vector addresses only | Source/retention disclosure and verified user destination policy |
-| Shielded wallet identifier and reserve balance | No customer identifier or actual balance ingested; labelled scenarios only | Private per-account access, provenance and consent |
+| Shielded wallet identifier and reserve balance | No actual wallet balance ingested; capital scenario inputs/calculations remain in browser memory only, cleared on navigation | Private per-account access, provenance and consent |
 | Viewing / spend / recovery keys | Ingestion rejected; no logging or provider transmission | Viewing-key threat model and scoped consent; spending custody remains forbidden |
-| Quote amount, destination/refund data, time and provider metadata | Public fixture requests; append-only local research journal; provider sees requester IP/time | Data minimization, retention, provider terms, access controls and privacy inventory |
+| Quote amount, destination/refund data, time and provider metadata | Public fixture quotes only; server mediation exposes Raven server IP, route, amount and time to provider. Customer quote cache holds public results for at most 25 seconds (64 entries/isolate); catalog 60 seconds. No quote body, wallet, or scenario in application logs. Existing rate limiter retains account/action counters. Operator research journal remains separate. | Data minimization, retention, provider terms, access controls and privacy inventory |
 | Timing/delay and privacy preferences | Scenario inputs only; no randomized scheduler or mixing | Product/security/counsel review and no unsupported privacy upgrades |
 | Public Community | No reserve values or Zcash data exported | Explicit opt-in aggregates only; performance verification remains research |
 

@@ -4,16 +4,17 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Portfolio · RavenOS</title>
-  <meta name="description" content="Track Hyperliquid equity, collateral, margin risk, positions, and funding in one RavenOS portfolio view." />
+  <meta name="description" content="Plan working capital, explore Shielded Reserve routes, and inspect portfolio risk with RavenOS." />
   <link rel="stylesheet" href="/ravenos-shell.css" />
   <link rel="stylesheet" href="/ravenos-workspace.css" />
+  <link rel="stylesheet" href="/ravenos-reserve.css" />
 </head>
 <body>
   <main class="workspace-page portfolio-page" data-route-slug="portfolio">
     <header class="workspace-operator-head">
       <div>
         <span class="workspace-question">Where is the exposure, and what needs attention?</span>
-        <h1>Every position. One risk view.</h1>
+        <h1>Capital, on your terms.</h1>
       </div>
       <div class="workspace-mast-actions">
         <a class="workspace-primary-action" href="/terminal/"><span>Open the trading desk</span><span>Terminal →</span></a>
@@ -21,7 +22,66 @@
       </div>
     </header>
 
-    <section class="portfolio-account-workspace">
+    <nav class="reserve-section-nav" aria-label="Portfolio sections"><a href="#shielded-reserve">Capital helper</a><a href="#portfolioPositions">Positions &amp; risk</a></nav>
+    <section class="reserve-workspace" id="shielded-reserve" aria-labelledby="reserveTitle">
+      <header class="reserve-hero">
+        <div><span class="workspace-label">Raven capital helper <span class="reserve-badge">PRO · PREVIEW</span></span>
+          <h2 id="reserveTitle">Shielded Reserve</h2>
+          <p>Plan a private ZEC reserve alongside your public working capital.</p>
+          <div class="reserve-hero-meta"><span>External wallet · user controlled</span><span>Preview only · no funds move</span></div>
+        </div>
+        <div class="reserve-orbit" aria-hidden="true"><span class="reserve-orbit-core">R</span><span class="reserve-orbit-point">ZEC</span><span class="reserve-orbit-point">USDC</span></div>
+      </header>
+      <div class="reserve-capital-strip" aria-label="Reserve connection state">
+        <div><span>Shielded balance</span><strong>Not connected</strong><small>ZEC · USD value fluctuates</small></div>
+        <div><span>ZEC reference price</span><strong id="reservePrice">—</strong><small id="reservePriceTime">Price loads with Pro access</small></div>
+        <div><span>Reserve buying power</span><strong>Not available</strong><small>Deployment must settle first</small></div>
+      </div>
+      <div id="reserveAccess" class="reserve-access" role="status">Checking preview access…</div>
+      <a id="reserveAccount" class="reserve-link" href="https://app.ravenos.xyz/account/" hidden>Open your account →</a>
+      <div id="reserveTools" hidden>
+        <div class="reserve-main-grid">
+          <section class="reserve-route-form" aria-labelledby="reserveRouteTitle">
+            <span class="workspace-label">Explore a route</span><h3 id="reserveRouteTitle">From reserve to opportunity.</h3>
+            <div class="reserve-actions" role="group" aria-label="Reserve action">
+              <button type="button" data-reserve-action="SHIELDED_DEPLOY" aria-pressed="true">Deploy</button><button type="button" data-reserve-action="SHIELDED_RETURN" aria-pressed="false">Return</button><button type="button" data-reserve-action="SHIELDED_SEND" aria-pressed="false">Send</button>
+            </div>
+            <form id="reserveQuoteForm">
+              <label id="reserveAmountLabel" for="reserveAmount">Deploy amount · USD equivalent</label>
+              <div class="reserve-amount"><span aria-hidden="true">$</span><input id="reserveAmount" type="text" inputmode="decimal" value="500" autocomplete="off" required pattern="[0-9]+(\.[0-9]{1,2})?" aria-describedby="reserveRequestDisclosure" /></div>
+              <label id="reserveNetworkLabel" for="reserveNetwork">Destination</label>
+              <select id="reserveNetwork" required></select>
+              <div class="reserve-route-path"><span id="reserveFrom">ZEC reserve</span><span aria-hidden="true">→</span><span id="reserveTo">Solana · USDC</span></div>
+              <button class="reserve-primary" id="reserveQuoteButton" type="submit">Preview deployment</button>
+              <p id="reserveRequestDisclosure">Raven sends the amount and route to the provider using public test addresses. Your wallet address is never requested.</p>
+            </form>
+          </section>
+          <section class="reserve-route-result" aria-label="Route preview" aria-live="polite" aria-busy="false" id="reserveResult">
+            <div class="reserve-empty" id="reserveEmpty"><span class="reserve-line-mark" aria-hidden="true">↗</span><h3>See the route before the commitment.</h3><p>Compare expected receive, costs, time, and the privacy boundary.</p></div>
+            <div id="reserveQuote" hidden>
+              <header class="reserve-result-head"><span class="workspace-label" id="reserveResultLabel">Estimated receive</span><span id="reserveQuoteState" class="reserve-badge">PREVIEW</span></header>
+              <strong id="reserveReceive" class="reserve-receive"></strong><span id="reserveSourceAmount" class="reserve-muted"></span>
+              <dl class="reserve-quote-metrics"><div><dt>Minimum receive</dt><dd id="reserveMinimum"></dd></div><div><dt>Provider time estimate</dt><dd id="reserveTime"></dd></div><div><dt>Marked friction</dt><dd id="reserveFriction"></dd></div><div><dt>Raven fee in preview</dt><dd>0 · preview only</dd></div></dl>
+              <div class="reserve-evidence-summary"><strong id="reservePrivacyHeading">Privacy boundary</strong><span id="reservePrivacySummary"></span></div>
+              <details class="reserve-detail"><summary>Inspect privacy &amp; route evidence</summary><dl id="reserveEvidence"></dl><p>Amounts and timing can correlate the public legs. A signed quote does not prove shielded settlement or unlinkability.</p><p>Bridge/solver risk remains. Refunds are conditional; their completion time is unproven.</p><p>Marked friction uses provider USD prices. It can be negative without implying free execution. Network, solver and FX components are not separately verified.</p></details>
+              <span id="reserveFreshness" class="reserve-muted"></span>
+            </div>
+            <div id="reserveQuoteStatus" class="reserve-status" role="status"></div>
+          </section>
+        </div>
+        <details class="reserve-planner" id="reservePlanner"><summary><span>Plan your working capital</span><span>Private, browser-local scenario ↗</span></summary>
+          <div class="reserve-planner-grid"><form id="reservePlanForm">
+            <label for="reservePlanZec">Hypothetical reserve · ZEC</label><input id="reservePlanZec" inputmode="decimal" placeholder="0.00" required />
+            <label for="reservePlanWorking">Public working capital · USDC</label><input id="reservePlanWorking" inputmode="decimal" placeholder="0.00" required />
+            <label for="reservePlanTarget">Working-capital target · USDC</label><input id="reservePlanTarget" inputmode="decimal" placeholder="0.00" required />
+            <label for="reservePriceMove">ZEC price scenario</label><select id="reservePriceMove"><option value="-30">−30%</option><option value="-10">−10%</option><option value="0" selected>Current reference</option><option value="10">+10%</option><option value="30">+30%</option></select>
+            <button type="submit">Calculate scenario</button>
+          </form><div><div id="reservePlanResult" aria-live="polite">Enter a scenario to see reserve valuation and funding needs.</div><p>Scenario values never become account balances. Shielded capital cannot fund instant Copy execution. An excess is not proof of realized profit.</p><button id="reservePreviewExcess" type="button" hidden>Preview return of excess</button></div></div>
+        </details>
+      </div>
+      <footer class="reserve-footer"><span>Built around Zcash shielded state. Held as ZEC, not stable USDC.</span><details><summary>What works today?</summary><p>Live provider quotes. No Zcash wallet connection, key import, shielding, payment, or settlement in Raven yet. Robinhood reserve routes are unavailable.</p><a href="https://docs.near-intents.org/integration/distribution-channels/1click-api" target="_blank" rel="noopener noreferrer">Provider documentation ↗</a></details></footer>
+    </section>
+    <section class="portfolio-account-workspace" id="portfolioPositions">
       <div class="portfolio-account-primary">
         <header class="portfolio-account-intro">
           <span class="portfolio-venue-mark">HL</span>
@@ -74,5 +134,6 @@
   </main>
   <script type="module" src="/ravenos-shell.js"></script>
   <script type="module" src="/ravenos-portfolio.js"></script>
+  <script type="module" src="/ravenos-reserve.js"></script>
 </body>
 </html>

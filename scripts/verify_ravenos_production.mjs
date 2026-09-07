@@ -192,8 +192,11 @@ if (
   || flagsJson?.trade_adapter_states?.bsc !== "wallet_execution"
   || flagsJson?.trade_adapter_states?.base !== "wallet_execution"
   || flagsJson?.trade_adapter_states?.ethereum !== "wallet_execution"
-  || flagsJson?.spot_fee_preview?.actual_fee_bps !== 0
-  || flagsJson?.spot_fee_preview?.enabled !== false
+  || flagsJson?.spot_fee_preview?.actual_fee_bps !== 100
+  || flagsJson?.spot_fee_preview?.enabled !== true
+  || flagsJson?.spot_fee_preview?.free_fee_bps !== 100
+  || flagsJson?.spot_fee_preview?.pro_fee_bps !== 100
+  || flagsJson?.spot_fee_preview?.pro_cashback_percent !== 30
   || flagsJson?.evm_fee_preview?.actual_fee_bps !== 100
   || flagsJson?.evm_fee_preview?.enabled !== true
   || !["robinhood", "bsc", "base", "ethereum"].every((chain) => (

@@ -1,3 +1,4 @@
+import { routeCustomerShielded, CUSTOMER_SHIELDED_ROUTE } from "./lib/customer_shielded_routes.mjs";
 import { heliusWalletHistoryRuntime, loadHeliusWalletHistory, loadHeliusWalletPage, cachedHeliusWalletTransaction } from "./lib/customer_trade/helius_wallet_history.mjs";
 import { runRewardPayoutDispatcher } from "./lib/customer_reward_payouts.mjs";
 import { routeCustomerProduct } from "./lib/customer_product_routes.mjs";
@@ -331,6 +332,9 @@ const PUBLIC_INTELLIGENCE_ARTIFACT_ALIASES = Object.freeze({
 });
 const AUTHENTICATED_APP_STATIC_PATHS = new Set([
   "/favicon.ico",
+  "/ravenos-portfolio.js",
+  "/ravenos-reserve.js",
+  "/ravenos-reserve.css",
   "/ravenos-account.css",
   "/ravenos-account.js",
   "/ravenos-monitor.css",
@@ -461,7 +465,8 @@ function authenticatedAppBoundary(request) {
     || url.pathname === "/api/v1/wallets/privy"
     || url.pathname === "/api/v1/wallets/privy/session"
     || url.pathname === "/api/v1/wallets/privy/link";
-  const portfolioPreviewApi = url.pathname === PORTFOLIO_GOVERNOR_PREVIEW_ROUTE;
+  const portfolioPreviewApi = url.pathname === PORTFOLIO_GOVERNOR_PREVIEW_ROUTE || url.pathname === CUSTOMER_SHIELDED_ROUTE || url.pathname.startsWith(`${CUSTOMER_SHIELDED_ROUTE}/`);
+  const portfolioPath = ["/portfolio", "/portfolio/", "/portfolio/index.html"].includes(url.pathname);
   const researchStateApi = url.pathname === CUSTOMER_RESEARCH_STATE_ROUTE
     || url.pathname === `${CUSTOMER_RESEARCH_STATE_ROUTE}/watch-items`
     || url.pathname.startsWith(`${CUSTOMER_RESEARCH_STATE_ROUTE}/watch-items/`);
@@ -513,7 +518,7 @@ function authenticatedAppBoundary(request) {
   ]).has(url.pathname);
   const releaseProbe = readRequest && url.pathname === "/api/build";
   const immutableAsset = readRequest && (url.pathname.startsWith("/assets/") || AUTHENTICATED_APP_STATIC_PATHS.has(url.pathname));
-  if ((readRequest && (accountPath || terminalPath || agentsPath || communityPath || proIntelligencePath || walletCopyPath || monitorPath)) || identityApi || legalApi || privyWalletApi || portfolioPreviewApi || researchStateApi || entitlementApi || monitorAlertsApi || walletCopyApi || walletObserverIngressApi || liveExecutionApi || agenticApi || communityApi || referralApi || productApi || terminalReadApi || terminalReviewApi || releaseProbe || immutableAsset) return { allowed: true, response: null };
+  if ((readRequest && (portfolioPath || accountPath || terminalPath || agentsPath || communityPath || proIntelligencePath || walletCopyPath || monitorPath)) || identityApi || legalApi || privyWalletApi || portfolioPreviewApi || researchStateApi || entitlementApi || monitorAlertsApi || walletCopyApi || walletObserverIngressApi || liveExecutionApi || agenticApi || communityApi || referralApi || productApi || terminalReadApi || terminalReviewApi || releaseProbe || immutableAsset) return { allowed: true, response: null };
 
   const firstSegment = url.pathname.split("/").filter(Boolean)[0] || "";
   if (readRequest && firstSegment === "brief") {
@@ -7697,7 +7702,7 @@ function handleTradeFlags(env = {}) {
       enabled: solanaFee.fee_enabled,
       collection_method: solanaFee.collection_method,
       provider_share_pct: 20,
-      fee_token_policy: "Jupiter-selected input or output mint",
+      fee_token_policy: "canonical_USDC_input_on_buys_output_on_sells",
       disclosure_string: solanaFee.fee_enabled
         ? "Raven fee: 1.00% for Standard and Pro. Eligible Pro earns 30% cashback on the confirmed Raven fee."
         : freeJupiterFee.disclosure_string,
@@ -11251,6 +11256,8 @@ async function routeApi(request, env, executionContext = null) {
   if (walletCopyResponse) return walletCopyResponse;
   const agenticResponse = await routeAgenticTrading(request, env);
   if (agenticResponse) return agenticResponse;
+  const shieldedResponse = await routeCustomerShielded(request, env);
+  if (shieldedResponse) return shieldedResponse;
   const portfolioPreviewResponse = await routePortfolioGovernorPreview(request, env);
   if (portfolioPreviewResponse) return portfolioPreviewResponse;
   if (url.pathname === "/api/health" && request.method === "GET") return handleHealth(request, env);

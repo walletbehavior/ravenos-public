@@ -144,3 +144,5 @@ Internal review only. Live shielded execution is hard-disabled. See `docs/resear
 - [ ] Require explicit live canary authorization and security review before enabling any spend, deposit-address creation or transaction submission.
 
 Current native execution pricing is 100 bps for Standard and Pro, with 30% Pro cashback on qualifying confirmed Raven fees. Older 70-bps audit entries above are historical; Shielded Reserve has no production Raven fee policy and does not inherit native cashback or affiliate economics.
+
+September 7 preview rollout: authenticated Pro/trial users may request dry quotes through Portfolio. Amount/route are disclosed to the provider with public test-vector destinations; local capital scenarios are not transmitted. This is not approval for wallet connection, spend authority, settlement, refunds, live payments, shielded asset claims, or production reserve fees. Existing open live-money review items remain open.
