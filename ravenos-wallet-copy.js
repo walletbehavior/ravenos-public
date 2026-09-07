@@ -31,7 +31,7 @@ const state = {
   positions: [],
   copyability: [],
   saved: [],
-  screener: { chain: "solana", page: 1, total_pages: 0, total: 0, wallets: [], preset: null },
+  screener: { chain: "all", page: 1, total_pages: 0, total: 0, wallets: [], preset: null },
   robinhood_intelligence: { activity: [], clusters: [], relationships: [] },
 };
 
@@ -1240,7 +1240,7 @@ function screenerRequest() {
 function syncScreenerUrl() {
   const url = new URL(location.href);
   const fields = {
-    chain: state.screener.chain === "solana" ? null : state.screener.chain,
+    chain: state.screener.chain === "all" ? null : state.screener.chain,
     screen: state.screener.preset,
     active: document.getElementById("copyScreenActive").value,
     trades: document.getElementById("copyScreenTrades").value,
@@ -1585,29 +1585,59 @@ function screenerCard(wallet) {
 
 function renderScreener(payload) {
   const wallets = Array.isArray(payload.rows) ? payload.rows : Array.isArray(payload.wallets) ? payload.wallets : Array.isArray(payload.results) ? payload.results : [];
+  const seenWallets = payload.seen_wallets?.rows || [];
+  const seenTotal = Number(payload.seen_wallets?.total || 0);
+  const pageSize = Number(payload.pagination?.page_size || 12);
   state.screener = {
     chain: payload.scope?.chain || state.screener.chain,
     page: Number(payload.pagination?.page || payload.page || state.screener.page || 1),
-    total_pages: Number(payload.pagination?.total_pages || payload.total_pages || 0),
+    total_pages: Math.min(25, Math.max(Number(payload.pagination?.total_pages || payload.total_pages || 0), Math.ceil(seenTotal / pageSize))),
     total: Number(payload.pagination?.total_matching_rows || payload.pagination?.total || payload.total || wallets.length),
     wallets,
     preset: state.screener.preset,
   };
   const scopeLabel = chainLabel(state.screener.chain);
-  setText("copyScreenerCount", `${state.screener.total.toLocaleString()} indexed`);
+  const coverage = payload.index_coverage;
+  const chains = (coverage?.chains || []).filter((row) => state.screener.chain === "all" || row.chain === state.screener.chain);
+  const indexed = chains.reduce((total, row) => total + Number(row.indexed_wallets || 0), 0);
+  const seen = chains.reduce((total, row) => total + Number(row.seen_wallets || 0), 0);
+  const indexEmpty = Array.isArray(coverage?.chains) && indexed === 0;
+  setText("copyScreenerCount", `${state.screener.total.toLocaleString()} match${state.screener.total === 1 ? "" : "es"}`);
+  setText("copyScreenerCoverage", coverage
+    ? `${indexed.toLocaleString()} profiles · ${seen.toLocaleString()} registered wallets in ${scopeLabel}. Stored observations; no provider calls to browse.`
+    : "Browse Raven’s stored wallet observations across supported chains. Address lookup fills missing evidence.");
   setText("copyScreenerStatus", wallets.length
     ? `${wallets.length} ${scopeLabel} wallet${wallets.length === 1 ? "" : "s"} · source ≠ follower`
-    : state.screener.chain === "all"
-      ? "No indexed match on a supported chain."
-      : state.screener.chain === "robinhood"
-      ? "No indexed Robinhood match."
-      : "No indexed Solana match.");
+    : seenWallets.length ? "Stored observations ready. Choose a wallet to analyze."
+      : indexEmpty ? "Wallet profiles are still being indexed."
+      : `No matching wallet in ${scopeLabel}.`);
   const host = document.getElementById("copyScreenerResults");
-  host.replaceChildren(...(wallets.length ? wallets.map(screenerCard) : [empty("No matching wallet evidence", state.screener.chain === "all"
-    ? "Both supported indexes were checked. Unavailable ≠ zero."
-    : state.screener.chain === "robinhood"
-      ? "Index forming. Unavailable ≠ zero."
-      : "Adjust filters or inspect an address.")]));
+  host.replaceChildren(...(wallets.length ? wallets.map(screenerCard) : seenWallets.length ? [] : [empty(indexEmpty ? "No completed profiles yet" : "No matching wallet evidence", indexEmpty
+    ? "Raven has no completed wallet profiles for this chain selection yet. Inspect an address to request its history; changing performance filters will not create evidence."
+    : "Adjust filters or inspect an address. Only retained evidence is included.")]));
+  const seenSection = document.getElementById("copySeenWallets");
+  seenSection.hidden = seenTotal === 0;
+  setText("copySeenCount", `${seenTotal.toLocaleString()} seen · analysis pending`);
+  document.getElementById("copySeenResults").replaceChildren(...seenWallets.map((wallet) => {
+    const card = document.createElement("article");
+    card.className = "copy-seen-wallet";
+    const identity = document.createElement("div");
+    const address = document.createElement("strong");
+    address.textContent = `${shortAddress(wallet.source_wallet.address)} · ${chainLabel(wallet.source_wallet.chain)}`;
+    const detail = document.createElement("p");
+    detail.textContent = `Observed ${when(wallet.last_observed_at)} · history not analyzed`;
+    identity.append(address, detail);
+    const inspect = document.createElement("button");
+    inspect.type = "button";
+    inspect.textContent = "Inspect wallet";
+    inspect.addEventListener("click", async () => {
+      setInspectChain(wallet.source_wallet.chain, { announce: false });
+      await inspectWalletAddress(wallet.source_wallet.address, inspect);
+      if (!profileNode.hidden) profileNode.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    card.append(identity, inspect);
+    return card;
+  }));
   const pages = document.getElementById("copyScreenerPages");
   pages.hidden = state.screener.total_pages <= 1;
   setText("copyScreenPage", `Page ${state.screener.page} of ${Math.max(1, state.screener.total_pages)}`);
@@ -1660,7 +1690,7 @@ async function loadWorkspace() {
   if (state.profile) renderFollowerReality();
 }
 
-async function inspectWalletAddress(address, button) {
+async function inspectWalletAddress(address, button, { refresh = false } = {}) {
   const requestId = ++state.profile_request;
   state.policy_source = null;
   state.deep_poll_token += 1;
@@ -1677,8 +1707,8 @@ async function inspectWalletAddress(address, button) {
   const idleLabel = button.dataset.idleLabel || button.textContent || "Analyze wallet";
   button.disabled = true;
   button.textContent = "Analyzing…";
-  setText("copySearchStatus", state.inspect_chain === "solana" ? "Reconstructing trades…" : "Reading balances and transfers…");
-  const result = await api(`${API}/inspect`, { method: "POST", body: JSON.stringify({ address: state.address, chain: state.inspect_chain }) });
+  setText("copySearchStatus", "Checking Raven’s stored observations…");
+  const result = await api(`${API}/inspect`, { method: "POST", body: JSON.stringify({ address: state.address, chain: state.inspect_chain, ...(refresh ? { refresh: true } : {}) }) });
   button.disabled = false;
   button.textContent = idleLabel;
   if (requestId !== state.profile_request) return;
@@ -1686,7 +1716,9 @@ async function inspectWalletAddress(address, button) {
     setText("copySearchStatus", result.payload?.error === "wallet_history_unavailable" ? "Public history unavailable." : "Inspection unavailable. Nothing inferred.");
     return;
   }
-  setText("copySearchStatus", result.payload?.persistence?.state === "on_demand_only" ? "On-demand evidence ready. Trade P&L is not inferred." : "Analysis ready.");
+  setText("copySearchStatus", result.payload?.evidence_mode === "retained_raven_index"
+    ? `Stored analysis · ${when(result.payload.freshness?.observed_at)}. ${result.payload.refresh_state === "provider_unavailable" ? "Refresh unavailable; previous evidence retained." : "Shared scan reused."}`
+    : result.payload?.persistence?.state === "on_demand_only" ? "On-demand evidence ready. Trade P&L is not inferred." : "Analysis ready.");
   renderProfile(result.payload);
 }
 
@@ -1780,17 +1812,18 @@ async function boot() {
     const button = document.querySelector('#copyWalletSearch button[type="submit"]');
     await inspectWalletAddress(requestedWallet, button);
   }
+  if (requestedUrl.searchParams.get("view") === "watching") switchView("watching");
 }
 
 bindAuthStartForms();
 document.querySelectorAll("[data-copy-view]").forEach((button) => button.addEventListener("click", () => switchView(button.dataset.copyView)));
 document.getElementById("copyWalletSearch").addEventListener("submit", inspectWallet);
 document.getElementById("copyWalletChain").addEventListener("change", (event) => setInspectChain(event.currentTarget.value));
-document.getElementById("copyRefreshProfile").addEventListener("click", (event) => inspectWalletAddress(state.address, event.currentTarget));
+document.getElementById("copyRefreshProfile").addEventListener("click", (event) => inspectWalletAddress(state.address, event.currentTarget, { refresh: true }));
 document.getElementById("copySaveProfile").addEventListener("click", async (event) => {
   const button = event.currentTarget;
   if (button.dataset.action === "refresh") {
-    await inspectWalletAddress(state.address, button);
+    await inspectWalletAddress(state.address, button, { refresh: true });
     return;
   }
   await saveResearchWallet(state.source_wallet_id, shortAddress(state.address), button);

@@ -10,6 +10,7 @@ import {
   normalizeSolanaWalletTransaction,
 } from "../lib/customer_trade/solana_wallet_intelligence.mjs";
 import { createSourceWalletBackfillJob } from "../lib/customer_trade/source_wallet_backfill.mjs";
+import { createSourceWalletId } from "../lib/customer_trade/source_wallet_chain_identity.mjs";
 import { applyShadowCopyExitHistory } from "../lib/customer_trade/wallet_copy.mjs";
 import {
   CustomerWalletCopyContract,
@@ -599,6 +600,73 @@ test("inspect queues one shared deep-history job and source detail reports its h
   assert.equal("user_id" in enqueueInput, false);
   assert.equal(resolveWalletCopyActivation(activeEnv).deep_history, true);
   assert.equal(resolveWalletCopyActivation(activeEnv).live_copy, false);
+});
+
+test("repeat address lookup shares retained evidence across accounts without history or holdings RPC", async () => {
+  const store = memoryStore();
+  let calls = 0;
+  const provider = {
+    async loadHistory() { calls += 1; return { events: [walletEvent()] }; },
+    async loadHoldings() { calls += 1; return { chain: "solana", address: WALLET, observed_at: new Date(NOW * 1000).toISOString(), state: "available", assets: [] }; },
+  };
+  const lookup = () => request("/api/v1/wallet-copy/inspect", { method: "POST", body: { address: WALLET } });
+  const first = await json(await routeCustomerWalletCopy(lookup(), env(), deps(store, provider)));
+  assert.equal(first.provider_request_performed, true);
+  const otherUser = { ...deps(store, null), authorizeRequest: async () => ({ ...(await authorized()()), principal: { user_id: `usr_${"v".repeat(32)}` } }) };
+  const cachedResponse = await routeCustomerWalletCopy(lookup(), env(), otherUser);
+  assert.equal(cachedResponse.status, 200);
+  const cached = await json(cachedResponse);
+  assert.equal(calls, 2);
+  assert.equal(cached.provider_request_performed, false);
+  assert.equal(cached.evidence_mode, "retained_raven_index");
+  assert.deepEqual(cached.profile.holdings_snapshot, first.profile.holdings_snapshot);
+  assert.equal(cached.freshness.current_balance_claimed, false);
+  assert.equal(cached.freshness.observed_at, first.profile.generated_at);
+});
+
+test("retained events rebuild a missing profile without RPC and reject the wrong cached wallet", async () => {
+  const store = memoryStore();
+  const event = walletEvent();
+  const sourceId = createSourceWalletId({ chain: "solana", network: "mainnet", address: WALLET });
+  await store.upsertSourceWallet({ source_wallet_id: sourceId, address: WALLET, now: NOW, state: "current" });
+  await store.recordEvents(sourceId, [event]);
+  const lookup = () => request("/api/v1/wallet-copy/inspect", { method: "POST", body: { address: WALLET } });
+  const result = await json(await routeCustomerWalletCopy(lookup(), env(), deps(store, null)));
+  assert.equal(result.provider_request_performed, false);
+  assert.equal(result.profile.coverage.transactions_observed, 1);
+  store.profiles.set(sourceId, { ...result.profile, source_wallet: { ...result.profile.source_wallet, address: TOKEN } });
+  const invalid = await routeCustomerWalletCopy(lookup(), env(), deps(store, null));
+  assert.equal(invalid.status, 400);
+  assert.equal((await json(invalid)).error, "wallet_history_identity_mismatch");
+});
+
+test("old retained wallet evidence keeps its timestamp and never claims current balances", async () => {
+  const store = memoryStore();
+  const lookup = () => request("/api/v1/wallet-copy/inspect", { method: "POST", body: { address: WALLET } });
+  const first = await json(await routeCustomerWalletCopy(lookup(), env(), deps(store, { async loadHistory() { return { events: [walletEvent()] }; } })));
+  const later = { ...deps(store, null), authorizeRequest: async () => ({ ...(await authorized()()), now: NOW + 86400 }) };
+  const cached = await json(await routeCustomerWalletCopy(lookup(), env(), later));
+  assert.equal(cached.freshness.state, "retained");
+  assert.equal(cached.freshness.observed_at, first.profile.generated_at);
+  assert.equal(cached.provider_request_performed, false);
+  assert.equal(cached.freshness.current_balance_claimed, false);
+});
+
+test("explicit refresh is shared for five minutes and a provider outage preserves earlier evidence", async () => {
+  const store = memoryStore();
+  let calls = 0;
+  const provider = { async loadHistory() { calls += 1; return { events: [walletEvent()] }; } };
+  const lookup = refresh => request("/api/v1/wallet-copy/inspect", { method: "POST", body: { address: WALLET, refresh } });
+  const first = await json(await routeCustomerWalletCopy(lookup(false), env(), deps(store, provider)));
+  await routeCustomerWalletCopy(lookup(true), env(), deps(store, provider));
+  assert.equal(calls, 1);
+  const later = { ...deps(store, { async loadHistory() { calls += 1; throw new Error("provider_down"); } }),
+    authorizeRequest: async () => ({ ...(await authorized()()), now: NOW + 301 }) };
+  const fallback = await json(await routeCustomerWalletCopy(lookup(true), env(), later));
+  assert.equal(calls, 2);
+  assert.equal(fallback.refresh_state, "provider_unavailable");
+  assert.deepEqual(fallback.profile, first.profile);
+  assert.equal(fallback.freshness.state, "retained");
 });
 
 test("lookup, saved research, and copy watches upgrade one shared history job through public demand classes", async () => {

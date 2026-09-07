@@ -641,7 +641,8 @@ function utilityMarkup(kind, context) {
         <a href="${escapeHtml(accountHref)}"><strong>${accountLabel}</strong><span>${accountDetail}</span></a>
         <button type="button" data-ros-utility="watchlist"><strong>Recent & saved</strong><span>Recently opened markets and saved exact charts</span></button>
         <button type="button" data-ros-utility="alerts"><strong>Raven Monitor</strong><span>Watch saved markets and review important changes</span></button>
-        <a href="${escapeHtml(copyHref)}"><strong>Wallet Intelligence &amp; Raven Copy</strong><span>Separate source returns from follower-realistic shadow results</span></a>
+        <a href="${escapeHtml(copyHref)}"><strong>Wallet screener</strong><span>Browse wallets Raven has seen across chains</span></a>
+        <a href="${escapeHtml(copyHref)}?view=watching"><strong>Raven Copy</strong><span>Your watched wallets, copy policies, and review queue</span></a>
       </nav>
     </section>
     <section>

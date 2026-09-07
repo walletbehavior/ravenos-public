@@ -82,8 +82,8 @@ function row(overrides = {}) {
 test("wallet screener defaults are bounded, deterministic, and immutable", () => {
   const query = normalizeWalletScreenerRequest({}, { now: NOW });
   assert.equal(query.schema_version, WALLET_SCREENER_SCHEMA);
-  assert.equal(query.scope, "raven_indexed_solana_wallets");
-  assert.equal(query.chain, "solana");
+  assert.equal(query.scope, "raven_indexed_supported_wallets");
+  assert.equal(query.chain, "all");
   assert.equal(query.network, "mainnet");
   assert.equal(query.sort, "last_trade_desc");
   assert.equal(query.page, 1);
@@ -224,6 +224,7 @@ test("prospective follower evidence is an internal-policy-bound, composable scre
 test("D1 screening joins one exact fee and policy projection with deterministic binding order", async () => {
   const reference = createSourceWalletCopyabilityPolicyReference({ fee_bps: 10 });
   const query = normalizeWalletScreenerRequest({
+    chain: "solana",
     clauses: [
       { field: "copyability_sample_count", operator: "gte", value: 20 },
       { field: "median_detected_liquidity_usd", operator: "gte", value: 100_000 },
@@ -511,7 +512,7 @@ test("response is bounded, paginated, honest about universe coverage, and exclud
   assert.equal(response.scope.claim, "bounded_raven_index_only");
   assert.equal(response.scope.comprehensive_chain_index, false);
   assert.deepEqual(response.presets.map((preset) => preset.id), ["evidence_first", "consistent_winners", "broad_edge", "active_swing", "fast_systematic", "follower_tested"]);
-  assert.match(response.limitations[0], /bounded indexed Solana wallet universe, not every wallet on the chain/i);
+  assert.match(response.limitations[0], /retained supported-chain indexes.*not every wallet/i);
   assert.equal(Object.isFrozen(response.rows), true);
 });
 

@@ -841,9 +841,9 @@ test("wallet screener switches to a bounded Robinhood index without turning unav
   await install(page, shared);
   await page.goto("/account/copy/");
   await page.getByRole("button", { name: "Robinhood", exact: true }).click();
-  await expect(page.locator("#copyScreenerCount")).toHaveText("0 indexed");
-  await expect(page.locator("#copyScreenerStatus")).toContainText("No indexed Robinhood match.");
-  await expect(page.getByText("Index forming. Unavailable ≠ zero.")).toBeVisible();
+  await expect(page.locator("#copyScreenerCount")).toHaveText("0 matches");
+  await expect(page.locator("#copyScreenerStatus")).toContainText("No matching wallet in Robinhood Chain.");
+  await expect(page.getByText("Adjust filters or inspect an address. Only retained evidence is included.")).toBeVisible();
   const request = [...shared.requests].reverse().find((row) => row.path.endsWith("/screener"));
   expect(JSON.parse(request.body)).toMatchObject({ chain: "robinhood", network: "mainnet" });
   expect(new URL(page.url()).searchParams.get("chain")).toBe("robinhood");
@@ -853,12 +853,51 @@ test("wallet screener can query all supported indexes without merging wallet ide
   const shared = { watch: null, decision: null, position: null, requests: [] };
   await install(page, shared);
   await page.goto("/account/copy/");
-  await page.getByRole("button", { name: "All", exact: true }).click();
+  await expect(page.getByRole("button", { name: "All chains", exact: true })).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator("#copyScreenerStatus")).toContainText("All indexed chains");
   await expect(page.getByText("Broad source profits · intraday", { exact: true })).toBeVisible();
   const request = [...shared.requests].reverse().find((row) => row.path.endsWith("/screener"));
   expect(JSON.parse(request.body)).toMatchObject({ chain: "all", network: "mainnet" });
-  expect(new URL(page.url()).searchParams.get("chain")).toBe("all");
+  expect(new URL(page.url()).searchParams.get("chain")).toBeNull();
+});
+
+test("seen wallets populate across chains without starting provider lookups and can be narrowed", async ({ page }) => {
+  const shared = { watch: null, decision: null, position: null, requests: [] };
+  await install(page, shared);
+  const queries = [];
+  await page.route("**/api/v1/wallet-copy/screener", async route => {
+    const query = route.request().postDataJSON();
+    queries.push(query);
+    const seen = [
+      { source_wallet_id: SOURCE_ID, source_wallet: { chain: "solana", address: WALLET }, last_observed_at: "2026-09-06T12:00:00Z" },
+      { source_wallet_id: EVM_SOURCE_ID, source_wallet: { chain: "base", address: EVM_WALLET }, last_observed_at: "2026-09-06T11:00:00Z" },
+    ].filter(row => query.chain === "all" || row.source_wallet.chain === query.chain);
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, rows: [], scope: { chain: query.chain },
+      pagination: { page: 1, page_size: 12, total_matching_rows: 0, total_pages: 0 },
+      index_coverage: { chains: [{ chain: "solana", seen_wallets: 1, indexed_wallets: 0 }, { chain: "base", seen_wallets: 1, indexed_wallets: 0 }] },
+      seen_wallets: { rows: seen, total: seen.length, performance_filters_applied: false, provider_request_performed: false } }) });
+  });
+  await page.goto("/account/copy/");
+  await expect(page.locator("#copySeenResults .copy-seen-wallet")).toHaveCount(2);
+  expect(queries[0].chain).toBe("all");
+  expect(shared.requests.some(row => row.path.endsWith("/inspect"))).toBe(false);
+  await expect(page.locator("#copySeenWallets")).toContainText("do not establish profitability or copyability");
+  await page.getByRole("button", { name: "Base", exact: true }).click();
+  await expect(page.locator("#copySeenResults .copy-seen-wallet")).toHaveCount(1);
+  await expect(page.locator("#copySeenResults")).toContainText("Base");
+  expect(shared.requests.some(row => row.path.endsWith("/inspect"))).toBe(false);
+  await page.getByRole("button", { name: "Solana", exact: true }).click();
+  await page.locator("#copySeenResults").getByRole("button", { name: "Inspect wallet" }).click();
+  await expect(page.locator("#copyProfile")).toBeVisible();
+  expect(JSON.parse(shared.requests.find(row => row.path.endsWith("/inspect")).body)).toMatchObject({ address: WALLET, chain: "solana" });
+});
+
+test("Raven Copy has a direct navigation target", async ({ page }) => {
+  const shared = { watch: null, decision: null, position: null, requests: [] };
+  await install(page, shared);
+  await page.goto("/account/copy/?view=watching");
+  await expect(page.locator('[data-copy-panel="watching"]')).toBeVisible();
+  await expect(page.getByRole("tab", { name: /Raven Copy/ })).toHaveAttribute("aria-selected", "true");
 });
 
 test("mobile wallet screener keeps filters, source evidence, and analysis controls contained", async ({ page }) => {

@@ -80,6 +80,14 @@ test("same-wallet requests reuse only validated Cache API payloads", async () =>
   assert.equal(source.urls.length, 4);
   assert.equal(entries.size, 1);
   assert(!JSON.stringify(cached).includes(KEY));
+  const retained = await inspectEvmWallet({ ...options, now: "2026-09-04T12:11:00.000Z" });
+  assert.equal(retained.source.delivery, "edge_cache_retained");
+  assert.equal(retained.profile.generated_at, direct.profile.generated_at);
+  assert.equal(retained.freshness.current_balance_claimed, false);
+  assert.equal(source.urls.length, 4);
+  const refreshed = await inspectEvmWallet({ ...options, refresh: true, now: "2026-09-04T12:11:00.000Z" });
+  assert.equal(refreshed.source.delivery, "provider_live");
+  assert.equal(source.urls.length, 8);
 });
 
 test("bounded Base lookup exposes balances and transfers without inventing trades or P&L", async () => {
