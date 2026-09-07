@@ -1,3 +1,4 @@
+import { findPerpWithoutDecisionHistory } from "./lib/perp-live-verification.mjs";
 import { scanJsonValue } from "./validate-public-no-leak.mjs";
 
 const baseUrl = process.argv[2] || process.env.RAVENOS_VERIFY_BASE_URL || "https://ravenos.xyz";
@@ -219,26 +220,15 @@ if (
 
 const { res: perpsUniverseRes, json: perpsUniverseJson } = await fetchJson("/api/hyperliquid/perps");
 const { res: perpsProjectionRes, json: perpsProjectionJson } = await fetchJson("/api/perps");
-const attachedDecisionHistoryInstruments = new Set(
-  (perpsProjectionJson?.data?.instrument_context?.rows || [])
-    .filter((row) => row?.context_available === true)
-    .map((row) => String(row?.instrument || "").trim().toUpperCase())
-    .filter(Boolean),
-);
-const liveReadCandidate = (perpsUniverseJson?.results || []).find((row) => (
-  row?.symbol
-  && !attachedDecisionHistoryInstruments.has(String(row.asset || `${row.symbol}-PERP`).toUpperCase())
-  && Number(row.mark_price) > 0
-  && row.funding_rate !== null
-  && Number(row.open_interest_usd) > 0
-  && Number(row.day_notional_volume_usd) > 0
-)) || null;
-if (!perpsUniverseRes.ok || !perpsProjectionRes.ok || !liveReadCandidate) {
-  throw new Error("Hyperliquid universe has no exact market outside retained Raven decision history");
-}
-const { res: livePerpRes, json: livePerpJson } = await fetchJson(
-  `/api/perps/instrument?symbol=${encodeURIComponent(liveReadCandidate.symbol)}`,
-);
+if (!perpsUniverseRes.ok || !perpsProjectionRes.ok) throw new Error("Hyperliquid universe or public projection is unavailable");
+const { candidate: liveReadCandidate, response: livePerpRes, payload: livePerpJson } = await findPerpWithoutDecisionHistory({
+  universe: perpsUniverseJson,
+  projection: perpsProjectionJson,
+  probe: async (candidate) => {
+    const { res, json } = await fetchJson(`/api/perps/instrument?symbol=${encodeURIComponent(candidate.symbol)}`);
+    return { response: res, payload: json };
+  },
+});
 if (
   !livePerpRes.ok
   || livePerpJson?.ok !== true

@@ -1,3 +1,4 @@
+import { findPerpWithoutDecisionHistory } from "./lib/perp-live-verification.mjs";
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -298,25 +299,14 @@ const perpsUniverseCapture = await capture("/api/hyperliquid/perps");
 const perpsUniverse = JSON.parse(perpsUniverseCapture.text);
 const perpsProjectionCapture = await capture("/api/perps");
 const perpsProjection = JSON.parse(perpsProjectionCapture.text);
-const attachedDecisionHistoryInstruments = new Set(
-  (perpsProjection?.data?.instrument_context?.rows || [])
-    .filter((row) => row?.context_available === true)
-    .map((row) => String(row?.instrument || "").trim().toUpperCase())
-    .filter(Boolean),
-);
-const liveReadCandidate = (perpsUniverse?.results || []).find((row) => (
-  row?.symbol
-  && !attachedDecisionHistoryInstruments.has(String(row.asset || `${row.symbol}-PERP`).toUpperCase())
-  && Number(row.mark_price) > 0
-  && row.funding_rate !== null
-  && Number(row.open_interest_usd) > 0
-  && Number(row.day_notional_volume_usd) > 0
-)) || null;
-if (!liveReadCandidate) {
-  throw new Error("Hyperliquid universe has no exact market outside retained Raven decision history");
-}
-const livePerpCapture = await capture(`/api/perps/instrument?symbol=${encodeURIComponent(liveReadCandidate.symbol)}`);
-const livePerp = JSON.parse(livePerpCapture.text);
+const { candidate: liveReadCandidate, capture: livePerpCapture, payload: livePerp } = await findPerpWithoutDecisionHistory({
+  universe: perpsUniverse,
+  projection: perpsProjection,
+  probe: async (candidate) => {
+    const captured = await capture(`/api/perps/instrument?symbol=${encodeURIComponent(candidate.symbol)}`);
+    return { capture: captured, payload: JSON.parse(captured.text) };
+  },
+});
 if (
   livePerp?.ok !== true
   || livePerp?.instrument?.instrument_id !== liveReadCandidate.instrument_id
