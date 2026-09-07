@@ -539,6 +539,7 @@ async function install(page, shared, { authenticated = true, entitled = true } =
         body: JSON.stringify({
           ok: true,
           state: "available",
+          copy_product: { standard_execution_fee_bps: 100, pro_execution_fee_bps: 100, pro_cashback_percent: 30, copy_additional_fee_bps: 0 },
           access: { tier: entitled ? "pro" : "free", advanced_wallet_intelligence: entitled, basic_wallet_lookup: true, basic_wallet_screener: true, raven_copy_subscription_required: false },
           activation: { wallet_intelligence: true, wallet_screener: true, shadow_copy: true, live_copy: false },
           execution_boundary: { signing: false, broadcasting: false, custody: false, live_copy: false, fee_collection: false },
@@ -679,10 +680,12 @@ test("Pro user inspects source evidence, saves a private policy, and establishes
   await expect(page.getByText("Source performance", { exact: true })).toBeVisible();
   await expect(page.locator("#copyProfile").getByText("Follower reality", { exact: true })).toBeVisible();
   await expect(page.locator("#copySourcePnl")).toHaveText("+$428 realized");
-  await expect(page.getByText("Deep history queued", { exact: true })).toBeVisible();
+  await expect(page.getByText("Indexing older activity", { exact: true })).toBeVisible();
   await expect(page.getByText("700 signatures · 694 decoded · 7 pages", { exact: true })).toBeVisible();
   await expect(page.getByText("Transfer In")).toBeVisible();
   await page.getByRole("button", { name: "Copy this wallet" }).click();
+  await expect(page.locator("#copyPolicyFee")).toHaveText("1.00% · simulated in Shadow");
+  await expect(page.locator("#copyPolicyCashback")).toContainText("Shadow results exclude cashback and earn no rewards");
   await page.getByRole("button", { name: "Start Raven Copy" }).click();
   await expect(page.getByRole("heading", { name: "Copied wallets" })).toBeVisible();
   await expect(page.getByText("First check needed")).toBeVisible();
@@ -693,7 +696,7 @@ test("Pro user inspects source evidence, saves a private policy, and establishes
   expect(create.headers["x-ravenos-csrf"]).toBe("csrf_wallet_copy");
   const createdBody = JSON.parse(create.body);
   expect(createdBody.address).toBe(WALLET);
-  expect(createdBody.policy.hypothetical_raven_fee_bps).toBe(10);
+  expect(createdBody.policy.hypothetical_raven_fee_bps).toBe(100);
   expect(create.body).not.toMatch(/private.?key|seed.?phrase|sign(?:ed|ature)|transaction.?material/i);
 
   await page.getByRole("button", { name: "Build baseline" }).click();
@@ -881,7 +884,7 @@ test("seen wallets populate across chains without starting provider lookups and 
   await expect(page.locator("#copySeenResults .copy-seen-wallet")).toHaveCount(2);
   expect(queries[0].chain).toBe("all");
   expect(shared.requests.some(row => row.path.endsWith("/inspect"))).toBe(false);
-  await expect(page.locator("#copySeenWallets")).toContainText("do not establish profitability or copyability");
+  await expect(page.locator("#copySeenWallets")).toContainText("do not prove profitability or copyability");
   await page.getByRole("button", { name: "Base", exact: true }).click();
   await expect(page.locator("#copySeenResults .copy-seen-wallet")).toHaveCount(1);
   await expect(page.locator("#copySeenResults")).toContainText("Base");
@@ -1020,7 +1023,7 @@ test("wallet discovery and copy setup remain readable on mobile", async ({ page 
   await expect(page.locator("#copyProfile")).toBeVisible();
   await page.locator("#copyStartSetup").click();
   await expect(page.locator("#copyPolicySource")).toContainText(WALLET);
-  await expect(page.locator("#copyPolicy")).toContainText("Shadow first");
+  await expect(page.locator("#copyPolicy")).toContainText("Shadow mode. Review and sign trades.");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await expect.poll(() => page.locator("#copyPolicy").evaluate((node) => Math.round(node.getBoundingClientRect().top))).toBeLessThan(150);
   if (process.env.RAVENOS_VISUAL_ARTIFACT_DIR) await page.screenshot({ path: `${process.env.RAVENOS_VISUAL_ARTIFACT_DIR}/RavenOS-wallet-copy-mobile.png` });
@@ -1047,4 +1050,20 @@ test("a late inspection cannot replace the wallet opened from discovery or its c
   await page.locator("#copyStartSetup").click();
   await expect(page.locator("#copyPolicySource")).toContainText(secondAddress);
   await expect(page.locator("#copyPolicySource")).not.toContainText(WALLET);
+});
+
+
+test("history status refresh reads the shared index without requesting fresh provider history", async ({ page }) => {
+  const shared = { watch: null, decision: null, position: null, requests: [] };
+  await install(page, shared);
+  await page.goto(`/account/copy/?wallet=${WALLET}&chain=solana`);
+  await expect(page.locator("#copyProfile")).toBeVisible();
+  const calls = shared.requests.filter(row => row.path.endsWith("/inspect")).length;
+  await page.getByRole("button", { name: "Copy this wallet", exact: true }).click();
+  await page.getByRole("button", { name: "Refresh history status", exact: true }).click();
+  await expect.poll(() => shared.requests.filter(row => row.path === `/api/v1/wallet-copy/wallets/${SOURCE_ID}`).length).toBeGreaterThan(0);
+  expect(shared.requests.filter(row => row.path.endsWith("/inspect")).length).toBe(calls);
+  await expect(page.locator("#copyWalletAddress")).toHaveValue(WALLET);
+  await page.getByRole("button", { name: "Start Raven Copy", exact: true }).click();
+  await expect.poll(() => shared.requests.some(row => row.path.endsWith("/watches") && row.method === "POST")).toBe(true);
 });

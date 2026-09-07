@@ -7299,6 +7299,8 @@ function scheduleSpotQuoteExpiry(payload) {
       setText("terminalSpotQuoteState", "Refresh quote");
       setText("terminalSpotQuoteTiming", "Quote expired · request a new exact route");
       setSpotTicketExitSummary("expired", "Expired", "Refresh the exact route");
+      setText("terminalSpotQuoteExitState", "Expired · refresh required");
+      setText("terminalSpotQuoteMessage", "The previous route is retained for reference. Refresh buy and exit before continuing.");
       updateSpotExecutionRail();
       renderSpotLiveExecution();
       if (state.spotQuoteFollow && state.spotQuoteFingerprint === spotTicketFingerprint() && spotQuoteSurfaceActive()) {

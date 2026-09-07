@@ -4,7 +4,7 @@ import { runRewardPayoutDispatcher } from "./lib/customer_reward_payouts.mjs";
 import { routeCustomerProduct } from "./lib/customer_product_routes.mjs";
 import { captureExecutionRewards, reconcileExecutionRewards, sweepExecutionRewards } from "./lib/customer_rewards.mjs";
 import { readProductAccess, expireProTrials } from "./lib/customer_pro.mjs";
-import { RAVEN_PRO_CASHBACK_PERCENT, productFlags } from "./lib/customer_product.mjs";
+import { RAVEN_STANDARD_EXECUTION_FEE_BPS, RAVEN_PRO_CASHBACK_PERCENT, productFlags } from "./lib/customer_product.mjs";
 import { emergingDiscoverCandidate } from "./lib/discover_radar.mjs";
 import { loadSolanaWalletHoldings } from "./lib/customer_trade/solana_wallet_holdings.mjs";
 import { RAVEN_JUPITER_REFERRAL } from "./lib/customer_trade/jupiter_referral.mjs";
@@ -11759,7 +11759,7 @@ export default {
                     store: crowdingStore,
                     provider: walletProvider,
                     now,
-                    fee_bps: env.RAVENOS_WALLET_COPYABILITY_FEE_BPS || 10,
+                    fee_bps: RAVEN_STANDARD_EXECUTION_FEE_BPS,
                   })
                 : {
                     complete: true,
@@ -11775,7 +11775,7 @@ export default {
                     store: walletStore,
                     provider: walletProvider,
                     now,
-                    fee_bps: env.RAVENOS_WALLET_COPYABILITY_FEE_BPS || 10,
+                    fee_bps: RAVEN_STANDARD_EXECUTION_FEE_BPS,
                   })
                 : {
                     complete: true,
@@ -11817,7 +11817,7 @@ export default {
       ? (() => {
           const checkpointStore = createD1SourceWalletCopyabilityCheckpointStore(env.RAVENOS_CUSTOMER_DB);
           const walletStore = createD1CustomerWalletCopyStore(env.RAVENOS_CUSTOMER_DB);
-          const feeBps = Number(env.RAVENOS_WALLET_COPYABILITY_FEE_BPS || 10);
+          const feeBps = Number(RAVEN_STANDARD_EXECUTION_FEE_BPS);
           const policyReference = createSourceWalletCopyabilityPolicyReference({ fee_bps: feeBps });
           return runSourceWalletCopyabilityCheckpointBatch(checkpointStore, {
             quoteExit: async ({ token_mint: tokenMint, quantity_base_units: quantityBaseUnits, purpose, source_event_id: sourceEventId, horizon_seconds: horizonSeconds }) => {

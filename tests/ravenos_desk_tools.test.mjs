@@ -101,3 +101,16 @@ test("selected chart prices are reused only with the same verified market identi
   assert.equal(quoteFromCurrentChart(market,{...state,state:"loading"}),null);
   assert.equal(quoteFromCurrentChart(market,{...state,state:"error"}),null);
 });
+
+
+test("production exact-pool chart identity aliases retain prices without accepting another pool or token", async () => {
+  const { quoteFromCurrentChart } = await import("../ravenos-desk-tools.js");
+  const market = { lane: "spot", chain: "solana", pool: "DA4pM4xSDY4M9V4CgAKKBVH1pw1yscTQQa5nEkGHuKpt", token: "MukLDtJ8Cx9DxLbeyLRSWPSposTMWuwHANbuaudpump", label: "OTC/SOL" };
+  const instrument = { instrument_type: "spot_pool", identity_scope: "exact_pool", chain: "solana", pool_address: market.pool, token_address: market.token, symbol: market.label, venue: "onchain_pool", quote_asset: "USD" };
+  const state = { state: "live", instrument, marketIdentity: `solana:${market.pool}`, candles: [{ time: 1788791400, close: 0.0179, volume: 52 }], observedAt: "2026-09-07T14:30:00Z" };
+  assert.equal(quoteFromCurrentChart(market, state)?.price, 0.0179);
+  assert.equal(quoteFromCurrentChart(market, { ...state, marketIdentity: "solana:OtherPool" }), null);
+  assert.equal(quoteFromCurrentChart(market, { ...state, instrument: { ...instrument, pool_address: "OtherPool" } }), null);
+  assert.equal(quoteFromCurrentChart(market, { ...state, instrument: { ...instrument, token_address: "OtherToken" } }), null);
+  assert.equal(quoteFromCurrentChart({ ...market, pool: market.pool.toLowerCase() }, state), null);
+});

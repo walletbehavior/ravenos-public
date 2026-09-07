@@ -928,7 +928,7 @@ test("first refresh establishes a baseline and only a later source trade can pro
   };
   const store = memoryStore();
   const d = deps(store, provider);
-  const createdResponse = await routeCustomerWalletCopy(request("/api/v1/wallet-copy/watches", { method: "POST", body: { address: WALLET, label: "Test source", policy: { sizing: { fixed_usdc: 100 }, hypothetical_raven_fee_bps: 10 } } }), env(), d);
+  const createdResponse = await routeCustomerWalletCopy(request("/api/v1/wallet-copy/watches", { method: "POST", body: { address: WALLET, label: "Test source", policy: { sizing: { fixed_usdc: 100 }, hypothetical_raven_fee_bps: 100 } } }), env(), d);
   const created = await json(createdResponse);
   assert.equal(createdResponse.status, 201);
   const path = `/api/v1/wallet-copy/watches/${created.watch.watch_id}/refresh`;
@@ -988,7 +988,7 @@ test("manual fallback maps a later source sell to the Raven-created position", a
   const d = deps(store, provider);
   const created = await json(await routeCustomerWalletCopy(request("/api/v1/wallet-copy/watches", {
     method: "POST",
-    body: { address: WALLET, label: "Mapped exits", policy: { sizing: { fixed_usdc: 100 }, hypothetical_raven_fee_bps: 10 } },
+    body: { address: WALLET, label: "Mapped exits", policy: { sizing: { fixed_usdc: 100 }, hypothetical_raven_fee_bps: 100 } },
   }), env(), d));
   const path = `/api/v1/wallet-copy/watches/${created.watch.watch_id}/refresh`;
   await routeCustomerWalletCopy(request(path, { method: "POST", body: {} }), env(), d);
@@ -1042,7 +1042,7 @@ test("manual fallback retains a signal backlog instead of advancing past unproce
   const d = deps(store, provider);
   const created = await json(await routeCustomerWalletCopy(request("/api/v1/wallet-copy/watches", {
     method: "POST",
-    body: { address: WALLET, label: "Backlog proof", policy: { sizing: { fixed_usdc: 100 }, hypothetical_raven_fee_bps: 10 } },
+    body: { address: WALLET, label: "Backlog proof", policy: { sizing: { fixed_usdc: 100 }, hypothetical_raven_fee_bps: 100 } },
   }), env(), d));
   const path = `/api/v1/wallet-copy/watches/${created.watch.watch_id}/refresh`;
   await routeCustomerWalletCopy(request(path, { method: "POST", body: {} }), env(), d);
@@ -1068,4 +1068,18 @@ test("cohort clusters and discovery risk filters require Pro at the API boundary
   assert.equal(cluster.status, 403);
   const filter = await routeCustomerWalletCopy(request("/api/v1/wallet-copy/screener", { method: "POST", body: { chain: "all", clauses: [{ field: "loss_75_pct", operator: "lte", value: 10 }] } }), activeEnv, deps(store, provider, []));
   assert.equal(filter.status, 403);
+});
+
+
+test("customer Copy API rejects underpriced policy before registering a watch", async () => {
+  const store = memoryStore();
+  const d = deps(store, {});
+  for (const fee of [0, 10, 50, 70]) {
+    const response = await routeCustomerWalletCopy(request("/api/v1/wallet-copy/watches", { method: "POST", body: { address: WALLET, policy: { hypothetical_raven_fee_bps: fee } } }), env(), d);
+    assert.equal(response.status, 400);
+    assert.equal((await json(response)).error, "customer_copy_fee_policy_mismatch");
+  }
+  const response = await routeCustomerWalletCopy(request("/api/v1/wallet-copy/watches", { method: "POST", body: { address: WALLET } }), env(), d);
+  assert.equal(response.status, 201);
+  assert.equal((await json(response)).watch.policy.hypothetical_raven_fee_bps, 100);
 });

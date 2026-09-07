@@ -10,6 +10,8 @@ test("desk keeps the chart central and persists public market and layout prefere
   await openExactSpotSearch(page, "RUNNER");
   await waitForTerminalLive(page, { lane: "spot", instrument: "RUNNER/WETH" });
   await expect(page.locator(".desk-market-row")).toHaveCount(2);
+  await expect(page.locator(".desk-market-row[data-active='true'] .desk-market-quote strong")).toBeVisible();
+  await expect(page.locator(".desk-market-row[data-active='true']")).not.toContainText("Price not loaded");
   await page.getByRole("button", { name: "Pin RUNNER/WETH", exact: true }).click();
   await page.getByLabel("Workspace layout", { exact: true }).selectOption("analysis");
   await page.screenshot({ path: testInfo.outputPath("desk-desktop.png"), fullPage: true });

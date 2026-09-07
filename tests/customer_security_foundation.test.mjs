@@ -537,7 +537,7 @@ test("Portfolio Governor account UI accepts only an opaque selection and preserv
 test("authenticated Pro workspace keeps authorization server-owned and renders without executable markup", () => {
   const html = readFileSync("account/intelligence/index.html", "utf8");
   const client = readFileSync("ravenos-pro-intelligence.js", "utf8");
-  assert(html.includes("Available to approved Pro accounts"));
+  assert(html.includes("Included with Pro and Pro trials"));
   assert(html.includes("Atlas availability stays separate"));
   assert(html.includes("This workspace cannot connect a wallet, place an order, or manage a position."));
   assert(!/<input[^>]+name=["'](?:owner|user|capability|plan|tier|token)["']/i.test(html));

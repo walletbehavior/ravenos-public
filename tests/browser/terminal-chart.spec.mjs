@@ -2580,3 +2580,17 @@ test("existing Raven wallet connects when the signing service is unavailable", a
   await expect(page.locator("#terminalAccountStatus")).toContainText("wallet connected");
   expect(await page.evaluate(() => globalThis.__RAVENOS_PRIVY_TEST_CALLS__)).toEqual([]);
 });
+
+
+test("expired spot exit proof loses current verification labels everywhere", async ({ page }) => {
+  await mockTerminalLiveApis(page, { spotQuotePreview: true, velocitySpotContext: true });
+  await page.goto("/terminal/?instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&token_address=fixture-token-address&quote_address=fixture-quote-address&panel=trade");
+  await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1h" });
+  await page.clock.install();
+  await page.locator("#terminalSpotQuoteAction").click();
+  await expect(page.locator("#terminalSpotQuoteExitState")).toHaveText("Verified now");
+  await page.clock.fastForward(120_000);
+  await expect(page.locator("#terminalSpotQuoteExitState")).toHaveText("Expired · refresh required");
+  await expect(page.locator("#terminalSpotExitCompact")).toHaveText("Expired");
+  await expect(page.locator("#terminalSpotQuoteMessage")).not.toContainText("exit verified");
+});

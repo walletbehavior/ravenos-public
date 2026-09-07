@@ -16,6 +16,7 @@ import {
   createRavenCopyDecision,
   createRavenCopyExitDecision,
   createRavenCopyPolicy,
+  createCustomerRavenCopyPolicy,
   createShadowCopyPosition,
 } from "../lib/customer_trade/wallet_copy.mjs";
 
@@ -176,7 +177,7 @@ function evidence(overrides = {}) {
 }
 
 test("copy fee scenarios remain configurable, hypothetical, and bounded", () => {
-  assert.deepEqual(RavenCopyFeeScenariosBps, [0, 5, 10, 20, 25, 50]);
+  assert.deepEqual(RavenCopyFeeScenariosBps, [0, 5, 10, 20, 25, 50, 100]);
   for (const bps of RavenCopyFeeScenariosBps) {
     const value = createRavenCopyPolicy({ hypothetical_raven_fee_bps: bps });
     assert.equal(value.hypothetical_raven_fee_bps, bps);
@@ -459,4 +460,17 @@ test("copyability is separated by standard follower order size without inventing
   assert.equal(rail.find((row) => row.order_size_usdc === 25).prospective_sample_count, 0);
   assert.equal(rail.find((row) => row.order_size_usdc === 25).score, null);
   assert.equal(rail.find((row) => row.order_size_usdc === 5_000).state, "insufficient_evidence");
+});
+
+
+test("customer Copy uses the native 100-bps fee and cannot select a cheaper research scenario", () => {
+  const policy = createCustomerRavenCopyPolicy();
+  assert.equal(policy.hypothetical_raven_fee_bps, 100);
+  assert.equal(policy.execution_boundary.shadow_only, true);
+  for (const fee of [0, 5, 10, 20, 25, 50, 70, "100"]) {
+    assert.throws(() => createCustomerRavenCopyPolicy({ hypothetical_raven_fee_bps: fee }), /customer_copy_fee_policy_mismatch/);
+  }
+  const historical = createRavenCopyPolicy({ hypothetical_raven_fee_bps: 10 });
+  assert.deepEqual(createRavenCopyPolicy(historical), historical);
+  assert.notEqual(policy.policy_hash, historical.policy_hash);
 });
