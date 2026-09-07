@@ -15,6 +15,23 @@
   },
   "current_stage": "stage_a_accounts_active",
   "customer_capabilities_enabled": true,
+  "shielded_reserve_research": {
+    "stage": "operator_local_shadow_only",
+    "ZCASH_ENABLED": false,
+    "SHIELDED_RESERVE_ENABLED": false,
+    "SHIELDED_ROUTE_QUOTES_ENABLED": false,
+    "SHIELDED_DEPLOY_ENABLED": false,
+    "SHIELDED_RETURN_ENABLED": false,
+    "SHIELDED_SEND_ENABLED": false,
+    "LIVE_SHIELDED_EXECUTION_ENABLED": false,
+    "live_hard_disabled_in_code": true,
+    "customer_route_published": false,
+    "future_product_tier": "pro",
+    "viewing_key_ingestion": false,
+    "private_spend_key_ingestion": false,
+    "research_wallet_destinations": "published_test_vectors_only",
+    "production_activation_requires": ["user_controlled_wallet_integration", "settlement_and_refund_evidence", "privacy_and_security_review", "counsel_review"]
+  },
   "wallet_history_providers": {
     "helius_release_enabled": true,
     "alchemy_release_enabled": true,

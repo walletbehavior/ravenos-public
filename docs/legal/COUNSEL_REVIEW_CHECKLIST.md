@@ -130,3 +130,17 @@ FTC materials explain that compensated promoters should disclose material connec
 - [ ] Full security, migration, browser, accessibility, and release identity checks pass.
 
 The candidate package should not be promoted merely because engineering tests pass. Qualified counsel and an accountable RavenOS owner must separately approve the exact content and launch configuration.
+
+## Shielded Reserve architecture spike — September 6, 2026
+
+Internal review only. Live shielded execution is hard-disabled. See `docs/research/raven-shielded-reserve-spike.md` for measured quote evidence and gaps. This adds no effective customer assent or public privacy promise.
+
+- [ ] Classify Raven's actual routing/noncustody role, money transmission/MSB implications and applicable jurisdictions.
+- [ ] Determine sanctions screening, geographic controls, source-of-funds and recordkeeping requirements; assess Travel Rule applicability without presuming it.
+- [ ] Review proof-of-authority Zcash bridge, solver/intent contracts, destination visibility, refund delays/failures and liability.
+- [ ] Review user-controlled recovery, signer isolation, optional viewing-key consent/scope, highly sensitive storage, retention and inability to revoke already disclosed key knowledge.
+- [ ] Approve precise shielding/metadata/correlation and ZEC volatility disclosures. Do not promise anonymity or stable USDC value.
+- [ ] Review private payments and any future affiliate payout use separately; no current coupling.
+- [ ] Require explicit live canary authorization and security review before enabling any spend, deposit-address creation or transaction submission.
+
+Current native execution pricing is 100 bps for Standard and Pro, with 30% Pro cashback on qualifying confirmed Raven fees. Older 70-bps audit entries above are historical; Shielded Reserve has no production Raven fee policy and does not inherit native cashback or affiliate economics.

@@ -63,6 +63,7 @@
     "node": "22.x"
   },
   "dependencies": {
+    "@defuse-protocol/one-click-sdk-typescript": "0.1.25",
     "@nktkas/hyperliquid": "^0.33.3",
     "@privy-io/js-sdk-core": "0.73.0",
     "@solana/web3.js": "1.98.4",
