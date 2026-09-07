@@ -723,13 +723,15 @@ test("shared D1 event ingestion batches deep-history writes without changing eve
   };
   const first = walletEvent({ signature: "d".repeat(88), slot: 101 });
   const second = walletEvent({ signature: "e".repeat(88), slot: 102 });
-  const inserted = await createD1CustomerWalletCopyStore(db).recordEvents(first.source_wallet_id, [first, second], NOW);
+  const sourceId = createSourceWalletId(first.source_wallet);
+  const inserted = await createD1CustomerWalletCopyStore(db).recordEvents(sourceId, [first, second], NOW);
   assert.deepEqual(inserted, [first.event_id, second.event_id]);
   assert.equal(batches.length, 1);
   assert.equal(batches[0].length, 4);
   assert.match(batches[0][0].sql, /INSERT OR IGNORE INTO ravenos_source_wallet_events/i);
   assert.match(batches[0][1].sql, /INSERT OR IGNORE INTO ravenos_source_wallet_event_finality_observations/i);
   assert.equal(batches[0][0].bindings.includes(JSON.stringify(first)), true);
+  assert.equal(batches[0][0].bindings[2], sourceId);
 });
 
 test("Raven-indexed screener is separately gated, bounded, and opens retained evidence without another provider request", async () => {
