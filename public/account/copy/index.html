@@ -62,8 +62,8 @@
         <p id="copyAccessDetail">Deep cohorts and behavior require Raven Pro.</p>
       </section>
       <nav class="copy-tabs" role="tablist" aria-label="Raven Copy workspace">
-        <button type="button" role="tab" aria-selected="true" data-copy-view="find">Find a wallet</button>
-        <button type="button" role="tab" aria-selected="false" data-copy-view="watching">Watching <span id="copyWatchCount">0</span></button>
+        <button type="button" role="tab" aria-selected="true" data-copy-view="find">Wallet screener</button>
+        <button type="button" role="tab" aria-selected="false" data-copy-view="watching">Raven Copy <span id="copyWatchCount">0</span></button>
         <button type="button" role="tab" aria-selected="false" data-copy-view="feed">Shadow feed <span id="copyDecisionCount">0</span></button>
         <button type="button" role="tab" aria-selected="false" data-copy-view="positions">Positions <span id="copyPositionCount">0</span></button>
       </nav>
@@ -91,17 +91,17 @@
             <div><span>Wallet screener</span><h2 id="copyScreenerHeadline">Find active wallets.</h2></div>
             <div class="copy-screener-scope">
               <div class="copy-chain-rail" role="group" aria-label="Wallet chain">
-                <button type="button" data-screen-chain="all" aria-pressed="false">All</button>
-                <button type="button" data-screen-chain="solana" aria-pressed="true">Solana</button>
+                <button type="button" data-screen-chain="all" aria-pressed="true">All chains</button>
+                <button type="button" data-screen-chain="solana" aria-pressed="false">Solana</button>
                 <button type="button" data-screen-chain="robinhood" aria-pressed="false">Robinhood</button>
                 <button type="button" data-screen-chain="base" aria-pressed="false">Base</button>
                 <button type="button" data-screen-chain="ethereum" aria-pressed="false">Ethereum</button>
                 <button type="button" data-screen-chain="bsc" aria-pressed="false">BNB Chain</button>
               </div>
-              <strong id="copyScreenerCount">0 indexed</strong>
+              <strong id="copyScreenerCount">Loading index</strong>
             </div>
           </header>
-          <p class="copy-index-coverage">Indexed: Solana, Robinhood. Address lookup: Base, Ethereum, BNB. Coverage varies.</p>
+          <p class="copy-index-coverage" id="copyScreenerCoverage">Browse Raven’s stored wallet observations across supported chains. Address lookup fills missing evidence.</p>
           <div class="copy-preset-rail copy-pro-only" id="copyPresetRail" aria-label="Raven Pro wallet screener presets">
             <button type="button" data-screen-preset="evidence_first">Evidence first<small>Strong reconstruction</small></button>
             <button type="button" data-screen-preset="consistent_winners">Consistent winners<small>Profit quality</small></button>
@@ -194,6 +194,11 @@
           </form>
           <p class="copy-screener-status" id="copyScreenerStatus" aria-live="polite">Loading Raven-indexed wallets…</p>
           <div class="copy-screener-results" id="copyScreenerResults"></div>
+          <section class="copy-seen-wallets" id="copySeenWallets" hidden>
+            <header><h3>Seen by Raven</h3><strong id="copySeenCount"></strong></header>
+            <p>Public wallet observations already retained by Raven. Inspect a wallet for its history. Performance filters apply to analyzed profiles above; these observations do not establish profitability or copyability.</p>
+            <div id="copySeenResults"></div>
+          </section>
           <footer class="copy-screener-pages" id="copyScreenerPages" hidden><button type="button" id="copyScreenPrevious">← Previous</button><span id="copyScreenPage">Page 1</span><button type="button" id="copyScreenNext">Next →</button></footer>
         </section>
 

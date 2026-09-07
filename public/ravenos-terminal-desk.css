@@ -372,3 +372,17 @@
   letter-spacing: 0;
   text-transform: none;
 }
+
+/* The desktop dock has one scroll flow; actions do not float over ticket inputs. */
+@media (min-width: 821px) {
+  .terminal-live.terminal-desk .desk-dock-nav { display: flex; flex-shrink: 0; }
+  .terminal-live.terminal-desk #terminalPreviewAction,
+  .terminal-live.terminal-desk #terminalSpotQuoteAction { position: static; box-shadow: none; }
+  .terminal-live.terminal-desk[data-desk-dock='raven'] .terminal-intelligence > #terminalSpotTicketSection,
+  .terminal-live.terminal-desk[data-desk-dock='raven'] .terminal-intelligence > #terminalTradeReviewSection { display: none !important; }
+  .terminal-live.terminal-desk[data-desk-dock='trade'] .terminal-intelligence > .desk-research-brief { display: none !important; }
+}
+.desk-brief-disclosure > summary { display: flex; justify-content: space-between; gap: 12px; cursor: pointer; color: #d7e2f1; font: 600 14px/1.5 var(--desk-font); }
+.desk-brief-disclosure > summary > span { font-size: 11px; color: #9eafc5; }
+.desk-brief-disclosure[open] > summary > span { display: none; }
+.desk-brief-method { color: #9eafc5; font: 11px/1.5 var(--desk-font); }

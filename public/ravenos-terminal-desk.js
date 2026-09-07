@@ -237,7 +237,7 @@ export function createTerminalDesk({ openMarket, inspectPane, resizeChart }) {
       render();
     },
     pane(pane) {
-      if (["trade", "raven"].includes(pane)) root.dataset.deskDock = pane;
+      if (["chart", "trade", "raven"].includes(pane)) root.dataset.deskDock = pane === "chart" ? "trade" : pane;
       root.dataset.deskData = ["activity", "holders", "book", "account"].includes(pane) ? pane : "none";
       for (const button of dockNav.querySelectorAll("button")) button.setAttribute("aria-pressed", String(button.dataset.deskTab === root.dataset.deskDock));
       // Focus layout expands only on a deliberate panel action.

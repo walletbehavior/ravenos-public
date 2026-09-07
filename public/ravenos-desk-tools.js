@@ -182,10 +182,15 @@ export function quoteFromCandles(candles, observedAt, source) {
     end: rows.at(-1).time,
   };
 }
+export function quoteFromCurrentChart(market, state) {
+  if (!market || !["live", "historical", "delayed"].includes(state?.state)) return null;
+  if (!quoteMatchesMarket(market, { ok: true, instrument: state.instrument, market_identity: state.marketIdentity })) return null;
+  return quoteFromCandles(state.candles, state.observedAt, state.source);
+}
 const number = (n) =>
   Number.isFinite(n)
     ? new Intl.NumberFormat("en-US", {
-        maximumFractionDigits: Math.abs(n) < 1 ? 6 : 2,
+        maximumFractionDigits: Math.abs(n) < 0.01 ? 8 : Math.abs(n) < 1 ? 6 : 2,
         notation: Math.abs(n) >= 1e6 ? "compact" : "standard",
       }).format(n)
     : "—";
@@ -233,7 +238,7 @@ export function enhanceDesk({
   brief.className = "desk-research-brief";
   brief.setAttribute("aria-label", "Market research brief");
   brief.innerHTML =
-    '<h3>Market brief</h3><p class="desk-brief-source"></p><dl></dl><details><summary>How to read this brief</summary><p>Calculated from the selected chart window. Price direction, range and volume describe observed trading; they are not forecasts. Original evidence and trade review remain available below.</p></details>';
+    '<details class="desk-brief-disclosure"><summary>Market brief <span>Show evidence</span></summary><p class="desk-brief-source"></p><dl></dl><p class="desk-brief-method">Calculated from the selected chart window. Direction, range and volume describe observed trading; they are not forecasts.</p></details>';
   dock.querySelector(".desk-dock-nav").after(brief);
   const status = document.createElement("div");
   status.className = "desk-feed-status";
@@ -453,6 +458,11 @@ export function enhanceDesk({
     const s = primary.state,
       rows = s.candles || [],
       read = s.chartRead;
+    const currentQuote = quoteFromCurrentChart(active, s);
+    if (currentQuote && JSON.stringify(quotes.get(active.key)) !== JSON.stringify(currentQuote)) {
+      quotes.set(active.key, currentQuote);
+      render();
+    }
     const unavailable = ["error", "data_unavailable", "empty"].includes(
         s.state,
       ),
@@ -569,7 +579,9 @@ export function enhanceDesk({
               payload.observed_at || payload.generated_at,
               payload.source_label || payload.source,
             );
-            if (quote) quotes.set(market.key, quote);
+            // The selected chart is the freshest identity-checked source when available.
+            const selected = active?.key === market.key ? quoteFromCurrentChart(market, primary.state) : null;
+            if (selected || quote) quotes.set(market.key, selected || quote);
           } catch {
             /* Existing observations retain their timestamp when a provider fails. */
           }
@@ -658,7 +670,8 @@ export function enhanceDesk({
       const cell = document.createElement("div");
       cell.className = "desk-market-quote";
       if (!quote) {
-        cell.textContent = "Awaiting quote";
+        cell.textContent = "Price not loaded";
+        cell.title = "No chart-price observation has loaded for this market. This is separate from a trade quote.";
         row.append(cell);
         return;
       }
@@ -674,7 +687,7 @@ export function enhanceDesk({
       price.textContent = number(quote.price);
       change.textContent = `${quote.change >= 0 ? "+" : ""}${Number.isFinite(quote.change) ? quote.change.toFixed(2) : "—"}%`;
       change.dataset.direction = quote.change >= 0 ? "up" : "down";
-      vol.textContent = `${Math.round((quote.end - quote.start) / 3600)}h vol ${number(quote.volume)}${stale ? " · Stale" : ""}`;
+      vol.textContent = `${quote.end - quote.start < 3600 ? `${Math.round((quote.end - quote.start) / 60)}m` : `${Math.round((quote.end - quote.start) / 3600)}h`} vol ${number(quote.volume)}${stale ? " · Stale" : ""}`;
       const observed = document.createElement("small");
       observed.className = "desk-quote-time";
       observed.textContent =
