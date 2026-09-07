@@ -33,6 +33,8 @@ No schema migration, reward primitive, fee ledger or wallet system added. Featur
 
 ## Verification
 
+The signed-in production follow-up exposed two Workers transport differences: native `fetch` requires its global receiver, and Workers does not support `redirect: "error"`. The adapter now delegates through `globalThis.fetch` and uses manual redirect refusal. Non-success responses are rejected without following or parsing them. Receiver-sensitive and redirect-refusal regressions cover catalog and dry quotes. Both failures were reproduced in the actual local Workers runtime before the fix.
+
 Baseline 43 tests passed before this work. New route/planner tests cover server Pro enforcement, CSRF policy, all action flags, real-money refusal, input secrecy, bounded streaming, cache/single-flight/expiry, provider failures and precision. Browser tests cover desktop/mobile layout, local-only scenarios, excess handoff, late-response races, Standard/signed-out gating and expired previews. The full `test:contracts` command passed 1,392 checks across its suites (including 55 Shielded Reserve checks); 18 Portfolio/mobile and wallet browser checks passed. Existing Portfolio, fees, rewards, billing, identity, Copy and security regressions remain required by `test:contracts`.
 
 The secure beta path is still external user-controlled wallet discovery, recovery verification, audited signer/receiver semantics, small explicitly authorized forward/reverse/refund canaries, reconciliation and counsel review. None of those unfinished steps is implied by making the preview discoverable.

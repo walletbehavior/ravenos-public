@@ -19,7 +19,7 @@ const bodyFor = request => ({ quoteRequest: { ...request, appFees: [{ recipient:
   quote: { amountIn: request.amount, amountOut: "99000000", minAmountOut: "98010000", amountInUsd: "100.000000000000", amountOutUsd: "99.000000000000", timeEstimate: 452, withdrawFee: "1000", refundFee: "32000" }, timestamp: DATE, signature: "fixture-not-real" });
 const fake = (mutate = value => value, options = {}) => new NearIntentsShieldedProvider({ env, now: () => NOW, verifySignature: () => true, fetchImpl: async (url, init) => {
   assert.equal(url, "https://1click.chaindefuser.com/v0/quote");
-  const req = JSON.parse(init.body); assert.equal(req.dry, true); assert.equal(init.redirect, "error");
+  const req = JSON.parse(init.body); assert.equal(req.dry, true); assert.equal(init.redirect, "manual");
   assert.equal(req.refundTo, SHIELDED_RESEARCH_ADDRESSES[SHIELDED_ASSETS[req.originAsset === SHIELDED_ASSETS.zec.id ? "zec" : "solana_usdc"].chain]);
   return Response.json(mutate(bodyFor(req)), { status: 201 });
 }, ...options });
@@ -28,6 +28,38 @@ test("all flags default off and cannot enable live execution", () => {
   assert.equal(shieldedCapabilities().enabled, false);
   assert.equal(shieldedCapabilities({ ...env, LIVE_SHIELDED_EXECUTION_ENABLED: "1" }).LIVE_SHIELDED_EXECUTION_ENABLED, false);
   assert.equal(SHIELDED_BOUNDARY.submission_enabled, false);
+});
+test("default transport preserves the native Workers fetch receiver for catalog and quotes", async (t) => {
+  const methods = [];
+  t.mock.method(globalThis, "fetch", async function (url, init) {
+    assert.equal(this, globalThis, "Workers rejects fetch bound to the provider instance");
+    assert.equal(init.redirect, "manual", "Workers does not support redirect: error");
+    methods.push(init.method);
+    if (url.endsWith("/tokens")) return Response.json(catalog);
+    assert.equal(url, "https://1click.chaindefuser.com/v0/quote");
+    const request = JSON.parse(init.body);
+    assert.equal(request.dry, true);
+    return Response.json(bodyFor(request), { status: 201 });
+  });
+  const provider = new NearIntentsShieldedProvider({ env, now: () => NOW, verifySignature: () => true });
+  const tokens = await provider.tokens();
+  assert.equal(tokens.length, catalog.length);
+  assert.equal((await provider.quote(intent(), tokens)).available, true);
+  assert.deepEqual(methods, ["GET", "POST"]);
+});
+test("provider redirects fail closed without following or parsing their bodies", async () => {
+  const calls = [];
+  const provider = new NearIntentsShieldedProvider({ env, now: () => NOW, fetchImpl: async (url, init) => {
+    calls.push(url);
+    assert.equal(init.redirect, "manual");
+    return new Response("Redirecting", { status: 302, headers: { location: "https://untrusted.invalid/" } });
+  } });
+  await assert.rejects(provider.tokens(), /provider_catalog_unavailable/);
+  const quote = await provider.quote(intent(), catalog);
+  assert.equal(quote.available, false);
+  assert.equal(quote.http_status, 302);
+  assert.equal(calls.length, 2);
+  assert(calls.every(url => url.startsWith("https://1click.chaindefuser.com/")));
 });
 test("every master or action flag fails closed before provider I/O", async () => {
   for (const key of ["ZCASH_ENABLED", "SHIELDED_RESERVE_ENABLED", "SHIELDED_ROUTE_QUOTES_ENABLED", "SHIELDED_DEPLOY_ENABLED"]) {
