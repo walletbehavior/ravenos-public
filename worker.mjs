@@ -1,5 +1,6 @@
 import { routeCustomerShielded, CUSTOMER_SHIELDED_ROUTE } from "./lib/customer_shielded_routes.mjs";
 import { heliusWalletHistoryRuntime, loadHeliusWalletHistory, loadHeliusWalletPage, cachedHeliusWalletTransaction } from "./lib/customer_trade/helius_wallet_history.mjs";
+import { retainMarketWallets } from "./lib/customer_trade/market_wallet_index.mjs";
 import { runRewardPayoutDispatcher } from "./lib/customer_reward_payouts.mjs";
 import { routeCustomerProduct } from "./lib/customer_product_routes.mjs";
 import { captureExecutionRewards, reconcileExecutionRewards, sweepExecutionRewards } from "./lib/customer_rewards.mjs";
@@ -603,6 +604,14 @@ const EXACT_TRADITIONAL_INSTRUMENTS = Object.freeze({
   QQQ: Object.freeze({ instrument_id: "etf:nasdaq:qqq", instrument_type: "etf", venue: "nasdaq", listing: "Nasdaq Stock Market" }),
   IWM: Object.freeze({ instrument_id: "etf:nyse-arca:iwm", instrument_type: "etf", venue: "nyse-arca", listing: "NYSE Arca" }),
 });
+async function rememberPublicMarketWallets(env, projection, context) {
+  if (!env?.RAVENOS_CUSTOMER_DB?.prepare || String(env.RAVENOS_WALLET_INTELLIGENCE_ENABLED) !== "1"
+    || String(env.RAVENOS_WALLET_SCREENER_ENABLED) !== "1") return;
+  const work = retainMarketWallets(env, projection, createD1CustomerWalletCopyStore(env.RAVENOS_CUSTOMER_DB)).catch(() => undefined);
+  if (context?.waitUntil) context.waitUntil(work);
+  else await work;
+}
+
 function json(payload, init = {}) {
   return new Response(JSON.stringify(payload), {
     status: init.status || 200,
@@ -11427,6 +11436,7 @@ async function routeApi(request, env, executionContext = null) {
       const holderCacheKey = [chain, cacheAddress(pairAddress), cacheAddress(tokenAddress), cacheAddress(quoteAddress)].join(":");
       const edgeCached = await holderEdgeCacheRead(holderCacheKey);
       if (holderEdgePayloadMatches(edgeCached, { chain, pairAddress, tokenAddress, quoteAddress })) {
+        await rememberPublicMarketWallets(env, edgeCached, executionContext);
         return json({ ...edgeCached, edge_cache: "hit" }, {
           headers: {
             "cache-control": "public, max-age=60, s-maxage=300, stale-while-revalidate=300",
@@ -11492,6 +11502,7 @@ async function routeApi(request, env, executionContext = null) {
       });
       const publicPayload = { ...projection, risk_screen: riskScreen, edge_cache: "miss" };
       await holderEdgeCacheWrite(holderCacheKey, publicPayload);
+      await rememberPublicMarketWallets(env, publicPayload, executionContext);
       return json(publicPayload, {
         headers: {
           "cache-control": "public, max-age=60, s-maxage=300, stale-while-revalidate=300",
@@ -11526,6 +11537,7 @@ async function routeApi(request, env, executionContext = null) {
     }
     try {
       const projection = await fetchGeckoPoolTrades({ env, chain, pairAddress, tokenAddress, quoteAddress });
+      await rememberPublicMarketWallets(env, projection, executionContext);
       return json(projection, {
         headers: {
           "cache-control": "public, max-age=1, s-maxage=5, stale-while-revalidate=10",

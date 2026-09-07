@@ -8,6 +8,15 @@ import { CANONICAL_REWARD_ASSETS,rewardBalance } from "../lib/customer_rewards.m
 import { rewardClaimPolicy,validateClaimEconomics,createRewardWalletChallenge,verifyRewardWalletChallenge,resolveClaimDestination,requestCashbackClaim,reconcileClaimOperation } from "../lib/customer_reward_claims.mjs";
 import { verifyCanonicalClaimTransfer } from "../lib/customer_reward_payouts.mjs";
 const PRINCIPAL={user_id:USER,session_public_id:"fixture_session",authenticated_at:NOW};
+test("claim verification uses Worker-supported manual redirects and refuses redirected RPC responses", async () => {
+  const input = { chain: "solana", token: CANONICAL_REWARD_ASSETS.solana.token, from: bs58.encode(new Uint8Array(32).fill(4)), to: bs58.encode(new Uint8Array(32).fill(5)), transaction_hash: "5".repeat(88), amount_micros: "1000000" };
+  let reads = 0;
+  await assert.rejects(verifyCanonicalClaimTransfer({ RAVENOS_SOLANA_RPC_URL: "https://rpc.example.test" }, input, { fetch_impl: async (_url, init) => {
+    assert.equal(init.redirect, "manual");
+    return { ok: false, status: 302, async text() { reads++; return "redirect body"; } };
+  } }), /claim_verification_rpc_unavailable/);
+  assert.equal(reads, 0);
+});
 async function claimFixture(chain="solana",kind="external_connected") {
  const f=await earn(rewardFixture({amount:"100000000"}));
  const sol=nacl.sign.keyPair.fromSeed(new Uint8Array(32).fill(42));

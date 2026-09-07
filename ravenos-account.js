@@ -449,7 +449,7 @@ function bindBrowserWalletEvents(chain, provider) {
   }
 }
 
-function openWalletAppChooser(chain) {
+function openWalletAppChooser(chain, detected = null) {
   document.getElementById("accountWalletAppChooser")?.remove();
   const dialog = document.createElement("dialog");
   dialog.id = "accountWalletAppChooser";
@@ -461,9 +461,34 @@ function openWalletAppChooser(chain) {
   title.textContent = `Connect a ${chain} wallet`;
   const description = document.createElement("p");
   description.id = "accountWalletAppDescription";
-  description.textContent = "On iPhone Chrome or Safari, open Raven inside your wallet app. Sign in there if asked, then tap Connect. This does not connect the wallet to your Chrome or Safari tab.";
+  const mobile = /iPhone|iPad|Android/i.test(navigator.userAgent);
+  description.textContent = mobile
+    ? "Choose your Raven Wallet here, or open Raven inside an external wallet app. An app handoff does not connect the wallet to your Chrome or Safari tab."
+    : "Choose your Raven Wallet or an external wallet. Connecting reads your public address; it does not sign a transaction.";
   const choices = document.createElement("div");
   choices.className = "account-wallet-apps";
+  const embedded = state.privy.wallets.find(wallet => wallet.ecosystem === chain.toLowerCase());
+  if (embedded) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = `Raven Wallet · ${shortWalletAddress(embedded.address)}`;
+    button.addEventListener("click", () => {
+      state.browserWallet = { chain, address: embedded.address, provider: null, listenersBound: false };
+      renderBrowserWallet("Raven Wallet connected · address only. Trading is reviewed in Terminal.");
+      dialog.close();
+    });
+    choices.append(button);
+  }
+  if (detected) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = `Connect ${detected.name}`;
+    button.addEventListener("click", async () => {
+      dialog.close();
+      await connectBrowserWallet(chain, { external: true });
+    });
+    choices.append(button);
+  }
   for (const name of chain === "Solana" ? ["Phantom", "Solflare"] : ["MetaMask", "Phantom"]) {
     const link = document.createElement("a");
     link.href = walletLaunchHref(name, chain.toLowerCase(), "https://app.ravenos.xyz/account/");
@@ -472,7 +497,7 @@ function openWalletAppChooser(chain) {
     choices.append(link);
   }
   const help = document.createElement("p");
-  help.textContent = "On desktop, unlock your wallet extension and retry. You can also create a Raven Wallet below.";
+  help.textContent = embedded ? "Your existing wallet is preserved. No new wallet is created." : "You can create a Raven Wallet below. External wallet apps may ask you to sign in to Raven again.";
   const close = document.createElement("button");
   close.type = "button";
   close.textContent = "Back to account";
@@ -486,10 +511,13 @@ function openWalletAppChooser(chain) {
   dialog.showModal();
 }
 
-async function connectBrowserWallet(chain) {
+async function connectBrowserWallet(chain, { external = false } = {}) {
   const status = document.getElementById("accountWalletConnectStatus");
   if (status) status.dataset.tone = "";
   const selected = chain === "Solana" ? solanaWalletProvider() : evmWalletProvider();
+  if (!external && state.privy.wallets.some(wallet => wallet.ecosystem === chain.toLowerCase())) {
+    return openWalletAppChooser(chain, selected);
+  }
   if (!selected) {
     renderBrowserWallet("Open Raven in your wallet app to connect.");
     return openWalletAppChooser(chain);

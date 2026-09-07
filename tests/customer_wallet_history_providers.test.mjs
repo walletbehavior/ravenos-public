@@ -51,7 +51,7 @@ function alchemyFixture(chain="base") {
  const ids={base:8453,ethereum:1,bsc:56,robinhood:4663},hosts={base:"base-mainnet",ethereum:"eth-mainnet",bsc:"bnb-mainnet",robinhood:"robinhood-mainnet"};
  const env={RAVENOS_EVM_WALLET_LOOKUP_ENABLED:"1",RAVENOS_ALCHEMY_WALLET_HISTORY_ENABLED:"1",[`ALCHEMY_${chain==="ethereum"?"ETH":chain.toUpperCase()}_RPC_URL`]:`https://${hosts[chain]}.g.alchemy.com/v2/fixture-server-key`};
  const calls=[];const transfer={hash:TX,uniqueId:TX+":log:0",blockNum:"0x10",from:COUNTER,to:EVM,category:"erc20",rawContract:{address:CONTRACT,value:"0xf4240",decimal:"0x6"},metadata:{blockTimestamp:"2026-09-06T00:00:00Z"}};
- const fetchImpl=async(url,init)=>{const {method,params}=JSON.parse(init.body);calls.push(method);let result;
+ const fetchImpl=async(url,init)=>{assert.equal(init.redirect,"manual");const {method,params}=JSON.parse(init.body);calls.push(method);let result;
  if(method==="eth_chainId")result="0x"+ids[chain].toString(16);
  else if(method==="alchemy_getAssetTransfers")result={transfers:params[0].toAddress?[transfer]:[],pageKey:null};
  else if(method==="alchemy_getTokenBalances")result={address:EVM,tokenBalances:[{contractAddress:CONTRACT,tokenBalance:"0xf4240"}]};

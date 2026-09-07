@@ -4,6 +4,24 @@ import { expect, test } from "@playwright/test";
 
 const EVM = { ecosystem: "evm", address: "0x1111111111111111111111111111111111111111" };
 const SOL = { ecosystem: "solana", address: "Stake11111111111111111111111111111111111111" };
+
+for (const chain of ["Solana", "Evm"]) {
+  test(`Account connects the existing ${chain} Raven Wallet without provisioning or signing`, async ({ page, baseURL }) => {
+    const calls = await accountFixture(page, baseURL, { wallets: [EVM, SOL] });
+    await page.goto("/account/");
+    await expect(page.locator("#accountPrivyWallets")).toContainText(EVM.address);
+    await page.locator(`#accountConnect${chain}`).click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).not.toContainText("On iPhone");
+    await dialog.getByRole("button", { name: /^Raven Wallet/ }).click();
+    await expect(page.locator("#accountWalletConnectionState")).toHaveText("Connected");
+    await expect(page.locator("#accountWalletConnectStatus")).toContainText("Raven Wallet connected · address only");
+    expect(calls).toEqual([]);
+    expect(await page.evaluate(() => globalThis.__PROVISION_CALLS__)).toEqual([]);
+    await page.locator("#accountDisconnectWallet").click();
+    await expect(page.locator("#accountWalletConnectionState")).toHaveText("Read only");
+  });
+}
 async function accountFixture(page, baseURL, { wallets = [], capabilities = { evm: true, solana: true }, sessionCapabilities = capabilities, failure = null } = {}) {
   const calls = [];
   await page.addInitScript(({ evm, sol, failure }) => {
