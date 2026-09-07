@@ -1,6 +1,8 @@
 # RavenOS legal product inventory
 
 Status: engineering fact record for counsel review
+
+September 7, 2026 implementation addendum: `services/rewards-treasury/` now contains an isolated canonical Solana USDC claim service. It remains disabled and is not deployed by the public-site release. If activated, it processes the reserved claim ID, opaque Raven user ID, verified destination, amount, treasury address, constructed transaction, signed wire, provider response outcome and public transaction signature. Privy receives a treasury signing request; the service receives only treasury authorization credentials, never customer spend keys. Its append-only claim history is represented by the existing reward ledger, with a separate durable submission outbox and daily treasury budget. A transaction memo contains an opaque claim reference to prevent duplicate economic claims from collapsing into one signature. No balance or private key is published to Community. Before activation, review payout funding, treasury key scope, provider-side limits, failed/expired claim resolution, record retention and public-chain claim disclosure. Unit and workerd tests use test-only keys and intercept all provider traffic.
 Audited: 2026-09-05
 Repository baseline: `00dcc7130` on `codex/community-wallet-growth-20260904`
 
