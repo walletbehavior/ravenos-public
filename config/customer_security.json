@@ -233,6 +233,9 @@
     "minimum_entropy_bits": 256,
     "idle_timeout_seconds": 1800,
     "absolute_timeout_seconds": 43200,
+    "remembered_session_seconds": 2592000,
+    "remember_device_default": false,
+    "remembered_session_fixed_expiry": true,
     "recent_reauthentication_seconds": 300,
     "browser_storage_tokens_permitted": false
   },

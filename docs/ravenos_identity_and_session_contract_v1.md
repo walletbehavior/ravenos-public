@@ -99,7 +99,13 @@ Set-Cookie: __Host-ravenos_session=<opaque>; Secure; HttpOnly; SameSite=Lax; Pat
 - Authenticated responses use `Cache-Control: no-store` and prevent shared-cache storage.
 - Logout invalidates server state before clearing the cookie and should clear appropriate authenticated-origin site data.
 
-Initial limits are 30 minutes idle, 12 hours absolute, and five minutes for recent reauthentication. A session that reaches either expiry is unusable even if its cookie remains.
+Default limits are 30 minutes idle, 12 hours absolute, and five minutes for recent reauthentication. An explicit “Remember this device” choice at authentication creates a session with a fixed 30-day expiry. The choice is bound to the one-time server auth state and stored on the resulting session; callback parameters and display preferences cannot extend it. Existing sessions retain their original expiry. A session that reaches either expiry is unusable even if its cookie remains. Remembering a device never refreshes `authenticated_at` or overrides protected-action authentication requirements. Signing out or revoking the session ends remembered access immediately.
+
+The Account session inventory identifies remembered sessions and their expiry. Session cookies remain opaque, host-only, Secure, HttpOnly and SameSite=Lax. Rotated CSRF cookies expire no later than the underlying session.
+
+Device presentation preferences use the bounded `ravenos:display-preferences:v1` local-storage record, with a 180-day TTL. Only allowlisted display enums and a returning-visitor boolean are accepted. They contain no identity, wallet address, balance, token, execution authority or legal assent. Account includes a narrow reset control; storage denial falls back to ordinary defaults. Explicit workspace URLs override saved display preferences. Market context, saved research and account settings keep their existing storage architecture.
+
+Legal acceptance remains in the existing append-only D1 ledger, matched to document version and content hash. Account can display current server receipts; the browser never auto-checks unaccepted terms. Ordinary sign-in does not require new-account assent. Functional preference storage is already covered by the current Privacy Policy; this change does not rewrite effective documents or invalidate existing receipts.
 
 ## Session lifecycle
 

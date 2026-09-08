@@ -1,6 +1,7 @@
 import { mountWalletBalances } from "./ravenos-wallet-balances.js";
 import { walletLaunchHref } from "./ravenos-wallet-connect.js";
 import { requestLegalAcceptance } from "./ravenos-legal-client.js";
+import { getPreference, setPreference, resetPreferences, accountReturnPath } from "./ravenos-preferences.js";
 
 const page = document.querySelector(".account-page");
 const authWorkspace = document.getElementById("accountAuthWorkspace");
@@ -26,13 +27,13 @@ const state = {
   config: null,
   session: null,
   csrf: "",
-  intent: "sign_up",
+  intent: getPreference("returning", false) ? "sign_in" : "sign_up",
   previewWallets: [],
   entitlements: null,
   referral: null,
   privy: { config: null, client: null, wallets: [] },
   pendingReferral: "",
-  legal: { manifest: null },
+  legal: { manifest: null, receiptsLoaded: false },
   browserWallet: { chain: null, address: null, provider: null, listenersBound: false },
 };
 
@@ -1237,6 +1238,9 @@ function sessionRowNode(session) {
   title.textContent = `${session.device_label}${session.current ? " · This session" : ""}`;
   const detail = document.createElement("span");
   detail.textContent = `${formatSeen(session.last_seen_at)} · ${String(session.authentication_strength || "managed").replaceAll("_", " ")}`;
+  if (session.remember_device && session.absolute_expires_at) {
+    detail.textContent += ` · Remembered until ${new Date(session.absolute_expires_at).toLocaleDateString()}`;
+  }
   copy.append(title, detail);
   const button = document.createElement("button");
   button.type = "button";
@@ -1256,6 +1260,7 @@ async function loadSessions() {
 }
 
 function renderAuthenticated(payload) {
+  setPreference("returning", true);
   state.session = payload;
   state.csrf = payload.csrf_token || "";
   page.dataset.accountState = "authenticated";
@@ -1270,6 +1275,35 @@ function renderAuthenticated(payload) {
   loadPortfolioPreviewCapability();
   loadReferralProgram();
   loadPrivyWallets();
+}
+
+async function loadLegalReceipts() {
+  if (state.legal.receiptsLoaded) return;
+  state.legal.receiptsLoaded = true;
+  const status = document.getElementById("accountLegalReceiptStatus");
+  const list = document.getElementById("accountLegalReceiptList");
+  try {
+    const { response, payload } = await getJson("/api/v1/legal/status?capability=account_creation");
+    if (!response.ok || !payload?.ok) throw new Error("unavailable");
+    const capability = payload.capabilities?.find(row => row.capability === "account_creation");
+    const documents = capability?.required_documents;
+    if (!Array.isArray(documents) || !documents.length) throw new Error("unavailable");
+    status.textContent = capability.satisfied
+      ? "Your current account terms are accepted. You do not need to accept them again when signing in."
+      : "You can still sign in. Any required updated terms will appear before the action they apply to.";
+    list.replaceChildren(...documents.map(({ document: doc, accepted }) => {
+      const item = document.createElement("li"), link = document.createElement("a"), detail = document.createElement("span");
+      // Only display document routes returned by the authenticated legal service.
+      if (["/terms/", "/privacy/"].includes(doc.canonical_path)) link.href = doc.canonical_path;
+      link.textContent = doc.title;
+      const receipt = payload.acceptances?.find(row => row.document_type === doc.document_type && row.document_version === doc.version && row.content_hash === doc.content_hash);
+      detail.textContent = ` · ${accepted ? "Accepted" : "Not accepted"} · ${doc.version}${receipt?.accepted_at ? ` · ${new Date(receipt.accepted_at).toLocaleDateString()}` : ""}`;
+      item.append(link, detail); return item;
+    }));
+  } catch {
+    state.legal.receiptsLoaded = false;
+    status.textContent = "Acceptance history is temporarily unavailable. Your sign-in is unaffected.";
+  }
 }
 
 async function saveUsername(event) {
@@ -1359,6 +1393,7 @@ async function submitAuth(form) {
   if (!state.config.on_authenticated_origin) {
     const canonical = new URL("/account/", state.config.canonical_origin);
     canonical.searchParams.set("intent", state.intent === "sign_in" ? "sign_in" : "sign_up");
+    canonical.searchParams.set("return_to", accountReturnPath(form.elements.return_to?.value));
     location.assign(canonical.toString());
     return;
   }
@@ -1381,6 +1416,8 @@ async function submitAuth(form) {
   authStatus.textContent = "Opening secure sign-in…";
   try {
     const values = Object.fromEntries(new FormData(form));
+    values.remember_device = state.config.session_policy?.remember_device_available === true
+      && document.getElementById("accountRememberDevice").checked;
     if (state.intent === "sign_up" && state.config.legal?.account_creation_acceptance_required) {
       values.acceptances = accountCreationAcceptances();
     }
@@ -1413,16 +1450,23 @@ async function initialize() {
   const suppliedReferral = referralCode(query.get("ref"));
   state.pendingReferral = suppliedReferral;
   const requestedIntent = query.get("intent");
-  if (requestedIntent === "sign_in") state.intent = "sign_in";
+  if (["sign_in", "sign_up"].includes(requestedIntent)) state.intent = requestedIntent;
   const requestedReturnTo = String(query.get("return_to") || "");
   const safeReturnTo = suppliedReferral
     ? `/account/?ref=${encodeURIComponent(suppliedReferral)}`
-    : /^(?:\/terminal\/|\/account\/copy\/|\/account\/intelligence\/)(?:\?[^#]*)?$/.test(requestedReturnTo)
-      ? requestedReturnTo
-      : "/account/";
+    : accountReturnPath(requestedReturnTo);
   document.querySelectorAll('.account-auth-actions input[name="return_to"]').forEach((input) => { input.value = safeReturnTo; });
   document.querySelectorAll("[data-account-intent]").forEach((button) => button.addEventListener("click", () => setIntent(button.dataset.accountIntent)));
   document.getElementById("accountLogout").addEventListener("click", logout);
+  document.getElementById("accountContinuity").addEventListener("toggle", event => {
+    if (event.currentTarget.open && state.session?.authenticated) loadLegalReceipts();
+  });
+  document.getElementById("accountResetPreferences").addEventListener("click", () => {
+    const cleared = resetPreferences();
+    document.getElementById("accountPreferenceStatus").textContent = cleared
+      ? "Display preferences cleared. Defaults return when you reload a workspace. Your session and accepted terms are unchanged."
+      : "This browser did not allow preference storage. Your session and accepted terms are unchanged.";
+  });
   document.getElementById("accountUsernameForm").addEventListener("submit", saveUsername);
   document.getElementById("accountConnectSolana").addEventListener("click", () => connectBrowserWallet("Solana"));
   document.getElementById("accountConnectEvm").addEventListener("click", () => connectBrowserWallet("EVM"));
@@ -1447,11 +1491,20 @@ async function initialize() {
     authStatus.dataset.tone = "error";
     authStatus.textContent = "Sign-in could not be completed. Nothing was connected or authorized; please try again.";
   }
-  if (authResult) history.replaceState({}, "", "/account/");
+  if (authResult) {
+    const cleaned = new URL(location.href); cleaned.searchParams.delete("auth");
+    history.replaceState({}, "", `${cleaned.pathname}${cleaned.search}${cleaned.hash}`);
+  }
 
   const { response, payload } = await getJson("/api/v1/auth/config");
   if (!response.ok || !payload) return renderActivationPending();
   state.config = payload;
+  document.getElementById("accountRememberDeviceChoice").hidden = payload.session_policy?.remember_device_available !== true;
+  document.getElementById("accountRememberDevice").checked = false;
+  const rememberDays = payload.session_policy?.remembered_device_days;
+  if (Number.isSafeInteger(rememberDays) && rememberDays > 0) {
+    setText("accountRememberDeviceLabel", `Remember this device for up to ${rememberDays} days`);
+  }
   if (!payload.available) return renderActivationPending();
   page.dataset.accountState = "available";
   serviceState.textContent = state.intent === "sign_up" ? "Ready to create your account" : "Ready to sign in";

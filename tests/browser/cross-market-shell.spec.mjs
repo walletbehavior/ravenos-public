@@ -34,6 +34,22 @@ const markets = [
   },
 ];
 
+test("Discover restores display preferences without crossing into wallet or execution state", async ({ page }) => {
+  await mockWorkspaceApis(page, { withSpot: true });
+  await page.goto('/discover/');
+  await page.locator('[data-discover-filter="spot"]').click();
+  await page.locator('[data-spot-chain="solana"]').click();
+  await page.locator('[data-spot-timeframe="1h"]').click();
+  await page.locator('[data-spot-sort="activity"]').click();
+  await page.reload();
+  await page.locator('[data-discover-filter="spot"]').click();
+  for (const [attribute,value] of [['chain','solana'],['timeframe','1h'],['sort','activity']]) {
+    await expect(page.locator(`[data-spot-${attribute}="${value}"]`)).toHaveAttribute('aria-pressed','true');
+  }
+  const preferences=await page.evaluate(()=>JSON.parse(localStorage.getItem('ravenos:display-preferences:v1')).values);
+  expect(preferences.discoverChain).toBe('solana');expect(preferences.balanceNetwork).toBeUndefined();expect(preferences.walletChain).toBeUndefined();
+});
+
 function quietLaunchpadRow(source, symbol, lifecycle) {
   const row = structuredClone(source);
   row.symbol = symbol;

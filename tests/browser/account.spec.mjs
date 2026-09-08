@@ -10,6 +10,7 @@ function configPayload(origin, { authenticatedOrigin = true } = {}) {
     current_origin: origin,
     on_authenticated_origin: authenticatedOrigin,
     methods: { google: true, email: true, password: true, magic_auth: true, passkey: false },
+    session_policy: { remember_device_available: true, remember_device_default: false, remembered_device_days: 30 },
     account_model: {
       principal: "ravenos_account",
       wallet_connection_is_sign_in: false,
@@ -75,7 +76,7 @@ test("account actions create state on the authenticated origin before navigating
   expect(startRequest).toEqual({
     method: "POST",
     contentType: "application/json",
-    body: { intent: "sign_in", provider: "managed", return_to: "/account/" },
+    body: { intent: "sign_in", provider: "managed", return_to: "/account/", remember_device: false },
   });
   expect(page.url()).not.toContain("return_to");
   expect(page.url()).not.toContain("email");
@@ -112,7 +113,7 @@ test("account creation requires unchecked exact-version legal assent while sign-
   await page.route("https://api.workos.com/**", (route) => route.fulfill({ status: 200, contentType: "text/html", body: "<!doctype html><title>Managed sign-up</title>" }));
 
   await page.goto("/account/");
-  const assent = page.getByRole("checkbox");
+  const assent = page.locator("#accountLegalAssentCheckbox");
   await expect(assent).toBeVisible();
   await expect(assent).not.toBeChecked();
   await expect(page.locator('[data-legal-document="terms"]').first()).toHaveAttribute("href", "https://ravenos.xyz/legal/terms/");

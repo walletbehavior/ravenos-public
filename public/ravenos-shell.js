@@ -7,6 +7,7 @@ import {
   renderIntelligence,
 } from "/ravenos-intelligence-contract.js";
 import { ravenOSContext } from "/ravenos-context-store.js";
+import { setPreference } from "/ravenos-preferences.js";
 import { resolveChartCapability } from "/ravenos-chart-data-plane.js";
 import { resolveTradingViewChart } from "/ravenos-tradingview-adapter.js";
 
@@ -779,6 +780,7 @@ export function mountRavenOSShell(options = {}) {
   }
 
   function renderCustomerAccountState(next = {}) {
+    if (next.authenticated === true) setPreference("returning", true);
     const candidateUsername = String(next.username || "").trim().toLowerCase();
     const username = /^[a-z][a-z0-9_]{2,23}$/.test(candidateUsername) ? candidateUsername : "";
     customerAccountState = Object.freeze({

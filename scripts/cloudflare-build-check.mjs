@@ -27,6 +27,7 @@ const sourceAssets = [
   "ravenos-pro-intelligence.js",
   "ravenos-shell.css",
   "ravenos-shell.js",
+  "ravenos-preferences.js",
   "ravenos-context-store.js",
   "ravenos-intelligence-contract.js",
   "ravenos-chart-data-plane.js",

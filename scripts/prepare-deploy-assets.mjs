@@ -39,6 +39,7 @@ const runtimeAssets = [
   "ravenos-legal-client.js",
   "ravenos-wallet-connect.js",
   "ravenos-wallet-balances.js",
+  "ravenos-preferences.js",
   "ravenos-embedded-wallet-view.js",
   "ravenos-account.css",
   "ravenos-account.js",

@@ -1,4 +1,6 @@
 const API = "/api/v1/wallet-copy";
+import { getPreference, setPreference } from "./ravenos-preferences.js";
+
 const page = document.querySelector(".copy-page");
 const signIn = document.getElementById("copySignIn");
 const unavailable = document.getElementById("copyUnavailable");
@@ -37,7 +39,7 @@ const state = {
   copyability: [],
   saved: [],
   screener_request: 0,
-  screener: { chain: "all", page: 1, total_pages: 0, total: 0, wallets: [], preset: null, view: null },
+  screener: { chain: getPreference("walletChain", "all"), page: 1, total_pages: 0, total: 0, wallets: [], preset: null, view: null },
   robinhood_intelligence: { activity: [], clusters: [], relationships: [] },
 };
 
@@ -935,7 +937,7 @@ function renderProfile(payload, { scroll = true, from_poll: fromPoll = false } =
   if (!fromPoll) {
     setText("copyProfileCopyAddress", "Copy address");
     document.getElementById("copyRavenEvidence").open = profileChain === "solana";
-    document.getElementById("copyOverviewPeriod").value = profile.trading_record || profile.source_performance?.windows ? "d30" : "all_available";
+    document.getElementById("copyOverviewPeriod").value = getPreference("walletPeriod", profile.trading_record || profile.source_performance?.windows ? "d30" : "all_available");
     document.getElementById("copyTokenSearch").value = "";
   }
   renderWalletRecord();
@@ -2199,6 +2201,7 @@ document.querySelectorAll("[data-screen-chain]").forEach((button) => button.addE
   const chain = button.dataset.screenChain;
   if (!new Set(["all", "solana", "robinhood", "base", "ethereum", "bsc"]).has(chain) || chain === state.screener.chain) return;
   state.screener.chain = chain;
+  setPreference("walletChain", chain);
   state.screener.page = 1;
   document.querySelectorAll("[data-screen-chain]").forEach((candidate) => candidate.setAttribute("aria-pressed", String(candidate.dataset.screenChain === chain)));
   syncScreenerUrl();
@@ -2236,7 +2239,10 @@ for (const id of ["copySavedChain", "copySavedSearch"]) document.getElementById(
 document.getElementById("copySavedRetry").addEventListener("click", loadSavedResearch);
 
 // Period changes and token filtering operate entirely on the current cached snapshot.
-document.getElementById("copyOverviewPeriod").addEventListener("change", renderWalletRecord);
+document.getElementById("copyOverviewPeriod").addEventListener("change", event => {
+  setPreference("walletPeriod", event.currentTarget.value);
+  renderWalletRecord();
+});
 document.getElementById("copyTokenSearch").addEventListener("input", renderWalletRecord);
 document.getElementById("copyProfileCopyAddress").addEventListener("click", async event => {
   if (!state.address) return;

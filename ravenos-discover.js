@@ -10,6 +10,7 @@ import {
   validateAttentionBenchmark,
 } from "/ravenos-discover-intelligence.js";
 import { mountTradingViewListedTape } from "/ravenos-tradingview-adapter.js";
+import { getPreference, setPreference } from "/ravenos-preferences.js";
 
 const REFRESH_MS = 45 * 1_000;
 const MARKET_TAPE_REFRESH_MS = 20 * 1_000;
@@ -83,10 +84,10 @@ const state = {
   spotVisibleTokenCount: 0,
   spotVisibleExactMarketCount: 0,
   spotShowSameSymbolContracts: false,
-  spotTimeframe: "5m",
-  spotSort: "velocity",
+  spotTimeframe: getPreference("discoverTimeframe", "5m"),
+  spotSort: getPreference("discoverSort", "velocity"),
   spotEmergingFirst: true,
-  spotChain: "all",
+  spotChain: getPreference("discoverChain", "all"),
   spotLane: "all",
   spotCohort: "all",
   spotAssetFilter: "all",
@@ -2534,6 +2535,7 @@ function renderSpotTokenTape({ forceOrder = false } = {}) {
       reset.type = "button";
       reset.addEventListener("click", () => {
         state.spotChain = "all";
+        setPreference("discoverChain", "all");
         renderSpotPulse(state.spotRows, { forceOrder: true });
       });
     }
@@ -3642,11 +3644,13 @@ function bind() {
   }));
   document.querySelectorAll("[data-spot-timeframe]").forEach((button) => button.addEventListener("click", () => {
     state.spotTimeframe = button.dataset.spotTimeframe;
+    setPreference("discoverTimeframe", state.spotTimeframe);
     renderSpotPulse(state.spotRows, { forceOrder: true });
     void refresh({ manual: true });
   }));
   document.querySelectorAll("[data-spot-sort]").forEach((button) => button.addEventListener("click", () => {
     state.spotSort = button.dataset.spotSort;
+    setPreference("discoverSort", state.spotSort);
     state.spotDegenOpen = degenMarketCapFilterActive() || state.spotRevivalOnly;
     renderSpotPulse(state.spotRows, { forceOrder: true });
   }));
@@ -3662,6 +3666,7 @@ function bind() {
   });
   document.querySelectorAll("[data-spot-chain]").forEach((button) => button.addEventListener("click", () => {
     state.spotChain = button.dataset.spotChain;
+    setPreference("discoverChain", state.spotChain);
     renderSpotPulse(state.spotRows, { forceOrder: true });
   }));
   document.querySelectorAll("[data-spot-lane]").forEach((button) => button.addEventListener("click", () => {

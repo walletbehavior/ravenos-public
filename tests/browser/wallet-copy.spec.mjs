@@ -1066,6 +1066,19 @@ test("Pro discovery filter values survive reload and use the selected chain", as
   await expect(page.locator('[data-discovery-field="trades_1d"]')).toHaveValue("8");
 });
 
+test("wallet chain preference survives a fresh visit and an explicit shared URL overrides it", async ({ page }) => {
+  const shared = { requests: [] };
+  await install(page, shared);
+  await page.goto('/account/copy/');
+  await page.locator('[data-screen-chain="base"]').click();
+  await page.goto('/account/copy/');
+  await expect(page.locator('[data-screen-chain="base"]')).toHaveAttribute('aria-pressed', 'true');
+  await page.goto('/account/copy/?chain=solana');
+  await expect(page.locator('[data-screen-chain="solana"]')).toHaveAttribute('aria-pressed', 'true');
+  await page.goto('/account/copy/');
+  await expect(page.locator('[data-screen-chain="base"]')).toHaveAttribute('aria-pressed', 'true');
+});
+
 test("wallet discovery and copy setup remain readable on mobile", async ({ page }) => {
   const shared = { requests: [] };
   await install(page, shared);

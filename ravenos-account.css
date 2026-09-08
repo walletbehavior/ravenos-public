@@ -38,6 +38,15 @@
 .account-auth-assent input { width: 16px; height: 16px; margin: 1px 0 0; accent-color: var(--ws-positive); }
 .account-auth-assent:focus-within { border-color: var(--ws-border-strong); }
 .account-auth-assent a { color: var(--ws-text); text-decoration: underline; text-underline-offset: 2px; }
+.account-continuity-panel { border: 1px solid var(--ws-border); border-radius: 8px; color: var(--ws-muted); font-size: 13px; line-height: 1.6; }
+.account-continuity-panel summary { padding: 14px 18px; cursor: pointer; color: var(--ws-text); font-weight: 600; }
+.account-continuity-panel > div { padding: 0 18px 18px; }
+.account-continuity-panel h3 { margin: 20px 0 8px; color: var(--ws-text); font-size: 14px; }
+.account-continuity-panel a { color: var(--ws-text); text-decoration: underline; text-underline-offset: 3px; }
+.account-continuity-panel ul { padding-left: 18px; overflow-wrap: anywhere; }
+.account-continuity-panel button { min-height: 40px; padding: 8px 12px; border: 1px solid var(--ws-border); border-radius: 6px; background: rgba(18, 28, 39, .8); color: var(--ws-text); font: inherit; cursor: pointer; }
+.account-continuity-panel button:hover { border-color: var(--ws-positive); }
+.account-continuity-panel button:focus-visible { outline: 2px solid var(--ws-positive); outline-offset: 3px; }
 .account-auth-legal { margin-top: -2px; color: var(--ws-dim); font: 10px/1.55 var(--ws-mono); }
 .account-auth-legal a { color: var(--ws-muted); text-decoration: underline; text-underline-offset: 2px; }
 .account-auth-legal a:hover { color: var(--ws-text); }

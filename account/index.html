@@ -36,6 +36,10 @@
         </div>
 
         <div class="account-auth-actions" id="accountAuthActions" hidden>
+          <label class="account-auth-assent" id="accountRememberDeviceChoice" hidden>
+            <input id="accountRememberDevice" type="checkbox" autocomplete="off" />
+            <span><strong id="accountRememberDeviceLabel">Remember this device</strong><br />Use on a device you trust. Sign out to end access.</span>
+          </label>
           <form id="accountGoogleForm" method="post" action="/api/v1/auth/start">
             <input type="hidden" name="intent" value="sign_up" />
             <input type="hidden" name="provider" value="google" />
@@ -53,7 +57,7 @@
             <input id="accountLegalAssentCheckbox" type="checkbox" />
             <span>I agree to the <a data-legal-document="terms" href="https://ravenos.xyz/terms/" target="_blank" rel="noopener">Terms of Service</a> and acknowledge the <a data-legal-document="privacy" href="https://ravenos.xyz/privacy/" target="_blank" rel="noopener">Privacy Policy</a>.</span>
           </label>
-          <p class="account-auth-status" id="accountAuthStatus" aria-live="polite">Wallet disconnected.</p>
+          <p class="account-auth-status" id="accountAuthStatus" aria-live="polite"></p>
           <p class="account-auth-legal">Review the <a data-legal-document="terms" href="https://ravenos.xyz/terms/">Terms</a>, <a data-legal-document="privacy" href="https://ravenos.xyz/privacy/">Privacy Policy</a>, and <a href="https://ravenos.xyz/legal/">legal disclosures</a>.</p>
         </div>
 
@@ -86,6 +90,17 @@
           <div><span class="workspace-label">Signed in</span><h2 id="accountDisplayName">Raven user</h2><p id="accountEmail"></p></div>
           <button id="accountLogout" type="button">Sign out</button>
         </header>
+
+        <details class="account-continuity-panel" id="accountContinuity">
+          <summary>Preferences &amp; accepted terms</summary>
+          <div>
+            <p id="accountPreferenceStatus">Display preferences save on this browser.</p>
+            <button id="accountResetPreferences" type="button">Reset display preferences</button>
+            <h3>Accepted account terms</h3>
+            <p id="accountLegalReceiptStatus" role="status">Checking acceptance…</p>
+            <ul id="accountLegalReceiptList"></ul>
+          </div>
+        </details>
 
         <section class="account-username-panel" id="accountUsernamePanel" data-state="required">
           <header>

@@ -1,3 +1,4 @@
+import { getPreference, setPreference } from './ravenos-preferences.js';
 const labels={solana:'Solana',base:'Base',ethereum:'Ethereum',robinhood:'Robinhood',bsc:'BNB Chain'};
 const node=(tag,text,className)=>{const el=document.createElement(tag);if(text)el.textContent=text;if(className)el.className=className;return el;};
 const amount=value=>value===null||value===undefined?'Unavailable':String(value).replace(/(\.\d*?)0+$/,'$1').replace(/\.$/,'');
@@ -10,6 +11,7 @@ export function mountWalletBalances(target,{compact=false,getContext=null}={}) {
   const head=node('header'),title=node('strong','Buying power'),controls=node('div');
   const select=node('select');select.setAttribute('aria-label','Balance network');
   for(const [key,label]of Object.entries(labels)){const option=node('option',label);option.value=key;select.append(option);}
+  if(!getContext)select.value=getPreference('balanceNetwork','solana');
   const refresh=node('button','Refresh balances');refresh.type='button';
   controls.append(select,refresh);head.append(title,controls);
   const status=node('p','Loading your wallet balances…'),rows=node('div',null,'raven-wallet-balance-grid'),address=node('code'),note=node('p');
@@ -48,7 +50,7 @@ export function mountWalletBalances(target,{compact=false,getContext=null}={}) {
     }catch{if(version===generation){clear();status.textContent='Balance check unavailable. Refresh to try again; this does not mean your wallet is empty.';}}
     finally{if(version===generation){inFlight=false;refresh.disabled=false;}}
   }
-  select.addEventListener('change',()=>load(true));refresh.addEventListener('click',()=>load(true));
+  select.addEventListener('change',()=>{if(!getContext)setPreference('balanceNetwork',select.value);load(true);});refresh.addEventListener('click',()=>load(true));
   const visible=()=>{if(document.visibilityState==='visible')load();};
   document.addEventListener('visibilitychange',visible);
   window.addEventListener('focus',visible);

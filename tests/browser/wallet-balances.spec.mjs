@@ -18,3 +18,15 @@ test('spot ticket shows own SOL and USDC before quote without signing or creatin
  await page.goto('/terminal/?instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&token_address=fixture-token-address&quote_address=fixture-quote-address&panel=trade');
  await waitForTerminalLive(page,{lane:'spot',instrument:'JUP/USDC',timeframe:'1h'});await expect(page.locator('#terminalWalletFunds')).toContainText('0.150197288');await expect(page.locator('#terminalWalletFunds')).toContainText('Connect this wallet');expect(posts.filter(url=>/sign|send|execute|wallets\/privy/.test(url))).toEqual([]);
 });
+
+test('balance network survives reload but never overrides the exact trading network',async({page})=>{
+ await page.route('**/api/v1/wallets/balances?**',r=>{const chain=new URL(r.request().url()).searchParams.get('chain');return r.fulfill({json:{...payload,snapshot:{...payload.snapshot,chain,address:chain==='solana'?address:'0x1111111111111111111111111111111111111111'}}});});
+ await page.goto('/portfolio/');const selector=page.getByRole('combobox',{name:'Balance network'});
+ await selector.selectOption('base');await page.reload();await expect(selector).toHaveValue('base');
+ const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('ravenos:display-preferences:v1')));
+ expect(saved.values.balanceNetwork).toBe('base');expect(JSON.stringify(saved)).not.toContain('0x111');expect(JSON.stringify(saved)).not.toContain('0.150');
+ await mockTerminalLiveApis(page,{spotQuotePreview:true});
+ await page.goto('/terminal/?instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&token_address=fixture-token-address&quote_address=fixture-quote-address&panel=trade');
+ await waitForTerminalLive(page,{lane:'spot',instrument:'JUP/USDC',timeframe:'1h'});
+ await expect(page.locator('#terminalWalletFunds select')).toHaveValue('solana');await expect(page.locator('#terminalWalletFunds select')).toBeDisabled();
+});

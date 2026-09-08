@@ -5,6 +5,8 @@ import test from "node:test";
 
 import {
   CustomerIdentityContract,
+  authorizeCustomerApiRequest,
+  createD1CustomerIdentityStore,
   customerIdentityConfigured,
   normalizeRavenUsername,
   publicCustomerIdentityConfig,
@@ -220,6 +222,8 @@ async function startJsonFlow(store, {
   acceptances = undefined,
   env = configuredEnv(),
   documents = undefined,
+  rememberDevice = undefined,
+  returnTo = "/account/",
 } = {}) {
   return routeCustomerIdentity(request("/api/v1/auth/start", {
     method: "POST",
@@ -229,7 +233,7 @@ async function startJsonFlow(store, {
       "content-type": "application/json",
       "cf-connecting-ip": "203.0.113.4",
     },
-    body: JSON.stringify({ provider, intent, return_to: "/account/", ...(acceptances ? { acceptances } : {}) }),
+    body: JSON.stringify({ provider, intent, return_to: returnTo, remember_device: rememberDevice, ...(acceptances ? { acceptances } : {}) }),
   }), env, { store, nowMs: NOW_MS, ...(documents ? { documents } : {}) });
 }
 
@@ -276,6 +280,100 @@ test("managed account configuration is fail closed and keeps wallets separate", 
   assert.equal(CustomerIdentityContract.idle_timeout_seconds, 1800);
   assert.equal(CustomerIdentityContract.absolute_timeout_seconds, 43200);
   assert.equal(CustomerIdentityContract.wallet_connection_is_authentication, false);
+});
+
+test("remembering a device is explicit, bounded and independent of account assent", async () => {
+  for (const value of ["true", "false", 1, null, {}, []]) {
+    const store = new MemoryIdentityStore();
+    const result = await startJsonFlow(store, { rememberDevice: value });
+    assert.equal(result.status, 400); assert.equal(store.authStates.size, 0);
+  }
+  const env = { ...configuredEnv(), RAVENOS_LEGAL_ACCEPTANCE_ENABLED: "1", RAVENOS_LEGAL_COUNSEL_APPROVED: "1" };
+  const missing = await startJsonFlow(new MemoryIdentityStore(), { env, documents: EFFECTIVE_LEGAL_DOCUMENTS, rememberDevice: true });
+  assert.equal(missing.status, 428);
+  const config = publicCustomerIdentityConfig(env, ORIGIN);
+  assert.equal(config.session_policy.remember_device_default, false);
+  assert.equal(config.session_policy.remembered_device_days, 30);
+});
+
+test("remembered session survives idle visits, has fixed expiry and cannot refresh recent-auth evidence", async () => {
+  const store = new MemoryIdentityStore();
+  const start = await startJsonFlow(store, { rememberDevice: true, returnTo: "/portfolio/?tab=capital#shielded-reserve" });
+  const callback = await finishFlow(store, start);
+  const target = new URL(callback.headers.get("location"));
+  assert.equal(target.pathname, "/portfolio/"); assert.equal(target.hash, "#shielded-reserve"); assert.equal(target.searchParams.get("auth"), "success");
+  const cookies = sessionCookies(callback), headers = { cookie: `__Host-ravenos_session=${cookies.session}; __Host-ravenos_csrf=${cookies.csrf}` };
+  const seconds = CustomerIdentityContract.remembered_session_seconds;
+  assert.equal(seconds, 30 * 86400);
+  assert.match(cookies.header, /Max-Age=2592000/); assert.match(cookies.header, /Secure; HttpOnly; SameSite=Lax/);
+  assert(!cookies.header.includes("Domain="));
+  const original = [...store.sessions.values()][0];
+  assert.equal(original.remember_device, 1);
+  for (const days of [1, 7, 29]) {
+    const nowMs = NOW_MS + days * 86400000;
+    const response = await routeCustomerIdentity(request("/api/v1/auth/session", { headers }), configuredEnv(), { store, nowMs });
+    const payload = await response.json();
+    assert.equal(payload.authenticated, true); assert.equal(payload.session.remember_device, true);
+    assert.equal(Date.parse(payload.session.absolute_expires_at) / 1000, original.absolute_expires_at);
+    const authorized = await authorizeCustomerApiRequest(request("/api/v1/account", { headers }), configuredEnv(), {store,nowMs});
+    assert.equal(authorized.principal.authenticated_at, NOW_MS / 1000 + 1);
+  }
+  // A new CSRF cookie is bounded to the existing session, not another 30 days.
+  const rotated = await routeCustomerIdentity(request("/api/v1/auth/session", { headers: { cookie: `__Host-ravenos_session=${cookies.session}` } }), configuredEnv(), {store,nowMs:NOW_MS+29*86400000});
+  assert.match(rotated.headers.get("set-cookie"), /Max-Age=86401;/);
+  const expired = await routeCustomerIdentity(request("/api/v1/auth/session", {headers}), configuredEnv(), {store,nowMs:NOW_MS+seconds*1000+1000});
+  assert.equal((await expired.json()).authenticated, false);
+  assert.equal(original.revocation_reason, "expired");
+});
+
+test("ordinary and legacy sessions retain 30-minute idle expiry; callback parameters cannot opt in", async () => {
+  const store = new MemoryIdentityStore();
+  const start = await startFlow(store);
+  const state = stateCookie(start);
+  const callback = await routeCustomerIdentity(request(`/api/v1/auth/callback?code=one_time&state=${state}&remember_device=true`, {
+    headers:{cookie:`__Host-ravenos_auth_state=${state}`},
+  }),configuredEnv(),{store,nowMs:NOW_MS+1000,fetchImpl:async()=>Response.json({user:{id:"user_fixture",email:"fixture@example.test",email_verified:true},authentication_method:"GoogleOAuth"})});
+  const cookies=sessionCookies(callback), row=[...store.sessions.values()][0];
+  assert.equal(row.remember_device,0); assert.equal(row.absolute_expires_at-row.authenticated_at,43200);
+  assert.match(cookies.header,/Max-Age=43200;/);
+  delete row.remember_device; // pre-migration / old-store record
+  const response=await routeCustomerIdentity(request("/api/v1/auth/session",{headers:{cookie:`__Host-ravenos_session=${cookies.session}`}}),configuredEnv(),{store,nowMs:NOW_MS+1801000});
+  assert.equal((await response.json()).authenticated,false);
+});
+
+test("remembered sessions still require fresh authentication to revoke other devices and sign-out revokes immediately", async () => {
+  const store=new MemoryIdentityStore();
+  const callback=await finishFlow(store,await startJsonFlow(store,{rememberDevice:true}));
+  const cookies=sessionCookies(callback), current=[...store.sessions.values()][0];
+  const other={...current,session_public_id:"sespub_other_device",session_verifier:"other-verifier"};store.sessions.set(other.session_verifier,other);
+  const headers={cookie:`__Host-ravenos_session=${cookies.session}; __Host-ravenos_csrf=${cookies.csrf}`,origin:ORIGIN,"sec-fetch-site":"same-origin","content-type":"application/json","x-ravenos-csrf":cookies.csrf};
+  const nowMs=NOW_MS+86400000;
+  const denied=await routeCustomerIdentity(request(`/api/v1/sessions/${other.session_public_id}`,{method:"DELETE",headers,body:"{}"}),configuredEnv(),{store,nowMs});
+  assert.equal(denied.status,403); assert.equal((await denied.json()).error,"recent_authentication_required");
+  const logout=await routeCustomerIdentity(request("/api/v1/auth/logout",{method:"POST",headers,body:"{}"}),configuredEnv(),{store,nowMs});
+  assert.equal(logout.status,200); assert.equal(current.revocation_reason,"logout"); assert.match(logout.headers.get("set-cookie"),/Max-Age=0/);
+  const reused=await routeCustomerIdentity(request("/api/v1/auth/session",{headers}),configuredEnv(),{store,nowMs:nowMs+1000});
+  assert.equal((await reused.json()).authenticated,false); assert.equal(other.revoked_at,null);
+});
+
+test("D1 remembered-device migration and auth-state/session round trip use persisted policy", async t => {
+  const database=new DatabaseSync(":memory:"); t.after(()=>database.close());
+  for(const file of ["0001_customer_identity.sql","0028_customer_username.sql","0033_customer_legal.sql"]) database.exec(readFileSync(`customer-migrations/${file}`,"utf8"));
+  database.exec("INSERT INTO ravenos_auth_states (state_hash,code_verifier,provider,intent,return_to,created_at,expires_at) VALUES ('legacy','verifier','google','sign_in','/account/',1,2)");
+  database.exec(readFileSync("customer-migrations/0043_remembered_devices.sql","utf8"));
+  assert.equal(database.prepare("SELECT remember_device FROM ravenos_auth_states WHERE state_hash='legacy'").get().remember_device,0);
+  const db={
+    prepare(sql){const statement=database.prepare(sql);let values=[];return {bind(...args){values=args;return this;},async first(){return statement.get(...values)||null;},async all(){return {results:statement.all(...values)};},async run(){const r=statement.run(...values);return {meta:{changes:Number(r.changes)}};}};},
+    async batch(statements){database.exec("BEGIN");try{const results=[];for(const s of statements)results.push(await s.run());database.exec("COMMIT");return results;}catch(e){database.exec("ROLLBACK");throw e;}}
+  };
+  const store=createD1CustomerIdentityStore(db);
+  const callback=await finishFlow(store,await startJsonFlow(store,{rememberDevice:true}));
+  assert.equal(new URL(callback.headers.get("location")).searchParams.get("auth"),"success");
+  const cookies=sessionCookies(callback);
+  const row=await store.findSession(await sha256(cookies.session));
+  assert.equal(row.remember_device,1); assert.equal(row.absolute_expires_at-row.authenticated_at,2592000);
+  assert.equal((await store.listSessions(row.user_id,row.authenticated_at))[0].remember_device,1);
+  assert.equal(database.prepare("SELECT remember_device, code_verifier FROM ravenos_auth_states WHERE state_hash != 'legacy'").get().code_verifier,"");
 });
 
 test("account creation records exact versioned legal assent while ordinary sign-in remains available", async () => {
