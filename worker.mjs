@@ -9,6 +9,8 @@ import { readProductAccess, expireProTrials } from "./lib/customer_pro.mjs";
 import { RAVEN_STANDARD_EXECUTION_FEE_BPS, RAVEN_PRO_CASHBACK_PERCENT, productFlags } from "./lib/customer_product.mjs";
 import { emergingDiscoverCandidate } from "./lib/discover_radar.mjs";
 import { loadSolanaWalletHoldings } from "./lib/customer_trade/solana_wallet_holdings.mjs";
+import { createSolanaTokenMetadataLoader } from "./lib/customer_trade/solana_token_metadata.mjs";
+const solanaWalletTokenMetadataCache = new Map();
 import { RAVEN_JUPITER_REFERRAL } from "./lib/customer_trade/jupiter_referral.mjs";
 import { normalizeHyperliquidPerps } from "./lib/ravenos_perps_intelligence.mjs";
 import {
@@ -11248,6 +11250,11 @@ async function routeApi(request, env, executionContext = null) {
   const walletCopyDependencies = {
     walletProvider: {
       loadHistory: (input) => loadBoundedSolanaWalletHistory(env, input),
+      loadTokenMetadata: createSolanaTokenMetadataLoader({ cache: solanaWalletTokenMetadataCache, rpc: (method, params) => {
+        const runtime = heliusWalletHistoryRuntime(env);
+        if (!runtime.enabled) throw new Error("wallet_metadata_unavailable");
+        return boundedSolanaTradeRpc(runtime.rpc_url, method, params, { timeoutMs: 3500, maxBytes: 1024 * 1024 });
+      } }),
       loadHoldings: ({ address, now }) => loadSolanaWalletHoldings({ address, now: new Date(now * 1000).toISOString(), rpc: (method, params) => {
         const rpcUrl = publicSolanaTradeRpcUrl(env);
         if (!rpcUrl) throw new Error("wallet_holdings_rpc_unavailable");

@@ -1135,6 +1135,33 @@ async function observedEvidenceFixture(page, queries) {
   });
 }
 
+test('legacy automatic saved labels render full wallets while custom labels stay intact', async ({page}) => {
+  const shared={requests:[],saved:[
+    {save_id:'sws_legacy',source_wallet_id:SOURCE_ID,list_name:'Research',label:`${WALLET.slice(0,6)}…${WALLET.slice(-6)}`,source_wallet:{chain:'solana',address:WALLET}},
+    {save_id:'sws_custom',source_wallet_id:EVM_SOURCE_ID,list_name:'Research',label:'My long-term research',source_wallet:{chain:'base',address:EVM_WALLET}}
+  ]};
+  await install(page,shared);await page.goto('/account/copy/');
+  await expect(page.locator('#copySavedWallets')).toContainText(WALLET);
+  await expect(page.locator('#copySavedWallets')).not.toContainText('…');
+  await expect(page.locator('#copySavedWallets')).toContainText('My long-term research');
+  await expect(page.locator('#copySavedWallets')).toContainText(EVM_WALLET);
+});
+
+test('Solana token metadata labels activity and marks without manufacturing unrealized profit', async ({page}) => {
+  const shared={requests:[]};await install(page,shared);
+  const enriched=profile();
+  enriched.token_metadata={rows:[{mint:TOKEN,symbol:'EXAMPLE',decimals:6}],price_cache_seconds:600};
+  enriched.holdings_snapshot={address:WALLET,chain:'solana',state:'available',observed_at:'2026-08-29T12:00:00Z',native:{amount:1},
+    provider_balance_summary:{visible_provider_mark_value_usd:'0.000202'},tokens:[{mint:TOKEN,symbol:'EXAMPLE',balance_display:'81',provider_mark_price_usd:'0.0000025',provider_mark_value_usd:'0.000202'}]};
+  await page.route('**/api/v1/wallet-copy/inspect',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,source_wallet_id:SOURCE_ID,profile:enriched,recent_events:[event()]})}));
+  await page.goto(`/account/copy/?wallet=${WALLET}&chain=solana`);
+  await expect(page.locator('#copyHoldingsTable')).toContainText('EXAMPLE');
+  await expect(page.locator('#copyHoldingsTable')).toContainText('$0.0000025');
+  await expect(page.locator('#copyHoldingsTable')).toContainText('Not reconstructed');
+  await expect(page.locator('#copyRecentEvents')).toContainText('81 EXAMPLE');
+  await expect(page.locator('#copyHoldingsScope')).toContainText('prices may lag 10 minutes');
+});
+
 test("observed-wallet context filters cached samples, links exact markets and stays contained on mobile", async ({page}) => {
   const shared={watch:null,decision:null,position:null,requests:[]},queries=[];
   await install(page,shared,{marketEvidence:true});await observedEvidenceFixture(page,queries);

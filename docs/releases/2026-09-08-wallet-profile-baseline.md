@@ -14,6 +14,12 @@ Legacy Solana snapshots acquire this read model from existing retained events at
 
 EVM observed transaction counts now count distinct retained transaction references instead of a hardcoded zero. A missing provider-wide transaction count is displayed as retained transfer coverage, not zero transactions. Holdings tables show only supplied balances and marks. No valuation, P&L or wallet-wide trade count is manufactured from transfer rows.
 
+Follow-up live verification found that old automatic saved-wallet labels still contained abbreviated addresses. Those labels now display the full address without rewriting saved history or changing custom research labels.
+
+Solana inspection also batches up to 64 unique held/recently traded mints through the existing Helius connection. The optional DAS enrichment returns sanitized token labels and available USD marks, matched by exact mint and token decimals. Token results and activity can use these labels, including tokens no longer held. Raw metadata URLs, images and descriptions are neither fetched nor exposed. Shared public-mint cache entries last ten minutes (one minute for missing records); persisted profiles reuse the facts without another request. Background history rebuilds preserve the original holdings and metadata observation dates.
+
+Mark valuations multiply integer token units by expanded decimal prices and round down to micro-USD only at the result. Symbols never establish asset trust. Missing marks, non-USD prices, mismatched decimals, unrelated assets and provider errors remain unknown. Visible marked value covers priced token rows only, excluding native balance and unpriced inventory; it is not executable buying power or unrealized profit. Price age limitations are visible beside the holdings. References: [Helius batch contract](https://www.helius.dev/docs/api-reference/das/getassetbatch), [price cache behavior](https://www.helius.dev/docs/das/get-nfts), [request credit schedule](https://www.helius.dev/docs/billing/credits).
+
 ## GMGN comparison and remaining data gaps
 
 Sources checked September 7, 2026 (local): [GMGN wallet detail documentation](https://docs.gmgn.ai/index/wallet-detail-page), [GMGN portfolio field reference](https://github.com/GMGNAI/gmgn-skills/blob/main/skills/gmgn-portfolio/SKILL.md), and the live [public wallet ranking](https://gmgn.ai/trade?chain=sol). The public ranking exposed balance, period P&L, win rate, buy/sell counts, outcome distribution and average holding duration. Opening an individual wallet required GMGN login; no account was created or linked for this comparison.
@@ -21,7 +27,7 @@ Sources checked September 7, 2026 (local): [GMGN wallet detail documentation](ht
 | Baseline | Raven implementation | Remaining gap |
 | --- | --- | --- |
 | Wallet identity / follow / Copy entry | Full address, explorer, private Save, existing Copy policy entry | Live automated Copy remains independently gated |
-| Holdings and activity | Balance/mark table and filterable retained events | Many Solana token rows lack symbol/price enrichment; EVM history is bounded |
+| Holdings and activity | Balance/mark table, batch Solana labels/available marks and filterable retained events | Price coverage is provider-dependent; EVM history is bounded |
 | Period P&L and trade statistics | Solana matched FIFO periods, buys/sells, costs, duration | EVM receipt-backed transfer scans are not full swap/cost-basis reconstruction |
 | Token realized results | Exact matched Solana settlement amounts | No universal starting-inventory reconstruction |
 | Unrealized and total marked P&L | Explicitly unavailable without reliable costs and valuation | Current token marks and cost-complete inventory reconciliation still required |

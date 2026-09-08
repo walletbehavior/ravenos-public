@@ -15,6 +15,7 @@ import { applyShadowCopyExitHistory } from "../lib/customer_trade/wallet_copy.mj
 import {
   CustomerWalletCopyContract,
   createD1CustomerWalletCopyStore,
+  persistSourceWalletProfile,
   resolveWalletCopyActivation,
   routeCustomerWalletCopy,
 } from "../lib/customer_wallet_copy.mjs";
@@ -608,6 +609,7 @@ test("repeat address lookup shares retained evidence across accounts without his
   const provider = {
     async loadHistory() { calls += 1; return { events: [walletEvent()] }; },
     async loadHoldings() { calls += 1; return { chain: "solana", address: WALLET, observed_at: new Date(NOW * 1000).toISOString(), state: "available", assets: [] }; },
+    async loadTokenMetadata({mints}) { calls += 1; assert(mints.includes(TOKEN)); return {schema_version:"ravenos.solana_token_metadata.v1",rows:[{mint:TOKEN,symbol:"EX",decimals:6,provider_mark_price_usd:null}]}; },
   };
   const lookup = () => request("/api/v1/wallet-copy/inspect", { method: "POST", body: { address: WALLET } });
   const first = await json(await routeCustomerWalletCopy(lookup(), env(), deps(store, provider)));
@@ -616,10 +618,14 @@ test("repeat address lookup shares retained evidence across accounts without his
   const cachedResponse = await routeCustomerWalletCopy(lookup(), env(), otherUser);
   assert.equal(cachedResponse.status, 200);
   const cached = await json(cachedResponse);
-  assert.equal(calls, 2);
+  assert.equal(calls, 3);
   assert.equal(cached.provider_request_performed, false);
   assert.equal(cached.evidence_mode, "retained_raven_index");
   assert.deepEqual(cached.profile.holdings_snapshot, first.profile.holdings_snapshot);
+  assert.deepEqual(cached.profile.token_metadata, first.profile.token_metadata);
+  const rebuilt = await persistSourceWalletProfile(store, first.source_wallet_id, NOW + 60);
+  assert.deepEqual(rebuilt.holdings_snapshot, first.profile.holdings_snapshot);
+  assert.deepEqual(rebuilt.token_metadata, first.profile.token_metadata);
   assert.equal(cached.freshness.current_balance_claimed, false);
   assert.equal(cached.freshness.observed_at, first.profile.generated_at);
 });

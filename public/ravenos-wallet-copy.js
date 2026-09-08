@@ -224,7 +224,7 @@ function exactAssetAmount(endpoint) {
   const whole = units / scale;
   const fraction = (units % scale).toString().padStart(decimals, "0").replace(/0+$/, "").slice(0, 6);
   const identity = String(endpoint.mint || endpoint.contract || endpoint.asset_id || "");
-  const asset = endpoint.symbol
+  const asset = endpoint.symbol || state.profile?.token_metadata?.rows?.find(token => token.mint === identity)?.symbol
     || (identity === SOLANA_USDC ? "USDC" : new Set([SOLANA_WRAPPED_NATIVE, "native_sol"]).has(identity) ? "SOL" : shortAddress(identity));
   return `${sign}${whole}${fraction ? `.${fraction}` : ""} ${asset}`;
 }
@@ -832,6 +832,7 @@ function renderWalletRecord() {
   const snapshot = profile.holdings_snapshot;
   const nativeAmount = snapshot?.native?.amount ?? native?.amount;
   const nativeSymbol = native?.symbol || (profile.source_wallet.chain === "bsc" ? "BNB" : profile.source_wallet.chain === "solana" ? "SOL" : "ETH");
+  const markedValue = (snapshot?.provider_balance_summary || profile.provider_balance_summary)?.visible_provider_mark_value_usd;
   const metrics = [
     fact("Realized P&L", recordPnl(row.realized_pnl)),
     fact("Return on matched cost", pct(row.roi_pct)),
@@ -840,7 +841,7 @@ function renderWalletRecord() {
     fact("Average hold · matched sells", humanDuration(row.average_hold_seconds)),
     fact("Matched sells", row.observations ?? "—"),
     fact("Native balance · last observed", nativeAmount == null ? "—" : `${decimal(nativeAmount)} ${nativeSymbol}`),
-    fact("Visible token value · provider marks", profile.provider_balance_summary?.visible_provider_mark_value_usd == null ? "—" : money(profile.provider_balance_summary.visible_provider_mark_value_usd)),
+    fact("Visible token value · provider marks", markedValue == null ? "—" : money(markedValue)),
     fact("Unrealized P&L", "Needs cost + current valuation"),
     fact("Average buy size", recordBasis(row.buy_notional_by_basis, "average")),
     fact("Total buy cost", recordBasis(row.buy_notional_by_basis, "total")),
@@ -862,7 +863,7 @@ function renderWalletRecord() {
     distribution.append(items);
   }
   const balances = snapshot ? snapshot.tokens || [] : profile.positions?.provider_reported_token_balances || [];
-  const symbolFor = mint => mint === SOLANA_USDC ? "USDC" : balances.find(token => (token.mint || token.contract) === mint)?.symbol;
+  const symbolFor = mint => mint === SOLANA_USDC ? "USDC" : balances.find(token => (token.mint || token.contract) === mint)?.symbol || profile.token_metadata?.rows?.find(token => token.mint === mint)?.symbol;
   const holdingRows = [...balances].sort((a,b) => (b.provider_mark_value_usd ?? -1) - (a.provider_mark_value_usd ?? -1)).map(token => [
     recordToken(token.mint || token.contract, token.symbol || symbolFor(token.mint)),
     token.balance_display ?? "—",
@@ -1054,6 +1055,7 @@ function renderProfile(payload, { scroll = true, from_poll: fromPoll = false } =
   const holdings = [];
   if (snapshot) {
     setText("copyHoldingsScope", `${chainLabel(profileChain)} · ${snapshot.state === "available" ? "Confirmed scan" : "Partial scan"} ${when(snapshot.observed_at)}`);
+    if (profile.token_metadata?.rows?.length) setText("copyHoldingsScope", `${chainLabel(profileChain)} · Balances ${when(snapshot.observed_at)} · Helius token labels and indicative marks; prices may lag 10 minutes. Marks are not exit quotes.`);
     if (snapshot.native) holdings.push(fact("SOL", `${decimal(snapshot.native.amount)} SOL`));
     for (const token of snapshot.tokens || []) if (token.mint === SOLANA_USDC) holdings.push(fact("USDC", `${token.balance_display} USDC`));
     if (snapshot.state !== "available") holdings.push(empty("Some balances unavailable", "One or more token programs could not be read."));
@@ -1523,9 +1525,10 @@ function savedResearchRow(save) {
   const label = document.createElement("strong");
   const address = document.createElement("small");
   list.textContent = save.list_name;
-  label.textContent = save.label;
   const short = walletAddress(save.source_wallet?.address);
-  address.textContent = save.label === short ? `${chainLabel(save.source_wallet?.chain)} · exact wallet` : `${short} · ${chainLabel(save.source_wallet?.chain)}`;
+  const legacyDefault = `${short.slice(0, 6)}…${short.slice(-6)}`;
+  label.textContent = !save.label || save.label === legacyDefault ? short : save.label;
+  address.textContent = label.textContent === short ? `${chainLabel(save.source_wallet?.chain)} · exact wallet` : `${short} · ${chainLabel(save.source_wallet?.chain)}`;
   identity.append(list, label, address);
   const actions = document.createElement("div");
   const open = document.createElement("button");
