@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  walletLookupFailureCode,
   EVM_WALLET_BASIC_PROFILE_SCHEMA,
   EVM_WALLET_LOOKUP_SCHEMA,
   inspectEvmWallet,
@@ -355,7 +356,9 @@ test('durable EVM profiles are reused across sessions and preserve unknown P&L',
  assert.equal(seen.total,0);
  const fallback=await inspectRetainedEvmWallet({...input,refresh:true},{store,db,now:now+601,lookup:async()=>{throw Error('provider_down')}});
  assert.equal(fallback.freshness.state,'retained_provider_unavailable');assert.equal(fallback.freshness.current_balance_claimed,false);assert.equal(fallback.profile.generated_at,first.profile.generated_at);
- assert(!JSON.stringify(fallback).includes(KEY));
+ assert(!JSON.stringify(fallback).includes(KEY));assert.equal(fallback.source.request_count,null);
+ const diagnostic=await inspectRetainedEvmWallet({...input,refresh:true},{store,db,now:now+1201,lookup:async()=>{const e=Error('secret');e.code='alchemy_wallet_transfer_page_invalid';throw e;}});
+ assert.equal(diagnostic.refresh_error_code,'alchemy_wallet_transfer_page_invalid');assert(!JSON.stringify(diagnostic).includes('secret'));
  assert.throws(()=>db.raw.exec("UPDATE ravenos_source_wallet_profiles SET profile_json='{}'"),/append_only/);
 });
 
@@ -430,4 +433,9 @@ test('Alchemy chain integrity failures cannot be hidden by the explorer fallback
     fetchImpl: async () => { calls++; return json({id: 1, result: '0x1'}); }
   }), /chain_mismatch/);
   assert.equal(calls, 1);
+});
+
+test('wallet lookup diagnostics contain only reviewed error codes',()=>{
+ assert.equal(walletLookupFailureCode({code:'alchemy_wallet_chain_mismatch',message:'https://provider/v2/secret'}),'alchemy_wallet_chain_mismatch');
+ assert.equal(walletLookupFailureCode({code:'secret',message:'secret'}),null);
 });
