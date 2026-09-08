@@ -40,4 +40,10 @@ This release improves the baseline and exposes more real data. It does **not** e
 
 Baseline: 57 targeted tests passed before edits. New coverage checks partial FIFO sells, exact rounding, period boundaries, transfer exclusion, SOL denomination, legacy cache enrichment, period/filter zero-provider behavior, full address rendering and mobile containment. The complete regression suite is run for release; production receipts are retained separately in workspace outputs.
 
-No migration, financial flag, pricing, subscription, cashback, affiliate or signing change. No funds moved. Universe collection stays at four markets per cycle and 48 reserved provider requests per hour. A production audit at 2026-09-08 01:48 UTC confirmed 9,196 observed source identities, five stored analyses, scheduled receipts and budget enforcement. Observed identities are not complete wallet histories.
+Migration `0041_wallet_profile_details.sql` adds bounded, immutable extended profile storage. No financial flag, pricing, subscription, cashback, affiliate or signing change. No funds moved. Universe collection stays at four markets per cycle and 48 reserved provider requests per hour. A production audit at 2026-09-08 01:48 UTC confirmed 9,196 observed source identities, five stored analyses, scheduled receipts and budget enforcement. Observed identities are not complete wallet histories.
+
+## Extended history storage
+
+Live refresh verification reproduced a profile persistence failure: 170 retained public events produced a 66,229-character analysis, exceeding the existing 65,536-character snapshot constraint. Migration 0041 preserves all existing snapshots and dependent Copy/research foreign keys. Larger analyses retain screener query fields inline and store the complete snapshot in a separate append-only row capped at 1 MiB. Both rows are inserted atomically before publishing the current-profile pointer. Reads return the full original analysis, while historical inline snapshots remain readable. No token records are removed to satisfy the old bound.
+
+All 1,449 server tests passed after this fix, including large-profile round trips, immutable/idempotent storage, intact screener fields, byte limits and rollback to the prior good snapshot after a failed detail write.
