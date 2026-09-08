@@ -1,3 +1,4 @@
+import { normalizeMarketScope, instrumentMarketScope, marketScopeFromSearch } from "./ravenos-market-scope.js";
 export const RAVENOS_CONTEXT_SCHEMA = "ravenos.context.v2";
 export const RAVENOS_CONTEXT_STORAGE_KEY = "ravenos:selected-context:v2";
 const LEGACY_CONTEXT_STORAGE_KEY = "ravenos:selected-context:v1";
@@ -55,6 +56,7 @@ function defaultContext() {
       quoteTokenAddress: "",
       poolAddress: "",
     },
+    marketScope: "memecoins",
     timeframe: "1h",
     workspace: "market-monitor",
     detectionId: null,
@@ -102,6 +104,7 @@ export function normalizeContext(value = {}) {
     ...row,
     schemaVersion: RAVENOS_CONTEXT_SCHEMA,
     subject: normalizeInstrumentSubject(row.subject || base.subject),
+    marketScope: normalizeMarketScope(row.marketScope, instrumentMarketScope(row.subject) || "memecoins"),
     timeframe: clean(row.timeframe, base.timeframe),
     workspace: clean(row.workspace, base.workspace),
     detectionId: clean(row.detectionId, "") || null,
@@ -120,11 +123,21 @@ function setPath(target, path, value) {
 export function contextFromSearch(search = "", seed = {}) {
   const context = normalizeContext(seed);
   const params = new URLSearchParams(search || "");
+  const incomingId = params.get("instrument_id") || params.get("subject_id");
+  // Never merge a new exact instrument with a previous chain/pool/settlement.
+  if ((incomingId && incomingId !== context.subject.id) || (params.has("asset") && params.get("asset") !== context.subject.label)) context.subject = defaultContext().subject;
   for (const [query, path] of Object.entries(QUERY_FIELDS)) {
     const value = params.get(query);
     if (value) setPath(context, path, value);
   }
   context.subject = normalizeInstrumentSubject(context.subject);
+  context.marketScope = marketScopeFromSearch(search, "", context.marketScope);
+  const subjectScope = instrumentMarketScope(context.subject);
+  if (subjectScope && subjectScope !== context.marketScope) {
+    context.subject = defaultContext().subject;
+    context.detectionId = null;
+    context.outcomeId = null;
+  }
   return context;
 }
 
@@ -132,6 +145,7 @@ export function contextSearchParams(contextValue, options = {}) {
   const context = normalizeContext(contextValue);
   const params = new URLSearchParams(options.search || "");
   const values = {
+    market_scope: context.marketScope,
     asset: context.subject.label === "No market selected" ? "" : context.subject.label,
     instrument_id: context.subject.id === "unselected" ? "" : context.subject.id,
     subject_id: context.subject.id === "unselected" ? "" : context.subject.id,
@@ -243,6 +257,8 @@ export function createRavenOSContextStore(options = {}) {
     } catch { stored = {}; }
   }
   let state = contextFromSearch(windowRef?.location?.search || "", stored);
+  const pathScope = marketScopeFromSearch(windowRef?.location?.search || "", windowRef?.location?.pathname || "", state.marketScope);
+  if (pathScope !== state.marketScope) state = contextFromSearch(`?market_scope=${pathScope}`, state);
 
   function persist() {
     if (!windowRef?.localStorage) return;
@@ -278,10 +294,16 @@ export function createRavenOSContextStore(options = {}) {
     const next = normalizeContext({
       ...state,
       ...patch,
+      marketScope: patch.marketScope || (incomingSubject ? instrumentMarketScope(incomingSubject) : null) || state.marketScope,
       subject: incomingSubject ? (replaceSubject ? incomingSubject : { ...state.subject, ...incomingSubject }) : state.subject,
       history: state.history,
       updatedAt: new Date().toISOString(),
     });
+    if (instrumentMarketScope(next.subject) && instrumentMarketScope(next.subject) !== next.marketScope) {
+      next.subject = defaultContext().subject;
+      next.detectionId = null;
+      next.outcomeId = null;
+    }
     if (!sameSubject(previous.subject, next.subject) && previous.subject.id !== "unselected") {
       next.history = [
         { subject: previous.subject, timeframe: previous.timeframe, workspace: previous.workspace, leftAt: next.updatedAt },
@@ -309,7 +331,12 @@ export function createRavenOSContextStore(options = {}) {
     const target = new URL(href, windowRef.location.origin);
     if (target.origin !== windowRef.location.origin) return href;
     const explicit = new URLSearchParams(target.search);
-    const contextual = contextSearchParams(state, { search: target.search });
+    const hasExactTarget = explicit.has("instrument_id") || explicit.has("subject_id");
+    const targetScope = marketScopeFromSearch(target.search, target.pathname, state.marketScope);
+    const targetContext = hasExactTarget || targetScope !== state.marketScope
+      ? { ...state, subject: defaultContext().subject, detectionId: null, outcomeId: null, marketScope: targetScope }
+      : state;
+    const contextual = contextSearchParams(targetContext, { search: target.search });
     for (const [key, value] of explicit.entries()) contextual.set(key, value);
     target.search = contextual.toString();
     return `${target.pathname}${target.search}${target.hash}`;
@@ -329,12 +356,18 @@ export function createRavenOSContextStore(options = {}) {
   function handleStorage(event) {
     if (event.key !== storageKey || !event.newValue) return;
     try {
-      state = normalizeContext(JSON.parse(event.newValue));
+      const incoming = normalizeContext(JSON.parse(event.newValue));
+      // Another tab must not switch this tab's market section or active instrument.
+      state = normalizeContext({ ...state, history: incoming.history });
       notify();
     } catch { /* ignore malformed cross-tab state */ }
   }
 
   windowRef?.addEventListener?.("storage", handleStorage);
+  windowRef?.addEventListener?.("popstate", () => {
+    state = contextFromSearch(windowRef.location.search, state);
+    persist(); notify();
+  });
   persist();
   return { getState, setContext, setSelection: setContext, clearSelection, subscribe, decorateHref, navigate, updateUrl };
 }

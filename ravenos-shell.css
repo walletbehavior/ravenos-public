@@ -16,7 +16,8 @@
   --ros-positive: #3fa675;
   --ros-negative: #cf5968;
   --ros-warning: #be9b58;
-  --ros-topbar-height: 52px;
+  --ros-topbar-height: 92px;
+  --ros-marketbar-height: 40px;
   --ros-mobile-nav-height: 58px;
   --ros-drawer-width: 390px;
   --ros-radius: 10px;
@@ -86,7 +87,7 @@ body.ros-shell-active button { cursor: pointer; }
   position: fixed;
   z-index: 1000;
   inset: 0 0 auto 0;
-  height: var(--ros-topbar-height);
+  height: calc(var(--ros-topbar-height) - var(--ros-marketbar-height));
   display: grid;
   grid-template-columns: 132px minmax(400px, 1fr) minmax(300px, 480px) 126px 92px 82px 42px;
   align-items: stretch;
@@ -619,7 +620,7 @@ body.ros-shell-active .layout { min-height: calc(100vh - var(--ros-topbar-height
 }
 
 @media (max-width: 760px), (orientation: landscape) and (max-height: 560px) and (max-width: 960px) {
-  :root { --ros-topbar-height: 54px; --ros-mobile-nav-height: 58px; }
+  :root { --ros-topbar-height: 94px; --ros-mobile-nav-height: 58px; }
   body.ros-shell-active {
     padding: var(--ros-topbar-height) 0 calc(var(--ros-mobile-nav-height) + env(safe-area-inset-bottom));
   }
@@ -735,3 +736,12 @@ body.ros-shell-active .layout { min-height: calc(100vh - var(--ros-topbar-height
 .raven-wallet-balances p,.raven-wallet-balances small{font-size:12px;line-height:1.5;color:#9cabb8}.raven-wallet-balances code{display:block;font-size:11px;white-space:normal;overflow-wrap:anywhere;margin:12px 0;color:#a2b3bd}
 .raven-wallet-balance-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:14px 0}.raven-wallet-balance-grid>div{min-width:0;padding:12px;background:#11252a;border-radius:8px}.raven-wallet-balance-grid span,.raven-wallet-balance-grid strong,.raven-wallet-balance-grid small{display:block;overflow-wrap:anywhere}.raven-wallet-balance-grid span{font-size:12px;color:#87afa2}.raven-wallet-balance-grid strong{font:600 22px/1.4 ui-monospace,monospace;color:#b0e3c9}.raven-wallet-balances a{color:#80d4ae;font-size:12px}.raven-wallet-balances.is-compact{padding:12px}.raven-wallet-balances.is-compact .raven-wallet-balance-grid strong{font-size:18px}
 @media(max-width:520px){.raven-wallet-balances{padding:14px}.raven-wallet-balances header{align-items:flex-start}.raven-wallet-balances header>div{width:100%}.raven-wallet-balance-grid strong{font-size:19px}}
+
+/* A persistent instrument-family boundary, shared by every workspace. */
+.ros-market-sections { position: fixed; z-index: 80; top: calc(var(--ros-topbar-height) - var(--ros-marketbar-height)); left: 0; right: 0; height: var(--ros-marketbar-height); display: flex; align-items: stretch; gap: 4px; padding: 0 12px; background: #0b1016; border-bottom: 1px solid var(--ros-line-strong); }
+.ros-market-sections a { display: flex; align-items: center; padding: 0 16px; color: var(--ros-muted); font-size: 12px; font-weight: 700; border-bottom: 2px solid transparent; white-space: nowrap; }
+.ros-market-sections a[aria-current="page"] { color: var(--ros-positive); border-color: var(--ros-positive); background: rgba(63,166,117,.08); }
+.ros-market-sections .ros-section-reads { margin-left: auto; gap: 8px; color: var(--ros-text); }
+.ros-search-scope { display: flex; gap: 12px; align-items: center; padding: 10px 18px; color: var(--ros-muted); font-size: 12px; }
+.ros-search-scope select { color: var(--ros-text); background: var(--ros-surface); border: 1px solid var(--ros-line-strong); border-radius: 6px; padding: 6px 10px; }
+@media(max-width: 560px) { .ros-market-sections { padding: 0 4px; gap: 0; } .ros-market-sections a { padding: 0 9px; font-size: 11px; } .ros-section-reads span { display: none; } }

@@ -7,7 +7,7 @@ async function waitForTerminal(page) {
 
 test("desktop shell wraps the Terminal without replacing the analytical workspace", async ({ page }) => {
   await mockTerminalLiveApis(page);
-  await page.goto("/terminal/");
+  await page.goto("/terminal/?market_scope=perps");
   await waitForTerminal(page);
 
   await expect(page.locator(".ros-topbar")).toBeVisible();
@@ -34,7 +34,7 @@ test("desktop shell wraps the Terminal without replacing the analytical workspac
 test("legacy Journal actions cannot escape the Terminal into old RavenOS pages", async ({ page }) => {
   await mockTerminalLiveApis(page);
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/terminal/");
+  await page.goto("/terminal/?market_scope=perps");
   await waitForTerminal(page);
   await expect(page.getByText("Journal", { exact: true })).toHaveCount(0);
   await expect(page.locator('.terminal-live a[href^="/replay"], .terminal-live a[href^="/outcomes"]')).toHaveCount(0);
@@ -45,7 +45,7 @@ test("legacy Journal actions cannot escape the Terminal into old RavenOS pages",
 
 test("selected market context survives navigation into an investigative route", async ({ page }) => {
   await mockTerminalLiveApis(page);
-  await page.goto("/terminal/");
+  await page.goto("/terminal/?market_scope=perps");
   await waitForTerminal(page);
   await selectUniversalInstrument(page, "BTC-PERP");
   await expect(page.locator("#rosContextSubject")).toHaveText("BTC-PERP");
@@ -92,7 +92,7 @@ test("an old current-projection timestamp is exposed as delayed rather than live
 test("mobile preserves terminal depth, context access, and narrow-screen containment", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await mockTerminalLiveApis(page);
-  await page.goto("/terminal/");
+  await page.goto("/terminal/?market_scope=perps");
   await waitForTerminal(page);
 
   await expect(page.locator(".ros-topbar")).toBeVisible();

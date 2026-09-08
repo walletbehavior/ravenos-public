@@ -14,7 +14,7 @@ test("linked comparison follows selection and independent comparison cannot chan
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await mockTerminalLiveApis(page);
-  await page.goto("/terminal/");
+  await page.goto("/terminal/?market_scope=perps");
   await waitForTerminalLive(page, { instrument: "SOL-PERP" });
   await workspace(page);
   await page.locator("#deskSplit").check();
@@ -70,7 +70,7 @@ test("named lists filter markets, quote rows populate, and saved workspaces rest
   page,
 }) => {
   await mockTerminalLiveApis(page);
-  await page.goto("/terminal/");
+  await page.goto("/terminal/?market_scope=perps");
   await waitForTerminalLive(page, { instrument: "SOL-PERP" });
   await selectUniversalInstrument(page, "BTC-PERP");
   await waitForTerminalLive(page, { instrument: "BTC-PERP" });
@@ -105,7 +105,7 @@ test("comparison failure does not replace primary evidence and refresh recovers"
   page,
 }) => {
   await mockTerminalLiveApis(page);
-  await page.goto("/terminal/");
+  await page.goto("/terminal/?market_scope=perps");
   await waitForTerminalLive(page, { instrument: "SOL-PERP" });
   await page.route("**/api/terminal/chart?**", (route) =>
     new URL(route.request().url()).searchParams.get("timeframe") === "4h"
@@ -140,7 +140,7 @@ test("loading state never presents a provider failure before the initial respons
     await pending;
     await route.fallback();
   });
-  await page.goto("/terminal/");
+  await page.goto("/terminal/?market_scope=perps");
   await expect(page.locator("#terminalChart [data-rpw-state]")).toHaveText(
     "Loading",
   );
@@ -157,7 +157,7 @@ test("market directory failure ends the loading state and provides recovery", as
   await page.route("**/api/hyperliquid/perps", (route) =>
     route.fulfill({ status: 503, json: { ok: false } }),
   );
-  await page.goto("/terminal/");
+  await page.goto("/terminal/?market_scope=perps");
   await expect(page.locator(".desk-feed-status")).toContainText(
     "Market connection failed",
   );

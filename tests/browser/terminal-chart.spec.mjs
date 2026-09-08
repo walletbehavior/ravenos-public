@@ -58,7 +58,7 @@ function boxesOverlap(left, right) {
 
 test("Terminal loads exact Hyperliquid facts, a real chart, and joined Raven context", async ({ page }) => {
   await mockTerminalLiveApis(page);
-  await page.goto("/terminal/");
+  await page.goto("/terminal/?market_scope=perps");
   await waitForTerminalLive(page, { lane: "perps", instrument: "SOL-PERP", timeframe: "1h" });
 
   await expect(page.locator("#terminalInstrument")).toHaveText("SOL-PERP");
@@ -144,7 +144,7 @@ test("Terminal loads exact Hyperliquid facts, a real chart, and joined Raven con
 
 test("Terminal exposes qualified TA marks without making Fibonacci chart clutter mandatory", async ({ page }) => {
   await mockTerminalLiveApis(page);
-  await page.goto("/terminal/");
+  await page.goto("/terminal/?market_scope=perps");
   await waitForTerminalLive(page, { lane: "perps", instrument: "SOL-PERP", timeframe: "1h" });
 
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.active_overlay_types || [])).toEqual(["technical-macd"]);
@@ -221,7 +221,7 @@ test("an exact Discover Raven observation survives a missing generic context joi
 
 test("Terminal adds a real public account ledger and selected-market position context", async ({ page }) => {
   await mockTerminalLiveApis(page);
-  await page.goto("/terminal/");
+  await page.goto("/terminal/?market_scope=perps");
   await waitForTerminalLive(page, { lane: "perps", instrument: "SOL-PERP" });
 
   await page.locator('[data-terminal-pane-button="account"]').click();
@@ -293,7 +293,7 @@ test("Terminal connects and locally disconnects a browser-wallet address without
     };
   }, HYPERLIQUID_ACCOUNT_ADDRESS);
   await mockTerminalLiveApis(page);
-  await page.goto("/terminal/");
+  await page.goto("/terminal/?market_scope=perps");
   await waitForTerminalLive(page, { lane: "perps", instrument: "SOL-PERP" });
 
   await expect(page.locator("#terminalWalletConnect")).toBeVisible();
@@ -333,7 +333,7 @@ test("Terminal connects and locally disconnects a browser-wallet address without
 
 test("normal browser wallet chooser surfaces popular external wallets without claiming a connection", async ({ page }) => {
   await mockTerminalLiveApis(page);
-  await page.goto("/terminal/");
+  await page.goto("/terminal/?market_scope=perps");
   await waitForTerminalLive(page, { lane: "perps", instrument: "SOL-PERP" });
 
   await page.locator("#terminalWalletConnect").click();
@@ -421,7 +421,7 @@ test("signed-in users can choose a Raven embedded EVM wallet without replacing e
     });
   });
   await mockTerminalLiveApis(page);
-  await page.goto("https://app.ravenos.xyz/terminal/");
+  await page.goto("https://app.ravenos.xyz/terminal/?market_scope=perps");
   await waitForTerminalLive(page, { lane: "perps", instrument: "SOL-PERP" });
 
   await page.locator("#terminalWalletConnect").click();
@@ -437,7 +437,7 @@ test("signed-in users can choose a Raven embedded EVM wallet without replacing e
 test("mobile Terminal keeps the Txns label across perp pane changes without horizontal overflow", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await mockTerminalLiveApis(page);
-  await page.goto("/terminal/");
+  await page.goto("/terminal/?market_scope=perps");
   await waitForTerminalLive(page, { lane: "perps", instrument: "SOL-PERP" });
 
   await expect(page.locator('[data-terminal-pane-button="chart"]')).toHaveAttribute("aria-pressed", "true");
@@ -479,7 +479,7 @@ test("mobile Terminal keeps the Txns label across perp pane changes without hori
 test("mobile Raven plan actions atomically reveal the exact chart, preserve its viewport, and stay synchronized", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await mockTerminalLiveApis(page, { includeContextPressureOverlay: true });
-  await page.goto("/terminal/?raven_overlays=pressure");
+  await page.goto("/terminal/?market_scope=perps&raven_overlays=pressure");
   await waitForTerminalLive(page, { lane: "perps", instrument: "SOL-PERP", timeframe: "1h" });
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.active_overlay_types || [])).toEqual(["pressure"]);
   const before = await page.evaluate(() => window.__RAVENOS_CHART_GEOMETRY__?.time_range);
@@ -542,7 +542,7 @@ test("mobile Raven plan actions atomically reveal the exact chart, preserve its 
 test("mobile marker inspection remains visible on Chart and Full evidence focuses the Raven detail", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await mockTerminalLiveApis(page);
-  await page.goto("/terminal/");
+  await page.goto("/terminal/?market_scope=perps");
   await waitForTerminalLive(page, { lane: "perps", instrument: "SOL-PERP" });
 
   await clickMarketInfoControl(page, "#terminalReadTrigger");
@@ -578,7 +578,7 @@ test("mobile marker inspection remains visible on Chart and Full evidence focuse
 
 test("an exact-instrument plan mismatch fails closed without chart overlays", async ({ page }) => {
   await mockTerminalLiveApis(page, { perpPlanIdentityMismatch: true });
-  await page.goto("/terminal/");
+  await page.goto("/terminal/?market_scope=perps");
   await waitForTerminalLive(page, { lane: "perps", instrument: "SOL-PERP" });
   await expect(page.locator("#terminalPlanSection")).toBeHidden();
   await expect(page.locator("#terminalAlphaStack")).not.toContainText("Trade path");
@@ -594,7 +594,7 @@ test("an exact-instrument plan mismatch fails closed without chart overlays", as
 
 test("stale Raven plan evidence fails closed while current market facts remain available", async ({ page }) => {
   await mockTerminalLiveApis(page, { stalePerpPlan: true });
-  await page.goto("/terminal/");
+  await page.goto("/terminal/?market_scope=perps");
   await waitForTerminalLive(page, { lane: "perps", instrument: "SOL-PERP" });
   await expect(page.locator("#terminalChart canvas").first()).toBeVisible();
   await expect(page.locator("#terminalPlanSection")).toBeHidden();
@@ -636,7 +636,7 @@ test("live chart connection status reaches the visible Terminal instead of remai
     window.WebSocket = TestWebSocket;
   });
   await mockTerminalLiveApis(page, { liveBars: true });
-  await page.goto("/terminal/");
+  await page.goto("/terminal/?market_scope=perps");
   await waitForTerminalLive(page, { instrument: "SOL-PERP" });
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_TERMINAL__?.getState?.().connectionState)).toBe("live");
   await expect(page.locator("#terminalChartStatus")).toContainText(/Live/i);
@@ -679,7 +679,7 @@ test("hidden Terminal pauses its shared live feed and resumes the exact market w
     window.WebSocket = TestWebSocket;
   });
   await mockTerminalLiveApis(page, { liveBars: true });
-  await page.goto("/terminal/");
+  await page.goto("/terminal/?market_scope=perps");
   await waitForTerminalLive(page, { instrument: "SOL-PERP" });
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_TERMINAL__?.getState?.().connectionState)).toBe("live");
   const identity = await page.locator("#terminalInstrumentMeta").textContent();
@@ -719,14 +719,14 @@ test("default market favors the newest matching Raven observation before histori
       },
     }),
   }));
-  await page.goto("/terminal/");
+  await page.goto("/terminal/?market_scope=perps");
   await waitForTerminalLive(page, { instrument: "BTC-PERP" });
   await expect(page.locator("#terminalInstrument")).toHaveText("BTC-PERP");
 });
 
 test("chart basics expose intervals, verified indicators, readable crosshair data, and focus mode", async ({ page }) => {
   const { calls } = await mockTerminalLiveApis(page);
-  await page.goto("/terminal/");
+  await page.goto("/terminal/?market_scope=perps");
   await waitForTerminalLive(page, { lane: "perps", instrument: "SOL-PERP", timeframe: "1h" });
 
   const chart = page.locator("#terminalChart .rpw");
@@ -810,7 +810,7 @@ test("chart basics expose intervals, verified indicators, readable crosshair dat
 test("mobile long hold shows a compact exact OHLCV card and clears it on release", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await mockTerminalLiveApis(page);
-  await page.goto("/terminal/");
+  await page.goto("/terminal/?market_scope=perps");
   await waitForTerminalLive(page, { lane: "perps", instrument: "SOL-PERP", timeframe: "1h" });
 
   const stage = page.locator("#terminalChart .rpw-stage");
@@ -849,7 +849,7 @@ test("mobile long hold shows a compact exact OHLCV card and clears it on release
 
 test("instrument and timeframe changes repaint the chart and exact context", async ({ page }) => {
   const { calls } = await mockTerminalLiveApis(page);
-  await page.goto("/terminal/");
+  await page.goto("/terminal/?market_scope=perps");
   await waitForTerminalLive(page, { instrument: "SOL-PERP", timeframe: "1h" });
   const initialHash = await chartHash(page);
 
@@ -864,7 +864,7 @@ test("instrument and timeframe changes repaint the chart and exact context", asy
   const timeframeHash = await chartHash(page);
   expect(timeframeHash).not.toBe(instrumentHash);
   expect(calls.some((call) => call.asset === "BTC-PERP" && call.timeframe === "4h")).toBe(true);
-  await expect(page).toHaveURL(/asset=BTC-PERP.*timeframe=4h/);
+  await expect(page).toHaveURL(url => url.searchParams.get("asset") === "BTC-PERP" && url.searchParams.get("timeframe") === "4h");
 });
 
 test("same-market timeframe reload keeps the verified chart and research context visible", async ({ page }) => {
@@ -872,7 +872,7 @@ test("same-market timeframe reload keeps the verified chart and research context
     chartDelayTimeframe: "4h",
     chartDelayMs: 1_200,
   });
-  await page.goto("/terminal/");
+  await page.goto("/terminal/?market_scope=perps");
   await waitForTerminalLive(page, { instrument: "SOL-PERP", timeframe: "1h" });
   await openExactSpotSearch(page, "JUP");
   await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1h" });
@@ -904,7 +904,7 @@ test("new-timeframe candles never inherit Raven markers from the prior timeframe
     chartEnrichmentDelayTimeframe: "4h",
     chartEnrichmentDelayMs: 1_200,
   });
-  await page.goto("/terminal/");
+  await page.goto("/terminal/?market_scope=perps");
   await waitForTerminalLive(page, { instrument: "SOL-PERP", timeframe: "1h" });
   await openExactSpotSearch(page, "JUP");
   await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1h" });
@@ -924,7 +924,7 @@ test("new-timeframe candles never inherit Raven markers from the prior timeframe
 
 test("failed same-market timeframe reload restores the last verified chart", async ({ page }) => {
   await mockTerminalLiveApis(page, { chartFailureTimeframe: "4h" });
-  await page.goto("/terminal/");
+  await page.goto("/terminal/?market_scope=perps");
   await waitForTerminalLive(page, { instrument: "SOL-PERP", timeframe: "1h" });
   const headline = await page.locator("#terminalReadHeadline").textContent();
   await page.evaluate(() => { window.__RAVENOS_TEST_PRIOR_CANVAS__ = document.querySelector("#terminalChart canvas"); });
@@ -1089,7 +1089,7 @@ test("spot search loads one exact pool and joins only its admitted current Raven
     });
   });
   const { calls, holderCalls } = await mockTerminalLiveApis(page);
-  await page.goto("/terminal/");
+  await page.goto("/terminal/?market_scope=perps");
   await waitForTerminalLive(page, { instrument: "SOL-PERP" });
   await openExactSpotSearch(page, "JUP");
   await expect(page.locator("#terminalSpotControl")).toBeHidden();
@@ -1171,7 +1171,7 @@ test("spot search loads one exact pool and joins only its admitted current Raven
   if (await page.locator("#terminalProjectLinksPopover").isVisible()) await page.locator("#terminalProjectLinksClose").click();
   await openMarketInfo(page);
   await expect(page.locator("#terminalMarketTools")).toBeVisible();
-  await expect(page.locator("#terminalQuickAddress")).toHaveText("fixtur…ddress");
+  await expect(page.locator("#terminalQuickAddress")).toHaveText("fixture-token-address");
   await expect(page.locator("#terminalQuickAddress")).toHaveAttribute("title", "fixture-token-address");
   await expect(page.locator("#terminalQuickLinks a")).toHaveCount(3);
   await expect(page.locator("#terminalQuickLinks")).toContainText("X ↗");
@@ -1286,7 +1286,7 @@ test("project links fail closed on a mismatched profile while exact-CA actions r
   await openMarketInfo(page);
   await expect(page.locator("#terminalMarketTools")).toBeVisible();
   await expect(page.locator("#terminalQuickLinks a")).toHaveCount(0);
-  await expect(page.locator("#terminalQuickAddress")).toHaveText("fixtur…ddress");
+  await expect(page.locator("#terminalQuickAddress")).toHaveText("fixture-token-address");
   await page.locator("#terminalQuickCopy").click();
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_TEST_COPIED_CA__)).toBe("fixture-token-address");
 });
@@ -1416,7 +1416,7 @@ test("Robinhood exact-token holders and valuation follow the live exact-pool tap
     spotTradePrice: 0.0006438,
     spotTradeDelayMs: 1_000,
   });
-  await page.goto("/terminal/");
+  await page.goto("/terminal/?market_scope=perps");
   await waitForTerminalLive(page, { instrument: "SOL-PERP" });
   await openExactSpotSearch(page, "RUNNER");
   await waitForTerminalLive(page, { lane: "spot", instrument: "RUNNER/WETH", timeframe: "1h" });
@@ -2116,7 +2116,7 @@ test("severe risk survives an early holder response and clears only for the next
 
 test("spot markets without matching Raven evidence keep useful anatomy and an actionable Raven state", async ({ page }) => {
   await mockTerminalLiveApis(page, { spotRavenContext: false });
-  await page.goto("/terminal/");
+  await page.goto("/terminal/?market_scope=perps");
   await waitForTerminalLive(page, { instrument: "SOL-PERP" });
   await openExactSpotSearch(page, "JUP");
   await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1h" });
@@ -2141,7 +2141,7 @@ test("spot markets without matching Raven evidence keep useful anatomy and an ac
 
 test("a quiet exact pool stays current without presenting an old candle as a site-wide delay", async ({ page }) => {
   await mockTerminalLiveApis(page, { quietSpot: true });
-  await page.goto("/terminal/");
+  await page.goto("/terminal/?market_scope=perps");
   await waitForTerminalLive(page);
   await openExactSpotSearch(page, "JUP");
   await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1h" });
@@ -2158,7 +2158,7 @@ test("a quiet exact pool stays current without presenting an old candle as a sit
 
 test("spot scope controls never cover the OHLCV candle inspector", async ({ page }) => {
   await mockTerminalLiveApis(page);
-  await page.goto("/terminal/");
+  await page.goto("/terminal/?market_scope=perps");
   await waitForTerminalLive(page, { instrument: "SOL-PERP" });
   await openExactSpotSearch(page, "JUP");
   await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1h" });
@@ -2183,16 +2183,18 @@ test("spot scope controls never cover the OHLCV candle inspector", async ({ page
 
 test("universal exact-market search dismisses on Escape and explicit close", async ({ page }) => {
   await mockTerminalLiveApis(page);
-  await page.goto("/terminal/");
+  await page.goto("/terminal/?market_scope=perps");
   await waitForTerminalLive(page, { instrument: "SOL-PERP" });
   await page.locator("#terminalInstrumentTrigger").click();
   const input = page.locator("#rosCommandInput");
   const palette = page.locator("#rosCommandPalette");
+  await page.locator("#rosSearchScope").selectOption("memecoins");
   await input.fill("JUP");
   await expect(page.locator(".ros-command-result.instrument").filter({ hasText: "JUP/USDC" })).toBeVisible();
   await input.press("Escape");
   await expect(palette).not.toBeVisible();
   await page.locator("#terminalInstrumentTrigger").click();
+  await page.locator("#rosSearchScope").selectOption("memecoins");
   await input.fill("JUP");
   await expect(page.locator(".ros-command-result.instrument").filter({ hasText: "JUP/USDC" })).toBeVisible();
   await page.locator("#rosCommandClose").click();
@@ -2201,7 +2203,7 @@ test("universal exact-market search dismisses on Escape and explicit close", asy
 
 test("exact-market order plan stays non-signing even when dormant route-review flags are enabled", async ({ page }) => {
   await mockTerminalLiveApis(page, { flagsEnabled: true });
-  await page.goto("/terminal/");
+  await page.goto("/terminal/?market_scope=perps");
   await waitForTerminalLive(page, { instrument: "SOL-PERP" });
   await expect(page.locator("#terminalTradeReviewSection")).toBeVisible();
   await expect(page.locator("#terminalQuoteState")).toHaveText("Current book");
@@ -2214,7 +2216,7 @@ test("exact-market order plan stays non-signing even when dormant route-review f
 
 test("Hyperliquid market plan recomputes exact direction, size, and margin without creating an order", async ({ page }) => {
   await mockTerminalLiveApis(page);
-  await page.goto("/terminal/");
+  await page.goto("/terminal/?market_scope=perps");
   await waitForTerminalLive(page, { instrument: "SOL-PERP" });
   await expect(page.locator("#terminalPreviewResult")).toBeVisible();
   await page.locator("#terminalPreviewNotional").fill("900");
@@ -2234,7 +2236,7 @@ test("Hyperliquid market plan recomputes exact direction, size, and margin witho
 
 test("limit, trigger, and bracket plans expose execution semantics without implying a fill", async ({ page }) => {
   await mockTerminalLiveApis(page);
-  await page.goto("/terminal/");
+  await page.goto("/terminal/?market_scope=perps");
   await waitForTerminalLive(page, { instrument: "SOL-PERP" });
 
   await page.getByRole("button", { name: "Limit", exact: true }).click();
@@ -2264,7 +2266,7 @@ test("limit, trigger, and bracket plans expose execution semantics without imply
 
 test("Raven research levels load into the ticket only after an explicit user action", async ({ page }) => {
   await mockTerminalLiveApis(page);
-  await page.goto("/terminal/");
+  await page.goto("/terminal/?market_scope=perps");
   await waitForTerminalLive(page, { instrument: "SOL-PERP" });
   await expect(page.locator("#terminalPreviewPrice")).toHaveValue("");
   await page.locator('[data-terminal-pane-button="raven"]').click();
@@ -2280,7 +2282,7 @@ test("Raven research levels load into the ticket only after an explicit user act
 
 test("Terminal ships no seeded market model or synthetic replay client", async ({ page }) => {
   await mockTerminalLiveApis(page);
-  await page.goto("/terminal/");
+  await page.goto("/terminal/?market_scope=perps");
   await waitForTerminalLive(page, { instrument: "SOL-PERP" });
   const source = await page.evaluate(() => fetch("/ravenos-terminal-live.js").then((response) => response.text()));
   expect(source).not.toMatch(/samplePrices|perpsInputVector|replayMatches|pressureComposition|Math\.random|May 2026 compression|Raven Paper Candidates|smart-wallet-distribution/i);
@@ -2291,7 +2293,7 @@ test("Terminal ships no seeded market model or synthetic replay client", async (
 
 test("repeated universal market selection leaves only the final exact instrument visible", async ({ page }) => {
   await mockTerminalLiveApis(page);
-  await page.goto("/terminal/");
+  await page.goto("/terminal/?market_scope=perps");
   await waitForTerminalLive(page, { instrument: "SOL-PERP" });
   const initialCanvasCount = await page.locator("#terminalChart canvas").count();
   await selectUniversalInstrument(page, "BTC-PERP");
@@ -2308,7 +2310,7 @@ test("repeated universal market selection leaves only the final exact instrument
 test("mobile Terminal keeps chart, context, and navigation inside the viewport", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await mockTerminalLiveApis(page);
-  await page.goto("/terminal/");
+  await page.goto("/terminal/?market_scope=perps");
   await waitForTerminalLive(page, { instrument: "SOL-PERP" });
   await expect(page.locator(".ros-mobile-nav")).toBeVisible();
   await expect(page.locator("#terminalChart canvas").first()).toBeVisible();
@@ -2336,7 +2338,7 @@ test("sparse 15m coverage explains the gap without filling missing history", asy
 test("mobile Raven overlay sheet closes after an available overlay is selected", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await mockTerminalLiveApis(page);
-  await page.goto("/terminal/");
+  await page.goto("/terminal/?market_scope=perps");
   await waitForTerminalLive(page, { instrument: "SOL-PERP" });
   await page.evaluate(() => {
     const host = document.createElement("div");
@@ -2366,7 +2368,7 @@ test("mobile Raven overlay sheet closes after an available overlay is selected",
 
 test("exact token lifecycle markers coexist with Raven overlays and survive a Raven risk block", async ({ page }) => {
   await mockTerminalLiveApis(page);
-  await page.goto("/terminal/");
+  await page.goto("/terminal/?market_scope=perps");
   await waitForTerminalLive(page, { instrument: "SOL-PERP" });
   await page.evaluate(() => {
     const host = document.createElement("div");
@@ -2444,7 +2446,7 @@ test("exact token lifecycle markers coexist with Raven overlays and survive a Ra
 
 test("selected context survives navigation to Discover", async ({ page }) => {
   await mockTerminalLiveApis(page);
-  await page.goto("/terminal/");
+  await page.goto("/terminal/?market_scope=perps");
   await waitForTerminalLive(page, { instrument: "SOL-PERP" });
   await selectUniversalInstrument(page, "BTC-PERP");
   await page.selectOption("#terminalChart [data-rpw-timeframe-select]", "4h");
@@ -2475,7 +2477,7 @@ test("primary navigation is coherent across workspace and static support surface
 
 test("market evidence stays compact, readable and consistent across desktop and mobile", async ({ page }, testInfo) => {
   await mockTerminalLiveApis(page, { spotTradePrice: 0.0006438, spotTradeDelayMs: 100, spotChartCurrent: true, spotChartPrice: 0.0006438 });
-  await page.goto("/terminal/");
+  await page.goto("/terminal/?market_scope=perps");
   await waitForTerminalLive(page, { instrument: "SOL-PERP" });
   await openExactSpotSearch(page, "RUNNER");
   await waitForTerminalLive(page, { lane: "spot", instrument: "RUNNER/WETH" });
@@ -2568,7 +2570,7 @@ test("existing Raven wallet connects when the signing service is unavailable", a
   });
   await mockTerminalLiveApis(page);
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("https://app.ravenos.xyz/terminal/");
+  await page.goto("https://app.ravenos.xyz/terminal/?market_scope=perps");
   await waitForTerminalLive(page, { lane: "perps", instrument: "SOL-PERP" });
 
   await page.locator("#terminalWalletConnect").click();

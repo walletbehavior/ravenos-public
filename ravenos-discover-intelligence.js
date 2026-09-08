@@ -1,3 +1,4 @@
+import { matchesMarketScope } from "./ravenos-market-scope.js";
 const clamp = (value, minimum = 0, maximum = 100) => Math.min(maximum, Math.max(minimum, value));
 
 function finite(value) {
@@ -634,7 +635,14 @@ function latestTimestamp(values = []) {
   return values.filter(Boolean).sort((left, right) => Date.parse(right) - Date.parse(left))[0] || null;
 }
 
-export function buildDeskFrame({ brief = null, markets = [], spotRows = [], opportunityRows = [], atlas = null, timeframe = "5m" } = {}) {
+export function buildDeskFrame({ brief = null, markets = [], spotRows = [], opportunityRows = [], atlas = null, timeframe = "5m", marketScope = null } = {}) {
+  if (marketScope) {
+    markets = marketScope === "perps" ? markets : [];
+    spotRows = marketScope === "memecoins" ? spotRows.filter(row => matchesMarketScope(row, "memecoins")) : [];
+    opportunityRows = opportunityRows.filter(row => matchesMarketScope(row, marketScope));
+    atlas = marketScope === "equities" ? atlas : null;
+    brief = brief?.market_scope === marketScope ? brief : null;
+  }
   const activePerps = markets.filter((row) => (
     finite(row.last_price ?? row.mark_price) > 0
     && finite(row.day_notional_volume_usd) > 0
@@ -746,7 +754,7 @@ export function buildDeskFrame({ brief = null, markets = [], spotRows = [], oppo
 
   const summary = cleanText(brief?.one_sentence_read)
     || (breadthShare !== null
-      ? `Perpetual breadth is ${breadthShare >= 0.58 ? "expanding" : breadthShare <= 0.42 ? "contracting" : "mixed"}; on-chain participation remains selective.`
+      ? `Perpetual breadth is ${breadthShare >= 0.58 ? "expanding" : breadthShare <= 0.42 ? "contracting" : "mixed"}${marketScope ? "." : "; on-chain participation remains selective."}`
       : eligibleSpot.length ? "On-chain participation is active, with flow quality varying by exact pool." : "");
   const signals = [
     cleanText(brief?.best_opportunity_surface || brief?.best_surface),

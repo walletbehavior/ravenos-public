@@ -173,6 +173,7 @@ for (const asset of [
   "ravenos-preferences.js",
   "ravenos-embedded-wallet-view.js",
   "ravenos-context-store.js",
+  "ravenos-market-scope.js",
   "ravenos-intelligence-contract.js",
   "ravenos-chart-data-plane.js",
   "ravenos-perps-workspace.css",

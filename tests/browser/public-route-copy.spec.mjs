@@ -1,5 +1,18 @@
 import { test, expect } from "@playwright/test";
 
+
+async function mockCurrentPerpReads(page) {
+  const generated_at = new Date().toISOString();
+  await page.route("**/api/opportunity**", route => route.fulfill({ json: {
+    census: { generated_at, source_state: "current", opportunities: { rows: [{
+      instrument: "SOL-PERP", instrument_id: "hyperliquid:perp:SOL", market_type: "perpetual",
+      identity_scope: "exact_instrument", venue: "hyperliquid", context_state: "current",
+      why_raven_noticed: "Independent evidence confirmed a change in pressure.",
+      source_join: { census_row_joined: true }, decision_at: generated_at,
+    }] } }, delivery: { source: "current_public_origin", freshness_state: "fresh", fallback: false },
+  } }));
+}
+
 async function visibleBodyText(page) {
   return page.evaluate(() => {
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
@@ -123,7 +136,7 @@ test("/perps/ renders a trader-facing live market workspace", async ({ page }) =
 });
 
 test("/terminal/ renders trader-facing primary copy", async ({ page }) => {
-  await page.goto("/terminal/");
+  await page.goto("/terminal/?market_scope=perps");
   await expect(page.locator("#terminalInstrumentTrigger")).toBeVisible();
   await expect(page.locator("#terminalModeSelect")).toBeHidden();
   await expect(page.locator("#terminalInstrument")).not.toHaveText("");
@@ -168,8 +181,9 @@ test("the quick guide and FAQ explain the customer workflow without release or e
 });
 
 test("/opportunity/ renders current exact markets without engineering inventory", async ({ page }) => {
-  await page.goto("/opportunity/");
-  await expect(page.locator("#routeHeadline")).toContainText(/^[A-Z0-9._-]+-PERP · /);
+  await mockCurrentPerpReads(page);
+  await page.goto("/opportunity/?market_scope=perps");
+  await expect(page.locator("#routeHeadline")).toHaveText("Perps Raven Reads");
   await expect(page.locator("#routeHeroSummary")).not.toContainText(/Raven froze|Raven preserved/i);
   await expect(page.locator("#routeHeroSummary")).toContainText(/Independent evidence confirmed|appeared/i);
   const primary = await page.locator("#routeHeadline, #routeHeroSummary, #routeStateStrip, #routePrimaryPanel, #routeSecondaryPanel").evaluateAll((nodes) => nodes.map((node) => node.innerText).join(" "));
@@ -264,7 +278,7 @@ test("plans remain legible and honest on a narrow mobile viewport", async ({ pag
 });
 
 test("Terminal keeps wallet context separate from customer access", async ({ page }) => {
-  await page.goto("/terminal/");
+  await page.goto("/terminal/?market_scope=perps");
   await expect(page.locator(".terminal-continuity, .ros-capability-status")).toHaveCount(0);
   await expect(page.locator("#terminalBoundary")).toContainText(/No order can be signed or sent/i);
   await expect(page.locator(".terminal-intelligence")).toContainText(/Order plan/i);
@@ -400,8 +414,9 @@ test("primary evidence strip uses trader-facing totals and window labels", async
 });
 
 test("opportunity identity stays exact and unsupported spot markets are not inferred", async ({ page }) => {
-  await page.goto("/opportunity/");
-  await expect(page.locator("#routeHeadline")).toContainText(/^[A-Z0-9._-]+-PERP · /);
+  await mockCurrentPerpReads(page);
+  await page.goto("/opportunity/?market_scope=perps");
+  await expect(page.locator("#routeHeadline")).toHaveText("Perps Raven Reads");
   const primary = await page.locator("#routeHeadline, #routeHeroSummary, #routeStateStrip, #routePrimaryPanel, #routeSecondaryPanel").evaluateAll((nodes) => nodes.map((node) => node.innerText).join(" "));
   expect(primary).toMatch(/Exact market required/i);
   expect(primary).not.toMatch(/Solana spot|EVM spot|aggregate coverage only/i);

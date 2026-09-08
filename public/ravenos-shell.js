@@ -1,3 +1,4 @@
+import { MARKET_SCOPES, matchesMarketScope, normalizeMarketScope } from "/ravenos-market-scope.js";
 import {
   RavenDataStateLabels,
   adaptLegacyNarrator,
@@ -285,6 +286,11 @@ function providerCreditMarkup() {
   return `<details class="ros-provider-credit"><summary aria-label="Data sources and attribution" title="Data sources and attribution"><img src="/assets/providers/dexpaprika-symbol.svg" alt="" width="24" height="24" /><span class="ros-provider-label" aria-hidden="true">Sources</span><span class="ros-provider-attribution">Data by DexPaprika, CoinGecko + Dexch</span></summary><section class="ros-provider-panel" aria-label="RavenOS data providers"><header><span>Data sources</span><strong>Market data behind RavenOS</strong><p>RavenOS combines market data, filings, and participant signals into one decision workspace.</p></header><div class="ros-provider-grid">${rows}</div><footer>Provider attribution describes data sources, not endorsement or partnership.</footer></section></details>`;
 }
 
+function marketSectionMarkup() {
+  const scope = ravenOSContext.getState().marketScope;
+  return `<nav class="ros-market-sections" aria-label="Market section">${Object.entries(MARKET_SCOPES).map(([key, label]) => `<a href="/discover/?market_scope=${key}" data-market-section="${key}" aria-current="${key === scope ? "page" : "false"}">${label}</a>`).join("")}<a class="ros-section-reads" data-section-reads href="/discover/?market_scope=${scope}&view=reads">Raven Reads <span>→</span></a></nav>`;
+}
+
 function createShellMarkup(slug) {
   return `
     <header class="ros-topbar" data-ros-shell data-freshness-visible="false" data-context-visible="false">
@@ -303,6 +309,7 @@ function createShellMarkup(slug) {
       ${providerCreditMarkup()}
       <button class="ros-profile-trigger" id="rosProfileTrigger" type="button" aria-label="Open account and settings">R</button>
     </header>
+    ${marketSectionMarkup()}
     <button class="ros-drawer-scrim" id="rosDrawerScrim" type="button" aria-label="Close open panel"></button>
     <aside class="ros-context-rail" id="rosContextRail" aria-label="Raven and Atlas intelligence">
       <header class="ros-context-header"><div><span>Selected instrument</span><strong id="rosContextSubject">No instrument selected</strong><small id="rosContextMeta">Search any supported market</small></div><button id="rosContextClose" type="button" aria-label="Close intelligence">Close</button></header>
@@ -322,6 +329,7 @@ function createShellMarkup(slug) {
     <dialog class="ros-command-palette" id="rosCommandPalette" aria-label="Universal market and wallet search">
       <div class="ros-command-head"><div><span>Universal search</span><strong>Search a market, token, pool, or public wallet.</strong></div><button type="button" id="rosCommandClose" aria-label="Close search">Close</button></div>
       <label class="ros-command-input-wrap" for="rosCommandInput"><span class="ros-search-icon" aria-hidden="true"></span><input id="rosCommandInput" type="search" autocomplete="off" spellcheck="false" placeholder="BTC, BONK, SPY, token, pool, or wallet address" /></label>
+      <label class="ros-search-scope">Search in <select id="rosSearchScope" aria-label="Search market section">${Object.entries(MARKET_SCOPES).map(([key, label]) => `<option value="${key}" ${key === ravenOSContext.getState().marketScope ? "selected" : ""}>${label}</option>`).join("")}<option value="all">All markets (explicit search)</option></select></label>
       <div class="ros-search-status" id="rosSearchStatus">Loading supported markets…</div>
       <div class="ros-command-results" id="rosCommandResults"></div>
       <footer><span>Exact identity</span><span>Recent markets stay on this browser</span><span>Research only</span></footer>
@@ -604,7 +612,7 @@ function rankSpotSearchRows(rows = [], query = "") {
 
 function utilityMarkup(kind, context) {
   if (kind === "watchlist") {
-    const history = recentMarketContexts(context, 10);
+    const history = recentMarketContexts(context, 50).filter(item => matchesMarketScope(item.subject, context.marketScope)).slice(0, 10);
     const recent = history.length
       ? `<div class="ros-utility-list">${history.map((item) => {
         const subject = item.subject || {};
@@ -666,6 +674,7 @@ export function mountRavenOSShell(options = {}) {
 
   let intelligence = createIntelligenceRecord({ subject: ravenOSContext.getState().subject });
   let capabilities = {};
+  let searchScope = ravenOSContext.getState().marketScope;
   let instrumentIndex = [];
   let instrumentSources = [];
   let searchReady = false;
@@ -680,8 +689,21 @@ export function mountRavenOSShell(options = {}) {
   const commandResults = document.getElementById("rosCommandResults");
   const searchStatus = document.getElementById("rosSearchStatus");
 
+  document.getElementById("rosSearchScope").addEventListener("change", event => {
+    searchScope = event.target.value === "all" ? "all" : normalizeMarketScope(event.target.value);
+    scheduleSpotSearch(commandInput.value);
+    renderCommands(commandInput.value);
+  });
+
   function renderContext(context = ravenOSContext.getState()) {
     const subject = context.subject;
+    document.body.dataset.marketScope = context.marketScope;
+    document.querySelectorAll("[data-market-section]").forEach(link => link.setAttribute("aria-current", link.dataset.marketSection === context.marketScope ? "page" : "false"));
+    const reads = document.querySelector("[data-section-reads]");
+    if (reads) { reads.href = `/discover/?market_scope=${context.marketScope}&view=reads`; reads.setAttribute("aria-label", `${MARKET_SCOPES[context.marketScope]} Raven Reads`); }
+    if (intelligence?.subject?.id !== "unselected" && !matchesMarketScope(intelligence.subject, context.marketScope) && intelligence?.presentation?.sectionScope !== context.marketScope) {
+      setIntelligence({ subject, presentation: { context: false, status: false } });
+    }
     const selected = subject.id !== "unselected";
     document.getElementById("rosContextSubject").textContent = selected ? subject.label : "No instrument selected";
     document.getElementById("rosContextMeta").textContent = selected
@@ -694,8 +716,13 @@ export function mountRavenOSShell(options = {}) {
   }
 
   function setIntelligence(next) {
-    const presentation = next?.presentation && typeof next.presentation === "object" ? next.presentation : {};
+    const presentation = next?.presentation && typeof next.presentation === "object" ? { ...next.presentation } : {};
     intelligence = next?.schemaVersion ? next : createIntelligenceRecord(next || {}, { subject: ravenOSContext.getState().subject });
+    const activeScope = ravenOSContext.getState().marketScope;
+    if (intelligence.subject?.id !== "unselected" && !matchesMarketScope(intelligence.subject, activeScope) && presentation.sectionScope !== activeScope) {
+      intelligence = createIntelligenceRecord({ subject: ravenOSContext.getState().subject });
+      presentation.context = false; presentation.status = false;
+    }
     const freshness = intelligence.freshness;
     const freshnessHost = document.getElementById("rosFreshness");
     const contextTrigger = document.getElementById("rosContextTrigger");
@@ -972,15 +999,17 @@ export function mountRavenOSShell(options = {}) {
     const walletResult = publicWalletCommandResult(clean);
     commandResults.replaceChildren();
     commandActiveIndex = -1;
-    const recent = clean ? [] : recentCommandResults();
+    const inSearchScope = item => searchScope === "all" || matchesMarketScope(item, searchScope);
+    const recent = clean ? [] : recentCommandResults().filter(inSearchScope);
     const recentIds = new Set(recent.map((item) => String(item.instrument_id || "").toLowerCase()));
     if (recent.length) appendCommandGroup("Recently viewed", recent, `${recent.length} on this browser`);
     const indexedInstruments = instrumentIndex
+      .filter(inSearchScope)
       .filter((item) => !normalized || [item.asset, item.label, item.symbol, item.name, item.instrument_id, item.detail, item.instrument?.display_name, item.instrument?.market_identity?.listing].filter(Boolean).join(" ").toLowerCase().includes(normalized))
       .filter((item) => !recentIds.has(String(item.instrument_id || item.subject?.id || "").toLowerCase()))
       .slice(0, clean ? 16 : recent.length ? 0 : 6);
     const resolvedResults = spotSearch.query === normalized ? spotSearch.rows : [];
-    const candidates = uniqueCommandResults([...indexedInstruments, ...resolvedResults]);
+    const candidates = uniqueCommandResults([...indexedInstruments, ...resolvedResults]).filter(inSearchScope);
     const instruments = candidates
       .sort((left, right) => (
         commandMatchRank(left, normalized) - commandMatchRank(right, normalized)
@@ -1007,7 +1036,7 @@ export function mountRavenOSShell(options = {}) {
       empty.className = "ros-command-empty";
       const searchPending = clean.length >= 1 && spotSearch.query === normalized && spotSearch.state === "searching";
       empty.innerHTML = searchPending
-        ? "<strong>Resolving exact markets.</strong><p>RavenOS is checking listed instruments, perpetuals, chains, DEXs, and pools without making a mode choice for you.</p>"
+        ? "<strong>Resolving exact markets.</strong><p>RavenOS is checking exact instruments in your selected market section.</p>"
         : "<strong>No supported market or public wallet matched.</strong><p>RavenOS will not silently choose a chain, pool, venue, expiry, contract, or wallet identity.</p>";
       commandResults.append(empty);
     }
@@ -1030,7 +1059,7 @@ export function mountRavenOSShell(options = {}) {
               ? " · live market lookup unavailable"
               : "";
     const walletState = walletResult.length ? " · public-wallet analysis available" : "";
-    searchStatus.textContent = registryState + spotState + walletState;
+    searchStatus.textContent = `${searchScope === "all" ? "All markets" : MARKET_SCOPES[searchScope]} · ` + registryState + spotState + walletState;
   }
 
   function moveCommandSelection(direction) {
@@ -1065,9 +1094,9 @@ export function mountRavenOSShell(options = {}) {
       const timeout = setTimeout(() => controller.abort(), 6_000);
       try {
         const likelyContractAddress = addressTerms.length > 0;
-        const spotApplicable = clean.length >= 2;
-        const listedApplicable = !likelyContractAddress;
-        const atlasApplicable = clean.length >= 2 && !likelyContractAddress;
+        const spotApplicable = clean.length >= 2 && ["memecoins", "all"].includes(searchScope);
+        const listedApplicable = !likelyContractAddress && ["equities", "all"].includes(searchScope);
+        const atlasApplicable = clean.length >= 2 && !likelyContractAddress && ["equities", "all"].includes(searchScope);
         const [spotResult, listedResult, atlasResult] = await Promise.allSettled([
           spotApplicable
             ? fetchJson(`/api/dexscreener/search?q=${encodeURIComponent(clean)}`, { signal: controller.signal })
@@ -1195,6 +1224,8 @@ export function mountRavenOSShell(options = {}) {
   }
 
   function openPalette(query = "") {
+    searchScope = ravenOSContext.getState().marketScope;
+    document.getElementById("rosSearchScope").value = searchScope;
     const requestedQuery = typeof query === "string" ? query.trim() : "";
     if (requestedQuery) commandInput.value = requestedQuery;
     closeDrawers();

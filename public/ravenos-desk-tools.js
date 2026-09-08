@@ -1,3 +1,5 @@
+import { ravenOSContext } from "./ravenos-context-store.js";
+import { matchesMarketScope } from "./ravenos-market-scope.js";
 import {
   normalizeChartInstrument,
   canonicalInstrumentId,
@@ -272,7 +274,7 @@ export function enhanceDesk({
       ...tools.workspaces.map((x, i) => new Option(x.name, String(i))),
     );
     get("deskComparisonMarket").replaceChildren(
-      ...prefs.markets.map((x) => new Option(x.label, x.key)),
+      ...prefs.markets.filter(x => matchesMarketScope(x, ravenOSContext.getState().marketScope)).map((x) => new Option(x.label, x.key)),
     );
     get("deskComparisonMarket").value = secondaryKey || active?.key || "";
   }
@@ -557,7 +559,7 @@ export function enhanceDesk({
     refreshing = true;
     const list = tools.lists.find((x) => x.name === tools.list);
     const markets = prefs.markets.filter(
-      (x) => !list || list.keys.includes(x.key),
+      (x) => matchesMarketScope(x, ravenOSContext.getState().marketScope) && (!list || list.keys.includes(x.key)),
     );
     let i = 0;
     await Promise.all(

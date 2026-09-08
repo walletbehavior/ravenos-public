@@ -39,15 +39,16 @@
           <button id="discoverTapeToggle" type="button" aria-controls="discoverListedTapeLane" aria-expanded="true">Hide ticker</button>
         </div>
       </header>
-      <div class="discover-market-ribbon-lane">
-        <span class="discover-market-ribbon-label">Majors &amp; perps</span>
+      <div class="discover-market-ribbon-lane" id="discoverPerpTapeLane" hidden>
+        <span class="discover-market-ribbon-label">Perps</span>
         <div class="discover-market-ribbon-viewport" aria-label="Live Hyperliquid perpetual prices and 24-hour changes">
           <div class="discover-market-ribbon-track" id="discoverPerpTapeTrack" aria-live="off">
             <span class="discover-market-ribbon-wait">Connecting Hyperliquid markets…</span>
           </div>
         </div>
       </div>
-      <div class="discover-market-ribbon-lane is-listed" id="discoverListedTapeLane">
+      <div class="discover-market-ribbon-lane" id="discoverTokenTapeLane"><span class="discover-market-ribbon-label">Memecoins</span><div class="discover-market-ribbon-viewport"><div class="discover-market-ribbon-track" id="discoverTokenTapeTrack">Loading current pools…</div></div></div>
+      <div class="discover-market-ribbon-lane is-listed" id="discoverListedTapeLane" hidden>
         <span class="discover-market-ribbon-label">Stocks &amp; ETFs</span>
         <div class="discover-listed-tape-host" id="discoverListedTapeHost" aria-label="Major stock and ETF prices presented by TradingView">
           <span class="discover-market-ribbon-wait">Connecting listed markets…</span>
@@ -63,10 +64,10 @@
     </section>
 
     <div class="workspace-toolbar" aria-label="Discover filters">
-      <button class="workspace-filter active" type="button" data-discover-filter="spot" aria-pressed="true">Token markets</button>
-      <button class="workspace-filter" type="button" data-discover-filter="signals" aria-pressed="false">Raven setups</button>
-      <button class="workspace-filter" type="button" data-discover-filter="perpetual" aria-pressed="false">Perp markets</button>
-      <button class="workspace-filter" type="button" data-discover-filter="equity" aria-pressed="false">Stocks &amp; ETFs</button>
+      <button class="workspace-filter active" type="button" data-discover-filter="spot" aria-pressed="true">Memecoin markets</button>
+      <button class="workspace-filter" type="button" data-discover-filter="signals" aria-pressed="false">Raven Reads</button>
+      <button class="workspace-filter" type="button" hidden data-discover-filter="perpetual" aria-pressed="false">Perp markets</button>
+      <button class="workspace-filter" type="button" hidden data-discover-filter="equity" aria-pressed="false">Stocks &amp; ETFs</button>
       <span class="workspace-toolbar-spacer"></span>
       <button id="discoverPause" type="button">Pause updates</button>
       <button class="workspace-refresh" id="discoverRefresh" type="button">Refresh now</button>

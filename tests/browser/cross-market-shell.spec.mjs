@@ -117,7 +117,7 @@ test('Discover lifecycle admission rejects mismatched, stale, contradictory and 
 
 test("Discover runs a rights-safe live tape for perps, major stocks, and ETFs", async ({ page }) => {
   await mockWorkspaceApis(page);
-  await page.goto("/discover/");
+  await page.goto("/discover/?market_scope=perps");
   const primaryTape = page.locator("#discoverPerpTapeTrack .discover-market-ribbon-group:not([aria-hidden])");
   await expect(primaryTape.locator(".discover-market-ribbon-item")).toHaveCount(2);
   await expect(primaryTape).toContainText("SOL-PERP");
@@ -130,6 +130,7 @@ test("Discover runs a rights-safe live tape for perps, major stocks, and ETFs", 
   await expect(page.locator('#discoverPerpTapeTrack .discover-market-ribbon-group[aria-hidden="true"]')).toHaveCount(1);
   await expect(page.getByRole("link", { name: /SOL-PERP.*up 2\.40% over 24 hours/i })).toHaveCount(1);
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().marketTapeCount)).toBe(2);
+  await page.locator('[data-market-section="equities"]').click();
   const listedFrame = page.locator("#discoverListedTapeHost .discover-listed-tape-frame");
   await expect(listedFrame).toHaveCount(1);
   await expect(listedFrame).toHaveAttribute("title", /major stocks and ETFs by TradingView/i);
@@ -172,7 +173,8 @@ test("Discover explains the board once, then returns to a compact actionable wor
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(2);
 
   await page.locator("#discoverTapeToggle").click();
-  await expect(page.locator("#discoverListedTapeLane")).toBeVisible();
+  await expect(page.locator("#discoverTokenTapeLane")).toBeVisible();
+  await expect(page.locator("#discoverListedTapeLane")).toBeHidden();
   await page.setViewportSize({ width: 1440, height: 900 });
   const compactIntroHeight = await page.locator("#discoverWorkspaceIntro").evaluate((node) => node.getBoundingClientRect().height);
   expect(compactIntroHeight).toBeLessThanOrEqual(70);
@@ -898,6 +900,7 @@ test("desktop adds Raven Lab without crowding the four mobile workspaces", async
   await expect(page.locator("#discoverSearchTrigger")).toContainText("Search any supported instrument");
 
   await page.locator("#rosCommandTrigger").click();
+  await page.locator("#rosSearchScope").selectOption("all");
   await page.locator("#rosCommandInput").fill("Replay");
   await expect(page.locator(".ros-command-result.route")).toHaveCount(0);
   await expect(page.locator(".ros-command-empty")).toContainText("No supported market or public wallet matched");
@@ -921,8 +924,9 @@ test("desktop adds Raven Lab without crowding the four mobile workspaces", async
 
 test("universal search supports arrow-and-Enter market selection", async ({ page }) => {
   await mockWorkspaceApis(page);
-  await page.goto("/discover/");
+  await page.goto("/discover/?market_scope=perps");
   await page.locator("#rosCommandTrigger").click();
+  await page.locator("#rosSearchScope").selectOption("all");
   await page.locator("#rosCommandInput").fill("BTC-PERP");
   await expect(page.locator(".ros-command-result-detail").first()).toContainText("Hyperliquid perpetual");
   await expect(page.locator(".ros-command-result-detail").first()).not.toContainText("hyperliquid:perp:");
@@ -986,6 +990,7 @@ test("anonymous Search opens with ten valid recent exact markets and keeps mobil
   await page.goto("/discover/");
 
   await page.locator("#rosCommandTrigger").click();
+  await page.locator("#rosSearchScope").selectOption("all");
   const recentResults = page.locator(".ros-command-group.recent .ros-command-result");
   await expect(recentResults).toHaveCount(10);
   await expect(recentResults.first()).toContainText("BITCAT/SOL");
@@ -1009,6 +1014,7 @@ test("anonymous Search opens with ten valid recent exact markets and keeps mobil
   await page.locator("#rosUtilityClose").click();
 
   await page.locator("#rosCommandTrigger").click();
+  await page.locator("#rosSearchScope").selectOption("all");
   await recentResults.first().click();
   await expect(page).toHaveURL(/\/terminal\/.*instrument_id=solana%3Apool%3Arecent-pool-0/);
 });
@@ -1030,7 +1036,7 @@ test("each primary destination declares the operator question it must answer", a
 
 test("Discover joins only current Census rows to exact live venue identities", async ({ page }) => {
   await mockWorkspaceApis(page);
-  await page.goto("/discover/");
+  await page.goto("/discover/?market_scope=perps");
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().rowCount)).toBe(1);
   await page.locator("[data-discover-filter='signals']").click();
   const row = page.locator(".discover-row").first();
@@ -1043,16 +1049,9 @@ test("Discover joins only current Census rows to exact live venue identities", a
   await expect(row).toHaveAttribute("href", /instrument_id=hyperliquid%3Aperp%3ASOL/);
   await expect(page.locator("#discoverCensusState")).toHaveText("Current");
   await expect(page.locator("#discoverMarketState")).toHaveText("Current");
-  await expect(page.locator("#discoverPayoff")).toBeVisible();
-  await expect(page.locator("#discoverPayoffTitle")).toHaveText("Participation payoff");
-  await expect(page.locator("#discoverPayoffSummary")).toContainText("Solana fresh pairs are split");
-  await expect(page.locator("#discoverPayoffStrip article")).toHaveCount(3);
-  await expect(page.locator("#discoverPayoffStrip")).toContainText("Solana cohorts");
-  await expect(page.locator("#discoverPayoffStrip")).toContainText("6h median +6.6%");
-  await expect(page.locator("#discoverPayoffStrip")).toContainText("Ethereum large caps");
-  await expect(page.locator("#discoverPayoff")).not.toContainText(/solana live/i);
+  await expect(page.locator("#discoverPayoff")).toBeHidden();
   await expect(page.locator("#discoverDesk")).toBeVisible();
-  await expect(page.locator("#discoverDeskSummary")).toContainText("Solana is leading current opportunity");
+  await expect(page.locator("#discoverDesk")).not.toContainText("Solana is leading");
   await expect(page.locator("#discoverDeskGrid")).toContainText("Setup lifecycle");
   await expect(row).toHaveAttribute("data-lifecycle", "confirmed");
   await expect(row.locator(".discover-opportunity-meta")).toContainText(/Confirmed.*High signal/s);
@@ -1073,7 +1072,7 @@ test("Discover holds directionless evidence below the setup queue without placeh
     median_adverse_excursion_pct: null,
   };
   await mockWorkspaceApis(page, { opportunityRowsOverride: [watchOnly] });
-  await page.goto("/discover/");
+  await page.goto("/discover/?market_scope=perps");
   await page.locator("[data-discover-filter='signals']").click();
   const row = page.locator(".discover-row");
   await expect(row).toHaveAttribute("data-lifecycle", "watch");
@@ -1225,11 +1224,10 @@ test("Discover preserves exact-pool identity from radar to the chartable Termina
   await expect(page.locator(".discover-token-row").first()).toContainText("BIRD");
   await expect(page.locator(".discover-token-row").first()).toContainText("700");
   await expect(page.locator("#discoverSpotPulse")).toContainText("Participation + flow rank.");
-  await page.locator("[data-discover-filter='perpetual']").click();
+  await page.locator('[data-market-section="perps"]').click();
   await expect(page.locator("#discoverSpotPulse")).toBeHidden();
   await expect(page.locator("#discoverPerpPulse")).toBeVisible();
-  await expect(spotFilter).toBeEnabled();
-  await spotFilter.click();
+  await page.locator('[data-market-section="memecoins"]').click();
   await expect(page.locator("#discoverSpotPulse")).toBeVisible();
   await expect(page.locator("#discoverOpportunityLayout")).toBeHidden();
   await expect(page.locator("#discoverPerpPulse")).toBeHidden();
@@ -2006,7 +2004,7 @@ test("Discover combines Raven opportunities with exact Atlas rows without mergin
   await expect(atlasRow).toContainText("Balanced options · current");
   await expect(atlasRow).not.toContainText("Raven behavior unavailable");
   await expect(atlasRow).toHaveAttribute("href", /instrument_id=etf%3Anyse-arca%3Aspy/);
-  await page.locator("[data-discover-filter='equity']").click();
+  await page.locator('[data-market-section="equities"]').click();
   await expect(atlasRow).toBeVisible();
   await expect(page.locator(".discover-row[data-source-type='raven']")).toBeHidden();
 });
@@ -2076,16 +2074,16 @@ test("Discover exposes a bounded featured stock and ETF universe and opens one e
   await page.goto("/discover/");
   const listed = page.locator("#discoverListedUniverse");
   await expect(listed).toBeHidden();
-  await page.locator("[data-discover-filter='equity']").click();
+  await page.locator('[data-market-section="equities"]').click();
   await expect(listed).toBeVisible();
   await expect(page.locator(".discover-listed-card")).toHaveCount(4);
   await expect(listed).toContainText("SPY");
   await expect(listed).toContainText("QQQ");
   await expect(listed).toContainText("AAPL");
   await expect(listed).toContainText("NVDA");
-  await page.locator("[data-discover-filter='perpetual']").click();
+  await page.locator('[data-market-section="perps"]').click();
   await expect(listed).toBeHidden();
-  await page.locator("[data-discover-filter='equity']").click();
+  await page.locator('[data-market-section="equities"]').click();
   await expect(listed).toBeVisible();
   await page.locator(".discover-listed-card").filter({ hasText: "AAPL" }).click();
   await page.waitForURL((url) => url.pathname === "/terminal/" && url.searchParams.get("instrument_id") === "equity:nasdaq:aapl");
@@ -2155,7 +2153,7 @@ test("Terminal resolves an exact pool identity directly without a lane selector"
   const { calls } = await mockTerminalLiveApis(page);
   await page.goto("/terminal/?instrument_id=solana%3Apool%3Afixture-pair-address&instrument_type=exact_pool&market=spot");
   await expect(page.locator("#terminalInstrument")).toHaveText("JUP/USDC");
-  await expect(page.locator("#terminalPickerMeta")).toHaveText("Solana · fixture-dex · fixtur…ddress");
+  await expect(page.locator("#terminalPickerMeta")).toHaveText("Solana · fixture-dex · fixture-pair-address");
   await expect(page.locator("#terminalPickerMeta")).toHaveAttribute("title", "solana:pool:fixture-pair-address");
   await expect(page.locator("#terminalModeSelect")).toBeHidden();
   await expect(page.locator("#terminalSpotControl")).toBeHidden();
@@ -2315,6 +2313,7 @@ test("company or fund name search resolves an Atlas ETF directly into its exact 
   await page.route("**/api/atlas", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(atlasPayload()) }));
   await page.goto("/discover/");
   await page.locator("#rosCommandTrigger").click();
+  await page.locator("#rosSearchScope").selectOption("all");
   await page.locator("#rosCommandInput").fill("SPDR");
   const result = page.locator(".ros-command-result.instrument").filter({ hasText: "SPY" }).first();
   await expect(result).toContainText("NYSE Arca");
@@ -2350,6 +2349,7 @@ test("exact listed symbols rank ahead of same-ticker token pools while preservin
   }));
   await page.goto("/discover/");
   await page.locator("#rosCommandTrigger").click();
+  await page.locator("#rosSearchScope").selectOption("all");
   await page.locator("#rosCommandInput").fill("SPY");
   const results = page.locator(".ros-command-result.instrument");
   await expect(results).toHaveCount(2);
@@ -2390,6 +2390,7 @@ test("universal search treats an exact perpetual as BTC intent before a same-sym
   await page.route("**/api/atlas/search**", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, schema_version: "atlas_search_result_v1", results: [], groups: {}, query: "BTC" }) }));
   await page.goto("/discover/");
   await page.locator("#rosCommandTrigger").click();
+  await page.locator("#rosSearchScope").selectOption("all");
   await page.locator("#rosCommandInput").fill("BTC");
   await expect(page.locator(".ros-command-group > header strong")).toHaveText(["Perpetuals", "Stocks & ETFs"]);
   await expect(page.locator(".ros-command-result.instrument").first()).toContainText("BTC-PERP");
@@ -2427,6 +2428,7 @@ test("universal search resolves a rate-market alias into exact Atlas context", a
   }));
   await page.goto("/discover/");
   await page.locator("#rosCommandTrigger").click();
+  await page.locator("#rosSearchScope").selectOption("all");
   await page.locator("#rosCommandInput").fill("US10Y");
   await expect(page.locator(".ros-command-group > header strong")).toHaveText(["Rates & economy"]);
   const result = page.locator(".ros-command-result.instrument").first();
@@ -2446,6 +2448,7 @@ test("universal search resolves an arbitrary exact equity even when Atlas contex
   }));
   await page.goto("/discover/");
   await page.locator("#rosCommandTrigger").click();
+  await page.locator("#rosSearchScope").selectOption("all");
   await page.locator("#rosCommandInput").fill("AAPL");
   const result = page.locator(".ros-command-result.instrument").filter({ hasText: "AAPL" }).first();
   await expect(result).toBeVisible();
@@ -2533,6 +2536,7 @@ test("an exact listed instrument uses TradingView visual context when native pub
   }));
   await page.goto("/discover/");
   await page.locator("#rosCommandTrigger").click();
+  await page.locator("#rosSearchScope").selectOption("all");
   await page.locator("#rosCommandInput").fill("AAPL");
   const result = page.locator(".ros-command-result.instrument").filter({ hasText: "AAPL" }).first();
   await expect(result).toContainText("Exact listing · chart available");
@@ -2602,6 +2606,7 @@ test("universal search offers explicit wallet analysis without replacing an exac
   await page.goto("/discover/");
   await expect(page.getByRole("button", { name: "Search markets or wallets", exact: true })).toBeEnabled();
   await page.locator("#rosCommandTrigger").click();
+  await page.locator("#rosSearchScope").selectOption("all");
   await expect(page.locator("#rosCommandPalette")).toHaveAttribute("aria-label", "Universal market and wallet search");
   await page.locator("#rosCommandInput").fill(bitcatPoolAddress);
 
@@ -2623,6 +2628,7 @@ test("universal search does not classify malformed or non-32-byte base58 input a
   await mockWorkspaceApis(page);
   await page.goto("/discover/");
   await page.locator("#rosCommandTrigger").click();
+  await page.locator("#rosSearchScope").selectOption("all");
   await page.locator("#rosCommandInput").fill("O0Il-not-base58-11111111111111111111111111111111");
   await expect(page.locator(".ros-command-result.wallet")).toHaveCount(0);
   await page.locator("#rosCommandInput").fill("1111111111111111111111111111111");
@@ -2634,6 +2640,7 @@ test("universal search resolves an exact supported spot pool without a second mo
   await mockTerminalLiveApis(page);
   await page.goto("/discover/");
   await page.locator("#rosCommandTrigger").click();
+  await page.locator("#rosSearchScope").selectOption("all");
   await page.locator("#rosCommandInput").fill("JUP");
   const result = page.locator(".ros-command-result.instrument").filter({ hasText: "JUP/USDC" }).first();
   await expect(result).toContainText("Spot · Solana");
@@ -2641,7 +2648,7 @@ test("universal search resolves an exact supported spot pool without a second mo
   await expect(result).toContainText("pool fixture…dress");
   await result.click();
   await expect(page).toHaveURL(/\/terminal\/.*instrument_id=solana%3Apool%3Afixture-pair-address/);
-  await expect(page.locator("#terminalPickerMeta")).toHaveText("Solana · fixture-dex · fixtur…ddress");
+  await expect(page.locator("#terminalPickerMeta")).toHaveText("Solana · fixture-dex · fixture-pair-address");
   await expect(page.locator("#terminalInstrumentScope")).toHaveText("Exact pool");
   await page.locator('[data-terminal-pane-button="raven"]').click();
   await expect(page.locator(".terminal-chart-panel")).toBeVisible();
@@ -2682,13 +2689,14 @@ test("a copied BITCAT pool address round-trips through universal search to the s
   await page.route("**/api/dexscreener/pair**", (route) => route.fulfill(bitcatResponse));
   await page.goto("/discover/");
   await page.locator("#rosCommandTrigger").click();
+  await page.locator("#rosSearchScope").selectOption("all");
   await page.locator("#rosCommandInput").fill(bitcatPoolAddress);
   const result = page.locator(".ros-command-result.instrument").filter({ hasText: "BITCAT/SOL" });
   await expect(result).toHaveCount(1);
   await expect(result).toContainText("Pool address resolved");
   await result.click();
   await expect(page).toHaveURL(new RegExp(`instrument_id=solana%3Apool%3A${bitcatPoolAddress}`));
-  await expect(page.locator("#terminalPickerMeta")).toHaveText(`Solana · pumpswap · ${bitcatPoolAddress.slice(0, 6)}…${bitcatPoolAddress.slice(-6)}`);
+  await expect(page.locator("#terminalPickerMeta")).toHaveText(`Solana · pumpswap · ${bitcatPoolAddress}`);
   await expect(page.locator("#terminalPickerMeta")).toHaveAttribute("title", `solana:pool:${bitcatPoolAddress}`);
   await expect(page.locator("#terminalInstrument")).toHaveText("BITCAT/SOL");
 });
@@ -2733,6 +2741,7 @@ test("token-name search ranks chartable active pools ahead of unsupported inacti
   }));
   await page.goto("/discover/");
   await page.locator("#rosCommandTrigger").click();
+  await page.locator("#rosSearchScope").selectOption("all");
   await page.locator("#rosCommandInput").fill("RETIRE");
   const results = page.locator(".ros-command-result.instrument");
   await expect(results).toHaveCount(2);
@@ -2782,6 +2791,7 @@ test("exact contract search preserves the address match ahead of a more liquid d
   }));
   await page.goto("/discover/");
   await page.locator("#rosCommandTrigger").click();
+  await page.locator("#rosSearchScope").selectOption("all");
   await page.locator("#rosCommandInput").fill(ROBINHOOD_CONTRACT);
   const results = page.locator(".ros-command-result.instrument");
   await expect(results).toHaveCount(2);
@@ -2948,15 +2958,94 @@ test("wallet search requires an explicit EVM chain and ticker has a distinct mob
   await page.goto("/discover/");
   await page.locator("#discoverIntroToggle").click();
   await page.reload();
-  await expect(page.getByRole("button", { name: "Stocks & ETFs", exact: true })).toHaveCount(1);
+  await expect(page.getByRole("link", { name: "Stocks & ETFs", exact: true })).toHaveCount(1);
   await expect(page.locator("#discoverTapeToggle")).toHaveText("Show ticker");
   expect(await page.locator("#discoverTapeToggle").evaluate((node) => parseFloat(getComputedStyle(node).fontSize))).toBeLessThanOrEqual(12);
   await expect(page.locator(".discover-token-row").first()).toBeVisible();
   if (process.env.RAVENOS_VISUAL_ARTIFACT_DIR) await page.screenshot({ path: `${process.env.RAVENOS_VISUAL_ARTIFACT_DIR}/RavenOS-discover-mobile.png` });
   await page.locator("#rosCommandTrigger").click();
+  await page.locator("#rosSearchScope").selectOption("all");
   await page.locator("#rosCommandInput").fill(ROBINHOOD_CONTRACT);
   await expect(page.locator(".ros-command-result.wallet")).toHaveCount(4);
   await page.locator("#rosCommandInput").fill(`base:${ROBINHOOD_CONTRACT}`);
   await expect(page.locator(".ros-command-result.wallet")).toHaveCount(1);
   await expect(page.locator(".ros-command-result.wallet")).toContainText("Base public address");
+});
+
+for (const width of [1440, 390]) test(`Market sections keep memecoin and perp Reads separate at ${width}px`, async ({ page }, testInfo) => {
+  await page.setViewportSize({ width, height: 1000 });
+  const errors = []; page.on('pageerror', error => errors.push(error.message));
+  await mockWorkspaceApis(page, { withSpot: true });
+  await page.goto('/discover/?market_scope=memecoins&view=reads');
+  await expect(page.locator('[data-market-section="memecoins"]')).toHaveAttribute('aria-current', 'page');
+  await expect(page.locator('#discoverSpotPulse')).toBeVisible();
+  await expect(page.locator('#discoverSpotPulseTitle')).toHaveText('Raven token reads');
+  await expect(page.locator('#discoverPerpPulse')).toBeHidden();
+  await expect(page.locator('#discoverPerpTapeLane')).toBeHidden();
+  await expect(page.locator('#discoverListedTapeLane')).toBeHidden();
+  await expect(page.locator('#discoverDesk')).not.toContainText('Perp breadth');
+  await expect(page.locator('#discoverDesk')).not.toContainText('open interest');
+  await page.screenshot({ path: testInfo.outputPath(`memecoins-${width}.png`) });
+  await page.locator('#rosContextTrigger').click();
+  await expect(page.locator('#rosContextRail')).not.toContainText('SOL-PERP');
+  await expect(page.locator('#rosContextRail')).not.toContainText('BTC-PERP');
+  await page.locator('#rosContextClose').click();
+  await page.locator('[data-market-section="perps"]').click();
+  await page.locator('[data-discover-filter="signals"]').click();
+  await expect(page.locator('#discoverSpotPulse')).toBeHidden();
+  await expect(page.locator('#discoverPerpPulse')).toBeVisible();
+  await expect(page.locator('.discover-row:visible').first()).toHaveAttribute('data-market-type', 'perpetual');
+  await expect(page.locator('.discover-row:visible:not([data-market-type="perpetual"])')).toHaveCount(0);
+  await expect(page.locator('#discoverDesk')).not.toContainText('On-chain flow');
+  await page.screenshot({ path: testInfo.outputPath(`perps-${width}.png`) });
+  await expect(page.locator('[data-section-reads]')).toHaveAttribute('href', /market_scope=perps&view=reads/);
+  await page.reload();
+  await expect(page.locator('#discoverSpotPulse')).toBeHidden();
+  await expect(page.locator('[data-discover-filter="signals"]')).toHaveAttribute('aria-pressed', 'true');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(2);
+  expect(errors).toEqual([]);
+});
+
+test('Memecoin Reads stay empty without qualified token evidence; search scopes results explicitly', async ({ page }) => {
+  await mockWorkspaceApis(page, { withSpot: false });
+  await page.goto('/discover/?market_scope=memecoins&view=reads');
+  await expect(page.locator('#discoverSpotPulse')).toBeVisible();
+  await expect(page.locator('.discover-row:visible')).toHaveCount(0);
+  await page.locator('#rosCommandTrigger').click();
+  await page.locator('#rosCommandInput').fill('SOL');
+  await expect(page.locator('#rosSearchScope')).toHaveValue('memecoins');
+  await expect(page.locator('#rosCommandResults')).not.toContainText('SOL-PERP');
+  await page.locator('#rosSearchScope').selectOption('perps');
+  await expect(page.locator('#rosCommandResults')).toContainText('SOL-PERP');
+  await expect(page.locator('#rosCommandResults')).not.toContainText('Stocks & ETFs');
+});
+
+test('Memecoin Terminal opens without a default perp, including after visiting perps', async ({ page }) => {
+  await mockWorkspaceApis(page, { withSpot: true });
+  await page.goto('/terminal/?asset=SOL-PERP&market_scope=perps');
+  await waitForTerminalLive(page);
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_TERMINAL__?.getState().lane)).toBe('perps');
+  await page.goto('/terminal/?market_scope=memecoins');
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_TERMINAL__?.getState().lane)).toBe('spot');
+  await expect(page.locator('#deskMarketRows')).not.toContainText('SOL-PERP');
+  await expect(page.locator('[data-market-section="memecoins"]')).toHaveAttribute('aria-current', 'page');
+});
+
+for (const path of ['/opportunity/']) test(`Legacy Reads route ${path} follows market section and rejects stale fallback`, async ({ page }) => {
+  await mockWorkspaceApis(page, { withSpot: true });
+  const payload = opportunityPayload({ withSpot: true });
+  payload.census.generated_at = new Date().toISOString();
+  await page.route('**/api/opportunity**', route => route.fulfill({ json: payload }));
+  await page.goto(`${path}?market_scope=memecoins`);
+  await expect(page.locator('#routeHeadline')).toHaveText('Memecoins Raven Reads');
+  await expect(page.locator('[data-read-market-scope="memecoins"]').first()).toBeVisible();
+  await expect(page.locator('#routePrimaryPanel')).not.toContainText('SOL-PERP');
+  await page.goto(`${path}?market_scope=perps`);
+  await expect(page.locator('#routeHeadline')).toHaveText('Perps Raven Reads');
+  await expect(page.locator('[data-read-market-scope="perps"]').first()).toBeVisible();
+  await expect(page.locator('[data-read-market-scope="memecoins"]')).toHaveCount(0);
+  payload.delivery.fallback = true;
+  await page.reload();
+  await expect(page.locator('#routePrimaryPanel')).toContainText('No current reads in this section');
+  await expect(page.locator('[data-read-market-scope]')).toHaveCount(0);
 });

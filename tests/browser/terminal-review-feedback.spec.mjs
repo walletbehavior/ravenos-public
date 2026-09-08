@@ -25,7 +25,7 @@ test("desktop selected price survives watchlist fetch failure and dock controls 
   await page.setViewportSize({width:1600,height:1000});
   await mockTerminalLiveApis(page,{spotQuotePreview:true,spotQuoteChains:["solana","robinhood"]});
   await page.route("**/api/terminal/chart?**", route => new URL(route.request().url()).searchParams.get("limit")==="25" ? route.fulfill({status:503,json:{ok:false}}) : route.fallback());
-  await page.goto("/terminal/");
+  await page.goto("/terminal/?market_scope=perps");
   await waitForTerminalLive(page,{instrument:"SOL-PERP"});
   await openExactSpotSearch(page,"RUNNER");
   await waitForTerminalLive(page,{lane:"spot",instrument:"RUNNER/WETH"});
@@ -65,7 +65,7 @@ test("unfunded EVM wallet review and retry keep funding separate from exit evide
   await page.route("**/api/trade/live/session",route=>route.fulfill({json:{ok:true,gate:{configured:true,chains:{robinhood:{available_to_principal:true}}}}}));
   let calls=0;
   await page.route("**/api/trade/live/robinhood/prepare",route=>{calls++;return route.fulfill({status:409,json:{ok:false,error:"allowance_required",details:{blockers:["allowance_required","insufficient_balance"]}}});});
-  await page.goto("https://app.ravenos.xyz/terminal/");
+  await page.goto("https://app.ravenos.xyz/terminal/?market_scope=perps");
   await waitForTerminalLive(page,{instrument:"SOL-PERP"});
   await openExactSpotSearch(page,"RUNNER");
   await waitForTerminalLive(page,{lane:"spot",instrument:"RUNNER/WETH"});

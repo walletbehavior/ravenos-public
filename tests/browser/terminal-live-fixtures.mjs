@@ -174,6 +174,7 @@ function spotFixtureRows(query = "") {
 
 export async function selectUniversalInstrument(page, label) {
   await page.locator("#terminalInstrumentTrigger, #rosCommandTrigger").first().click();
+  await page.locator("#rosSearchScope").selectOption("all");
   const input = page.locator("#rosCommandInput");
   await input.fill(label);
   const result = page.locator(".ros-command-result.instrument").filter({ hasText: label }).first();
@@ -184,6 +185,7 @@ export async function selectUniversalInstrument(page, label) {
 
 export async function openExactSpotSearch(page, query) {
   await page.locator("#terminalInstrumentTrigger, #rosCommandTrigger").first().click();
+  await page.locator("#rosSearchScope").selectOption("memecoins");
   await page.locator("#rosCommandInput").fill(query);
   const result = page.locator(".ros-command-result.instrument").filter({ hasText: query }).filter({ hasText: "Exact pool" }).first();
   await result.waitFor({ state: "visible" });

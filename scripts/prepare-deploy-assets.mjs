@@ -54,6 +54,7 @@ const runtimeAssets = [
   "ravenos-pro-intelligence.css",
   "ravenos-pro-intelligence.js",
   "ravenos-context-store.js",
+  "ravenos-market-scope.js",
   "ravenos-intelligence-contract.js",
   "ravenos-chart-data-plane.js",
   "ravenos-perps-workspace.css",

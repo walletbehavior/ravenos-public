@@ -1,3 +1,4 @@
+import { MARKET_SCOPES, matchesMarketScope, participationMarketScope } from "/ravenos-market-scope.js";
 import { ravenOSContext, savedMonitorHandoffFromTerminalHref } from "/ravenos-context-store.js";
 import { customerFacingText } from "/ravenos-intelligence-contract.js";
 import {
@@ -74,6 +75,9 @@ const NUMERIC_FILTERS = Object.freeze({
   }),
 });
 const state = {
+  marketScope: ravenOSContext.getState().marketScope,
+  rawPayoff: null,
+  deskInputs: null,
   rows: new Map(),
   order: [],
   markets: new Map(),
@@ -799,10 +803,12 @@ function wrapSavedMonitorControl(anchor, shellClass) {
 }
 
 function renderDeskBrief({ brief = null, markets = [], spotRows = [], opportunityRows = [], atlas = null } = {}) {
+  state.deskInputs = { brief, markets, spotRows, opportunityRows, atlas };
   const section = document.getElementById("discoverDesk");
   const grid = document.getElementById("discoverDeskGrid");
   const signals = document.getElementById("discoverDeskSignals");
   const frame = buildDeskFrame({
+    marketScope: state.marketScope,
     brief,
     markets,
     spotRows,
@@ -1290,13 +1296,18 @@ function updateMarketTapeFreshness(nowMs = Date.now()) {
   const node = document.getElementById("discoverMarketRibbonFreshness");
   const ribbon = document.getElementById("discoverMarketRibbon");
   if (!node || !ribbon) return;
+  if (state.marketScope !== "perps") {
+    node.textContent = state.marketScope === "memecoins" ? `${state.spotRows.length} exact pools · ${state.spotFeedState === "current" ? "current" : "updating"}` : "Listed markets";
+    node.removeAttribute("datetime");
+    return;
+  }
   const observedMs = Date.parse(String(state.marketTapeObservedAt || ""));
   const ageSeconds = Number.isFinite(observedMs) ? Math.max(0, Math.floor((nowMs - observedMs) / 1_000)) : null;
   const current = ageSeconds !== null && ageSeconds <= 75;
   ribbon.dataset.marketState = current ? "live" : "refreshing";
   node.dateTime = state.marketTapeObservedAt || "";
   node.textContent = current
-    ? `Perps ${ageSeconds < 2 ? "now" : `${ageSeconds}s ago`} · listed tape live`
+    ? `Perps ${ageSeconds < 2 ? "now" : `${ageSeconds}s ago`}`
     : "Live prices refreshing";
   if (!current && state.marketTapeRows.length) renderMarketTape([], null);
 }
@@ -2586,10 +2597,13 @@ function syncDegenPanel() {
 
 function renderSpotPulse(rows = state.spotRows, { forceOrder = false } = {}) {
   const host = document.getElementById("discoverSpotPulse");
-  state.spotRows = Array.isArray(rows) ? rows : [];
+  state.spotRows = Array.isArray(rows) ? rows.filter(row => matchesMarketScope(row, "memecoins")) : [];
   recordSpotSessionChanges(state.spotRows);
-  const activeFilter = document.querySelector("[data-discover-filter].active")?.dataset.discoverFilter || "spot";
-  host.hidden = activeFilter !== "spot";
+  const activeFilter = activeDiscoverView();
+  const tokenReads = activeFilter === "signals" && state.marketScope === "memecoins";
+  host.hidden = state.marketScope !== "memecoins" || !["spot", "signals"].includes(activeFilter);
+  if (tokenReads) state.spotSort = "raven";
+  host.querySelectorAll("[data-spot-sort]").forEach(button => { button.hidden = tokenReads && button.dataset.spotSort !== "raven"; });
   document.querySelectorAll("[data-spot-timeframe]").forEach((button) => {
     const active = button.dataset.spotTimeframe === state.spotTimeframe;
     button.classList.toggle("active", active);
@@ -2699,7 +2713,10 @@ function currentParticipationPayoff(value) {
 function renderParticipationPayoff(value) {
   const section = document.getElementById("discoverPayoff");
   const strip = document.getElementById("discoverPayoffStrip");
-  const payoff = currentParticipationPayoff(value);
+  state.rawPayoff = value;
+  const source = currentParticipationPayoff(value);
+  const insights = (source?.insights || []).filter(row => participationMarketScope(row) === state.marketScope);
+  const payoff = source && insights.length ? { ...source, insights, headline: "Participation payoff", summary: insights.map(row => row.plain_read || row.subject).join(" ") } : null;
   state.payoff = payoff;
   strip.replaceChildren();
   if (!payoff) {
@@ -2890,21 +2907,69 @@ function renderSourceNotice(source, detail) {
   host.prepend(notice);
 }
 
+function activeDiscoverView() {
+  return document.querySelector("[data-discover-filter].active")?.dataset.discoverFilter || "spot";
+}
+function syncMarketSection() {
+  const scope = state.marketScope;
+  const active = activeDiscoverView();
+  document.querySelector(".discover-page").dataset.marketScope = scope;
+  document.querySelectorAll("[data-discover-filter]").forEach(button => {
+    button.hidden = button.dataset.discoverFilter !== "signals" && button.dataset.discoverFilter !== ({ memecoins: "spot", perps: "perpetual", equities: "equity" })[scope];
+  });
+  document.querySelector('[data-discover-filter="signals"]').textContent = "Raven Reads";
+  document.getElementById("discoverPerpTapeLane").hidden = scope !== "perps" || !state.tapeExpanded;
+  document.getElementById("discoverListedTapeLane").hidden = scope !== "equities" || !state.tapeExpanded;
+  document.getElementById("discoverTokenTapeLane").hidden = scope !== "memecoins" || !state.tapeExpanded;
+  document.getElementById("discoverMarketRibbonTitle").textContent = `${MARKET_SCOPES[scope]} moving now`;
+  document.getElementById("discoverAtlasState").parentElement.hidden = scope !== "equities";
+  document.getElementById("discoverMarketState").textContent = scope === "memecoins" ? (state.spotFeedState === "current" ? "Current" : "Updating") : scope === "perps" ? (state.markets.size ? "Current" : "Updating") : "Listed data";
+  document.getElementById("discoverMarketRibbonFreshness").textContent = scope === "perps" ? `${state.marketTapeRows.length} current perps` : scope === "memecoins" ? `${state.spotRows.length} exact pools` : "Listed markets";
+  const tokenTrack = document.getElementById("discoverTokenTapeTrack");
+  tokenTrack.replaceChildren();
+  for (const row of state.spotRows.filter(row => matchesMarketScope(row, "memecoins")).slice(0, 12)) {
+    const link = document.createElement("a"); link.className = "discover-market-ribbon-item";
+    configureSpotLink(link, row);
+    append(link, "strong", "", text(row.symbol));
+    append(link, "span", "", marketTapePrice(row.market?.price_usd));
+    append(link, "em", "", percent(row.market?.[`price_change_${state.spotTimeframe}_pct`]));
+    tokenTrack.append(link);
+  }
+  if (!tokenTrack.children.length) append(tokenTrack, "span", "discover-market-ribbon-wait", "Waiting for current token markets");
+  if (state.deskInputs) renderDeskBrief(state.deskInputs);
+  renderParticipationPayoff(state.rawPayoff);
+  const rows = [...state.rows.values()].filter(row => matchesMarketScope(row, scope));
+  const first = scope === "memecoins" ? state.spotRows.find(row => row.raven || row.discovery?.raven_read) || state.spotRows[0] : rows[0];
+  // Section summaries have no selected-instrument identity. They must not inherit a previous perp's evidence.
+  window.RavenOSShell?.setIntelligence?.({
+    subject: { id: "unselected", label: `${MARKET_SCOPES[scope]} Raven Reads` },
+    presentation: { context: true, status: Boolean(state.lastRefresh), sectionScope: scope, contextLabel: `${MARKET_SCOPES[scope]} read` },
+    marketState: { label: `${MARKET_SCOPES[scope]} · current read` },
+    setupState: { state: first ? "market_data_only" : "unavailable" },
+    thesis: state.deskFrame?.summary || `Current ${MARKET_SCOPES[scope].toLowerCase()} evidence is forming.`,
+    supportingEvidence: (state.deskFrame?.cards || []).map(card => `${card.label}: ${card.value}. ${card.detail || ""}`),
+    evidenceQuality: { state: first ? "current" : "unavailable" },
+    freshness: { state: first ? "live" : "data_unavailable", observedAt: state.lastRefresh },
+    nextExpectedTransition: `Inspect an exact ${scope === "perps" ? "perpetual" : scope === "equities" ? "listing" : "pool"} in ${MARKET_SCOPES[scope]}.`,
+  });
+}
+
 function applyFilter() {
+  syncMarketSection();
   const active = document.querySelector("[data-discover-filter].active")?.dataset.discoverFilter || "spot";
   document.getElementById("discoverDesk").hidden = !state.deskFrame || active !== "signals";
-  document.getElementById("discoverSpotPulse").hidden = active !== "spot";
+  document.getElementById("discoverSpotPulse").hidden = state.marketScope !== "memecoins" || !["spot", "signals"].includes(active);
   document.getElementById("discoverListedUniverse").hidden = !state.featuredRows.length || active !== "equity";
   document.getElementById("discoverPayoff").hidden = !state.payoff || active !== "signals";
   const opportunityLayout = document.getElementById("discoverOpportunityLayout");
   const perpPulse = document.getElementById("discoverPerpPulse");
-  const spotOwnsView = active === "spot";
+  const spotOwnsView = state.marketScope === "memecoins" && ["spot", "signals"].includes(active);
   const equityOwnsView = active === "equity" && state.featuredRows.length > 0;
   opportunityLayout.hidden = spotOwnsView || equityOwnsView;
-  perpPulse.hidden = !["signals", "perpetual"].includes(active);
+  perpPulse.hidden = state.marketScope !== "perps" || !["signals", "perpetual"].includes(active);
   opportunityLayout.dataset.side = perpPulse.hidden ? "hidden" : "visible";
   const streamCopy = {
-    signals: ["Raven", "Raven signals", "Ranked setups."],
+    signals: ["Raven", `${MARKET_SCOPES[state.marketScope]} Raven Reads`, "Ranked setups in this market section."],
     perpetual: ["Perpetuals", "Perp opportunities", "Raven setups beside the current Hyperliquid market tape."],
     equity: ["Atlas", "Listed-market context", "Exact stocks and ETFs with deeper research available in Atlas."],
   }[active] || ["Raven", "Current opportunities", "What changed, why it matters, and the market behind the read."];
@@ -2917,9 +2982,7 @@ function applyFilter() {
   });
   document.querySelector(".discover-filter-empty")?.remove();
   const rows = [...document.querySelectorAll(".discover-row")];
-  const matching = rows.filter((row) => active === "signals"
-    ? row.dataset.sourceType === "raven"
-    : row.dataset.marketType === active);
+  const matching = rows.filter((row) => matchesMarketScope({ market_type: row.dataset.marketType }, state.marketScope) && (active === "signals" || row.dataset.marketType === active));
   const collapsedEligible = matching.filter((row) => {
     if (!row.dataset.lifecycle) return true;
     if (["watch", "invalidated"].includes(row.dataset.lifecycle)) return false;
@@ -2941,7 +3004,7 @@ function applyFilter() {
   const control = document.getElementById("discoverStreamControl");
   if (!control) return;
   const hasFeaturedEquities = equityOwnsView;
-  const hasTokenTape = active === "spot";
+  const hasTokenTape = spotOwnsView;
   if (!eligible.length && rows.length && !hasFeaturedEquities && !hasTokenTape) {
     const empty = document.createElement("div");
     empty.className = "workspace-state discover-filter-empty";
@@ -2960,8 +3023,8 @@ function applyFilter() {
         ? "Search any token or contract to inspect its exact supported markets."
         : "Try another market class or search for an exact instrument.");
     if (onlyHeldBack && active === "signals" && (state.spotRows.length || state.markets.size)) {
-      const nextSurface = state.spotRows.length ? "spot" : "perpetual";
-      const next = append(inner, "button", "workspace-primary-action", state.spotRows.length ? "Open token scanner" : "Open perp markets");
+      const nextSurface = state.marketScope === "memecoins" ? "spot" : "perpetual";
+      const next = append(inner, "button", "workspace-primary-action", state.marketScope === "memecoins" ? "Open token scanner" : "Open perp markets");
       next.type = "button";
       next.addEventListener("click", () => document.querySelector(`[data-discover-filter="${nextSurface}"]`)?.click());
     }
@@ -3562,24 +3625,7 @@ async function refresh({ manual = false } = {}) {
       signing: "Sign off",
       broadcast: "Broadcast off",
     });
-    window.RavenOSShell?.setIntelligence?.({
-      subject: ravenOSContext.getState().subject,
-      marketState: { label: `${combinedRows.length} current cross-market rows`, regime: "cross-market discovery" },
-      setupState: { state: firstRaven ? "current_signal" : "broader_market_context", confirmation: "research only" },
-      thesis: customerFacingText(firstRaven?.why_raven_noticed || firstSpot?.what_changed || firstAtlas?.what_changed, "Current market context is available."),
-      supportingEvidence: [
-        firstRaven ? `${firstRaven.instrument} retains exact ${firstRaven.identity_scope || "instrument"} identity.` : null,
-        firstSpot ? `${firstSpot.symbol} retains exact ${firstSpot.identity_scope === "exact_pool" ? "pool" : "token"} identity.` : null,
-        firstAtlas ? `${firstAtlas.instrument} retains exact listed identity; Atlas provenance remains separate.` : null,
-      ].filter(Boolean),
-      contradictingEvidence: [ravenFailure, atlasFailure].filter(Boolean),
-      invalidation: [],
-      timeHorizon: "current cycle",
-      confidence: { label: "source bound" },
-      evidenceQuality: { state: ravenRows.length ? "current" : "atlas_context", lineageComplete: true },
-      freshness: { state: "live", observedAt: generatedAt },
-      nextExpectedTransition: "Inspect exact market.",
-    });
+
   } else if (tokenRows.length) {
     state.rows.clear();
     state.order = [];
@@ -3600,6 +3646,7 @@ async function refresh({ manual = false } = {}) {
 
   applyFilter();
   state.lastRefresh = new Date().toISOString();
+  syncMarketSection();
   state.loading = false;
   document.getElementById("discoverRefresh").textContent = "Refresh now";
   if (state.refreshQueued || requestedTimeframe !== state.spotTimeframe) {
@@ -3631,6 +3678,12 @@ function bind() {
   document.getElementById("discoverTapeToggle")?.addEventListener("click", () => {
     state.tapeExpanded = !state.tapeExpanded;
     syncWorkspacePresentation();
+    applyFilter();
+  });
+  const initialView = new URLSearchParams(location.search).get("view") === "reads" ? "signals" : ({ memecoins: "spot", perps: "perpetual", equities: "equity" })[state.marketScope];
+  document.querySelectorAll("[data-discover-filter]").forEach(button => {
+    button.classList.toggle("active", button.dataset.discoverFilter === initialView);
+    button.setAttribute("aria-pressed", String(button.dataset.discoverFilter === initialView));
   });
   document.querySelectorAll("[data-discover-filter]").forEach((button) => button.addEventListener("click", () => {
     if (button.disabled) return;
@@ -3640,6 +3693,11 @@ function bind() {
       item.setAttribute("aria-pressed", String(active));
     });
     state.expanded = false;
+    const url = new URL(location.href);
+    url.searchParams.set("market_scope", state.marketScope);
+    if (button.dataset.discoverFilter === "signals") url.searchParams.set("view", "reads"); else { url.searchParams.delete("view"); state.spotSort = getPreference("discoverSort", "velocity"); }
+    history.replaceState({}, "", url);
+    if (state.marketScope === "memecoins") renderSpotPulse(state.spotRows, { forceOrder: true });
     applyFilter();
   }));
   document.querySelectorAll("[data-spot-timeframe]").forEach((button) => button.addEventListener("click", () => {

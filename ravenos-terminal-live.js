@@ -1,7 +1,7 @@
 import { mountWalletBalances } from "./ravenos-wallet-balances.js";
 import { walletLaunchHref } from "./ravenos-wallet-connect.js";
 import { createTerminalDesk, deskFeeLabel, deskPercentFromBps } from "./ravenos-terminal-desk.js";
-import { ravenOSContext, savedMonitorHandoffHref } from "./ravenos-context-store.js";
+import { ravenOSContext, contextSearchParams, savedMonitorHandoffHref } from "./ravenos-context-store.js";
 import {
   RAVENOS_CHART_TIMEFRAMES,
   RAVENOS_TERMINAL_CHAIN_ROLLOUT,
@@ -9464,7 +9464,7 @@ async function boot() {
     },
   });
   renderChainCoverage();
-  const params = new URLSearchParams(location.search);
+  const params = contextSearchParams(ravenOSContext.getState(), { search: location.search });
   const copyReview = requestedCopyReview(params);
   const requestedLaunch = String(params.get("launch") || "").toLowerCase();
   state.launchSource = ["velocity", "raven", "activity"].includes(requestedLaunch) ? requestedLaunch : "";
@@ -9517,7 +9517,7 @@ async function boot() {
     ? "equity"
     : params.get("lane") === "spot" || requestedMarket === "spot" || requestedMarket === "crypto_spot" || requestedType === "exact_pool" || Boolean(poolIdentity)
       ? "spot"
-      : "perps";
+      : ravenOSContext.getState().marketScope === "perps" ? "perps" : ravenOSContext.getState().marketScope === "equities" ? "equity" : "spot";
   await Promise.all([loadTradeFlags(), loadBuildIdentity()]);
   if (requestedLane === "spot") {
     if (instrumentId) await loadExactPool(instrumentId, {

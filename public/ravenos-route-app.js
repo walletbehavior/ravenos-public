@@ -1,3 +1,4 @@
+import { MARKET_SCOPES, matchesMarketScope, participationMarketScope } from "/ravenos-market-scope.js";
 import { mountRavenOSShell } from "/ravenos-shell.js";
 import { ravenOSContext } from "/ravenos-context-store.js";
 
@@ -415,7 +416,7 @@ function chooseBehaviorInsights(inputRows = []) {
     const band = String(row.cap_band || row.capitalization_band || "").toLowerCase();
     return chain !== "hyperliquid" && !band.startsWith("perps_");
   });
-  const pool = spotRows.length ? spotRows : rows;
+  const pool = rows.filter(row => participationMarketScope(row) === ravenOSContext.getState().marketScope);
   const supported = pool
     .filter((row) => rowUsableSample(row) >= 20)
     .sort((a, b) => behaviorStrengthScore(b) - behaviorStrengthScore(a) || rowUsableSample(b) - rowUsableSample(a));
@@ -468,12 +469,12 @@ function currentBehaviorPayoff(value) {
     || value?.measurement?.causal_claim !== false
     || !Array.isArray(value?.insights)
   ) return null;
-  const insights = value.insights.filter((row) => (
+  const insights = value.insights.filter(row => participationMarketScope(row) === ravenOSContext.getState().marketScope).filter((row) => (
     ["rewarding", "fragile", "punishing"].includes(String(row?.state || "").toLowerCase())
     && String(row?.subject || "").trim()
     && Number(row?.usable_sample) >= 20
   )).slice(0, 4);
-  return insights.length ? { ...value, insights } : null;
+  return insights.length ? { ...value, insights, summary: insights.map(row => row.plain_read || row.subject).join(" ") } : null;
 }
 
 function behaviorPayoffLeaders(payoff) {
@@ -1378,7 +1379,7 @@ function opportunityTerminalHref(row = {}) {
 function renderOpportunityCensus(payload, census) {
   const population = census.population || {};
   const opportunitySet = census.opportunities || {};
-  const rows = Array.isArray(opportunitySet.rows) ? opportunitySet.rows : [];
+  const rows = (Array.isArray(opportunitySet.rows) ? opportunitySet.rows : []).filter(row => matchesMarketScope(row, ravenOSContext.getState().marketScope));
   const top = rows[0] || null;
   const topFamily = top?.raven_atoms?.[0] || "decision context";
   const headline = top
@@ -1638,7 +1639,7 @@ function renderBehaviorFree(payload, projection) {
     const band = String(row.capitalization_band || "").toLowerCase();
     return chain !== "hyperliquid" && !band.startsWith("perps_");
   });
-  const rows = spotRows.length ? spotRows : sourceRows;
+  const rows = sourceRows.filter(row => participationMarketScope(row) === ravenOSContext.getState().marketScope);
   const insights = chooseBehaviorInsights(rows);
   const focus = insights.strongest || insights.broad || rows[0] || null;
   const focusLabel = focus
@@ -1709,7 +1710,7 @@ function renderBehavior(payload) {
     const band = String(row.cap_band || "").toLowerCase();
     return chain !== "hyperliquid" && !band.startsWith("perps_");
   });
-  const rows = spotRows.length ? spotRows : sortedRows;
+  const rows = sortedRows.filter(row => participationMarketScope(row) === ravenOSContext.getState().marketScope);
   const insights = chooseBehaviorInsights(rows);
   const focus = insights.strongest || insights.broad || rows[0] || null;
   const limitations = {
@@ -1919,8 +1920,8 @@ function renderOutcomes(payload) {
   const data = payload?.data || {};
   const requestedScope = behaviorScopeFromUrl();
   const scoped = behaviorScopeActive(requestedScope);
-  const allRecent = Array.isArray(data.recent_raven_reads) ? data.recent_raven_reads : [];
-  const allOutcomes = Array.isArray(data.outcomes) ? data.outcomes : [];
+  const allRecent = (Array.isArray(data.recent_raven_reads) ? data.recent_raven_reads : []).filter(row => participationMarketScope(row.market_scope || row) === ravenOSContext.getState().marketScope || matchesMarketScope(row, ravenOSContext.getState().marketScope));
+  const allOutcomes = (Array.isArray(data.outcomes) ? data.outcomes : []).filter(row => participationMarketScope(row.market_scope || row) === ravenOSContext.getState().marketScope || matchesMarketScope(row, ravenOSContext.getState().marketScope));
   const recent = scoped ? allRecent.filter((row) => behaviorScopeMatches(row, requestedScope)) : allRecent;
   const outcomes = scoped ? allOutcomes.filter((row) => behaviorScopeMatches(row, requestedScope)) : allOutcomes;
   const scopeLabel = behaviorScopeLabel(requestedScope);
@@ -2177,7 +2178,7 @@ function renderDeliveryState(payload = {}) {
 
 function syncShellFromRoute(payload = {}) {
   const census = censusFromPayload(payload);
-  const rows = Array.isArray(census?.opportunities?.rows) ? census.opportunities.rows : [];
+  const rows = (Array.isArray(census?.opportunities?.rows) ? census.opportunities.rows : []).filter(row => matchesMarketScope(row, ravenOSContext.getState().marketScope));
   const retainedSubject = ravenOSContext.getState().subject;
   const hasRetainedSubject = retainedSubject?.id !== "unselected" && retainedSubject?.label !== "No market selected";
   const selectedRow = hasRetainedSubject
@@ -2253,10 +2254,57 @@ function syncShellFromRoute(payload = {}) {
   });
 }
 
+function renderSectionReads(payload = {}) {
+  const scope = ravenOSContext.getState().marketScope;
+  const label = MARKET_SCOPES[scope];
+  const census = censusFromPayload(payload);
+  const observedAt = census?.generated_at || payload.generated_at || payload.delivery?.source_generated_at;
+  const age = Date.now() - Date.parse(observedAt || "");
+  const current = payload.delivery?.source === "current_public_origin" && payload.delivery?.fallback === false && payload.delivery?.freshness_state === "fresh" && age >= -300000 && age <= 3600000;
+  const radar = census?.discovery_radar;
+  const radarAge = Date.now() - Date.parse(radar?.generated_at || "");
+  const tokenRows = radar?.ok === true && radar?.safe_public === true && radar?.schema_version === "ravenos.discover_radar.v1" && radarAge >= -300000 && radarAge <= 3600000
+    ? (Array.isArray(radar.rows) ? radar.rows : []).filter(row => {
+      const discovery = row?.discovery, identity = discovery?.exact_identity;
+      const chain = row?.chain_id || row?.chain;
+      return row?.identity_scope === "exact_pool" && Boolean(row.token_address && row.pool_address && chain)
+        && row.instrument_id === `${chain}:pool:${row.pool_address}`
+        && identity?.instrument_id === row.instrument_id && identity?.token_address === row.token_address
+        && discovery?.raven_evidence_state?.qualified === true
+        && discovery?.raven_evidence_state?.raven_signal === true && discovery?.raven_evidence_state?.freshness === "current";
+    }) : [];
+  const rows = current ? (scope === "memecoins" ? tokenRows : scope === "perps" ? census?.opportunities?.rows || [] : payload.market_context?.rows || []).filter(row => matchesMarketScope(row, scope)) : [];
+  document.getElementById("routeHeadline").textContent = `${label} Raven Reads`;
+  document.getElementById("routeHeroSummary").textContent = rows.length ? `Current evidence for ${label.toLowerCase()}, with exact market identity.` : `No current ${label.toLowerCase()} reads are qualified yet.`;
+  document.getElementById("routeStateStrip").innerHTML = routeStateCard("Market section", label) + routeStateCard("Current reads", fmtNumber(rows.length));
+  document.getElementById("routePrimaryPanel").innerHTML = rows.length ? rows.slice(0, 40).map(row => {
+    const read = row.discovery?.raven_evidence_state || row;
+    const id = row.instrument_id;
+    const params = new URLSearchParams({ market_scope: scope, instrument_id: id, asset: row.symbol || row.instrument || id });
+    if (scope === "memecoins") {
+      params.set("instrument_type", "exact_pool"); params.set("market", "spot");
+      params.set("chain", row.chain_id || String(id).split(":")[0]);
+      if (row.token_address) params.set("token_address", row.token_address);
+      if (row.quote_token_address) params.set("quote_address", row.quote_token_address);
+    }
+    if (scope === "perps") { params.set("instrument_type", "perpetual"); params.set("market", "perp"); }
+    return `<article class="route-card" data-read-market-scope="${scope}"><h2>${escapeHtml(row.symbol || row.instrument || id)}</h2><p>${escapeHtml(traderText(read.why_raven_noticed || read.what_changed, "Current exact-market evidence."))}</p><small>${escapeHtml(id)}</small><div class="route-next"><a href="/terminal/?${escapeHtml(params.toString())}">Inspect market →</a></div></article>`;
+  }).join("") : `<div class="route-unavailable"><strong>No current reads in this section</strong><p>Evidence will appear here when it qualifies.</p></div>`;
+  document.getElementById("routeSecondaryPanel").innerHTML = `<div class="route-panel-head"><h2>${label} workspace</h2></div><p>Raven Reads stay within the selected market section. Each read links to the exact market behind its evidence.</p><div class="route-next"><a href="/discover/?market_scope=${scope}&view=reads">Open ${label} Reads →</a></div>`;
+  // Keep the existing detailed perp evidence view inside its section.
+  if (scope === "perps" && rows.length) {
+    renderOpportunityCensus(payload, { ...census, opportunities: { ...census.opportunities, rows } });
+    document.getElementById("routeHeadline").textContent = `${label} Raven Reads`;
+    document.querySelector(".opportunity-focus")?.setAttribute("data-read-market-scope", scope);
+  }
+  ravenShell?.setIntelligence?.({ subject: { id: "unselected", label: `${label} Reads` }, presentation: { context: false, status: Boolean(observedAt) }, marketState: { label: `${label} Raven Reads` }, freshness: { state: current ? "live" : observedAt ? "delayed" : "data_unavailable", observedAt } });
+}
+
 function renderRoute(payload) {
   renderDeliveryState(payload);
   renderEvidenceStrip(payload);
   const slug = routeConfig.slug;
+  if (slug === "opportunity") { renderSectionReads(payload); return; }
   if (slug === "brief" || slug === "home") renderBrief(payload);
   else if (slug === "opportunity") renderOpportunity(payload);
   else if (slug === "replay") renderReplay(payload);
@@ -2273,7 +2321,7 @@ function renderRoute(payload) {
 }
 
 async function fetchLivePayload() {
-  const endpoint = routeConfig.api_endpoint;
+  const endpoint = routeConfig.slug === "opportunity" ? (ravenOSContext.getState().marketScope === "equities" ? "/api/atlas" : "/api/opportunity") : routeConfig.api_endpoint;
   if (routeConfig.slug === "claims") {
     const claimId = new URL(window.location.href).searchParams.get("id");
     if (claimId) {

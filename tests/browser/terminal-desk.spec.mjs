@@ -5,17 +5,18 @@ test("desk keeps the chart central and persists public market and layout prefere
   const errors = [];
   page.on("pageerror", error => errors.push(error.message));
   await mockTerminalLiveApis(page, { spotChartCurrent: true, spotChartPrice: 0.0006438, spotTradePrice: 0.0006438 });
-  await page.goto("/terminal/");
+  await page.goto("/terminal/?market_scope=perps");
   await waitForTerminalLive(page, { instrument: "SOL-PERP" });
   await openExactSpotSearch(page, "RUNNER");
   await waitForTerminalLive(page, { lane: "spot", instrument: "RUNNER/WETH" });
-  await expect(page.locator(".desk-market-row")).toHaveCount(2);
+  await expect(page.locator(".desk-market-row")).toHaveCount(1);
   await expect(page.locator(".desk-market-row[data-active='true'] .desk-market-quote strong")).toBeVisible();
   await expect(page.locator(".desk-market-row[data-active='true']")).not.toContainText("Price not loaded");
   await page.getByRole("button", { name: "Pin RUNNER/WETH", exact: true }).click();
   await page.getByLabel("Workspace layout", { exact: true }).selectOption("analysis");
   await page.screenshot({ path: testInfo.outputPath("desk-desktop.png"), fullPage: true });
-  expect(await page.locator(".rpw-stage").evaluate(el => el.getBoundingClientRect().top)).toBeLessThan(250);
+  // Keep the chart high in the viewport, allowing the explicit 40px market-section bar.
+  expect(await page.locator(".rpw-stage").evaluate(el => el.getBoundingClientRect().top)).toBeLessThan(290);
   await page.locator('[data-terminal-pane-button="holders"]').click();
   await expect(page.locator("#terminalAnatomySection")).toBeVisible();
   await expect(page.locator(".terminal-chart-panel")).toBeVisible();
@@ -27,8 +28,9 @@ test("desk keeps the chart central and persists public market and layout prefere
   await page.reload();
   await waitForTerminalLive(page, { lane: "spot", instrument: "RUNNER/WETH" });
   await expect(page.getByLabel("Workspace layout", { exact: true })).toHaveValue("analysis");
+  if (!(await page.locator("#deskMarkets").isVisible())) await page.locator("#deskMarketsToggle").click();
   await expect(page.getByRole("button", { name: "Unpin RUNNER/WETH", exact: true })).toBeVisible();
-  await page.locator(".desk-market-open").filter({ hasText: "SOL-PERP" }).click();
+  await selectUniversalInstrument(page, "SOL-PERP");
   await waitForTerminalLive(page, { instrument: "SOL-PERP" });
   await expect(page.locator("#deskMarketMessage")).toHaveText("");
   expect(errors).toEqual([]);
@@ -37,7 +39,7 @@ test("desk keeps the chart central and persists public market and layout prefere
 test("mobile desk keeps the chart first and secondary tools dismissible", async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await mockTerminalLiveApis(page, { spotChartCurrent: true, spotChartPrice: 0.0006438, spotTradePrice: 0.0006438 });
-  await page.goto("/terminal/");
+  await page.goto("/terminal/?market_scope=perps");
   await waitForTerminalLive(page, { instrument: "SOL-PERP" });
   await openExactSpotSearch(page, "RUNNER");
   await waitForTerminalLive(page, { lane: "spot", instrument: "RUNNER/WETH" });
@@ -64,7 +66,7 @@ test("desk handles responsive layouts, focus recovery and blocked browser storag
   const errors = [];
   page.on("pageerror", error => errors.push(error.message));
   await mockTerminalLiveApis(page);
-  await page.goto("/terminal/");
+  await page.goto("/terminal/?market_scope=perps");
   await waitForTerminalLive(page, { instrument: "SOL-PERP" });
   for (const width of [360, 768, 1024, 1920]) {
     await page.setViewportSize({ width, height: 900 });
@@ -82,7 +84,7 @@ test("desk handles responsive layouts, focus recovery and blocked browser storag
 
 test("a delayed saved-pool lookup cannot replace a newer market selection", async ({ page }) => {
   await mockTerminalLiveApis(page);
-  await page.goto("/terminal/");
+  await page.goto("/terminal/?market_scope=perps");
   await waitForTerminalLive(page, { instrument: "SOL-PERP" });
   await openExactSpotSearch(page, "RUNNER");
   await waitForTerminalLive(page, { instrument: "RUNNER/WETH" });
@@ -96,6 +98,9 @@ test("a delayed saved-pool lookup cannot replace a newer market selection", asyn
     await release;
     await route.fallback();
   });
+  await page.locator('[data-market-section="memecoins"]').click();
+  await page.locator('.ros-workspace-nav [data-ros-nav="terminal"]').click();
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_TERMINAL__?.getState().lane)).toBe("spot");
   await page.locator(".desk-market-open").filter({ hasText: "RUNNER/WETH" }).click();
   await expect.poll(() => lookupStarted).toBe(true);
   await selectUniversalInstrument(page, "BTC-PERP");
@@ -108,7 +113,7 @@ test("a delayed saved-pool lookup cannot replace a newer market selection", asyn
 
 test("panel keyboard navigation skips unavailable panels and does not activate on arrows", async ({ page }) => {
   await mockTerminalLiveApis(page);
-  await page.goto("/terminal/");
+  await page.goto("/terminal/?market_scope=perps");
   await waitForTerminalLive(page, { instrument: "SOL-PERP" });
   const chart = page.locator('[data-terminal-pane-button="chart"]');
   await chart.focus();
@@ -125,7 +130,7 @@ test("panel keyboard navigation skips unavailable panels and does not activate o
 
 test("review action remains in the trade panel when scrolling through costs", async ({ page }, testInfo) => {
   await mockTerminalLiveApis(page);
-  await page.goto("/terminal/");
+  await page.goto("/terminal/?market_scope=perps");
   await waitForTerminalLive(page, { instrument: "SOL-PERP" });
   const panel = page.locator(".terminal-intelligence");
   const action = page.locator("#terminalPreviewAction");

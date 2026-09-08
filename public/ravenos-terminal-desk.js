@@ -1,3 +1,5 @@
+import { ravenOSContext } from "./ravenos-context-store.js";
+import { matchesMarketScope } from "./ravenos-market-scope.js";
 import { enhanceDesk } from "./ravenos-desk-tools.js";
 // Presentation preferences contain public market identities only, never account or order state.
 export const DESK_STORAGE_KEY = "ravenos.terminal.desk.v1";
@@ -115,14 +117,14 @@ export function createTerminalDesk({ openMarket, inspectPane, resizeChart }) {
     requestAnimationFrame(() => resizeChart?.());
   }
   function render() {
-    const signature = JSON.stringify([prefs.markets, prefs.pinned, active?.key, pending, tools?.signature()]);
+    const signature = JSON.stringify([prefs.markets, prefs.pinned, active?.key, ravenOSContext.getState().marketScope, pending, tools?.signature()]);
     if (signature === lastRender) return;
     lastRender = signature;
     const rows = document.getElementById("deskMarketRows");
     const focusedKey = document.activeElement?.closest(".desk-market-row")?.dataset.key;
     const focusedPin = document.activeElement?.classList.contains("desk-market-pin");
     rows.replaceChildren();
-    const sorted = [...prefs.markets].sort((a, b) => Number(prefs.pinned.includes(b.key)) - Number(prefs.pinned.includes(a.key)));
+    const sorted = prefs.markets.filter(market => matchesMarketScope(market, ravenOSContext.getState().marketScope)).sort((a, b) => Number(prefs.pinned.includes(b.key)) - Number(prefs.pinned.includes(a.key)));
     const ordered = tools?.ordered(sorted) || sorted;
     for (const market of ordered) {
       const row = document.createElement("div");

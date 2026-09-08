@@ -309,3 +309,5 @@
 .discover-emerging-focus button[aria-pressed="true"] { color: #7bd8af; border-color: #376653; }
 .discover-emerging-focus small { max-width: 360px; color: #94a1ad; font-size: 11px; line-height: 1.5; }
 @media (max-width: 600px) { .discover-page #discoverTapeToggle { font-size: 10px; line-height: 1.2; min-height: 32px; padding: 5px 9px; white-space: nowrap; } .discover-emerging-focus small { max-width: 100%; } }
+
+.discover-page [hidden] { display: none !important; }

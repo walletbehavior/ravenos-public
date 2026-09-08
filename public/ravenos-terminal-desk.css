@@ -45,7 +45,7 @@
 .terminal-live.terminal-desk #terminalPickerSymbol::after { content: ' ⌄'; color: #8596ad; }
 .terminal-live.terminal-desk #terminalPickerMeta { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 11px/1.6 var(--desk-font); color: #8f9eb3; }
 .terminal-live.terminal-desk .terminal-risk-interrupt { margin: 0 0 10px; border-radius: 10px; }
-.terminal-live.terminal-desk .terminal-workspace { display: grid; grid-template-columns: 178px minmax(0, 1fr) 320px; grid-template-areas: 'watchlist chart intelligence' 'watchlist data intelligence'; grid-template-rows: minmax(480px, calc(100dvh - 258px)) auto; gap: 10px; align-items: stretch; margin: 0; }
+.terminal-live.terminal-desk .terminal-workspace { display: grid; grid-template-columns: 178px minmax(0, 1fr) 320px; grid-template-areas: 'watchlist chart intelligence' 'watchlist data intelligence'; grid-template-rows: minmax(480px, calc(100dvh - 258px - var(--ros-marketbar-height, 0px))) auto; gap: 10px; align-items: stretch; margin: 0; }
 .terminal-live.terminal-desk .terminal-chart-panel { height: auto; min-width: 0; border: 1px solid var(--terminal-line); border-radius: 10px; overflow: clip; background: #0d131c; }
 .terminal-live.terminal-desk .terminal-chart-panel > header { min-height: 34px; padding: 6px 12px; background: #111925; gap: 8px; }
 .terminal-live.terminal-desk .terminal-chart-panel > header > div > span { display: none; }
@@ -85,7 +85,7 @@
 .desk-market-pin[aria-pressed='true'] { color: #d1b470; }
 .desk-rail-note, #deskMarketMessage { padding: 14px 12px; color: #7588a3; font-size: 10px; line-height: 1.5; }
 #deskMarketRows { font-size: 12px; color: #96a6bd; }
-.terminal-live.terminal-desk .terminal-intelligence { grid-area: intelligence; height: auto; max-height: calc(100dvh - 194px); overflow: auto; border: 1px solid var(--terminal-line); border-radius: 10px; background: #111925; padding: 0; scrollbar-width: thin; }
+.terminal-live.terminal-desk .terminal-intelligence { grid-area: intelligence; height: auto; max-height: calc(100dvh - 194px - var(--ros-marketbar-height, 0px)); overflow: auto; border: 1px solid var(--terminal-line); border-radius: 10px; background: #111925; padding: 0; scrollbar-width: thin; }
 .desk-dock-nav { position: sticky; top: 0; display: flex; border-bottom: 1px solid var(--terminal-line); padding: 6px; gap: 4px; background: #111925; z-index: 3; }
 .desk-dock-nav > button { flex: 1; padding: 10px 5px; border: 0; border-radius: 6px; color: #8699b2; background: transparent; font: 600 12px/1.4 var(--desk-font); cursor: pointer; }
 .desk-dock-nav > button[aria-pressed='true'] { color: #e0eaff; background: #23324a; }
@@ -296,7 +296,7 @@
 .desk-comparison header span { font-size: 11px; color: #98abc3; }
 #deskComparisonChart { height: 100%; min-height: 0; }
 .terminal-live.terminal-desk[data-desk-split=true] .terminal-chart-panel { display: grid; grid-template-rows: auto minmax(320px,1fr) minmax(350px,1fr); }
-.terminal-live.terminal-desk[data-desk-split=true] .terminal-workspace { grid-template-rows: minmax(780px,calc(100dvh - 260px)) auto; }
+.terminal-live.terminal-desk[data-desk-split=true] .terminal-workspace { grid-template-rows: minmax(780px,calc(100dvh - 260px - var(--ros-marketbar-height, 0px))) auto; }
 .terminal-live.terminal-desk[data-desk-split=true] .desk-comparison { grid-row: 3; }
 @media(min-width:1181px) {
  .terminal-live.terminal-desk .terminal-workspace { grid-template-columns: 214px minmax(0,1fr) 320px; }
