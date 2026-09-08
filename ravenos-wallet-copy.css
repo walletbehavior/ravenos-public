@@ -611,3 +611,13 @@ button, a { -webkit-tap-highlight-color: transparent; }
   .copy-event-card > dl { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .copy-raven-evidence > summary span { margin:6px 0 0; display:block; }
 }
+
+.copy-card-metrics { gap: 1px; background: var(--copy-line); border: 1px solid var(--copy-line); border-radius: 7px; overflow: hidden; }
+.copy-card-metrics > div { min-width: 0; padding: 12px; background: var(--copy-panel); }
+.copy-card-metrics dd { overflow-wrap: anywhere; }
+.copy-card-metrics > .copy-card-coverage { grid-column: 1 / -1; padding: 8px 12px; }
+.copy-card-coverage dt { display: none; }
+.copy-card-coverage dd { color: var(--copy-muted); font-size: 11px; margin: 0; }
+.copy-card-status { grid-column: 1 / -1; flex: 0 0 100%; color: var(--copy-green); }
+.copy-auth-wallet { overflow-wrap: anywhere; font-family: var(--copy-mono); }
+@media (max-width: 600px) { .copy-card-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

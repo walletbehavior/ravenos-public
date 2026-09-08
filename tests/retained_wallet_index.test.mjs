@@ -29,7 +29,14 @@ test("retained wallet browse combines chains, deduplicates identities and separa
     INSERT INTO ravenos_source_wallets VALUES ('base1','base','mainnet','0x1111111111111111111111111111111111111111',100), ('eth1','ethereum','mainnet','0x1111111111111111111111111111111111111111',101), ('sol1','solana','mainnet','sol-address',102);
     INSERT INTO ravenos_source_wallet_discovery_candidates VALUES ('sol1','solana','mainnet','sol-address',103);
     INSERT INTO ravenos_source_wallet_profiles VALUES ('profile1','ravenos.source_wallet_chain_profile.v1');
-    INSERT INTO ravenos_source_wallet_current_profiles VALUES ('base1',104,'profile1');`);
+    INSERT INTO ravenos_source_wallet_current_profiles VALUES ('base1',104,'profile1');
+    ALTER TABLE ravenos_source_wallet_profiles ADD COLUMN source_wallet_id TEXT;
+    ALTER TABLE ravenos_source_wallet_profiles ADD COLUMN history_start_at INTEGER;
+    ALTER TABLE ravenos_source_wallet_current_profiles ADD COLUMN realized_pnl_usdc REAL;
+    ALTER TABLE ravenos_source_wallet_current_profiles ADD COLUMN realized_pnl_sol REAL;
+    ALTER TABLE ravenos_source_wallet_current_profiles ADD COLUMN closed_lots INTEGER;
+    ALTER TABLE ravenos_source_wallet_current_profiles ADD COLUMN source_history_complete INTEGER;
+    CREATE TABLE ravenos_source_wallet_events (source_wallet_id TEXT, transaction_reference TEXT, block_time INTEGER, chain_event_time INTEGER, retention_expires_at INTEGER);`);
   const store = createD1CustomerWalletCopyStore(d1(db));
   const all = await store.listSeenWallets(normalizeWalletScreenerRequest({ chain: "all" }));
   assert.equal(all.total, 2);

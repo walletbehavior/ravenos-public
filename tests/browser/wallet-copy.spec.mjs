@@ -666,7 +666,7 @@ test("signed-out visitors see auth while free accounts receive the basic wallet 
   expect(downloaded).toBe(false);
   expect(authRequests).toEqual([{
     method: "POST",
-    body: { intent: "sign_in", provider: "managed", return_to: `/account/copy/?wallet=${EVM_WALLET}&chain=bsc` },
+    body: { intent: "sign_in", provider: "managed", return_to: `/account/copy/?wallet=${EVM_WALLET}&chain=bsc&inspect_chain=bsc` },
   }]);
 
   const privatePage = await page.context().newPage();
@@ -1230,8 +1230,9 @@ test('source lists filter cached wallets, preserve full addresses and restore ac
   });
   await page.goto('/account/copy/?wallets=observed');
   await expect(page.locator('#copySeenResults')).toContainText(WALLET);
-  await expect(page.locator('#copySeenResults')).toContainText('Kolscan Public Daily');
-  await expect(page.locator('#copySeenResults')).toContainText('#3');
+  await expect(page.locator('#copySeenResults')).not.toContainText(/kolscan/i);
+  await expect(page.locator('#copySeenResults')).toContainText('KOL list');
+  await expect(page.locator('#copySeenResults')).not.toContainText('#3');
   await page.getByLabel('Source list').selectOption('kol');
   await page.getByRole('button',{name:'Filter wallets',exact:true}).click();
   expect(queries.at(-1).observed).toMatchObject({source:'kol',sort:'priority'});
@@ -1396,4 +1397,78 @@ test('wallet valuation shows screened missing marks and uses reconciled historic
   await page.setViewportSize({width:390,height:844});
   const overflow=await page.evaluate(()=>[...document.querySelectorAll('#copyProfile *')].filter(n=>n.getBoundingClientRect().right>innerWidth+1).map(n=>n.id||n.className));
   expect(overflow).toEqual([]);await captureVisual(page,'wallet-mark-coverage-mobile');
+});
+
+function cardSummary(overrides={}) {
+  return {schema_version:'ravenos.wallet_card_summary.v1',as_of:'2026-09-08T12:00:00Z',
+    age:{seconds_lower_bound:95*86400,first_observed_at:'2026-06-05T12:00:00Z',creation_date_known:false},
+    transactions:{d1:21,d7:145,d30:1082,last_observed_at:'2026-09-08T11:59:00Z',window_complete:false},
+    pnl:{usdc:'-123.45',sol:null,as_of:'2026-09-08T12:00:00Z',history_complete:false},...overrides};
+}
+async function installCardPage(page, summary=cardSummary(), cached=false) {
+  await page.route('**/api/v1/wallet-copy/screener',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,rows:[],scope:{chain:'all'},pagination:{page:1,page_size:12},seen_wallets:{total:1,rows:[{
+    source_wallet_id:SOURCE_ID,source_wallet:{chain:'solana',address:WALLET},history_available:cached,last_observed_at:'2026-09-08T12:00:00Z',cached_summary:summary,
+    discovery_sources:[{kind:'kol',label:'KOL list',provider:'kolscan_public_daily',rank:1},{kind:'kol',label:'KOL list',provider:'kolscan_public_weekly',rank:2}],
+  }]}})}));
+}
+
+test('wallet cards surface cached age, P&L and 1/7/30d unique transaction counts on mobile and desktop',async({page})=>{
+  const shared={requests:[]};await install(page,shared,{marketEvidence:true});await installCardPage(page);
+  await page.goto('/account/copy/?wallets=observed&obs_source=kol');
+  const card=page.locator('.copy-seen-wallet');
+  await expect(card).toContainText('95d+');await expect(card).toContainText('-$123.45');
+  for(const [label,value] of [['1d','21 seen'],['7d','145 seen'],['30d','1,082 seen']]) {
+    await expect(card.locator('.copy-card-metrics > div').filter({hasText:`Transactions · ${label}`})).toContainText(value);
+  }
+  await expect(card.locator('.copy-observed-source')).toHaveCount(1);await expect(card).not.toContainText(/kolscan/i);
+  await expect(card).toContainText('age is a lower bound');
+  for (const width of [1440,390]) {
+    await page.setViewportSize({width,height:1000});await card.scrollIntoViewIfNeeded();
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)).toBe(false);
+    await captureVisual(page,`wallet-card-metrics-${width}`);
+  }
+  expect(shared.requests.some(row=>row.path.endsWith('/inspect'))).toBe(false);
+});
+
+test('unindexed metrics remain unknown while a retained zero count and zero P&L stay visible',async({page})=>{
+  const shared={requests:[]};await install(page,shared);await installCardPage(page,null);
+  await page.goto('/account/copy/?wallets=observed');
+  await expect(page.locator('.copy-card-metrics')).toContainText('Not indexed');
+  await expect(page.locator('.copy-card-metrics')).toContainText('Insufficient evidence');
+  await expect(page.locator('.copy-card-metrics')).not.toContainText('0 seen');
+  await installCardPage(page,cardSummary({transactions:{d1:0,d7:0,d30:1},pnl:{usdc:'0',sol:null}}));
+  await page.reload();await expect(page.locator('.copy-card-metrics')).toContainText('0 seen');
+  await expect(page.locator('.copy-card-metrics')).toContainText('+$0.00');
+});
+
+for (const cached of [false,true]) test(`expired ${cached?'cached':'new'} inspection restores sign-in with selected wallet and all-chain filters`,async({page})=>{
+  const shared={requests:[]};await install(page,shared,{marketEvidence:true});await installCardPage(page,cardSummary(),cached);
+  await page.route(cached?`**/api/v1/wallet-copy/wallets/${SOURCE_ID}`:'**/api/v1/wallet-copy/inspect',route=>route.fulfill({status:401,contentType:'application/json',body:'{"ok":false,"error":"authentication_required"}'}));
+  await page.goto('/account/copy/?wallets=observed&obs_source=kol');
+  await expect(page.locator('#copyAccessLabel')).toContainText('Pro active');
+  await page.locator('.copy-seen-wallet').getByRole('button',{name:cached?'Open cached':'Inspect wallet',exact:true}).click();
+  await expect(page.locator('#copySignIn')).toBeVisible();await expect(page.locator('#copyAuthStatus')).toContainText('session expired');
+  await expect(page.locator('#copyAuthWallet')).toContainText(WALLET);await expect(page.locator('#copyWorkspace')).toBeHidden();
+  await expect(page.locator('#copyAccessLabel')).not.toContainText('Pro active');
+  const returnTo=await page.locator('#copySignIn input[name="return_to"]').first().inputValue();
+  const url=new URL(returnTo,'https://app.ravenos.xyz');
+  expect(url.pathname).toBe('/account/copy/');expect(url.searchParams.get('wallet')).toBe(WALLET);
+  expect(url.searchParams.get('inspect_chain')).toBe('solana');expect(url.searchParams.get('obs_source')).toBe('kol');
+  expect(url.searchParams.get('wallets')).toBe('observed');expect(url.searchParams.has('chain')).toBe(false);
+  // A fresh authenticated page uses the saved selection without changing the all-chain screener.
+  await page.unroute(cached?`**/api/v1/wallet-copy/wallets/${SOURCE_ID}`:'**/api/v1/wallet-copy/inspect');
+  await page.goto(returnTo);await expect(page.locator('#copyProfile')).toBeVisible();
+  await expect(page.locator('#copyWalletAddress')).toHaveValue(WALLET);
+});
+
+test('inspection network failure has a visible inline retry explanation and successful inspection updates cached card metrics',async({page})=>{
+  const shared={requests:[]};await install(page,shared);await installCardPage(page,null);
+  await page.route('**/api/v1/wallet-copy/inspect',route=>route.abort('failed'));
+  await page.goto('/account/copy/?wallets=observed');
+  const card=page.locator('.copy-seen-wallet');await card.getByRole('button',{name:'Inspect wallet',exact:true}).click();
+  await expect(card.locator('.copy-card-status')).toContainText('could not finish');
+  await expect(card.getByRole('button',{name:'Inspect wallet',exact:true})).toBeEnabled();await expect(page.locator('#copySignIn')).toBeHidden();
+  await page.route('**/api/v1/wallet-copy/inspect',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,source_wallet_id:SOURCE_ID,profile:profile(),cached_summary:cardSummary(),recent_events:[]})}));
+  await card.getByRole('button',{name:'Inspect wallet',exact:true}).click();await expect(page.locator('#copyProfile')).toBeVisible();
+  await expect(card).toContainText('1,082 seen');await expect(card.getByRole('button',{name:'Open cached',exact:true})).toBeVisible();
 });

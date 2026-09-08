@@ -12,6 +12,7 @@ const SOLANA_WRAPPED_NATIVE = "So11111111111111111111111111111111111111112";
 
 const state = {
   csrf: "",
+  session_expired: false,
   activation: {},
   product: {},
   access: { tier: "free", advanced_wallet_intelligence: false },
@@ -46,6 +47,7 @@ const state = {
 const FREE_SCREENER_SORTS = new Set(["last_trade_desc", "trade_count_desc", "active_days_desc"]);
 
 function applyAccess(access = {}) {
+  if (state.session_expired) return;
   state.access = {
     tier: access.advanced_wallet_intelligence === true ? "pro" : "free",
     advanced_wallet_intelligence: access.advanced_wallet_intelligence === true,
@@ -137,10 +139,11 @@ function signedPct(value) {
   return Number.isFinite(number) ? `${number > 0 ? "+" : ""}${number.toFixed(2)}%` : "Unavailable";
 }
 
-function realizedPerformance(performance) {
+function realizedPerformance(performance, { precise = false } = {}) {
   const values = [];
   if (performance.realized_pnl_usdc !== null && performance.realized_pnl_usdc !== undefined) {
-    values.push(`${Number(performance.realized_pnl_usdc) >= 0 ? "+" : ""}${money(performance.realized_pnl_usdc)}`);
+    const value = precise ? new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 6 }).format(Number(performance.realized_pnl_usdc)) : money(performance.realized_pnl_usdc);
+    values.push(`${Number(performance.realized_pnl_usdc) >= 0 ? "+" : ""}${value}`);
   }
   if (performance.realized_pnl_sol !== null && performance.realized_pnl_sol !== undefined && Number.isFinite(Number(performance.realized_pnl_sol))) {
     const amount = Number(performance.realized_pnl_sol);
@@ -237,8 +240,62 @@ async function api(url, init = {}) {
     headers["content-type"] = "application/json";
     headers["x-ravenos-csrf"] = state.csrf;
   }
-  const response = await fetch(url, { cache: "no-store", credentials: "same-origin", ...init, headers });
-  return { response, payload: await response.json().catch(() => null) };
+  try {
+    const response = await fetch(url, { cache: "no-store", credentials: "same-origin", ...init, headers });
+    const payload = await response.json().catch(() => null);
+    if (response.status === 401) recoverWalletSession();
+    return { response, payload };
+  } catch {
+    return { response: { ok: false, status: 0 }, payload: { error: "network_unavailable" } };
+  }
+}
+
+function walletReturnTo() {
+  const url = new URL(location.href);
+  const address = state.address || document.getElementById("copyWalletAddress").value.trim();
+  if (address) {
+    url.searchParams.set("wallet", address.slice(0, 44));
+    // Inspection and screener can intentionally be on different chains.
+    url.searchParams.set("inspect_chain", state.inspect_chain);
+  }
+  return `/account/copy/${url.search}`;
+}
+
+function recoverWalletSession() {
+  document.querySelectorAll('input[name="return_to"]').forEach(input => { input.value = walletReturnTo(); });
+  if (state.session_expired) return;
+  state.session_expired = true;
+  state.csrf = "";
+  state.deep_poll_token += 1;
+  clearTimeout(state.deep_poll_timer);
+  state.access = { tier: "free", advanced_wallet_intelligence: false };
+  page.dataset.accessTier = "free";
+  page.dataset.copyState = "signed-out";
+  workspace.hidden = true;
+  profileNode.hidden = true;
+  policyNode.hidden = true;
+  unavailable.hidden = true;
+  signIn.hidden = false;
+  setText("copyWorkspaceState", "Sign in again");
+  setText("copyWorkspaceIdentity", "Session expired");
+  setText("copyAccessLabel", "Sign in required");
+  setText("copyAuthStatus", "Your session expired. Sign in again to reopen the selected wallet. Your filters and saved research are preserved.");
+  setText("copyAuthWallet", state.address ? `${chainLabel(state.inspect_chain)} · ${state.address}` : "");
+  signIn.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function inspectionFeedback(button, message) {
+  setText("copySearchStatus", message);
+  const card = button?.closest(".copy-seen-wallet, .copy-screener-card");
+  if (!card) return;
+  let status = card.querySelector(".copy-card-status");
+  if (!status) {
+    status = document.createElement("p");
+    status.className = "copy-card-status";
+    status.setAttribute("role", "status");
+    card.append(status);
+  }
+  status.textContent = message;
 }
 
 async function submitAuthStart(form) {
@@ -901,6 +958,7 @@ function renderWalletRecord() {
 }
 
 function renderProfile(payload, { scroll = true, from_poll: fromPoll = false } = {}) {
+  if (state.session_expired) return;
   if (!fromPoll) {
     clearTimeout(state.deep_poll_timer);
     state.deep_poll_token += 1;
@@ -912,6 +970,16 @@ function renderProfile(payload, { scroll = true, from_poll: fromPoll = false } =
   state.prospective_copyability = payload.prospective_copyability || null;
   state.address = payload.profile?.source_wallet?.address || state.address;
   state.source_wallet_id = payload.source_wallet_id || state.source_wallet_id;
+  if (payload.cached_summary && state.source_wallet_id) {
+    for (const card of document.querySelectorAll(".copy-seen-wallet[data-source-wallet-id]")) {
+      if (card.dataset.sourceWalletId !== state.source_wallet_id) continue;
+      card.querySelector(".copy-card-metrics")?.replaceWith(observedCardMetrics(payload.cached_summary));
+      const status = card.querySelector(".copy-card-status");
+      if (status) status.textContent = "Cached analysis updated.";
+      const open = card.querySelector(".copy-seen-actions button:last-child");
+      if (open) open.textContent = "Open cached";
+    }
+  }
   const profile = state.profile;
   const profileChain = profile?.source_wallet?.chain || "solana";
   if (!fromPoll) {
@@ -1530,9 +1598,8 @@ async function loadStoredWallet(sourceWalletId, button) {
   if (!result.response.ok) {
     state.profile = null;
     profileNode.hidden = true;
-    setText("copySearchStatus", "Stored analysis is unavailable. Use Analyze wallet to request history for this exact chain and address.");
+    if (!state.session_expired) inspectionFeedback(button, "Stored analysis is unavailable. Choose Inspect wallet to check this address again.");
     return false;
-    return;
   }
   renderProfile(result.payload);
   setText("copySearchStatus", `Stored analysis · ${when(result.payload.freshness?.observed_at || result.payload.profile?.generated_at)}. No provider refresh requested.`);
@@ -1765,10 +1832,11 @@ function screenerCard(wallet) {
       : `${follower.prospective_sample_size || 0} tests · ${follower.policy_pass_rate_pct === null || follower.policy_pass_rate_pct === undefined ? "pass forming" : `${pct(follower.policy_pass_rate_pct)} pass`}`;
   const metrics = document.createElement("dl");
   const basicMetrics = [
-    fact("Realized", realizedPerformance({
+    ...walletActivityFacts(wallet.cached_summary),
+    fact("Realized P&L", realizedPerformance({
       realized_pnl_usdc: wallet.source_performance?.realized_pnl?.usdc,
       realized_pnl_sol: wallet.source_performance?.realized_pnl?.sol,
-    })),
+    }, { precise: true })),
     fact("Win rate", pct(wallet.source_performance?.win_rate_pct)),
     fact("Trades", wallet.behavior?.trade_count ?? 0),
     fact("Active days", wallet.behavior?.active_days ?? "Unavailable"),
@@ -1815,7 +1883,11 @@ function screenerCard(wallet) {
   save.textContent = "Save";
   analyze.textContent = "Open analysis";
   save.addEventListener("click", () => saveResearchWallet(wallet.source_wallet_id, walletAddress(wallet.source_wallet?.address), save));
-  analyze.addEventListener("click", () => loadStoredWallet(wallet.source_wallet_id, analyze));
+  analyze.addEventListener("click", () => {
+    state.address = wallet.source_wallet.address;
+    setInspectChain(wallet.source_wallet.chain, { announce: false });
+    return loadStoredWallet(wallet.source_wallet_id, analyze);
+  });
   actions.append(save, analyze);
   card.append(identity, metrics, why, actions);
   return card;
@@ -1827,6 +1899,35 @@ function sampledUsd(micros) {
   return "$" + (units / 1000000n).toLocaleString("en-US") + "." + cents;
 }
 
+function walletActivityFacts(summary) {
+  const seconds = summary?.age?.seconds_lower_bound;
+  const knownAge = Number.isSafeInteger(seconds) && seconds >= 0;
+  const age = !knownAge ? "Not indexed" : seconds < 3600 ? "<1h observed"
+    : seconds < 86400 ? `${Math.floor(seconds / 3600)}h+`
+    : `${Math.floor(seconds / 86400).toLocaleString()}d+`;
+  const ageFact = fact("Wallet age", age);
+  ageFact.title = knownAge ? `Activity observed since ${when(summary.age.first_observed_at)}. Lower bound; wallet creation date is not known.`
+    : "No retained on-chain activity date yet. The date Raven discovered this address is not wallet age.";
+  return [ageFact, ...[["1d", "d1"], ["7d", "d7"], ["30d", "d30"]].map(([label,key]) => {
+    const count = summary?.transactions?.[key];
+    const row = fact(`Transactions · ${label}`, Number.isSafeInteger(count) && count >= 0 ? `${count.toLocaleString()} seen` : "Not indexed");
+    row.title = `Unique retained transactions in the last ${label}, including failures. Partial history; not a count of trades or a complete chain total.${summary?.as_of ? ` As of ${when(summary.as_of)}.` : ""}`;
+    return row;
+  })];
+}
+
+function observedCardMetrics(summary) {
+  const metrics = document.createElement("dl");
+  metrics.className = "copy-observed-facts copy-card-metrics";
+  const pnl = fact("Realized P&L", realizedPerformance({ realized_pnl_usdc: summary?.pnl?.usdc, realized_pnl_sol: summary?.pnl?.sol }, { precise: true }));
+  pnl.title = `Reconstructed closed positions with known cost basis. USDC and SOL are separate.${summary?.pnl?.as_of ? ` Analysis ${when(summary.pnl.as_of)}.` : ""} Partial history is not lifetime P&L.`;
+  metrics.append(...walletActivityFacts(summary), pnl, fact("Latest transaction", summary?.transactions?.last_observed_at ? when(summary.transactions.last_observed_at) : "Not indexed"));
+  const coverage = fact("Coverage", "Cached history · age is a lower bound · counts and P&L cover retained activity.");
+  coverage.className = "copy-card-coverage";
+  metrics.append(coverage);
+  return metrics;
+}
+
 function seenWalletCard(wallet) {
   const card = document.createElement("article"); card.className = "copy-seen-wallet";
   const identity = document.createElement("div"), address = document.createElement("strong"), detail = document.createElement("p");
@@ -1834,10 +1935,14 @@ function seenWalletCard(wallet) {
   address.title = wallet.source_wallet.address;
   detail.textContent = `Observed ${when(wallet.last_observed_at)} · ${wallet.history_available ? "bounded history cached" : "history not analyzed"}`;
   identity.append(address, detail);
-  for(const source of (wallet.discovery_sources||[]).slice(0,3)) {
+  const sourceLabels = { kol: "KOL list", smart_money: "Smart-money list", top_holder: "Top holder", top_trader: "Top trader list", active_trader: "Active pool trader" };
+  const seenKinds = new Set();
+  for(const source of (wallet.discovery_sources||[])) {
+    if (!sourceLabels[source.kind] || seenKinds.has(source.kind)) continue;
+    seenKinds.add(source.kind);
     const provenance=document.createElement('p');
     provenance.className='copy-observed-source';
-    provenance.textContent=`${source.label} · ${readable(source.provider)}${source.rank?` · #${source.rank}`:''}`;
+    provenance.textContent = sourceLabels[source.kind];
     provenance.title=`List observed ${when(source.observed_at)}. A source label, not verified identity or a Raven performance rating.`;
     identity.append(provenance);
   }
@@ -1846,6 +1951,7 @@ function seenWalletCard(wallet) {
   save.addEventListener("click", () => saveResearchWallet(wallet.source_wallet_id, walletAddress(wallet.source_wallet.address), save));
   const inspect = document.createElement("button"); inspect.type = "button"; inspect.textContent = wallet.history_available ? "Open cached" : "Inspect wallet";
   inspect.addEventListener("click", async () => {
+    state.address = wallet.source_wallet.address;
     setInspectChain(wallet.source_wallet.chain, { announce: false });
     document.getElementById("copyWalletAddress").value = wallet.source_wallet.address;
     if (inspect.textContent === "Open cached") {
@@ -1856,7 +1962,8 @@ function seenWalletCard(wallet) {
     if (!profileNode.hidden) profileNode.scrollIntoView({ behavior: "smooth", block: "start" });
   });
   actions.append(save, inspect);
-  card.append(identity, actions);
+  card.dataset.sourceWalletId = wallet.source_wallet_id;
+  card.append(identity, actions, observedCardMetrics(wallet.cached_summary));
   const evidence = wallet.market_evidence;
   if (evidence?.state === "available") {
     const facts = document.createElement("dl"); facts.className = "copy-observed-facts";
@@ -2009,18 +2116,19 @@ async function inspectWalletAddress(address, button, { refresh = false } = {}) {
   const idleLabel = button.dataset.idleLabel || button.textContent || "Analyze wallet";
   button.disabled = true;
   button.textContent = "Analyzing…";
-  setText("copySearchStatus", "Checking Raven’s stored observations…");
+  inspectionFeedback(button, "Checking Raven’s stored observations…");
   const result = await api(`${API}/inspect`, { method: "POST", body: JSON.stringify({ address: state.address, chain: state.inspect_chain, ...(refresh ? { refresh: true } : {}) }) });
   button.disabled = false;
   button.textContent = idleLabel;
   if (requestId !== state.profile_request) return;
   if (!result.response.ok) {
-    setText("copySearchStatus", result.payload?.error === "wallet_analysis_in_progress" ? "Raven is already analyzing this wallet. Try again shortly to reuse that scan." : result.payload?.error === "wallet_history_unavailable" ? "Public history unavailable." : "Inspection unavailable. Nothing inferred.");
+    if (!state.session_expired) inspectionFeedback(button, result.payload?.error === "wallet_analysis_in_progress" ? "Raven is already analyzing this wallet. Try again shortly to reuse that scan." : result.payload?.error === "wallet_history_unavailable" ? "Wallet history is temporarily unavailable. Try again shortly." : "Wallet inspection could not finish. Try again shortly.");
     return;
   }
   setText("copySearchStatus", result.payload?.evidence_mode === "retained_raven_index"
     ? `Stored analysis · ${when(result.payload.freshness?.observed_at)}. ${result.payload.refresh_state === "provider_unavailable" ? "Refresh unavailable; previous evidence retained." : "Shared scan reused."}`
     : result.payload?.persistence?.state === "on_demand_only" ? "On-demand evidence ready. Trade P&L is not inferred." : "Analysis ready.");
+  inspectionFeedback(button, document.getElementById("copySearchStatus").textContent);
   renderProfile(result.payload);
 }
 
@@ -2033,6 +2141,7 @@ async function inspectWallet(event) {
 function setInspectChain(chain, { announce = true } = {}) {
   const allowed = new Set(["solana", "robinhood", "bsc", "base", "ethereum"]);
   state.inspect_chain = allowed.has(chain) ? chain : "solana";
+  document.getElementById("copyWalletChain").value = state.inspect_chain;
   const address = document.getElementById("copyWalletAddress");
   const evm = state.inspect_chain !== "solana";
   address.maxLength = evm ? 42 : 44;
@@ -2070,18 +2179,16 @@ async function savePolicy(event) {
 async function boot() {
   const requestedUrl = new URL(location.href);
   const requestedWallet = requestedUrl.searchParams.get("wallet") || "";
-  const requestedChain = requestedUrl.searchParams.get("chain") || "solana";
+  const requestedChain = requestedUrl.searchParams.get("inspect_chain") || requestedUrl.searchParams.get("chain") || "solana";
   const safeRequestedChain = new Set(["solana", "robinhood", "bsc", "base", "ethereum"]).has(requestedChain) ? requestedChain : "solana";
   document.getElementById("copyWalletChain").value = safeRequestedChain;
   setInspectChain(document.getElementById("copyWalletChain").value);
   if (requestedWallet) document.getElementById("copyWalletAddress").value = requestedWallet.slice(0, 44);
-  const returnParams = new URLSearchParams();
-  if (requestedWallet) returnParams.set("wallet", requestedWallet.slice(0, safeRequestedChain === "solana" ? 44 : 42));
-  if (safeRequestedChain !== "solana") returnParams.set("chain", safeRequestedChain);
-  const returnTo = `/account/copy/${returnParams.size ? `?${returnParams}` : ""}`;
-  document.querySelectorAll('input[name="return_to"]').forEach((input) => { input.value = returnTo; });
+  state.address = requestedWallet.slice(0, 44);
+  document.querySelectorAll('input[name="return_to"]').forEach(input => { input.value = walletReturnTo(); });
   const session = await api("/api/v1/auth/session");
   if (!session.response.ok) {
+    if (state.session_expired) return;
     page.dataset.copyState = "unavailable";
     unavailable.hidden = false;
     setText("copyWorkspaceState", "Account service unavailable");
@@ -2099,6 +2206,7 @@ async function boot() {
   setText("copyWorkspaceIdentity", /^[a-z][a-z0-9_]{2,23}$/.test(username) ? `@${username}` : "Signed in");
   const summary = await api(API);
   if (!summary.response.ok) {
+    if (state.session_expired) return;
     page.dataset.copyState = "unavailable";
     unavailable.hidden = false;
     setText("copyWorkspaceState", "Unavailable");
@@ -2126,6 +2234,7 @@ async function boot() {
     hydrateScreenerFromUrl();
     await Promise.all([loadScreener(), loadSavedResearch(), loadRobinhoodIntelligence()]);
   }
+  if (state.session_expired) return;
   if (requestedWallet) {
     const button = document.querySelector('#copyWalletSearch button[type="submit"]');
     await inspectWalletAddress(requestedWallet, button);
