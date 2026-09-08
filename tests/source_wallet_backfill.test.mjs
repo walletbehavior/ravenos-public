@@ -298,7 +298,7 @@ test("D1 store shares one resumable job per source wallet and preserves its leas
               return null;
             },
             async all() {
-              if (/(?:SELECT job_id FROM|SELECT j\.job_id[\s\S]*FROM) ravenos_source_wallet_backfill_jobs/i.test(sql) && row?.state === "queued") {
+              if ((/WITH scheduling AS/i.test(sql) || /(?:SELECT job_id FROM|SELECT j\.job_id[\s\S]*FROM) ravenos_source_wallet_backfill_jobs/i.test(sql)) && row?.state === "queued") {
                 return { results: [{ job_id: row.job_id }] };
               }
               return { results: [] };
@@ -450,7 +450,5 @@ test("D1 store shares one resumable job per source wallet and preserves its leas
   }]);
   assert.equal(health.subscriber_identity_included, false);
   assert.equal(recorded.length, 0);
-  assert.match(sqlSeen.join("\n"), /ORDER BY CASE WHEN demand_priority>=300 THEN 1000\+demand_priority/i);
-  assert.match(sqlSeen.join("\n"), /ORDER BY j\.demand_priority DESC, j\.evidence_priority DESC, j\.updated_at ASC/i);
   assert.doesNotMatch(sqlSeen.join("\n"), /SELECT\s+.*\buser_id\b|policy_json|private_key|transaction_hash/i);
 });

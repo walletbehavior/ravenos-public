@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { join } from "node:path";
+import { normalizeSourceWalletChainIdentity } from "../../lib/customer_trade/source_wallet_chain_identity.mjs";
 
 const WALLET = "7KxQmTi5W4rP8Y2hD9cV6nF3aS1uEoLzJbGkNqMpfHrt";
 const TOKEN = "4M7YQqGfRWfBpcA7mN5uY3z8Jj6Hk2VtD9sLxEePoaBn";
@@ -1486,6 +1487,34 @@ test('stored analysis retries one temporary read failure and opens without fresh
  await expect(page.locator('#copyWalletAddress')).toHaveValue(WALLET);
  await expect(page.locator('.copy-card-status')).toHaveCount(0);
  expect(reads).toBe(2);expect(shared.requests.some(row=>row.path.endsWith('/inspect'))).toBe(false);
+});
+
+for(const chain of ['base','ethereum','bsc','robinhood'])for(const observed of [false,true])test(`${chain} ${observed?'observed':'analyzed'} wallet opens its own cached profile after a temporary failure`,async({page})=>{
+ const shared={requests:[]};await install(page,shared);
+ const identity=normalizeSourceWalletChainIdentity({chain,network:'mainnet',address:EVM_WALLET});
+ const sourceWallet={chain,network:'mainnet',chain_id:identity.chain_id,vm_family:'evm',address:EVM_WALLET};
+ const cachedProfile=evmProfile();cachedProfile.source_wallet=sourceWallet;
+ cachedProfile.capital_observations.native.symbol=chain==='bsc'?'BNB':'ETH';
+ const row={...screenedWallet(),source_wallet_id:identity.source_wallet_id,source_wallet:sourceWallet};
+ await page.route('**/api/v1/wallet-copy/screener',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({
+  ok:true,rows:observed?[]:[row],scope:{chain},pagination:{page:1,page_size:12},seen_wallets:{total:observed?1:0,rows:observed?[{
+   source_wallet_id:identity.source_wallet_id,source_wallet:sourceWallet,history_available:true,last_observed_at:'2026-09-08T12:00:00Z',cached_summary:cardSummary(),
+  }]:[]},
+ })}));
+ let reads=0;
+ await page.route(`**/api/v1/wallet-copy/wallets/${identity.source_wallet_id}`,route=>{
+  reads++;
+  return route.fulfill({status:reads===1?503:200,contentType:'application/json',body:JSON.stringify(reads===1?{ok:false}:{
+   ok:true,source_wallet_id:identity.source_wallet_id,profile:cachedProfile,recent_events:[],provider_request_performed:false,
+  })});
+ });
+ await page.setViewportSize({width:390,height:844});
+ await page.goto(`/account/copy/?chain=${chain}&wallets=${observed?'observed':'analyzed'}`);
+ await page.getByRole('button',{name:observed?'Open cached':'Open analysis',exact:true}).click();
+ await expect(page.locator('#copyProfile')).toBeVisible();await expect(page.locator('#copyProfileAddress')).toHaveText(EVM_WALLET);
+ await expect(page.locator('#copyWalletChain')).toHaveValue(chain);await expect(page.locator('#copyWalletAddress')).toHaveValue(EVM_WALLET);
+ await expect(page.locator('.copy-card-status')).toHaveCount(0);expect(reads).toBe(2);
+ expect(shared.requests.filter(row=>row.method==='POST'&&!row.path.endsWith('/screener'))).toEqual([]);
 });
 
 test('repeated cached-read network failure keeps cached retry instead of changing to a provider scan',async({page})=>{

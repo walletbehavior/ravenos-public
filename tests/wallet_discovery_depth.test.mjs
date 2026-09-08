@@ -118,6 +118,85 @@ test('interactive requests outrank sourced lists; sourced lists outrank incident
  assert.deepEqual(jobs.map(j=>j.source_wallet.address),[9,1,2,3,8].map(address));
 });
 
+test('background warmups serve all chains despite a continuous high-priority Solana list',async()=>{
+ const db=sqliteStore(),{backfill}=await source(db,address(90));
+ const chains=['solana','base','bsc','ethereum','robinhood'];
+ for(const chain of chains)importLists(db,[{...packet(chain==='solana'?'kol':'top_trader',Array.from({length:12},(_,i)=>chain==='solana'?address(i+1):'0x'+(i+1).toString(16).padStart(40,'0'))),chain}]);
+ for(let cycle=0;cycle<2;cycle++) {
+  const result=await queuePriorityWalletWarmups(db,backfill,{now:(NOW+cycle*300)*1000,helius:true,evm:true});
+  assert.equal(result.queued,4);assert.equal(result.provider_requests,0);
+ }
+ const queued=db.raw.prepare('SELECT DISTINCT s.chain FROM ravenos_source_wallet_backfill_jobs j JOIN ravenos_source_wallets s ON s.source_wallet_id=j.source_wallet_id').all().map(r=>r.chain).sort();
+ assert.deepEqual(queued,chains.sort());
+});
+
+test('background history leases rotate chains while explicit user lookups retain priority',async()=>{
+ const db=sqliteStore(),{backfill}=await source(db,address(90));
+ const chains=['solana','base','bsc','ethereum','robinhood'];
+ for(const chain of chains)for(let i=1;i<=6;i++) {
+  const wallet=chain==='solana'?address(i):'0x'+i.toString(16).padStart(40,'0');
+  await source(db,wallet,chain);
+  importLists(db,[{...packet(chain==='solana'?'kol':'top_trader',[wallet]),chain}]);
+  await backfill.enqueueJob({address:wallet,chain,demand_class:'indexed_research',evidence_priority:chain==='solana'?900:650,history_target:1000,now:NOW*1000});
+ }
+ const visited=new Set();
+ for(let cycle=0;cycle<2;cycle++) {
+  const jobs=await backfill.leaseJobs({worker_id:'fair_'+cycle,now:(NOW+cycle*300)*1000,limit:4,lease_seconds:180});
+  assert.equal(jobs.length,4);assert.equal(new Set(jobs.map(j=>j.source_wallet.chain)).size,4);
+  for(const job of jobs){visited.add(job.source_wallet.chain);await backfill.deferJob({job,next_attempt_at:(NOW+3600)*1000,now:(NOW+cycle*300)*1000});}
+ }
+ assert.deepEqual([...visited].sort(),chains.sort());
+ await backfill.enqueueJob({address:address(90),chain:'solana',demand_class:'interactive_lookup',now:(NOW+601)*1000});
+ const [first]=await backfill.leaseJobs({worker_id:'interactive',now:(NOW+602)*1000,limit:4,lease_seconds:180});
+ assert.equal(first.source_wallet.address,address(90));
+});
+
+test('profile refreshes serve every chain while direct user demand remains first',async()=>{
+ const db=sqliteStore(),{backfill}=await source(db,address(90));
+ const chains=['solana','base','bsc','ethereum','robinhood'];
+ for(const chain of chains)for(let i=1;i<=6;i++) {
+  const wallet=chain==='solana'?address(i):'0x'+i.toString(16).padStart(40,'0');
+  await source(db,wallet,chain);
+  await backfill.enqueueJob({address:wallet,chain,evidence_priority:chain==='solana'?900:650,now:NOW*1000});
+ }
+ db.raw.exec('UPDATE ravenos_source_wallet_backfill_jobs SET signatures_seen=1');
+ // A failed refresh writes no new snapshot. It must still yield the next turn.
+ const failedCycle=await backfill.listProfileRefreshCandidates(4,{now:NOW*1000});
+ const followingCycle=await backfill.listProfileRefreshCandidates(4,{now:(NOW+300)*1000});
+ assert.deepEqual([...new Set([...failedCycle,...followingCycle].map(j=>j.source_wallet.chain))].sort(),chains.slice().sort());
+ const visited=new Set();let sequence=0;
+ for(let cycle=0;cycle<2;cycle++) {
+  const jobs=await backfill.listProfileRefreshCandidates(4,{now:(NOW+cycle*300)*1000});
+  assert.equal(jobs.length,4);assert.equal(new Set(jobs.map(j=>j.source_wallet.chain)).size,4);
+  for(const job of jobs) {
+   visited.add(job.source_wallet.chain);
+   const snapshot='swp_'+String(++sequence).padStart(40,'0'),generated=NOW+1+cycle*300;
+   db.raw.prepare(`INSERT INTO ravenos_source_wallet_profiles
+    (profile_snapshot_id,source_wallet_id,profile_version,normalized_event_count,profile_json,generated_at,retention_expires_at)
+    VALUES (?,?,1,1,'{}',?,?)`).run(snapshot,job.source_wallet_id,generated,generated+86400);
+   db.raw.prepare(`INSERT INTO ravenos_source_wallet_current_profiles
+    (source_wallet_id,profile_snapshot_id,profile_version,generated_at,trade_count,active_days,token_count,performance_state,closed_lots,profile_hash,updated_at)
+    VALUES (?,?,1,?,0,0,0,'insufficient_evidence',0,?,?)`).run(job.source_wallet_id,snapshot,generated,'a'.repeat(40),generated);
+  }
+ }
+ assert.deepEqual([...visited].sort(),chains.sort());
+ const interactive=await backfill.enqueueJob({address:address(90),chain:'solana',demand_class:'interactive_lookup',now:(NOW+601)*1000});
+ db.raw.prepare('UPDATE ravenos_source_wallet_backfill_jobs SET signatures_seen=1 WHERE job_id=?').run(interactive.job_id);
+ const [first]=await backfill.listProfileRefreshCandidates(4,{now:(NOW+602)*1000});
+ assert.equal(first.job_id,interactive.job_id);
+});
+
+test('disabled history providers do not consume another chain’s warmup slots',async()=>{
+ const db=sqliteStore(),{backfill}=await source(db,address(90));
+ importLists(db,[packet('kol',Array.from({length:8},(_,i)=>address(i+1)))]);
+ for(const chain of ['base','bsc','ethereum','robinhood'])importLists(db,[{...packet('top_trader',['0x'+'1'.repeat(40)]),chain}]);
+ assert.equal((await queuePriorityWalletWarmups(db,backfill,{now:NOW*1000,helius:false,evm:false})).queued,0);
+ assert.equal((await queuePriorityWalletWarmups(db,backfill,{now:NOW*1000,helius:false,evm:true})).queued,4);
+ const jobs=db.raw.prepare('SELECT s.chain FROM ravenos_source_wallet_backfill_jobs j JOIN ravenos_source_wallets s ON s.source_wallet_id=j.source_wallet_id').all();
+ assert.deepEqual(jobs.map(j=>j.chain).sort(),['base','bsc','ethereum','robinhood']);
+ assert.equal((await queuePriorityWalletWarmups(db,backfill,{now:(NOW+300)*1000,helius:true,evm:false})).queued,4);
+});
+
 test('a full 1,000-transaction Helius page performs one RPC and zero transaction re-fetches',async()=>{
  const db=sqliteStore(),{store,id,backfill}=await source(db);
  await backfill.enqueueJob({address:WALLET,demand_class:'interactive_lookup',now:NOW*1000});
