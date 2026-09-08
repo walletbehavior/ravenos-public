@@ -1,3 +1,6 @@
+import { enrichHolderWalletContext } from './lib/customer_trade/holder_wallet_context.mjs';
+import { loadWalletHistoricalPrices } from './lib/customer_trade/wallet_historical_prices.mjs';
+import { loadEvmWalletBackfillPage } from './lib/customer_trade/evm_wallet_backfill.mjs';
 import { createWalletUniverseStore, runWalletUniverse } from "./lib/customer_trade/wallet_universe.mjs";
 import { routeCustomerShielded, CUSTOMER_SHIELDED_ROUTE } from "./lib/customer_shielded_routes.mjs";
 import { heliusWalletHistoryRuntime, loadHeliusWalletHistory, loadHeliusWalletPage, cachedHeliusWalletTransaction } from "./lib/customer_trade/helius_wallet_history.mjs";
@@ -175,6 +178,7 @@ import {
   requireCustomerLegalCapability,
   routeCustomerLegal,
 } from "./lib/customer_legal.mjs";
+import { routeCustomerWalletBalances, CUSTOMER_WALLET_BALANCES_ROUTE } from "./lib/customer_wallet_balances.mjs";
 import { routeCustomerPrivyWallets } from "./lib/customer_privy_wallets.mjs";
 import {
   CUSTOMER_COMMUNITY_ROUTE,
@@ -355,6 +359,7 @@ const AUTHENTICATED_APP_STATIC_PATHS = new Set([
   "/ravenos-shell.js",
   "/ravenos-legal-client.js",
   "/ravenos-wallet-connect.js",
+  "/ravenos-wallet-balances.js",
   "/ravenos-embedded-wallet-view.js",
   "/ravenos-workspace.css",
   "/ravenos-terminal-live.css",
@@ -464,7 +469,7 @@ function authenticatedAppBoundary(request) {
   const legalApi = url.pathname === CUSTOMER_LEGAL_DOCUMENTS_ROUTE
     || url.pathname === CUSTOMER_LEGAL_STATUS_ROUTE
     || url.pathname === CUSTOMER_LEGAL_ACCEPTANCES_ROUTE;
-  const privyWalletApi = url.pathname === "/api/v1/wallets/privy/config"
+  const privyWalletApi = url.pathname === CUSTOMER_WALLET_BALANCES_ROUTE || url.pathname === "/api/v1/wallets/privy/config"
     || url.pathname === "/api/v1/wallets/privy/jwks"
     || url.pathname === "/api/v1/wallets/privy"
     || url.pathname === "/api/v1/wallets/privy/session"
@@ -5954,10 +5959,10 @@ async function loadBoundedSolanaWalletHistory(env, { address, limit, observation
   };
 }
 
-async function fetchSourceWalletBackfillSignatures(env, { wallet_address: address, before, limit, commitment }) {
+async function fetchSourceWalletBackfillSignatures(env, { wallet_address: address, before, pagination_token, limit, commitment }) {
   if (heliusWalletHistoryRuntime(env).enabled) {
-    const page=await loadHeliusWalletPage(env,{address,before,limit,commitment},{rpc:boundedSolanaTradeRpc});
-    return page.rows.map(({transaction,...row})=>row);
+    const page=await loadHeliusWalletPage(env,{address,before:pagination_token?null:before,pagination_token,limit,commitment},{rpc:boundedSolanaTradeRpc});
+    return {...page,rows:page.rows.map(({transaction,...row})=>row)};
   }
   const runtime = spotQuotePreviewRuntime(env);
   if (!runtime.available || !runtime.rpc_url) throw new Error("wallet_backfill_solana_rpc_unavailable");
@@ -11199,6 +11204,8 @@ async function routeApi(request, env, executionContext = null) {
   if (identityResponse) return identityResponse;
   const legalResponse = await routeCustomerLegal(request, env);
   if (legalResponse) return legalResponse;
+  const walletBalanceResponse = await routeCustomerWalletBalances(request, env);
+  if (walletBalanceResponse) return walletBalanceResponse;
   const privyWalletResponse = await routeCustomerPrivyWallets(request, env);
   if (privyWalletResponse) return privyWalletResponse;
   const communityResponse = await routeCustomerCommunity(request, env);
@@ -11511,7 +11518,8 @@ async function routeApi(request, env, executionContext = null) {
         },
         observed_at: projection.observed_at,
       });
-      const publicPayload = { ...projection, risk_screen: riskScreen, edge_cache: "miss" };
+      let publicPayload = { ...projection, risk_screen: riskScreen, edge_cache: "miss" };
+      if (env.RAVENOS_WALLET_HOLDER_CONTEXT_ENABLED === "1") publicPayload = await enrichHolderWalletContext(publicPayload,env.RAVENOS_CUSTOMER_DB).catch(()=>publicPayload);
       await holderEdgeCacheWrite(holderCacheKey, publicPayload);
       await rememberPublicMarketWallets(env, publicPayload, executionContext);
       return json(publicPayload, {
@@ -11898,6 +11906,11 @@ export default {
           return runSourceWalletBackfillBatch(backfillStore, {
             fetchSignatures: (input) => fetchSourceWalletBackfillSignatures(env, input),
             hydrateTransaction: (input) => hydrateSourceWalletBackfillTransaction(env, input),
+            fetchEvmPage: (job) => loadEvmWalletBackfillPage(env,job,{existingTransaction:async(sourceId,reference,blockHash)=>{
+              const row=await env.RAVENOS_CUSTOMER_DB.prepare('SELECT event_json, block_hash, decode_version FROM ravenos_wallet_latest_events WHERE source_wallet_id=? AND transaction_reference=? LIMIT 1').bind(sourceId,reference).first();
+              if (row && row.block_hash !== blockHash) throw new Error('evm_wallet_backfill_reorg_requires_review');
+              return row && row.decode_version >= 102 ? JSON.parse(row.event_json) : null;
+            }}),
           }, {
             worker_id: `backfill_worker_${Date.now().toString(36)}`,
             maximum_jobs: 4,
@@ -11906,9 +11919,11 @@ export default {
           }).then(async (run) => {
             const now = Math.floor(Date.now() / 1_000);
             const candidates = await backfillStore.listProfileRefreshCandidates(4);
-            const profileResults = await Promise.allSettled(candidates.map((job) => (
-              persistSourceWalletProfile(walletStore, job.source_wallet_id, now, sourceWalletBackfillHistoryEvidence(job))
-            )));
+            const profileResults = await Promise.allSettled(candidates.map(async (job) => {
+              const events=await walletStore.listSourceEvents(job.source_wallet_id,10000);
+              const historicalPrices=await loadWalletHistoricalPrices(env,env.RAVENOS_CUSTOMER_DB,events).catch(()=>[]);
+              return persistSourceWalletProfile(walletStore, job.source_wallet_id, now, {...sourceWalletBackfillHistoryEvidence(job),historical_prices:env.RAVENOS_WALLET_HISTORICAL_USD_ENABLED === "1" ? historicalPrices : null,opening_balances:job.provider_cursor?.opening_balances,window_start_block:job.provider_cursor?.from_block ? Number(BigInt(job.provider_cursor.from_block)) : null,window_end_block:job.provider_cursor?.verified_through_block ? Number(BigInt(job.provider_cursor.verified_through_block)) : null,verified_through_at:job.provider_cursor?.verified_through_at || null});
+            }));
             return {
               ...run,
               profile_refresh_candidates: candidates.length,

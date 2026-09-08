@@ -1,3 +1,4 @@
+import { mountWalletBalances } from "./ravenos-wallet-balances.js";
 import { ravenOSContext } from "/ravenos-context-store.js";
 
 const accountState = {
@@ -232,3 +233,5 @@ window.__RAVENOS_PORTFOLIO__ = Object.freeze({
   getSelection: () => ravenOSContext.getState().subject,
   getObservedAccount: () => accountState.snapshot,
 });
+
+mountWalletBalances(document.getElementById("portfolioWalletFunds"));

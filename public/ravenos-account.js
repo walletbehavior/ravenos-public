@@ -1,3 +1,4 @@
+import { mountWalletBalances } from "./ravenos-wallet-balances.js";
 import { walletLaunchHref } from "./ravenos-wallet-connect.js";
 import { requestLegalAcceptance } from "./ravenos-legal-client.js";
 
@@ -19,6 +20,8 @@ const referralPanel = document.getElementById("accountReferralPanel");
 const referralControls = document.getElementById("accountReferralControls");
 const legalAssent = document.getElementById("accountLegalAssent");
 const legalAssentCheckbox = document.getElementById("accountLegalAssentCheckbox");
+const walletFunds = mountWalletBalances(document.getElementById("accountWalletFunds"));
+
 const state = {
   config: null,
   session: null,
@@ -133,6 +136,7 @@ function renderPrivyState(payload) {
   button.hidden = missing.length === 0;
   updatePrivyCreateLabel();
   renderPrivyWallets(wallets);
+  walletFunds?.refresh();
 }
 
 function updatePrivyCreateLabel() {

@@ -727,3 +727,11 @@ body.ros-shell-active .layout { min-height: calc(100vh - var(--ros-topbar-height
   .ros-context-rail,
   .ros-utility-drawer { transition: none; }
 }
+
+/* Own-account capital, shared across Account, Portfolio and the trade ticket. */
+.raven-wallet-balances{margin:16px 0;padding:20px;border:1px solid #31434b;border-radius:12px;background:#0c161c;min-width:0;text-align:left;color:#e4ecee}
+.raven-wallet-balances header,.raven-wallet-balances header>div{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.raven-wallet-balances header>strong{font-size:18px}.raven-wallet-balances button,.raven-wallet-balances select{font:inherit;font-size:12px;background:#12212a;color:inherit;border:1px solid #35534f;border-radius:6px;padding:8px;min-height:36px}
+.raven-wallet-balances p,.raven-wallet-balances small{font-size:12px;line-height:1.5;color:#9cabb8}.raven-wallet-balances code{display:block;font-size:11px;white-space:normal;overflow-wrap:anywhere;margin:12px 0;color:#a2b3bd}
+.raven-wallet-balance-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:14px 0}.raven-wallet-balance-grid>div{min-width:0;padding:12px;background:#11252a;border-radius:8px}.raven-wallet-balance-grid span,.raven-wallet-balance-grid strong,.raven-wallet-balance-grid small{display:block;overflow-wrap:anywhere}.raven-wallet-balance-grid span{font-size:12px;color:#87afa2}.raven-wallet-balance-grid strong{font:600 22px/1.4 ui-monospace,monospace;color:#b0e3c9}.raven-wallet-balances a{color:#80d4ae;font-size:12px}.raven-wallet-balances.is-compact{padding:12px}.raven-wallet-balances.is-compact .raven-wallet-balance-grid strong{font-size:18px}
+@media(max-width:520px){.raven-wallet-balances{padding:14px}.raven-wallet-balances header{align-items:flex-start}.raven-wallet-balances header>div{width:100%}.raven-wallet-balance-grid strong{font-size:19px}}

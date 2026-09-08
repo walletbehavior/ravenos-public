@@ -732,7 +732,7 @@ function renderDeepHistory(history) {
     queued: [signatures ? "Indexing older activity" : "Deep history queued", "Shared history updates in batches. This page checks Raven’s cache."],
     leased: ["Indexing older activity", "Normalizing provider evidence."],
     retry_wait: ["History retry queued", "Cursor preserved."],
-    complete: ["Provider history exhausted", "Oldest available page reached."],
+    complete: history.chain && history.chain !== "solana" ? ["30-day indexed window processed", "Receipt-backed activity is saved. Unsupported internal transfers and unknown costs remain excluded."] : ["Provider history exhausted", "Oldest available page reached."],
     bounded_partial: ["10,000-signature window indexed", "Older activity may exist."],
     dead_letter: ["History needs operator review", "Evidence gap preserved."],
     unavailable: ["Deep history unavailable", "Current evidence remains visible."],
@@ -743,7 +743,7 @@ function renderDeepHistory(history) {
   const progressNode = document.getElementById("copyDeepHistoryProgress");
   progressNode.value = progress;
   progressNode.textContent = `${Math.round(progress)}%`;
-  setText("copyDeepHistoryCount", `${compactNumber(signatures)} signatures · ${compactNumber(history.transactions_decoded || 0)} decoded · ${compactNumber(history.pages_indexed || 0)} pages`);
+  setText("copyDeepHistoryCount", `${compactNumber(signatures)} transaction references · ${compactNumber(history.transactions_decoded || 0)} decoded · ${compactNumber(history.pages_indexed || 0)} pages`);
 }
 
 function deepHistoryPending(history) {
@@ -833,8 +833,10 @@ function renderWalletRecord() {
   const nativeAmount = snapshot?.native?.amount ?? native?.amount;
   const nativeSymbol = native?.symbol || (profile.source_wallet.chain === "bsc" ? "BNB" : profile.source_wallet.chain === "solana" ? "SOL" : "ETH");
   const markedValue = (snapshot?.provider_balance_summary || profile.provider_balance_summary)?.visible_provider_mark_value_usd;
+  const usd = record?.usd?.periods?.[period];
   const metrics = [
-    fact("Realized P&L", recordPnl(row.realized_pnl)),
+    fact("Realized P&L · settlement", recordPnl(row.realized_pnl)),
+    ...(record?.usd ? [fact("Realized P&L · USD reference", recordUsd(usd?.realized_pnl?.usd)),fact("Historical USD coverage", `${record.usd.priced_trades} / ${record.usd.eligible_trades} retained trades`),fact("Observed network fees · USD reference",recordUsd(usd?.observed_network_fee_usd))] : []),
     fact("Return on matched cost", pct(row.roi_pct)),
     fact("Win rate · matched sells", pct(row.win_rate_pct)),
     fact("Buys / sells", `${row.buy_count ?? "—"} / ${row.sell_count ?? "—"}`),
@@ -847,9 +849,14 @@ function renderWalletRecord() {
     fact("Total buy cost", recordBasis(row.buy_notional_by_basis, "total")),
     fact("Total sell proceeds", recordBasis(row.sell_notional_by_basis, "total")),
   ];
+  const risk=profile.discovery_metrics;
+  if(risk){metrics.push(fact("Matched losses ≥75%",pct(risk.loss_75_pct)),fact("Matched holds <15 seconds",risk.under_15_seconds_count??"—"),fact("Tokens with ≥15 buys",risk.tokens_15_plus_buys??"—"));}
+  const incoming=record?.incoming_transfers?.[0];
+  if(incoming?.from){metrics.push(fact("Earliest retained incoming transfer",`${incoming.from} · ${when(incoming.observed_at)}`));}
   document.getElementById("copyOverviewMetrics").replaceChildren(...metrics);
   const decoded = profile.coverage?.trade_events != null;
-  setText("copyOverviewScope", `${chainLabel(profile.source_wallet.chain)} · Snapshot ${when(profile.generated_at)}. ${decoded ? "Results cover retained decoded activity; matched cost only, network fees separate. Settlement currencies stay separate." : "Transfer history is available; swaps and cost basis are not reconstructed yet."} ${selected || all ? "" : "This snapshot has no period breakdown. "}Retained activity: ${when(profile.coverage?.first_observed_at || profile.behavior?.first_trade_at)} → ${when(profile.coverage?.last_observed_at || profile.behavior?.last_trade_at)}; not wallet age. Missing values are not zero.`);
+  const fxScope = record?.usd ? " USD values use historical five-minute native-asset price references and canonical USDC equivalents; network fees remain separate. " : " ";
+  setText("copyOverviewScope", `${chainLabel(profile.source_wallet.chain)} · Balances observed ${when(profile.balances_observed_at || profile.generated_at)}. ${fxScope}${decoded ? "Results cover retained decoded activity; matched cost only, network fees separate. Settlement currencies stay separate." : "Transfer history is available; swaps and cost basis are not reconstructed yet."} ${selected || all ? "" : "This snapshot has no period breakdown. "}Retained activity: ${when(profile.coverage?.first_observed_at || profile.behavior?.first_trade_at)} → ${when(profile.coverage?.last_observed_at || profile.behavior?.last_trade_at)}; not wallet age. Missing values are not zero.`);
   const distribution = document.getElementById("copyOutcomeDistribution");
   distribution.replaceChildren();
   if (selected?.distribution?.length && selected.observations > 0) {
@@ -2103,6 +2110,10 @@ async function boot() {
   if (requestedWallet) {
     const button = document.querySelector('#copyWalletSearch button[type="submit"]');
     await inspectWalletAddress(requestedWallet, button);
+    if (requestedUrl.searchParams.get("intent") === "copy") {
+      const setup=document.getElementById("copyStartSetup");
+      if (!setup.disabled) setup.click(); else setup.scrollIntoView({block:"center"});
+    }
   }
   if (requestedUrl.searchParams.get("view") === "watching") switchView("watching");
 }

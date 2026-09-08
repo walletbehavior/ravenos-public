@@ -555,6 +555,7 @@ test("SQLite excludes unknown risk values and excludes old or other-wallet event
   const db = new DatabaseSync(":memory:");
   db.exec(`CREATE TABLE c(source_wallet_id TEXT); CREATE TABLE p(profile_json TEXT);
     CREATE TABLE ravenos_source_wallet_events(source_wallet_id TEXT, classification TEXT, block_time INTEGER, chain_event_time INTEGER, observed_at INTEGER);
+    CREATE VIEW ravenos_wallet_latest_events AS SELECT * FROM ravenos_source_wallet_events;
     INSERT INTO c VALUES ('target'); INSERT INTO p VALUES ('{}');
     INSERT INTO ravenos_source_wallet_events VALUES ('target', 'SWAP_BUY', 1999999999, NULL, 2000000000), ('target', 'SWAP_SELL', 100, NULL, 2000000000), ('other', 'SWAP_BUY', 1999999999, NULL, 2000000000), ('target', 'TRANSFER_IN', 1999999999, NULL, 2000000000), ('target', 'SWAP_BUY', NULL, NULL, 2000000000);`);
   const window = WalletScreenerFieldSqlColumns.trades_1d.replaceAll("__EVALUATED_SECONDS__", "2000000000");

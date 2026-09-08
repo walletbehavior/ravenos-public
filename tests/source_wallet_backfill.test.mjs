@@ -17,6 +17,15 @@ import {
 const NOW = "2026-09-01T08:00:00.000Z";
 const WALLET = bs58.encode(Buffer.alloc(32, 101));
 
+test('Helius continuation survives a short page and never becomes a false completion',async()=>{
+  const store=memoryStore();let calls=0;
+  const deps={fetchSignatures:async input=>{calls++;if(calls===1)return {rows:[signatureRow(1)],pagination_token:'9999:1',history_exhausted:false};assert.equal(input.pagination_token,'9999:1');return {rows:[],pagination_token:null,history_exhausted:true};},hydrateTransaction:async({signature_record:row})=>transaction(row)};
+  await runSourceWalletBackfillBatch(store,deps,{now:Date.parse(NOW),maximum_pages_per_job:1});
+  assert.equal(store.current().state,'queued');assert.equal(store.current().history_exhausted,false);
+  await runSourceWalletBackfillBatch(store,deps,{now:Date.parse(NOW)+1000,maximum_pages_per_job:1});
+  assert.equal(store.current().state,'complete');assert.equal(store.events.size,1);
+});
+
 function signature(index) {
   const bytes = Buffer.alloc(64);
   bytes.writeUInt32BE(index, 60);
@@ -284,7 +293,7 @@ test("D1 store shares one resumable job per source wallet and preserves its leas
           return {
             async first() {
               if (/SELECT j\.\*, s\.address/i.test(sql) && row?.job_id === bindings[0]) {
-                return { ...row, address: addressBySource.get(row.source_wallet_id) };
+                return { ...row, chain: "solana", address: addressBySource.get(row.source_wallet_id) };
               }
               return null;
             },
@@ -362,11 +371,12 @@ test("D1 store shares one resumable job per source wallet and preserves its leas
                 return { meta: { changes: 1 } };
               }
               if (/UPDATE ravenos_source_wallet_backfill_jobs SET\s+state = \?, cursor_before/i.test(sql)) {
-                const [state, cursorBefore, pageCount, signaturesSeen, transactionsDecoded, decodeFailures, historyExhausted, attemptCount, nextAttemptAt, keepLease] = bindings;
+                const [state, cursorBefore, providerCursorJson, pageCount, signaturesSeen, transactionsDecoded, decodeFailures, historyExhausted, attemptCount, nextAttemptAt, keepLease] = bindings;
                 row = {
                   ...row,
                   state,
                   cursor_before: cursorBefore,
+                  provider_cursor_json: providerCursorJson,
                   page_count: pageCount,
                   signatures_seen: signaturesSeen,
                   transactions_decoded: transactionsDecoded,

@@ -1,3 +1,4 @@
+import { mountWalletBalances } from "./ravenos-wallet-balances.js";
 import { walletLaunchHref } from "./ravenos-wallet-connect.js";
 import { createTerminalDesk, deskFeeLabel, deskPercentFromBps } from "./ravenos-terminal-desk.js";
 import { ravenOSContext, savedMonitorHandoffHref } from "./ravenos-context-store.js";
@@ -3587,7 +3588,7 @@ function holderExplorerUrl(chain, address) {
 
 function compactHolderAddress(value) {
   const address = String(value || "");
-  return address.length > 15 ? `${address.slice(0, 6)}…${address.slice(-6)}` : address;
+  return address;
 }
 
 function holderBalanceLabel(value) {
@@ -4126,6 +4127,25 @@ function renderHolderListProjection(payload) {
     }
     identity.className = "terminal-holder-identity";
     identity.append(addressLine, classification);
+    const context=row.wallet_context;
+    if(walletOwner&&context?.scope==='cached_public_wallet_analysis'){
+      const detail=document.createElement("div");detail.className="terminal-holder-wallet-context";
+      const counts=document.createElement("span");counts.textContent=context.token?`${context.token.buy_count} buys / ${context.token.sell_count} sells · this token`:`${context.retained_trade_count} decoded trades · wallet`;
+      detail.append(counts);
+      const cost=context.token?.by_basis||{};
+      for(const [key,value] of Object.entries(cost)){
+        if(value.matched_cost==null&&value.realized_pnl==null)continue;
+        const metric=document.createElement("span");metric.textContent=`Matched cost ${value.matched_cost??"—"} · P&L ${value.realized_pnl??"—"} ${key.toUpperCase()}`;detail.append(metric);
+      }
+      const observed=document.createElement("small");observed.textContent=`Saved analysis · ${new Date(context.observed_at).toLocaleString()}${context.first_retained_trade_at?` · first retained trade ${new Date(context.first_retained_trade_at).toLocaleDateString()}`:""}`;detail.append(observed);
+      identity.append(detail);
+    }
+    if(walletOwner){
+      const actions=document.createElement("div");actions.className="terminal-holder-wallet-actions";
+      const analyze=document.createElement("a");analyze.href=address.href;analyze.textContent="Wallet details";
+      const copyTrade=document.createElement("a");copyTrade.href=address.href+"&intent=copy";copyTrade.textContent=payload.identity.chain==="solana"?"Copy setup":"Copy availability";
+      actions.append(analyze,copyTrade);identity.append(actions);
+    }
     const balance = document.createElement("strong");
     balance.textContent = holderBalanceLabel(row.balance);
     balance.title = row.balance;
@@ -6930,9 +6950,12 @@ function spotQuoteEffectiveExpiry(payload) {
   return parsed.every(Number.isFinite) ? Math.min(...parsed) : Number.NaN;
 }
 
+let terminalWalletFunds = null;
 function syncSpotTicketControls() {
   const identity = currentProjectIdentity();
   const identityAvailable = spotTicketIdentityAvailable();
+  if (identityAvailable && !terminalWalletFunds) terminalWalletFunds = mountWalletBalances(document.getElementById("terminalWalletFunds"),{compact:true,getContext:()=>({chain:currentProjectIdentity()?.chain,address:currentSpotWallet().address})});
+  if (identityAvailable) terminalWalletFunds?.sync();
   const qualified = spotTicketQualified();
   const section = document.getElementById("terminalSpotTicketSection");
   if (section) section.hidden = !identityAvailable;

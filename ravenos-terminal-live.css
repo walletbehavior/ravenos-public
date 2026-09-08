@@ -2012,3 +2012,8 @@ body .terminal-market-evidence summary { font-family: -apple-system, BlinkMacSys
   white-space:normal; overflow-wrap:anywhere; text-overflow:clip; overflow:visible;
 }
 .terminal-spot-trader { min-width:0; }
+
+/* Cached holder intelligence: full addresses wrap without hiding their middle. */
+.terminal-holder-wallet-context{display:grid;gap:4px;margin-top:8px;font-size:12px;line-height:1.5;color:var(--muted,#93a4b8)}
+.terminal-holder-wallet-actions{display:flex;flex-wrap:wrap;gap:16px;margin-top:8px;font-size:12px}
+.terminal-holder-address-line a{overflow-wrap:anywhere;white-space:normal;text-overflow:clip}

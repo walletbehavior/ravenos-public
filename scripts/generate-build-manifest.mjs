@@ -61,6 +61,7 @@ const files = [
   "ravenos-shell.js",
   "ravenos-legal-client.js",
   "ravenos-wallet-connect.js",
+  "ravenos-wallet-balances.js",
   "ravenos-embedded-wallet-view.js",
   "ravenos-context-store.js",
   "ravenos-intelligence-contract.js",

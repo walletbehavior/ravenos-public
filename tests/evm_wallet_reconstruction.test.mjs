@@ -7,7 +7,7 @@ import { buildEvmTradingRecord } from '../lib/customer_trade/evm_wallet_trading_
 import { loadAlchemyTokenPrices, preciseTokenMark } from '../lib/customer_trade/alchemy_token_prices.mjs';
 import { inspectEvmWallet } from '../lib/customer_trade/evm_wallet_lookup.mjs';
 import { inspectRetainedEvmWallet } from '../lib/customer_trade/retained_evm_wallet.mjs';
-import { createD1CustomerWalletCopyStore } from '../lib/customer_wallet_copy.mjs';
+import { createD1CustomerWalletCopyStore, persistSourceWalletProfile } from '../lib/customer_wallet_copy.mjs';
 import { sqliteStore } from './customer_pro_rewards.test.mjs';
 
 const W='0x'+'11'.repeat(20),T='0x'+'22'.repeat(20),P='0x'+'33'.repeat(20),R='0x'+'44'.repeat(20),U='0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',F=WALLET_SWAP_FACTORIES.base.v2[0];
@@ -29,6 +29,28 @@ async function poolRpc(method,params){
 }
 async function decode(r,extra={}){return decodeEvmWalletReceipt({chain:'base',wallet:W,receipt:r,transaction:transaction(r),time:iso(NOW-(r.blockNumber==='0x65'?120000:60000)),metadata:new Map([[U,{decimals:6}],[T,{decimals:6}]]),rpc:poolRpc,poolCache:new Map(),now:NOW,...extra});}
 function record(events,{opening='0',balance='5000000',price='100',...options}={}){return buildEvmTradingRecord(events,{bases:evmSettlementBases('base'),openingBalances:{[T]:opening},generatedAt:iso(NOW),balances:[{contract:T,decimals:6,balance_raw:balance,provider_mark_value_usd:price}],...options});}
+
+test('verified two-pool router path accounts wallet net amounts and rejects a broken intermediate transfer',async()=>{
+ const middle='0x'+'66'.repeat(20),second='0x'+'77'.repeat(20),r=receipt();
+ r.logs=[transfer(U,W,P,100000000,0),transfer(middle,P,second,4000000,1),transfer(T,second,W,10000000,2),
+  {address:P,logIndex:'0x3',topics:[WALLET_SWAP_TOPICS.v2,aw(R),aw(second)],data:'0x'+[100000000,0,0,4000000].map(word).join('')},
+  {address:second,logIndex:'0x4',topics:[WALLET_SWAP_TOPICS.v2,aw(R),aw(W)],data:'0x'+[4000000,0,0,10000000].map(word).join('')}];
+ const rpc=async(method,[call])=>{
+  assert.equal(method,'eth_call');
+  if(call.to===P||call.to===second)return ({'0x0dfe1681':aw(call.to===P?U:middle),'0xd21220a7':aw(call.to===P?middle:T),'0xc45a0155':aw(F)})[call.data];
+  if(call.to===F)return call.data.includes(U.slice(2))?aw(P):aw(second);
+  throw Error('unexpected_pool');
+ };
+ const valid=await decode(r,{rpc});assert.equal(valid.classification.kind,'SWAP_BUY');assert.equal(valid.wallet_accounting.route.pools.length,2);assert.equal(valid.wallet_accounting.trade.consideration,'100000000');assert.equal(valid.copy_signal.source_signal_ready,false);
+ r.logs[1].topics[2]=aw(R);assert.equal((await decode(r,{rpc})).wallet_accounting.trade,null);
+});
+
+test('plain native receipt exposes incoming funding as an observation, never an invented swap',async()=>{
+ const r={...receipt(),logs:[],gasUsed:'0x5208'},tx={...transaction(r),from:R,to:W,value:'0x64',input:'0x'};
+ const event=await decode(r,{transaction:tx,rpc:async method=>{assert.equal(method,'eth_getCode');return '0x';}});
+ assert.equal(event.classification.kind,'TRANSFER_IN');assert.equal(event.wallet_accounting.incoming_transfer.from,R);assert.equal(event.wallet_accounting.trade,null);assert.equal(event.wallet_accounting.wallet_paid_network_fee,false);
+ assert.equal((await decode(r,{transaction:tx,rpc:async()=> '0x1234'})).classification.kind,'AMBIGUOUS');
+});
 
 test('verified single-pool receipts establish actual buys, sells and exact FIFO realized/unrealized results',async()=>{
  const buy=await decode(receipt()),sell=await decode(receipt(true));
@@ -150,6 +172,19 @@ test('durable reconstruction reopens without RPCs and preserves the complete acc
  assert.equal(p.calls.length,count);assert.equal(second.provider_request_performed,false);
  assert.deepEqual(second.profile.trading_record,first.profile.trading_record);
  assert.equal(db.raw.prepare('PRAGMA foreign_key_check').all().length,0);db.raw.close();
+});
+
+test('background projection extends cached activity without refreshing balance timestamps or Copy authority',async()=>{
+ const db=sqliteStore(),store=createD1CustomerWalletCopyStore(db),p=provider(),now=Math.floor(NOW/1000);
+ const first=await inspectRetainedEvmWallet({chain:'base',address:W,env,fetchImpl:p.fetchImpl,now:iso(NOW)},{db,store,now});
+ const count=p.calls.length;
+ const projected=await persistSourceWalletProfile(store,first.source_wallet_id,now+600,{backfill_state:'complete',window_start_block:101,opening_balances:{[T]:'0'},historical_prices:[]});
+ assert.equal(projected.trading_record.periods.d30.realized_pnl.usdc,'25');
+ assert.equal(projected.trading_record.usd.periods.d30.realized_pnl.usd,'25');
+ assert.equal(projected.balances_observed_at,first.profile.generated_at);
+ assert.equal(projected.durable_history.events_retained,2);
+ assert.equal((await store.listSourceEventPage(first.source_wallet_id,{limit:1})).has_more,true);
+ assert.equal(p.calls.length,count);db.raw.close();
 });
 
 test('V3 signed pool deltas and factory fee-tier membership establish a swap',async()=>{
