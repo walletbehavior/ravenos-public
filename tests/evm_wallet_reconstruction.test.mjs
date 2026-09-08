@@ -244,3 +244,15 @@ test('real Robinhood Router02 receipt reconstructs native input through the cano
  const missing=structuredClone(fixture.receipt);missing.logs=missing.logs.filter(log=>log.topics[1]!=='0x'+'0'.repeat(64));
  assert.equal((await decodeEvmWalletReceipt({...input,receipt:missing})).wallet_accounting.trade,null);
 });
+
+test('receipt-backed transfer rows retain provider, exact amount and token label without becoming trades', async () => {
+ for (const inbound of [true, false]) {
+  const r=receipt();r.logs=[transfer(T,inbound?P:W,inbound?W:P,1234567,0)];
+  const e=await decode(r,{metadata:new Map([[T,{decimals:6,symbol:'TOKEN'}]])});
+  assert.equal(e.classification.kind,inbound?'TRANSFER_IN':'TRANSFER_OUT');
+  assert.equal(e.chain_evidence.provider,'alchemy_wallet_receipts');
+  const endpoint=e.economic[inbound?'destination_asset':'source_asset'];
+  assert.equal(endpoint.amount_base_units,'1234567');assert.equal(endpoint.decimals,6);assert.equal(endpoint.symbol,'TOKEN');
+  assert.equal(e.wallet_accounting.trade,null);assert.equal(e.copy_signal.source_signal_ready,false);
+ }
+});

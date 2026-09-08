@@ -65,3 +65,14 @@ function alchemyFixture(chain="base") {
 for(const chain of ["base","ethereum","bsc","robinhood"])test(`Alchemy ${chain} keeps exact chain and wallet ownership with receipt-backed transfers`,async()=>{const f=alchemyFixture(chain);const inputs=await loadAlchemyWalletInputs(f.env,chain,EVM,{fetchImpl:f.fetchImpl});assert.equal(inputs.transfersPayload.items[0].total.value,"1000000");assert.equal(inputs.tokensPayload.items[0].value,"1000000");const result=await inspectEvmWallet({chain,address:EVM,env:f.env,fetchImpl:f.fetchImpl,now:"2026-09-06T00:01:00Z"});assert.equal(result.source.provider,"alchemy_wallet_history");assert.equal(result.profile.source_wallet.chain,chain);assert.equal(result.recent_events[0].classification.kind,"TRANSFER_IN");assert.equal(result.profile.source_performance.realized_pnl_usdc,null);assert.equal(result.profile.evidence_boundary.transfers_treated_as_trades,false);assert.ok(!JSON.stringify(result).includes("fixture-server-key"));});
 test("Alchemy chain mismatch fails before any wallet methods",async()=>{const f=alchemyFixture();let calls=0;await assert.rejects(loadAlchemyWalletInputs(f.env,"base",EVM,{fetchImpl:async()=>{calls++;return Response.json({id:1,result:"0x1"});}}),/chain_mismatch/);assert.equal(calls,1);});
 test("Alchemy method restrictions stay unavailable rather than reporting empty complete history",async()=>{const f=alchemyFixture();const result=await loadAlchemyWalletInputs(f.env,"base",EVM,{fetchImpl:async(url,init)=>JSON.parse(init.body).method==="alchemy_getAssetTransfers"?Response.json({id:1,error:{code:-32601}}):f.fetchImpl(url,init)});assert.equal(result.partial,true);assert.equal(result.transfersPayload.items.length,0);assert.equal(alchemyWalletHistoryRuntime({...f.env,ALCHEMY_BASE_RPC_URL:"https://eth-mainnet.g.alchemy.com/v2/key"},"base").enabled,false);});
+
+test('Robinhood reuses only an exact existing Alchemy app endpoint and still verifies its chain',async()=>{
+ const base=alchemyFixture(),rh=alchemyFixture('robinhood');
+ const env={...base.env,RAVENOS_EVM_WALLET_RECONSTRUCTION_ENABLED:'1'};
+ const runtime=alchemyWalletHistoryRuntime(env,'robinhood');
+ assert.equal(runtime.enabled,true);assert.equal(runtime.configuration_source,'existing_alchemy_app_key');assert.equal(new URL(runtime.rpc_url).hostname,'robinhood-mainnet.g.alchemy.com');
+ const inputs=await loadAlchemyWalletInputs(env,'robinhood',EVM,{fetchImpl:rh.fetchImpl});assert.equal(inputs.transfersPayload.items[0].total.value,'1000000');
+ assert.equal(alchemyWalletHistoryRuntime({...env,ALCHEMY_BASE_RPC_URL:'https://evil.example/v2/fixture-server-key'},'robinhood').enabled,false);
+ assert.equal(alchemyWalletHistoryRuntime({...env,ALCHEMY_ROBINHOOD_RPC_URL:'https://eth-mainnet.g.alchemy.com/v2/key'},'robinhood').enabled,false);
+ await assert.rejects(loadAlchemyWalletInputs(env,'robinhood',EVM,{fetchImpl:async()=>Response.json({id:1,result:'0x2105'})}),/chain_mismatch/);
+});

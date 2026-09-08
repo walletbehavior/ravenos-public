@@ -408,3 +408,26 @@ test('saved research reopens exact-chain EVM snapshots without new provider call
   assert.equal((await call('/saved-wallets')).payload.saves.length,4);
   assert.equal(db.raw.prepare('SELECT count(*) n FROM ravenos_customer_wallet_copy_watches').get().n,0);
 });
+
+for (const status of [403, 503]) test(`Alchemy ${status} falls back to the existing explorer without fabricating profit`, async () => {
+  const source = provider();
+  const env = { RAVENOS_EVM_WALLET_LOOKUP_ENABLED: '1', RAVENOS_ALCHEMY_WALLET_HISTORY_ENABLED: '1', RAVENOS_EVM_WALLET_RECONSTRUCTION_ENABLED: '1', ALCHEMY_BASE_RPC_URL: 'https://base-mainnet.g.alchemy.com/v2/fixture-key', BLOCKSCOUT_API_KEY: KEY };
+  const result = await inspectEvmWallet({ chain: 'robinhood', address: ADDRESS, env,
+    now: '2026-09-04T12:01:00Z', fetchImpl: async (url) => new URL(url).hostname.endsWith('.alchemy.com') ? json({}, status) : source.fetch(url) });
+  assert.equal(result.source.provider, 'blockscout_pro_v2');
+  assert.equal(result.source.fallback_reason, 'alchemy_connection_unavailable');
+  assert.equal(result.source.request_count, null);
+  assert.equal(result.source.fallback_request_count, 4);
+  assert.equal(result.profile.source_performance.realized_pnl_usdc, null);
+  assert.equal(source.urls.length, 4);
+  assert(!JSON.stringify(result).includes('fixture-key'));
+});
+
+test('Alchemy chain integrity failures cannot be hidden by the explorer fallback', async () => {
+  let calls = 0;
+  await assert.rejects(inspectEvmWallet({ chain: 'robinhood', address: ADDRESS,
+    env: { RAVENOS_EVM_WALLET_LOOKUP_ENABLED: '1', RAVENOS_ALCHEMY_WALLET_HISTORY_ENABLED: '1', RAVENOS_EVM_WALLET_RECONSTRUCTION_ENABLED: '1', ALCHEMY_BASE_RPC_URL: 'https://base-mainnet.g.alchemy.com/v2/fixture-key', BLOCKSCOUT_API_KEY: KEY },
+    fetchImpl: async () => { calls++; return json({id: 1, result: '0x1'}); }
+  }), /chain_mismatch/);
+  assert.equal(calls, 1);
+});

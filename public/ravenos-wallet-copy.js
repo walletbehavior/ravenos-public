@@ -324,7 +324,7 @@ function eventCard(event) {
     fact("Received", exactAssetAmount(event.economic?.destination_asset)),
   );
   const evidence = document.createElement("p");
-  const provider = readable(event.chain_evidence?.provider || "provider unavailable");
+  const provider = readable(event.chain_evidence?.provider || event.chain_evidence?.providers?.join(" · ") || "provider unavailable");
   const finality = readable(event.chain_evidence?.finality || "finality unavailable");
   evidence.textContent = `${provider} · ${finality}${event.chain_evidence?.slot === null || event.chain_evidence?.slot === undefined ? "" : ` · slot ${event.chain_evidence.slot}`}`;
   const disclosure = document.createElement("details");

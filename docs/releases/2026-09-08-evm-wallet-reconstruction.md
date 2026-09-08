@@ -48,3 +48,9 @@ Verification and production version receipts are retained in workspace outputs, 
 A read-only check against Robinhood's official public RPC verified transaction `0x884b5d9f8822ba29452818ea86b0f45f003b869684bdcf195e64daa905b4a6fe`: the official Router02 and factory, canonical wrapper mint and pool transfer evidence agree on 0.277275376065377574 ETH input and 287179.811480931 output-token units. The exact public receipt is retained as a regression fixture. No transaction was constructed, signed or broadcast.
 
 The public RPC returned method-not-found for `debug_traceTransaction`. Earlier mixed-route and delegated-account samples therefore stayed unresolved; the verified direct-router fallback is deliberately narrower. This limitation is separate from the deployed Alchemy endpoint, which is checked through the real account UI after promotion. [Canonical Robinhood token registry](https://docs.robinhood.com/chain/contracts/) supplies the WETH/USDG identities.
+
+## Connection and display follow-up
+
+Robinhood can reuse Raven's existing Alchemy Base app key on the exact official Robinhood endpoint if no chain-specific binding exists. Alchemy's network authorization and Raven's `eth_chainId` check still apply. Explicit Robinhood configuration takes precedence. Availability failures can use the existing Blockscout provider; integrity failures cannot. Fallback telemetry labels partial request counts instead of understating total provider work. No new subscription or API key is introduced.
+
+Single-transfer receipt events preserve their exact amount, token label and provider provenance. The UI also reads older retained records' provider arrays. Cached metadata contains only bounded public token fields.
