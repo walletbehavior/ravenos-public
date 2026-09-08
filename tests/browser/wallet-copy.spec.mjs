@@ -1351,6 +1351,22 @@ test('missing provider transaction count is never shown as zero and advanced EVM
   await expect(page.locator('#copyHoldingsTable')).toContainText('$0.0000025');
 });
 
+test('background EVM history without a balance snapshot never displays a fresh balance date',async({page})=>{
+ const shared={requests:[]};await install(page,shared);
+ const snapshot=evmProfile();snapshot.balances_observed_at=null;
+ snapshot.capital_observations.native={symbol:'BNB',amount:null,amount_raw:null,observed_at:null,state:'unavailable'};
+ snapshot.positions.provider_reported_token_balances=[];
+ snapshot.provider_balance_summary={visible_balance_rows:0,visible_priced_rows:0,visible_unpriced_rows:0,visible_provider_mark_value_usd:null};
+ await page.route('**/api/v1/wallet-copy/inspect',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,source_wallet_id:EVM_SOURCE_ID,profile:snapshot,recent_events:[],persistence:{state:'shared_raven_profile'}})}));
+ await page.goto(`/account/copy/?wallet=${EVM_WALLET}&chain=bsc`);
+ await expect(page.locator('#copyProfileAddress')).toHaveText(EVM_WALLET);
+ await expect(page.locator('#copyOverviewScope')).toContainText('Balances have not been indexed.');
+ await expect(page.locator('#copyOverviewScope')).not.toContainText('Balances observed');
+ await expect(page.locator('#copyOverviewMetrics')).not.toContainText('0 BNB');
+ await page.setViewportSize({width:390,height:844});
+ await expect(page.locator('#copyOverviewScope')).toContainText('Balances have not been indexed.');
+});
+
 test('verified EVM results show separate currencies and the coverage of unrealized marks on desktop and mobile',async({page})=>{
  const shared={requests:[]};await install(page,shared);
  const snapshot=evmProfile();snapshot.generated_at='2026-09-08T12:00:00Z';snapshot.coverage.trade_events=4;

@@ -918,7 +918,9 @@ function renderWalletRecord() {
   document.getElementById("copyOverviewMetrics").replaceChildren(...metrics);
   const decoded = profile.coverage?.trade_events != null;
   const fxScope = record?.usd ? " USD values use historical five-minute native-asset price references and canonical USDC equivalents; network fees remain separate. " : " ";
-  setText("copyOverviewScope", `${chainLabel(profile.source_wallet.chain)} · Balances observed ${when(profile.balances_observed_at || profile.generated_at)}. ${fxScope}${decoded ? "Results cover retained decoded activity; matched cost only, network fees separate. Settlement currencies stay separate." : "Transfer history is available; swaps and cost basis are not reconstructed yet."} ${selected || all ? "" : "This snapshot has no period breakdown. "}Retained activity: ${when(profile.coverage?.first_observed_at || profile.behavior?.first_trade_at)} → ${when(profile.coverage?.last_observed_at || profile.behavior?.last_trade_at)}; not wallet age. Missing values are not zero.`);
+  const balanceObservedAt = Object.hasOwn(profile, "balances_observed_at") ? profile.balances_observed_at : profile.generated_at;
+  const balanceScope = balanceObservedAt ? `Balances observed ${when(balanceObservedAt)}.` : "Balances have not been indexed.";
+  setText("copyOverviewScope", `${chainLabel(profile.source_wallet.chain)} · ${balanceScope} ${fxScope}${decoded ? "Results cover retained decoded activity; matched cost only, network fees separate. Settlement currencies stay separate." : "Transfer history is available; swaps and cost basis are not reconstructed yet."} ${selected || all ? "" : "This snapshot has no period breakdown. "}Retained activity: ${when(profile.coverage?.first_observed_at || profile.behavior?.first_trade_at)} → ${when(profile.coverage?.last_observed_at || profile.behavior?.last_trade_at)}; not wallet age. Missing values are not zero.`);
   const distribution = document.getElementById("copyOutcomeDistribution");
   distribution.replaceChildren();
   if (selected?.distribution?.length && selected.observations > 0) {

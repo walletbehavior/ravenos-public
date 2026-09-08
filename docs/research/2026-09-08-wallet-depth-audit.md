@@ -45,7 +45,7 @@ No new wallet, accounting ledger, provider, database migration or live-trading b
 
 The fix publishes collected evidence. It does not create missing trades, prices, balances or complete histories.
 
-Validation: 120 wallet-history tests pass, including four first-profile chain cases and a verified buy/sell inventory case. The 1,029 contract tests and all configured pretest suites pass. Production build, security validation, public-asset redaction and 37 Worker response checks pass. Post-deployment publication counts are recorded separately in the release verification receipt.
+Validation: 120 wallet-history tests pass, including four first-profile chain cases and a verified buy/sell inventory case. The 1,029 contract tests and all configured pretest suites pass. Four EVM browser regressions pass, including desktop/mobile display of an explicitly absent balance snapshot; its profile-generation time cannot appear as a balance-observation time. Production build, security validation, public-asset redaction and 37 Worker response checks pass. Post-deployment publication counts are recorded separately in the release verification receipt.
 
 ## How to fill depth
 
