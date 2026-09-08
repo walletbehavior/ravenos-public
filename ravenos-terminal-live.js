@@ -1587,7 +1587,7 @@ function renderSpotPrimaryAction() {
   const run = state.spotSubmitRun;
   const busy = Boolean(run || state.spotLivePending);
   const pending = Boolean(state.spotUnresolvedSubmission);
-  const labels = { opening_wallet: "Opening Raven Wallet…", connecting: "Connecting wallet…", routing: "Finding your route…", preparing: "Preparing trade…", approval: "Approve token in wallet…", wallet: "Confirm in wallet…", submitting: "Sending trade…" };
+  const labels = { opening_wallet: "Opening Raven Wallet…", connecting: "Connecting wallet…", network: "Selecting network…", routing: "Finding your route…", preparing: "Preparing trade…", approval: "Approve token in wallet…", wallet: "Confirm in wallet…", submitting: "Sending trade…" };
   action.textContent = pending ? "Transaction pending" : run ? labels[run.phase] || "Working…"
     : busy ? "Finding your route…" : !qualified ? `${chainDisplayName(currentSpotChain())} route pending`
       : live ? `${side} ${symbol}` : `Preview ${side.toLowerCase()}`;
@@ -1631,7 +1631,7 @@ function renderSpotLiveExecution() {
     setText("terminalSpotLiveSummary", pending.transaction_hash || pending.signature || "Wallet / chain confirmation pending");
     setText("terminalSpotLiveDetail", "Your Buy action will not be repeated automatically.");
   } else if (run) {
-    label = ({ opening_wallet: "Opening Raven Wallet", connecting: "Connect wallet", routing: "Routing", preparing: "Preparing", approval: "Token approval", wallet: "Wallet signature", submitting: "Sending" })[run.phase] || "Working";
+    label = ({ opening_wallet: "Opening Raven Wallet", connecting: "Connect wallet", network: "Selecting network", routing: "Routing", preparing: "Preparing", approval: "Token approval", wallet: "Wallet signature", submitting: "Sending" })[run.phase] || "Working";
     message = run.phase === "approval" ? "Approve only this trade’s token amount in your wallet; Raven continues automatically." : run.phase === "wallet" ? "Confirm the transaction in your wallet. No additional Raven confirmation."
       : run.phase === "submitting" ? "Waiting for chain confirmation…" : "Raven is checking your amount, funding, fee, and current exit route.";
   } else if (result?.ok === true) {
@@ -7837,6 +7837,14 @@ async function submitSpotTrade() {
     }
     run.fingerprint = spotTicketFingerprint();
     assertCurrent();
+    if (evmSpotProfile()) {
+      run.phase = "network";
+      renderSpotLiveExecution();
+      const execution = await ensureWalletExecutionBundle();
+      assertCurrent();
+      await execution.ensureEvmWalletNetwork({profile:evmSpotProfile(), provider:browserWalletProvider(), address:currentSpotWallet().address, assertCurrent});
+      assertCurrent();
+    }
     run.phase = "routing";
     renderSpotLiveExecution();
     if (quoteInFlight) await quoteInFlight;

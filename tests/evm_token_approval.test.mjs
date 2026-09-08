@@ -14,7 +14,7 @@ function fixture(chain = "base", options = {}) {
     if(method === "eth_chainId")return profile.wallet_chain_id_hex;
     if(method === "eth_accounts")return [options.otherWallet?TOKEN:WALLET];
     if(method === "eth_call")return `0x${(sent || options.sufficient?25000000n:0n).toString(16).padStart(64,"0")}`;
-    if(method === "eth_estimateGas")return "0xc350";
+    if(method === "eth_estimateGas")return options.gas ?? "0xc350";
     if(method === "eth_sendTransaction") { if(options.reject)throw Object.assign(new Error("user rejected"),{code:4001});sent=true;return HASH; }
     if(method === "eth_getTransactionReceipt")return options.pending?null:{transactionHash:HASH,from:WALLET,to:profile.accounting_asset.address,status:options.failed?"0x0":"0x1",blockHash:HASH};
     throw Error(method);
@@ -32,3 +32,13 @@ test("already sufficient allowance performs no transaction",async()=>{const f=fi
 for(const [field,value]of [["spender",TOKEN],["amount_base_units","999999999999"],["wallet_address",TOKEN],["unlimited",true],["chain_id",1]])test(`mismatched ${field} cannot open a wallet`,async()=>{const f=fixture();f.args.approval={...f.approval,[field]:value};await assert.rejects(globalThis.RavenOSWalletExecution.approveEvmTradeToken(f.args),/identity_mismatch/);assert.equal(f.calls.length,0);});
 test("insufficient funds and unknown blockers cannot produce an approval request",()=>{const f=fixture();for(const blocker of ["insufficient_balance","invalid_liquidity_sources"])assert.equal(evmTokenApprovalContext({...f.quote,blockers:["allowance_required",blocker]},{profile:"base",token:{decimals:6},side:"buy"}),null);});
 test("changing the user intent before the wallet send stops approval",async()=>{const f=fixture();await assert.rejects(globalThis.RavenOSWalletExecution.approveEvmTradeToken({...f.args,assertCurrent:()=>{throw Error("spot_trade_changed");}}),/spot_trade_changed/);assert(!f.calls.some(c=>c.method==="eth_sendTransaction"));});
+
+test("Privy bigint gas estimates retain the same exact approval and gas bounds",async()=>{
+  const f=fixture("base",{gas:50000n});await globalThis.RavenOSWalletExecution.approveEvmTradeToken(f.args);
+  const tx=f.calls.find(c=>c.method==="eth_sendTransaction").params[0];
+  assert.equal(tx.gas,"0xea60");assert.equal(tx.type,"0x0");assert.equal(tx.chainId,"0x2105");
+});
+for(const gas of [0n,150001n,50000,"50000",-1n])test(`invalid or excessive approval gas ${typeof gas}:${gas} cannot send`,async()=>{
+  const f=fixture("base",{gas});await assert.rejects(globalThis.RavenOSWalletExecution.approveEvmTradeToken(f.args),/gas_out_of_bounds/);
+  assert.equal(f.calls.some(c=>c.method==="eth_sendTransaction"),false);
+});

@@ -308,18 +308,14 @@ test("Robinhood handoff switches to exactly 4663 and sends only the reviewed leg
     reviewed_transaction_hash: prepared.ticket.transaction.reviewed_transaction_hash,
     transaction_hash: TRANSACTION_HASH,
   });
-  assert.deepEqual(provider.calls.map((call) => call.method), [
-    "eth_chainId",
-    "wallet_switchEthereumChain",
-    "eth_chainId",
-    "eth_accounts",
-    "eth_accounts",
-    "eth_chainId",
-    "eth_sendTransaction",
-  ]);
+  assert.equal(provider.calls[0].method, "eth_accounts");
+  assert.equal(provider.calls.filter(call => call.method === "wallet_switchEthereumChain").length, 1);
+  assert.deepEqual(provider.calls.slice(-3).map(call => call.method), ["eth_accounts", "eth_chainId", "eth_sendTransaction"]);
   assert.deepEqual(provider.calls.at(-1), {
     method: "eth_sendTransaction",
     params: [{
+      chainId: "0x1237",
+      type: "0x0",
       from: WALLET,
       to: ROBINHOOD_ZERO_X_ALLOWANCE_HOLDER,
       data: "0x12345678",
@@ -350,6 +346,8 @@ test("Robinhood handoff preserves only hash-bound EIP-1559 fee fields", async ()
   await executeRobinhoodZeroXTicket({ ticket: prepared.ticket, quote, provider, address: WALLET });
 
   assert.deepEqual(provider.calls.at(-1).params[0], {
+    chainId: "0x1237",
+    type: "0x2",
     from: WALLET,
     to: ROBINHOOD_ZERO_X_ALLOWANCE_HOLDER,
     data: "0x12345678",
@@ -453,18 +451,14 @@ test("generic EVM handoff switches to exactly BSC and submits an exact ERC-20 0x
     reviewed_transaction_hash: prepared.ticket.transaction.reviewed_transaction_hash,
     transaction_hash: TRANSACTION_HASH,
   });
-  assert.deepEqual(provider.calls.map((call) => call.method), [
-    "eth_chainId",
-    "wallet_switchEthereumChain",
-    "eth_chainId",
-    "eth_accounts",
-    "eth_accounts",
-    "eth_chainId",
-    "eth_sendTransaction",
-  ]);
+  assert.equal(provider.calls[0].method, "eth_accounts");
+  assert.equal(provider.calls.filter(call => call.method === "wallet_switchEthereumChain").length, 1);
+  assert.deepEqual(provider.calls.slice(-3).map(call => call.method), ["eth_accounts", "eth_chainId", "eth_sendTransaction"]);
   assert.deepEqual(provider.calls.at(-1), {
     method: "eth_sendTransaction",
     params: [{
+      chainId: "0x38",
+      type: "0x0",
       from: WALLET,
       to: ROBINHOOD_ZERO_X_ALLOWANCE_HOLDER,
       data: "0x12345678",

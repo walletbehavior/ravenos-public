@@ -1,8 +1,9 @@
 import {test,expect} from "@playwright/test";
 import {mockTerminalLiveApis,waitForTerminalLive} from "./terminal-live-fixtures.mjs";
 import {EVM_CHAIN_PROFILES} from "../../lib/customer_trade/evm_chain_profiles.mjs";
+test.afterEach(async ({page}) => { await page.unrouteAll({behavior:"wait"}); });
 const WALLET="0x3333333333333333333333333333333333333333", TOKEN="0x1111111111111111111111111111111111111111", POOL="0x2222222222222222222222222222222222222222";
-async function setup(page,baseURL,chain,{needsApproval=false,native=false}={}) {
+async function setup(page,baseURL,chain,{needsApproval=false,native=false,holdNetwork=false}={}) {
   const profile=EVM_CHAIN_PROFILES[chain];const prepared=[],reported=[];
   await page.route("https://app.ravenos.xyz/**",async route=>{const url=new URL(route.request().url());await route.fulfill({response:await page.request.fetch(`${baseURL}${url.pathname}${url.search}`)});});
   await mockTerminalLiveApis(page,{spotQuotePreview:true,spotQuoteChains:[chain,"solana"]});
@@ -10,15 +11,16 @@ async function setup(page,baseURL,chain,{needsApproval=false,native=false}={}) {
   await page.route("**/api/v1/auth/session",route=>route.fulfill({json:{ok:true,authenticated:true,csrf_token:"fixturecsrf"}}));
   await page.route("**/api/trade/live/session",route=>route.fulfill({json:{ok:true,gate:{configured:true,chains:{[chain]:{available_to_principal:true}}}}}));
   await page.route("**/api/v1/wallets/privy",route=>route.fulfill({json:{ok:true,available:false}}));
-  await page.addInitScript(({wallet,chainHex,native})=>{
-    window.tradeCalls={sign:0,approve:0};
+  await page.addInitScript(({wallet,chainHex,native,holdNetwork})=>{
+    window.tradeCalls={sign:0,approve:0,network:0};
     if(native)localStorage.setItem("ravenos.universal_shadow_ticket_preferences.v1",JSON.stringify({funding_preference:"native"}));
     window.ethereum={isMetaMask:true,on:()=>{},request:async({method})=>{if(["eth_accounts","eth_requestAccounts"].includes(method))return [wallet];if(method==="eth_chainId")return chainHex;throw Error(method);}};
     window.RavenOSWalletExecution={
+      ensureEvmWalletNetwork:async({assertCurrent})=>{assertCurrent();window.tradeCalls.network++;if(holdNetwork)await new Promise(resolve=>{window.finishNetwork=resolve;});assertCurrent();},
       approveEvmTradeToken:async({approval,expectedAmount,assertCurrent})=>{assertCurrent();if(approval.amount_base_units!==expectedAmount)throw Error("test_amount_mismatch");window.tradeCalls.approve++;return {state:"confirmed"};},
       executeEvmZeroXTicket:async({ticket,assertCurrent})=>{assertCurrent();window.tradeCalls.sign++;return {ticket_id:ticket.ticket_id,transaction_hash:`0x${"a".repeat(64)}`};},
     };
-  },{wallet:WALLET,chainHex:profile.wallet_chain_id_hex,native});
+  },{wallet:WALLET,chainHex:profile.wallet_chain_id_hex,native,holdNetwork});
   await page.route(`**/api/trade/live/${chain}/prepare`,async route=>{
     const input=route.request().postDataJSON();prepared.push(input);const expires=new Date(Date.now()+30000).toISOString();
     const sellToken=input.funding_preference==="native"?profile.native_token_address:profile.accounting_asset.address;
@@ -42,3 +44,27 @@ for(const chain of Object.keys(EVM_CHAIN_PROFILES))for(const needsApproval of [f
   expect(await page.evaluate(()=>window.tradeCalls.sign)).toBe(1);expect(await page.evaluate(()=>window.tradeCalls.approve)).toBe(needsApproval?1:0);expect(h.reported).toHaveLength(1);
 });
 test("native ETH buy never asks for an ERC20 approval",async({page,baseURL})=>{const h=await setup(page,baseURL,"base",{native:true});await page.locator("#terminalSpotQuoteAction").click();await expect(page.locator("#terminalSpotLiveState")).toHaveText("Trade confirmed");expect(await page.evaluate(()=>window.tradeCalls.approve)).toBe(0);expect(h.reported).toHaveLength(1);expect(h.prepared.at(-1).funding_preference).toBe("native");});
+
+test("EVM one Buy selects the network before obtaining its final ticket",async({page,baseURL})=>{
+  const h=await setup(page,baseURL,"robinhood",{holdNetwork:true});
+  await expect(page.locator("#terminalSpotEstimateOutput")).toContainText("50 TKN");
+  const previewCount=h.prepared.length;
+  await page.locator("#terminalSpotQuoteAction").click();
+  await expect(page.locator("#terminalSpotQuoteAction")).toHaveText("Selecting network…");
+  expect(await page.evaluate(()=>window.tradeCalls.sign)).toBe(0);
+  expect(h.prepared).toHaveLength(previewCount);
+  await page.evaluate(()=>window.finishNetwork());
+  await expect(page.locator("#terminalSpotLiveState")).toHaveText("Trade confirmed");
+  expect(await page.evaluate(()=>window.tradeCalls.network)).toBe(1);
+  expect(h.reported).toHaveLength(1);
+});
+test("editing an EVM order while network selection is pending cannot send the old trade",async({page,baseURL})=>{
+  const h=await setup(page,baseURL,"base",{holdNetwork:true});
+  await page.locator("#terminalSpotQuoteAction").click();
+  await expect(page.locator("#terminalSpotQuoteAction")).toHaveText("Selecting network…");
+  await page.locator("#terminalSpotAmount").fill("26");
+  await page.evaluate(()=>window.finishNetwork());
+  await expect(page.locator("#terminalSpotQuoteAction")).not.toHaveText("Selecting network…");
+  expect(await page.evaluate(()=>window.tradeCalls.sign+window.tradeCalls.approve)).toBe(0);
+  expect(h.reported).toHaveLength(0);
+});

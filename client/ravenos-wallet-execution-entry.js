@@ -2,6 +2,7 @@ import { RAVEN_STANDARD_EXECUTION_FEE_BPS } from "../lib/customer_product.mjs";
 import { ExchangeClient, HttpTransport } from "@nktkas/hyperliquid";
 import { PublicKey, VersionedTransaction } from "@solana/web3.js";
 import { createWalletClient, custom, getAddress } from "viem";
+import { ensureEvmWalletNetwork } from './evm-wallet-network.js';
 
 function executionError(code) {
   const error = new Error(code);
@@ -639,21 +640,16 @@ async function executeRobinhoodZeroXTicket({ ticket, quote, provider, address })
   const expectedAddress = exactEvmAddress(address, "wallet_address");
   const transaction = await reviewedRobinhoodTransaction(quote, expectedAddress);
   await validateRobinhoodLiveTicket(ticket, quote, transaction, expectedAddress);
-  let chainId = String(await provider.request({ method: "eth_chainId" }) || "").toLowerCase();
-  if (chainId !== ROBINHOOD_CHAIN_HEX) {
-    try {
-      await provider.request({
-        method: "wallet_switchEthereumChain",
-        params: [{ chainId: ROBINHOOD_CHAIN_HEX }],
-      });
-    } catch {
-      throw executionError("robinhood_chain_switch_failed");
-    }
-    chainId = String(await provider.request({ method: "eth_chainId" }) || "").toLowerCase();
+  try {
+    await ensureEvmWalletNetwork({profile:"robinhood", provider, address:expectedAddress});
+  } catch (error) {
+    if (error.code === "evm_chain_switch_failed") throw executionError("robinhood_chain_switch_failed");
+    if (error.code === "evm_chain_identity_mismatch") throw executionError("robinhood_chain_identity_mismatch");
+    throw error;
   }
-  if (chainId !== ROBINHOOD_CHAIN_HEX) throw executionError("robinhood_chain_identity_mismatch");
-  await connectedRobinhoodAccount(provider, expectedAddress);
   const walletTransaction = {
+    chainId: ROBINHOOD_CHAIN_HEX,
+    type: transaction.gas_price !== undefined ? "0x0" : "0x2",
     from: transaction.from,
     to: transaction.to,
     data: transaction.data,
@@ -1019,22 +1015,13 @@ async function executeEvmZeroXTicket({ profile: requestedProfile, ticket, quote,
   const expectedAddress = exactEvmAddress(address, "wallet_address");
   const reviewed = await reviewedEvmZeroXTransaction(quote, expectedAddress, profile);
   await validateEvmLiveTicket(ticket, quote, reviewed, expectedAddress, profile);
-  let chainId = String(await provider.request({ method: "eth_chainId" }) || "").toLowerCase();
-  if (chainId !== profile.wallet_chain_hex) {
-    try {
-      await provider.request({
-        method: "wallet_switchEthereumChain",
-        params: [{ chainId: profile.wallet_chain_hex }],
-      });
-    } catch {
-      throw executionError("evm_chain_switch_failed");
-    }
-    chainId = String(await provider.request({ method: "eth_chainId" }) || "").toLowerCase();
-  }
-  if (chainId !== profile.wallet_chain_hex) throw executionError("evm_chain_identity_mismatch");
-  await connectedRobinhoodAccount(provider, expectedAddress);
+  await ensureEvmWalletNetwork({profile, provider, address:expectedAddress, assertCurrent});
   const transaction = reviewed.transaction;
   const walletTransaction = {
+    chainId: profile.wallet_chain_hex,
+    // Privy's SDK defaults to type 2 and drops gasPrice when type is omitted.
+    // Preserve the fee model that is bound to the reviewed quote and ticket.
+    type: transaction.gas_price !== undefined ? "0x0" : "0x2",
     from: transaction.from,
     to: transaction.to,
     data: transaction.data,
@@ -1088,8 +1075,7 @@ async function approveEvmTradeToken({ profile: selector, approval, provider, add
     || exactEvmAddress(approval.token_address, "approval_token") !== token
     || approval.spender !== ZERO_X_ALLOWANCE_HOLDER || approval.amount_base_units !== amount.toString()) throw executionError("token_approval_identity_mismatch");
   if (Date.parse(approval.expires_at || "") <= Date.now() || !Number.isFinite(Date.parse(approval.expires_at || ""))) throw executionError("token_approval_expired");
-  let chain = String(await provider.request({ method: "eth_chainId" })).toLowerCase();
-  if (chain !== profile.wallet_chain_hex) await provider.request({ method: "wallet_switchEthereumChain", params: [{ chainId: profile.wallet_chain_hex }] });
+  await ensureEvmWalletNetwork({profile, provider, address:wallet, assertCurrent});
   const checkWallet = async () => {
     assertCurrent();
     await connectedRobinhoodAccount(provider, wallet);
@@ -1100,9 +1086,12 @@ async function approveEvmTradeToken({ profile: selector, approval, provider, add
   const current = await provider.request({ method: "eth_call", params: [{ to: token, data: allowanceData }, "latest"] });
   if (!/^0x[0-9a-fA-F]{64}$/.test(String(current))) throw executionError("token_allowance_unavailable");
   if (BigInt(current) >= amount) return { state: "already_sufficient", transaction_hash: null };
-  const tx = { from: wallet, to: token, value: "0x0", data: `0x095ea7b3${ZERO_X_ALLOWANCE_HOLDER.slice(2).padStart(64, "0")}${amount.toString(16).padStart(64, "0")}` };
+  const tx = { chainId: profile.wallet_chain_hex, type: "0x0", from: wallet, to: token, value: "0x0", data: `0x095ea7b3${ZERO_X_ALLOWANCE_HOLDER.slice(2).padStart(64, "0")}${amount.toString(16).padStart(64, "0")}` };
   const estimated = await provider.request({ method: "eth_estimateGas", params: [tx] });
-  if (!/^0x[0-9a-fA-F]+$/.test(String(estimated)) || BigInt(estimated) <= 0n || BigInt(estimated) > 150000n) throw executionError("token_approval_gas_out_of_bounds");
+  // External EIP-1193 wallets return hex; Privy's viem-backed provider returns
+  // bigint. Both are exact quantities, subject to the same approval gas cap.
+  if (!(typeof estimated === "bigint" || typeof estimated === "string" && /^0x[0-9a-fA-F]+$/.test(estimated))
+    || BigInt(estimated) <= 0n || BigInt(estimated) > 150000n) throw executionError("token_approval_gas_out_of_bounds");
   tx.gas = rpcQuantity((BigInt(estimated) * 120n + 99n) / 100n);
   await checkWallet();
   let hash;
@@ -1135,6 +1124,7 @@ async function approveEvmTradeToken({ profile: selector, approval, provider, add
 }
 
 globalThis.RavenOSWalletExecution = Object.freeze({
+  ensureEvmWalletNetwork,
   approveEvmTradeToken,
   approveHyperliquidBuilderFee,
   executeEvmZeroXTicket,

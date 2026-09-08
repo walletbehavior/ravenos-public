@@ -180,12 +180,16 @@ function participationPayoffProjection() {
     comparison: null,
     measurement: { display_window: "Latest samples", minimum_usable_sample: 20, causal_claim: false },
     insights: [{
+      insight_id: "participation:robinhood:fresh:6h",
+      chain: "robinhood",
       state: "rewarding",
       subject: "Robinhood fresh pairs",
       plain_read: "Robinhood fresh pairs are showing the cleanest follow-through.",
       operator_detail: "6h +0.00% · 24h +3.7%",
       usable_sample: 47,
     }, {
+      insight_id: "participation:solana:fresh:6h",
+      chain: "solana",
       state: "punishing",
       subject: "Solana fresh pairs",
       plain_read: "Solana fresh pairs are punishing recent participation.",

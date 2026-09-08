@@ -1,9 +1,11 @@
 import Privy, {
   LocalStorage,
+  DEFAULT_SUPPORTED_CHAINS,
   getEntropyDetailsFromUser,
   getUserEmbeddedEthereumWallet,
   getUserEmbeddedSolanaWallet,
 } from "@privy-io/js-sdk-core";
+import {RAVEN_EVM_WALLET_NETWORKS} from '../lib/customer_trade/evm_wallet_networks.mjs';
 
 // Adapt Privy's request-based Solana provider to Raven's existing wallet
 // abstraction. It exposes sign-only; submission stays in the fee-bound executor.
@@ -47,7 +49,11 @@ function unwrapUser(result) {
 
 export function createRavenPrivyWalletClient(options) {
   const cfg = requireConfig(options);
-  const privy = new Privy({ appId: cfg.appId, clientId: cfg.clientId, storage: new LocalStorage() });
+  const supportedChains = [...DEFAULT_SUPPORTED_CHAINS];
+  for (const chain of RAVEN_EVM_WALLET_NETWORKS) {
+    if (!supportedChains.some(existing => existing.id === chain.id)) supportedChains.push(chain);
+  }
+  const privy = new Privy({ appId: cfg.appId, clientId: cfg.clientId, storage: new LocalStorage(), supportedChains });
   let iframe = null;
   let iframeOrigin = "";
   let listener = null;
