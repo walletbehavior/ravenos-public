@@ -1592,15 +1592,34 @@ async function loadStoredWallet(sourceWalletId, button) {
   profileNode.hidden = true;
   const idleLabel = button?.textContent || "Open analysis";
   if (button) { button.disabled = true; button.textContent = "Opening…"; }
-  const result = await api(`${API}/wallets/${encodeURIComponent(sourceWalletId)}`);
+  inspectionFeedback(button, "Opening cached analysis…");
+  const url = `${API}/wallets/${encodeURIComponent(sourceWalletId)}`;
+  const retryable = result => result.response.status === 0 || [500, 502, 503, 504].includes(result.response.status);
+  let result = await api(url);
+  if (retryable(result) && requestId === state.profile_request && !state.session_expired) {
+    inspectionFeedback(button, "Connection interrupted. Retrying cached analysis…");
+    // One safe GET retry; never start a fresh history scan for a failed read.
+    result = await api(url);
+  }
   if (button) { button.disabled = false; button.textContent = idleLabel; }
   if (requestId !== state.profile_request) return;
-  if (!result.response.ok) {
+  if (!result.response.ok || !result.payload?.profile) {
     state.profile = null;
     profileNode.hidden = true;
-    if (!state.session_expired) inspectionFeedback(button, "Stored analysis is unavailable. Choose Inspect wallet to check this address again.");
-    return false;
+    if (!state.session_expired) {
+      const message = result.response.status === 404
+        ? "This cached profile is no longer available. Use Analyze wallet above to check this address again."
+        : result.response.status === 429
+          ? "Too many requests. Wait a moment, then open this analysis again."
+          : result.response.status === 403
+            ? "This analysis is not available with your current access. Check your account and try again."
+            : `The analysis could not load. Tap ${idleLabel} to retry the cached profile.`;
+      inspectionFeedback(button, message);
+    }
+    // Only a missing profile permits callers to offer a new inspection.
+    return result.response.status === 404 ? false : undefined;
   }
+  button?.closest(".copy-seen-wallet, .copy-screener-card")?.querySelector(".copy-card-status")?.remove();
   renderProfile(result.payload);
   setText("copySearchStatus", `Stored analysis · ${when(result.payload.freshness?.observed_at || result.payload.profile?.generated_at)}. No provider refresh requested.`);
   profileNode.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -1885,6 +1904,7 @@ function screenerCard(wallet) {
   save.addEventListener("click", () => saveResearchWallet(wallet.source_wallet_id, walletAddress(wallet.source_wallet?.address), save));
   analyze.addEventListener("click", () => {
     state.address = wallet.source_wallet.address;
+    document.getElementById("copyWalletAddress").value = state.address;
     setInspectChain(wallet.source_wallet.chain, { announce: false });
     return loadStoredWallet(wallet.source_wallet_id, analyze);
   });
@@ -2020,7 +2040,7 @@ function renderScreener(payload) {
   const indexEmpty = Array.isArray(coverage?.chains) && indexed === 0;
   setText("copyScreenerCount", observed ? `${seenTotal.toLocaleString()} observed` : `${state.screener.total.toLocaleString()} match${state.screener.total === 1 ? "" : "es"}`);
   setText("copyScreenerCoverage", coverage
-    ? `${indexed.toLocaleString()} profiles · ${seen.toLocaleString()} registered wallets in ${scopeLabel}. Stored observations; no provider calls to browse.`
+    ? `${seen.toLocaleString()} wallets discovered by Raven in ${scopeLabel} · ${indexed.toLocaleString()} analyzed profiles. This is Raven’s growing index, not the chain’s total wallet count. Browsing reuses cached evidence.`
     : "Browse Raven’s stored wallet observations across supported chains. Address lookup fills missing evidence.");
   setText("copyScreenerStatus", observed
     ? `${seenTotal.toLocaleString()} observed in ${scopeLabel}. Choose a wallet to analyze.`

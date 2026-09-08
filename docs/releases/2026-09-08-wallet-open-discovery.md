@@ -1,0 +1,11 @@
+# Wallet analysis loading and Solana discovery fairness
+
+The reported Solana wallet has a stored profile and a screener summary, but the client described every failed profile request as missing analysis. A signed-in production check subsequently opened the exact wallet successfully; the original request's status is unknown. This release makes the failure state accurate and adds one automatic retry for a network interruption or transient server error. It retries the existing cached GET, never a fresh history request. Authentication, access, rate-limit, and missing-profile responses do not automatically retry. A persistent read error keeps the cached action; only a 404 can offer a new inspection. Successful loading clears stale card errors, and the selected address is immediately placed in the lookup field.
+
+The production discovery frontier revealed 805 Solana markets with zero scans. Each four-slot cycle chose one candidate per chain, then broke ties alphabetically. A continuous cold backlog on five chains always put Solana fifth. Selection now prefers the least-served chains using durable attempt counts across the complete frontier, including active leases. This preserves per-chain diversity and the existing cycle/request budget. No migration or new provider is required.
+
+The screener count now explicitly distinguishes wallets discovered by Raven from analyzed profiles and from the total wallets on a chain. At the initial check it showed 1,469 discovered Solana addresses and 30 profiles; these are snapshots, not promises of complete coverage. Public-list snapshots remain useful, but the public-list refresh was unavailable at the check. Fixing scheduler fairness does not imply that all providers or historical backfills are complete.
+
+Validation: 43 wallet browser tests passed, including mobile temporary-failure recovery, persistent cached retries, access/rate/missing boundaries, and count disclosures. The 31 focused backend tests passed, including default four-slot cycles with five large cold backlogs, overlapping leases, and unchanged hourly budgets. Build, security, and public no-leak checks passed.
+
+No trading, signing, claim, reward, subscription, or Copy activation settings change. Wallet inspection and discovery remain separate from financial execution.

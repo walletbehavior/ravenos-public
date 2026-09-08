@@ -1472,3 +1472,50 @@ test('inspection network failure has a visible inline retry explanation and succ
   await card.getByRole('button',{name:'Inspect wallet',exact:true}).click();await expect(page.locator('#copyProfile')).toBeVisible();
   await expect(card).toContainText('1,082 seen');await expect(card.getByRole('button',{name:'Open cached',exact:true})).toBeVisible();
 });
+
+test('stored analysis retries one temporary read failure and opens without fresh history calls',async({page})=>{
+ const shared={requests:[]};await install(page,shared);let reads=0;
+ await page.route(`**/api/v1/wallet-copy/wallets/${SOURCE_ID}`,async route=>{
+  reads++;
+  if(reads===1)return route.fulfill({status:503,contentType:'application/json',body:'{"error":"temporarily_unavailable"}'});
+  return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,source_wallet_id:SOURCE_ID,profile:profile(),recent_events:[]})});
+ });
+ await page.setViewportSize({width:390,height:844});await page.goto('/account/copy/');
+ await page.getByRole('button',{name:'Open analysis',exact:true}).click();
+ await expect(page.locator('#copyProfile')).toBeVisible();await expect(page.locator('#copyProfileAddress')).toHaveText(WALLET);
+ await expect(page.locator('#copyWalletAddress')).toHaveValue(WALLET);
+ await expect(page.locator('.copy-card-status')).toHaveCount(0);
+ expect(reads).toBe(2);expect(shared.requests.some(row=>row.path.endsWith('/inspect'))).toBe(false);
+});
+
+test('repeated cached-read network failure keeps cached retry instead of changing to a provider scan',async({page})=>{
+ const shared={requests:[]};await install(page,shared);await installCardPage(page,cardSummary(),true);let reads=0;
+ await page.route(`**/api/v1/wallet-copy/wallets/${SOURCE_ID}`,route=>{reads++;return route.abort('failed');});
+ await page.goto('/account/copy/?wallets=observed');
+ const card=page.locator('.copy-seen-wallet');await card.getByRole('button',{name:'Open cached',exact:true}).click();
+ await expect(card.locator('.copy-card-status')).toContainText('Tap Open cached to retry');
+ await expect(card.getByRole('button',{name:'Open cached',exact:true})).toBeEnabled();
+ expect(reads).toBe(2);await expect(card).not.toContainText('Stored analysis is unavailable');
+ expect(shared.requests.some(row=>row.path.endsWith('/inspect'))).toBe(false);
+ await page.route(`**/api/v1/wallet-copy/wallets/${SOURCE_ID}`,route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,source_wallet_id:SOURCE_ID,profile:profile(),recent_events:[]})}));
+ await card.getByRole('button',{name:'Open cached',exact:true}).click();await expect(page.locator('#copyProfile')).toBeVisible();
+ await expect(card.locator('.copy-card-status')).toHaveCount(0);
+});
+
+for(const [status,message] of [[403,'current access'],[404,'no longer available'],[429,'Too many requests']])test(`stored-analysis ${status} does not retry or launch a provider scan`,async({page})=>{
+ const shared={requests:[]};await install(page,shared);let reads=0;
+ await page.route(`**/api/v1/wallet-copy/wallets/${SOURCE_ID}`,route=>{reads++;return route.fulfill({status,contentType:'application/json',body:'{"ok":false}'});});
+ await page.goto('/account/copy/');await page.getByRole('button',{name:'Open analysis',exact:true}).click();
+ await expect(page.locator('.copy-card-status')).toContainText(message);expect(reads).toBe(1);
+ await expect(page.locator('#copyWalletAddress')).toHaveValue(WALLET);await expect(page.locator('#copyProfile')).toBeHidden();
+ expect(shared.requests.some(row=>row.path.endsWith('/inspect'))).toBe(false);
+});
+
+test('coverage distinguishes Raven discovery from analyzed profiles and chain-wide wallet totals',async({page})=>{
+ const shared={requests:[]};await install(page,shared);
+ await page.route('**/api/v1/wallet-copy/screener',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,rows:[],scope:{chain:'solana'},index_coverage:{chains:[{chain:'solana',seen_wallets:1800,indexed_wallets:30}]},pagination:{page:1,page_size:12},seen_wallets:{total:0,rows:[]}})}));
+ await page.goto('/account/copy/?chain=solana');
+ await expect(page.locator('#copyScreenerCoverage')).toContainText('1,800 wallets discovered by Raven in Solana · 30 analyzed profiles');
+ await expect(page.locator('#copyScreenerCoverage')).toContainText('not the chain’s total wallet count');
+ expect(shared.requests.some(row=>row.path.endsWith('/inspect'))).toBe(false);
+});

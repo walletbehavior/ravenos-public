@@ -71,6 +71,31 @@ test('universe leases do not duplicate work and provider failure backs off',asyn
  const row=db.raw.prepare('SELECT * FROM ravenos_wallet_universe_markets').get();assert.equal(row.failure_count,1);assert.equal(row.last_error,'market_projection_unavailable');assert(row.next_scan_at>NOW);
 });
 
+test('four-slot cycles serve all five chains with a large cold backlog and unchanged hourly budget',async()=>{
+ const db=sqliteStore(),store=createWalletUniverseStore(db);
+ const chains=['base','bsc','ethereum','robinhood','solana'];
+ await store.rememberMarkets(chains.flatMap(chain=>Array.from({length:30},(_,i)=>market(chain,i+1))),NOW);
+ const counts=Object.fromEntries(chains.map(chain=>[chain,0]));
+ for(let cycle=0;cycle<6;cycle++) {
+  const now=NOW+cycle*10,rows=await store.claim(now,4,48,'cycle-'+cycle);
+  assert.equal(rows.length,4);assert.equal(new Set(rows.map(row=>row.chain)).size,4);
+  for(const row of rows){counts[row.chain]++;await store.finish(row,'cycle-'+cycle,1,false,now,21600);}
+  if(cycle===1)assert(counts.solana>0,'Solana cannot wait behind every cold EVM market');
+ }
+ assert(Math.max(...Object.values(counts))-Math.min(...Object.values(counts))<=1);
+ assert.equal((await store.claim(NOW+70,4,48,'exhausted')).length,0);
+ assert.equal(db.raw.prepare('SELECT used_requests FROM ravenos_wallet_universe_budget').get().used_requests,48);
+});
+
+test('overlapping cycles count active leases when selecting the least-served chains',async()=>{
+ const db=sqliteStore(),store=createWalletUniverseStore(db);
+ await store.rememberMarkets(['base','bsc','ethereum','robinhood','solana'].flatMap(chain=>[market(chain),market(chain,5)]),NOW);
+ const first=await store.claim(NOW,4,48,'first');
+ const second=await store.claim(NOW,4,48,'second');
+ assert.equal(second[0].chain,'solana');
+ assert(second.every(row=>!first.some(other=>other.market_id===row.market_id)));
+});
+
 test('disabled universe does no work and invalid/mismatched market identities are refused',async()=>{
  assert.equal(marketUniverseIdentity({...market('base'),token_address:'http://host'}),null);
  const db=sqliteStore(),store=createWalletUniverseStore(db);await store.rememberMarkets([market('solana')],NOW);
