@@ -448,6 +448,7 @@ export async function mockTerminalLiveApis(page, {
   spotChartCurrent = false,
   spotChartPrice = null,
   spotQuotePreview = false,
+  spotQuoteBalance = null,
   spotQuoteChains = null,
   spotQuoteTtlMs = 20_000,
   spotExitQuoteTtlMs = spotQuoteTtlMs,
@@ -1179,7 +1180,7 @@ export async function mockTerminalLiveApis(page, {
           provider_latency_ms: 80,
           freshness: "current",
         },
-        balance: sell ? { available: true, amount: { display: "100000", symbol: "JUP" }, source: "current_exact_mint_balance", persisted: false } : { available: false, reason: "wallet_not_connected" },
+        balance: (typeof spotQuoteBalance === "function" ? spotQuoteBalance(input) : spotQuoteBalance) || (sell ? { available: true, amount: { display: "100000", symbol: "JUP" }, source: "current_exact_mint_balance", persisted: false } : { available: false, reason: "wallet_not_connected" }),
         shadow_execution: sell ? null : {
           schema_version: "ravenos.universal_shadow_execution.v1",
           mode: "shadow",

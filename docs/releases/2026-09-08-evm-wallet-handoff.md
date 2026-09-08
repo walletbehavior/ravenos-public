@@ -11,6 +11,8 @@ Two bugs were reproduced using the shipped SDK rather than a wallet-method mock:
 
 A required ERC20 allowance remains limited to the trade's amount. Raven checks its receipt and allowance before continuing. Native funding skips token approval. One Raven Buy initiates the sequence; wallet-controlled approval/signature prompts remain part of the wallet's authorization. The release does not change fees, cashback, custody, delegation or Hyperliquid execution.
 
+The signed-in production check also reproduced a cross-chain form bug: selecting Base after Solana relabeled the old SOL balance as ETH and left SOL quick-size labels visible. Market changes now clear the prior balance, redraw sizes for the selected chain and clear native amounts instead of reinterpreting them under another currency. Restoring a native-funding preference on page load also clears the HTML dollar default. Dollar-sized orders retain their amount during an in-page chain change; a fresh quote determines the selected chain's balance.
+
 ## Validation
 
 - Baseline: 105 EVM contract tests and 11 selected EVM/Solana browser tests passed before edits.
@@ -18,6 +20,8 @@ A required ERC20 allowance remains limited to the trade's amount. Raven checks i
 - Full browser run: 413/414 passed initially. The sole failure was an existing Behavior Lab fixture lacking chain identity required by market-scope filtering. Adding the fixture's actual Robinhood/Solana identifiers preserved its assertions; the entire affected 11-test file then passed. No production Behavior Lab logic changed.
 - Sixteen actual Privy SDK cases cover four chains, two wallet modes and legacy/EIP-1559 fees. Legacy cases also exercise exact ERC20 approval, gas estimation, receipt, allowance recheck and the fee-bound trade executor. All service calls and signatures are fixtures; no real network receives test transaction bytes.
 - Single-Buy browser cases cover all four chains, approval versus existing allowance, native ETH, network selection before final ticket acquisition and cancellation after an order edit.
+- Six additional cross-chain browser cases cover fresh navigation and saved-market switches, clearing old balances/native amounts, native preset labels and preserving dollar sizes.
+- After the cross-chain form fix, all 109 selected Terminal chart, desktop/mobile layout, Solana/EVM single-Buy and cross-chain browser regressions passed.
 - Build, security boundary, response redaction and public-asset checks passed.
 
 ## Operational limits

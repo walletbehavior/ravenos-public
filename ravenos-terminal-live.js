@@ -6690,6 +6690,7 @@ function clearSpotQuoteResult(message = "Enter an amount. Raven updates the rout
   setText("terminalSpotQuoteState", spotTicketQualified() ? "Ready to review" : spotTicketIdentityAvailable() ? "Adapter pending" : "Unavailable");
   setText("terminalSpotQuoteMessage", message);
   setSpotTicketExitSummary();
+  setText("terminalSpotBalance", currentSpotWallet().connected ? "Read on quote" : "Not verified");
   setText("terminalSpotEstimateOutput", "Updating estimate…");
   setText("terminalSpotEstimateMinimum", "Nothing is sent until you choose Buy or Sell.");
   document.getElementById("terminalSpotEstimate")?.setAttribute("data-state", "stale");
@@ -7056,6 +7057,15 @@ function syncSpotTicketControls() {
       amountInput.max = selectedAssetKind === "native" ? "50" : "100000";
       amountInput.step = selectedAssetKind === "native" ? "0.001" : "1";
     }
+  }
+  if (section && section.dataset.walletChain !== identity.chain) {
+    // A native size and balance belong to their chain. Never relabel a SOL
+    // amount as ETH/BNB when switching markets in the same Terminal tab.
+    // This also prevents the initial $50 HTML default from becoming 50 native
+    // units when restoring a saved native-funding preference on page load.
+    if (side === "buy" && selectedAssetKind === "native" && amountInput) amountInput.value = "";
+    section.dataset.walletChain = identity.chain;
+    renderSpotQuickSizes();
   }
   const walletButton = document.getElementById("terminalSpotWalletConnect");
   if (walletButton) walletButton.disabled = !qualified;
@@ -7496,6 +7506,8 @@ function renderSpotQuote(payload, clientRttMs, { snapshot, fingerprint } = {}) {
     const balanceAmount = balance.amount && typeof balance.amount === "object" ? balance.amount.display : balance.display ?? balance.amount;
     setText("terminalSpotBalance", balanceAmount);
     setText("terminalSpotBalanceUnit", balance.amount?.symbol || document.getElementById("terminalSpotBalanceUnit")?.textContent);
+  } else {
+    setText("terminalSpotBalance", currentSpotWallet().connected ? "Read on quote" : "Not verified");
   }
   updateSpotExecutionRail({ quoted: true, exitVerified: roundTrip?.exit_verified === true || state.spotTicketSide === "sell" });
   renderSpotLiveExecution();

@@ -43,7 +43,7 @@ for(const chain of Object.keys(EVM_CHAIN_PROFILES))for(const needsApproval of [f
   await expect(page.locator("#terminalSpotLiveState")).toHaveText("Trade confirmed");
   expect(await page.evaluate(()=>window.tradeCalls.sign)).toBe(1);expect(await page.evaluate(()=>window.tradeCalls.approve)).toBe(needsApproval?1:0);expect(h.reported).toHaveLength(1);
 });
-test("native ETH buy never asks for an ERC20 approval",async({page,baseURL})=>{const h=await setup(page,baseURL,"base",{native:true});await page.locator("#terminalSpotQuoteAction").click();await expect(page.locator("#terminalSpotLiveState")).toHaveText("Trade confirmed");expect(await page.evaluate(()=>window.tradeCalls.approve)).toBe(0);expect(h.reported).toHaveLength(1);expect(h.prepared.at(-1).funding_preference).toBe("native");});
+test("native ETH buy never asks for an ERC20 approval",async({page,baseURL})=>{const h=await setup(page,baseURL,"base",{native:true});await expect(page.locator("#terminalSpotAmount")).toHaveValue("");await page.locator("#terminalSpotAmount").fill("0.01");await page.locator("#terminalSpotQuoteAction").click();await expect(page.locator("#terminalSpotLiveState")).toHaveText("Trade confirmed");expect(await page.evaluate(()=>window.tradeCalls.approve)).toBe(0);expect(h.reported).toHaveLength(1);expect(h.prepared.at(-1).funding_preference).toBe("native");});
 
 test("EVM one Buy selects the network before obtaining its final ticket",async({page,baseURL})=>{
   const h=await setup(page,baseURL,"robinhood",{holdNetwork:true});
