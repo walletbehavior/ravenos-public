@@ -1310,3 +1310,24 @@ test('missing provider transaction count is never shown as zero and advanced EVM
   await expect(page.locator('#copyHoldingsTable')).toContainText(EVM_TOKEN);
   await expect(page.locator('#copyHoldingsTable')).toContainText('$0.0000025');
 });
+
+test('verified EVM results show separate currencies and the coverage of unrealized marks on desktop and mobile',async({page})=>{
+ const shared={requests:[]};await install(page,shared);
+ const snapshot=evmProfile();snapshot.generated_at='2026-09-08T12:00:00Z';snapshot.coverage.trade_events=4;
+ const period={realized_pnl:{usdg:'25',eth:'0.004'},roi_pct:null,win_rate_pct:50,buy_count:2,sell_count:2,observations:2,average_hold_seconds:1800,buy_notional_by_basis:{usdg:{average:'50',total:'100'}},sell_notional_by_basis:{usdg:{total:'125'}}};
+ snapshot.trading_record={token_count:1,basis_labels:{usdg:'USDG',eth:'ETH'},periods:{d30:period,d7:period},unrealized_summary:{value_usd:'50',covered_tokens:1,visible_holdings:2},tokens:[{mint:EVM_TOKEN,buy_count:2,sell_count:2,unrealized_pnl_usd:'50',by_basis:{usdg:{matched_cost:'100',matched_proceeds:'125',realized_pnl:'25',remaining_cost:'50'}}}]};
+ await page.route('**/api/v1/wallet-copy/inspect',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,source_wallet_id:EVM_SOURCE_ID,profile:snapshot,recent_events:[],persistence:{state:'shared_raven_profile'}})}));
+ await page.goto(`/account/copy/?wallet=${EVM_WALLET}&chain=bsc`);
+ await expect(page.locator('#copyOverviewMetrics')).toContainText('+25 USDG · +0.004 ETH');
+ await expect(page.locator('#copyOverviewMetrics')).toContainText('$50.00 · 1/2 tokens');
+ await expect(page.locator('#copyHoldingsTable')).toContainText('$50.00');
+ await expect(page.locator('#copyTokenTable')).toContainText('125 USDG');
+ await expect(page.locator('#copyOverviewScope')).toContainText('Settlement currencies stay separate');
+ const calls=shared.requests.length;
+ await page.getByLabel('Wallet performance period').selectOption('d7');expect(shared.requests.length).toBe(calls);
+ await page.setViewportSize({width:390,height:844});
+ await expect(page.locator('#copyProfileAddress')).toHaveText(EVM_WALLET);
+ const overflow=await page.evaluate(()=>[...document.querySelectorAll('#copyProfile *')].filter(n=>n.getBoundingClientRect().right>innerWidth+1).map(n=>n.id||n.className));
+ expect(overflow).toEqual([]);
+ await captureVisual(page,'wallet-evm-reconstruction-mobile');
+});

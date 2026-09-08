@@ -203,6 +203,7 @@ const releaseWrangler = {
     RAVENOS_EVM_WALLET_LOOKUP_ENABLED: evmWalletLookupActive ? "1" : "0",
     RAVENOS_HELIUS_WALLET_HISTORY_ENABLED: heliusHistoryActive ? "1" : "0",
     RAVENOS_ALCHEMY_WALLET_HISTORY_ENABLED: alchemyHistoryActive ? "1" : "0",
+    RAVENOS_EVM_WALLET_RECONSTRUCTION_ENABLED: alchemyHistoryActive && baseWrangler.vars?.RAVENOS_EVM_WALLET_RECONSTRUCTION_ENABLED === "1" ? "1" : "0",
     ZCASH_ENABLED: shieldedPreview.customer_preview_enabled === true && shieldedPreview.ZCASH_ENABLED === true ? "1" : "0",
     SHIELDED_RESERVE_ENABLED: shieldedPreview.customer_preview_enabled === true && shieldedPreview.SHIELDED_RESERVE_ENABLED === true ? "1" : "0",
     SHIELDED_ROUTE_QUOTES_ENABLED: shieldedPreview.customer_preview_enabled === true && shieldedPreview.SHIELDED_ROUTE_QUOTES_ENABLED === true ? "1" : "0",

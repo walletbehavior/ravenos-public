@@ -798,16 +798,16 @@ function recordUsd(value, price = false) {
 }
 
 function recordPnl(pair) {
-  return ["usdc", "sol"].flatMap(basis => {
+  return Object.keys(state.profile?.trading_record?.basis_labels || {usdc:"USDC",sol:"SOL"}).flatMap(basis => {
     const value = pair?.[basis];
     if (value == null || !Number.isFinite(Number(value))) return [];
     const number = Number(value);
-    return [`${number >= 0 ? "+" : ""}${number.toLocaleString("en-US", {minimumFractionDigits: basis === "usdc" ? 2 : 0, maximumFractionDigits: basis === "usdc" ? 6 : 9})} ${basis.toUpperCase()}`];
+    return [`${number >= 0 ? "+" : ""}${number.toLocaleString("en-US", {minimumFractionDigits: basis === "usdc" ? 2 : 0, maximumFractionDigits: basis === "usdc" ? 6 : 9})} ${state.profile?.trading_record?.basis_labels?.[basis] || basis.toUpperCase()}`];
   }).join(" · ") || "Not reconstructed";
 }
 
 function recordBasis(row, key) {
-  const values = ["usdc", "sol"].flatMap(basis => row?.[basis]?.[key] == null ? [] : [`${row[basis][key]} ${basis.toUpperCase()}`]);
+  const values = Object.keys(state.profile?.trading_record?.basis_labels || {usdc:"USDC",sol:"SOL"}).flatMap(basis => row?.[basis]?.[key] == null ? [] : [`${row[basis][key]} ${state.profile?.trading_record?.basis_labels?.[basis] || basis.toUpperCase()}`]);
   return values.join(" · ") || "—";
 }
 
@@ -820,7 +820,7 @@ function renderWalletRecord() {
   const selected = record?.periods?.[period] || performance.windows?.[period];
   const all = period === "all_available";
   const row = selected || (all ? {
-    realized_pnl: { usdc: performance.realized_pnl_usdc, sol: performance.realized_pnl_sol },
+    realized_pnl: performance.realized_pnl_by_basis || { usdc: performance.realized_pnl_usdc, sol: performance.realized_pnl_sol },
     roi_pct: performance.roi_pct, win_rate_pct: performance.win_rate_pct,
     buy_count: profile.behavior?.buy_count, sell_count: profile.behavior?.sell_count,
     average_hold_seconds: profile.behavior?.average_hold_seconds,
@@ -842,14 +842,14 @@ function renderWalletRecord() {
     fact("Matched sells", row.observations ?? "—"),
     fact("Native balance · last observed", nativeAmount == null ? "—" : `${decimal(nativeAmount)} ${nativeSymbol}`),
     fact("Visible token value · provider marks", markedValue == null ? "—" : money(markedValue)),
-    fact("Unrealized P&L", "Needs cost + current valuation"),
+    fact(record?.unrealized_summary?.value_usd != null ? "Unrealized · priced known-cost holdings" : "Unrealized P&L", record?.unrealized_summary?.value_usd != null ? `${recordUsd(record.unrealized_summary.value_usd)} · ${record.unrealized_summary.covered_tokens}/${record.unrealized_summary.visible_holdings} tokens` : "Needs cost + current valuation"),
     fact("Average buy size", recordBasis(row.buy_notional_by_basis, "average")),
     fact("Total buy cost", recordBasis(row.buy_notional_by_basis, "total")),
     fact("Total sell proceeds", recordBasis(row.sell_notional_by_basis, "total")),
   ];
   document.getElementById("copyOverviewMetrics").replaceChildren(...metrics);
   const decoded = profile.coverage?.trade_events != null;
-  setText("copyOverviewScope", `${chainLabel(profile.source_wallet.chain)} · Snapshot ${when(profile.generated_at)}. ${decoded ? "Results cover retained decoded activity; matched cost only, network fees separate. SOL and USDC stay separate." : "Transfer history is available; swaps and cost basis are not reconstructed yet."} ${selected || all ? "" : "This snapshot has no period breakdown. "}Retained activity: ${when(profile.coverage?.first_observed_at || profile.behavior?.first_trade_at)} → ${when(profile.coverage?.last_observed_at || profile.behavior?.last_trade_at)}; not wallet age. Missing values are not zero.`);
+  setText("copyOverviewScope", `${chainLabel(profile.source_wallet.chain)} · Snapshot ${when(profile.generated_at)}. ${decoded ? "Results cover retained decoded activity; matched cost only, network fees separate. Settlement currencies stay separate." : "Transfer history is available; swaps and cost basis are not reconstructed yet."} ${selected || all ? "" : "This snapshot has no period breakdown. "}Retained activity: ${when(profile.coverage?.first_observed_at || profile.behavior?.first_trade_at)} → ${when(profile.coverage?.last_observed_at || profile.behavior?.last_trade_at)}; not wallet age. Missing values are not zero.`);
   const distribution = document.getElementById("copyOutcomeDistribution");
   distribution.replaceChildren();
   if (selected?.distribution?.length && selected.observations > 0) {
@@ -867,9 +867,9 @@ function renderWalletRecord() {
   const holdingRows = [...balances].sort((a,b) => (b.provider_mark_value_usd ?? -1) - (a.provider_mark_value_usd ?? -1)).map(token => [
     recordToken(token.mint || token.contract, token.symbol || symbolFor(token.mint)),
     token.balance_display ?? "—",
-    recordUsd(token.provider_mark_price_usd, true),
+    (()=>{const mark=document.createElement("span");mark.textContent=recordUsd(token.provider_mark_price_usd,true);if(token.mark_observed_at){mark.title=`${readable(token.price_authority)} · observed ${when(token.mark_observed_at)}`;mark.setAttribute("aria-label",`${mark.textContent}, ${mark.title}`);}return mark;})(),
     recordUsd(token.provider_mark_value_usd),
-    "Not reconstructed",
+    record?.tokens?.find(row => row.mint === (token.mint || token.contract))?.unrealized_pnl_usd == null ? "Not reconstructed" : recordUsd(record.tokens.find(row => row.mint === (token.mint || token.contract)).unrealized_pnl_usd),
   ]);
   document.getElementById("copyHoldingsTable").replaceChildren(recordTable(["Token / contract", "Balance", "Mark price", "Marked value", "Unrealized P&L"], holdingRows, "No token balances in this snapshot"));
   const query = document.getElementById("copyTokenSearch").value.trim().toLowerCase();
@@ -880,7 +880,7 @@ function renderWalletRecord() {
     recordBasis(token.by_basis, "realized_pnl"), recordBasis(token.by_basis, "remaining_cost"), when(token.last_trade_at),
   ]);
   document.getElementById("copyTokenTable").replaceChildren(recordTable(["Token / contract", "Buys / sells", "Matched cost", "Matched proceeds", "Realized P&L", "Known open cost", "Last trade"], tokenRows, tokens.length ? "No tokens match this filter" : "Token cost records not reconstructed yet"));
-  setText("copyTokenScope", record ? `${tokenRows.length} shown · ${record.token_count} tokens with known-cost activity. All retained time; period control above applies to the overview. Transfers and unknown starting inventory are excluded from profit. ${record.tokens_truncated ? "Limited to the 100 most recently traded tokens." : ""}` : "This snapshot does not contain per-token cost records. Refresh analysis to use retained history where available.");
+  setText("copyTokenScope", record ? `${tokenRows.length} shown · ${record.token_count} tokens with decoded trading activity. All retained time; period control above applies to the overview. Transfers and unknown starting inventory are excluded from profit. ${record.tokens_truncated ? "Limited to the 100 most recently traded tokens." : ""}` : "This snapshot does not contain per-token cost records. Refresh analysis to use retained history where available.");
 }
 
 function renderProfile(payload, { scroll = true, from_poll: fromPoll = false } = {}) {
@@ -950,9 +950,9 @@ function renderProfile(payload, { scroll = true, from_poll: fromPoll = false } =
     document.getElementById("copyThesisNext").replaceChildren(...findingItems(thesis.next_evidence, "Keep observing."));
   }
   const performance = profile.source_performance;
-  setText("copySourcePnl", realizedPerformance(performance));
+  setText("copySourcePnl", profile.trading_record ? recordPnl(performance.realized_pnl_by_basis || {usdc:performance.realized_pnl_usdc,sol:performance.realized_pnl_sol}) : realizedPerformance(performance));
   const sourceMetrics = document.getElementById("copySourceMetrics");
-  const basicMetrics = profileChain === "solana" ? [
+  const basicMetrics = profileChain === "solana" || profile.trading_record ? [
     fact("ROI", pct(performance.roi_pct)),
     fact("Win rate", pct(performance.win_rate_pct)),
     fact("Closed observations", performance.closed_observations ?? performance.closed_lots),
