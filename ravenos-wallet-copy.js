@@ -1055,7 +1055,10 @@ function renderProfile(payload, { scroll = true, from_poll: fromPoll = false } =
   const holdings = [];
   if (snapshot) {
     setText("copyHoldingsScope", `${chainLabel(profileChain)} · ${snapshot.state === "available" ? "Confirmed scan" : "Partial scan"} ${when(snapshot.observed_at)}`);
-    if (profile.token_metadata?.rows?.length) setText("copyHoldingsScope", `${chainLabel(profileChain)} · Balances ${when(snapshot.observed_at)} · Helius token labels and indicative marks; prices may lag 10 minutes. Marks are not exit quotes.`);
+    if (profile.token_metadata?.rows?.length) {
+      const observed = profile.token_metadata.rows.map(row => row.observed_at).filter(Boolean).sort()[0];
+      setText("copyHoldingsScope", `${chainLabel(profileChain)} · Balances ${when(snapshot.observed_at)} · Helius token metadata observed ${when(observed)}. Cached indicative marks, not exit quotes.`);
+    }
     if (snapshot.native) holdings.push(fact("SOL", `${decimal(snapshot.native.amount)} SOL`));
     for (const token of snapshot.tokens || []) if (token.mint === SOLANA_USDC) holdings.push(fact("USDC", `${token.balance_display} USDC`));
     if (snapshot.state !== "available") holdings.push(empty("Some balances unavailable", "One or more token programs could not be read."));

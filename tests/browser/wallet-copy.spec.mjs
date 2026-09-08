@@ -1159,7 +1159,7 @@ test('Solana token metadata labels activity and marks without manufacturing unre
   await expect(page.locator('#copyHoldingsTable')).toContainText('$0.0000025');
   await expect(page.locator('#copyHoldingsTable')).toContainText('Not reconstructed');
   await expect(page.locator('#copyRecentEvents')).toContainText('81 EXAMPLE');
-  await expect(page.locator('#copyHoldingsScope')).toContainText('prices may lag 10 minutes');
+  await expect(page.locator('#copyHoldingsScope')).toContainText('Cached indicative marks, not exit quotes');
 });
 
 test("observed-wallet context filters cached samples, links exact markets and stays contained on mobile", async ({page}) => {
