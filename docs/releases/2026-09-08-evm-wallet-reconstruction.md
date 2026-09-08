@@ -54,3 +54,9 @@ The public RPC returned method-not-found for `debug_traceTransaction`. Earlier m
 Robinhood can reuse Raven's existing Alchemy Base app key on the exact official Robinhood endpoint if no chain-specific binding exists. Alchemy's network authorization and Raven's `eth_chainId` check still apply. Explicit Robinhood configuration takes precedence. Availability failures can use the existing Blockscout provider; integrity failures cannot. Fallback telemetry labels partial request counts instead of understating total provider work. No new subscription or API key is introduced.
 
 Single-transfer receipt events preserve their exact amount, token label and provider provenance. The UI also reads older retained records' provider arrays. Cached metadata contains only bounded public token fields.
+
+## Production limitations observed after promotion
+
+A live Base lookup returned receipt-backed activity and a supported Alchemy token mark. Reopening it returned the identical snapshot with zero provider requests. Robinhood fresh lookups timed out on the Blockscout fallback after the shared Alchemy connection was unavailable; cached prior evidence remained readable. The public-RPC transaction fixture proves decoder behavior, not production Alchemy connectivity. A reliable chain-specific Alchemy/Robinhood connection remains necessary for broad fresh-history coverage.
+
+Lookup failures now expose only reviewed diagnostic codes, never raw provider messages or credentials. Failed refreshes no longer assert zero provider work. Missing token precision is not interpreted as zero decimals or used to calculate a marked balance.

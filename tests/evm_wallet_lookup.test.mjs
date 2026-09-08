@@ -439,3 +439,13 @@ test('wallet lookup diagnostics contain only reviewed error codes',()=>{
  assert.equal(walletLookupFailureCode({code:'alchemy_wallet_chain_mismatch',message:'https://provider/v2/secret'}),'alchemy_wallet_chain_mismatch');
  assert.equal(walletLookupFailureCode({code:'secret',message:'secret'}),null);
 });
+
+test('missing token precision cannot become a zero-decimal balance or marked value',async()=>{
+ const source=provider();const original=source.fetch;
+ const result=await inspectEvmWallet({chain:'base',address:ADDRESS,env:{RAVENOS_EVM_WALLET_LOOKUP_ENABLED:'1',BLOCKSCOUT_API_KEY:KEY},now:'2026-09-04T12:01:00Z',fetchImpl:async(url)=>{
+  const response=await original(url);if(!url.includes('/tokens?'))return response;
+  const payload=await response.json();payload.items[0].token.decimals=null;return json(payload);
+ }});
+ assert.equal(result.profile.provider_balance_summary.visible_priced_rows,0);
+ assert.equal(result.profile.provider_balance_summary.visible_provider_mark_value_usd,null);
+});
