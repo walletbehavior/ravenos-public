@@ -9,6 +9,7 @@ import { inspectEvmWallet } from '../lib/customer_trade/evm_wallet_lookup.mjs';
 import { inspectRetainedEvmWallet } from '../lib/customer_trade/retained_evm_wallet.mjs';
 import { createD1CustomerWalletCopyStore, persistSourceWalletProfile } from '../lib/customer_wallet_copy.mjs';
 import { sqliteStore } from './customer_pro_rewards.test.mjs';
+import { normalizeSourceWalletChainIdentity } from '../lib/customer_trade/source_wallet_chain_identity.mjs';
 
 const W='0x'+'11'.repeat(20),T='0x'+'22'.repeat(20),P='0x'+'33'.repeat(20),R='0x'+'44'.repeat(20),U='0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',F=WALLET_SWAP_FACTORIES.base.v2[0];
 const NOW=Date.now(),iso=n=>new Date(n).toISOString(),hex=n=>'0x'+BigInt(n).toString(16),word=n=>BigInt(n).toString(16).padStart(64,'0'),aw=a=>'0x'+a.slice(2).padStart(64,'0');
@@ -59,6 +60,32 @@ test('verified single-pool receipts establish actual buys, sells and exact FIFO 
  assert.equal(period.realized_pnl.usdc,'25');assert.equal(period.roi_pct,50);assert.equal(period.buy_count,1);assert.equal(period.sell_count,1);
  assert.equal(token.by_basis.usdc.remaining_cost,'50');assert.equal(token.unrealized_pnl_usd,'50');assert.equal(token.balance_reconciled,true);
  assert.equal(buy.copy_signal.eligible_buy_signal,false);assert.equal(result.network_fees_included,false);
+});
+
+test('first background swap profile uses verified inventory and never treats a pinned partial window as complete',async t=>{
+ const db=sqliteStore();t.after(()=>db.raw.close());
+ const store=createD1CustomerWalletCopyStore(db),identity=normalizeSourceWalletChainIdentity({chain:'base',network:'mainnet',address:W}),now=Math.floor(NOW/1000);
+ const events=[await decode(receipt()),await decode(receipt(true))].map(event=>({...event,source_wallet_id:identity.source_wallet_id}));
+ await store.upsertSourceWallet({...identity,now,state:'requested',provider_scope:'history'});
+ await store.recordEvents(identity.source_wallet_id,events,now);
+ const history={backfill_state:'queued',window_start_block:101,window_end_block:102,opening_balances:{[T]:'0'},historical_prices:[]};
+ const partial=await persistSourceWalletProfile(store,identity.source_wallet_id,now,history);
+ assert.equal(partial.behavior.trade_count,2);
+ assert.equal(partial.trading_record.periods.d30.realized_pnl.usdc,null);
+ assert.deepEqual(partial.wallet_reconstruction.opening_balances,{});
+ const complete=await persistSourceWalletProfile(store,identity.source_wallet_id,now+1,{...history,backfill_state:'complete'});
+ assert.equal(complete.trading_record.periods.d30.realized_pnl.usdc,'25');
+ assert.equal(complete.trading_record.usd.periods.d30.realized_pnl.usd,'25');
+ assert.equal(complete.positions.provider_reported_token_balances.length,0);
+ assert.equal(complete.trading_record.tokens[0].unrealized_pnl_usd,null);
+ assert.equal(complete.balances_observed_at,null);
+ assert.equal(complete.evidence_boundary.copy_signal_created,false);
+ await store.recordEvents(identity.source_wallet_id,events,now+2);
+ const replay=await persistSourceWalletProfile(store,identity.source_wallet_id,now+2,{...history,backfill_state:'complete'});
+ assert.equal(replay.trading_record.periods.d30.realized_pnl.usdc,'25');
+ assert.equal(replay.coverage.transactions_observed,2);
+ const other=normalizeSourceWalletChainIdentity({chain:'ethereum',network:'mainnet',address:W});
+ await assert.rejects(persistSourceWalletProfile({listSourceEvents:async()=>events,latestProfile:async()=>null,recordProfile:async()=>assert.fail('must not persist another chain')},other.source_wallet_id,now,history),/wallet_profile_chain_mixed/);
 });
 
 test('arbitrary Swap topics and mismatched factory membership cannot establish trading profit',async()=>{

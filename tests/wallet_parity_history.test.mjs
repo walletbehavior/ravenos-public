@@ -135,6 +135,43 @@ test('one chain-scoped D1 job persists cursor through leasing and replay without
   assert.equal(db.raw.prepare('PRAGMA foreign_key_check').all().length,0);db.raw.close();
 });
 
+for (const [chain, chainId, key, host] of [['base',8453,'BASE','base-mainnet'],['ethereum',1,'ETH','eth-mainnet'],['bsc',56,'BSC','bnb-mainnet'],['robinhood',4663,'ROBINHOOD','robinhood-mainnet']]) {
+ test(`${chain} background history creates and refreshes a profile before anyone inspects it`, async t => {
+  const db=sqliteStore();t.after(()=>db.raw.close());
+  const store=createD1CustomerWalletCopyStore(db), identity=normalizeSourceWalletChainIdentity({chain,network:'mainnet',address:W});
+  const backfill=createD1SourceWalletBackfillStore(db,{record_events:store.recordEvents}), p=provider();
+  await store.upsertSourceWallet({...identity,now:NOW/1000,state:'requested',provider_scope:'history'});
+  await backfill.enqueueJob({chain,address:W,now:NOW});
+  const configured={...env,[`ALCHEMY_${key}_RPC_URL`]:`https://${host}.g.alchemy.com/v2/private-fixture`};
+  const fetchImpl=async(url,options)=>JSON.parse(options.body).method==='eth_chainId'
+   ? Response.json({id:1,result:hex(chainId)}) : p.fetchImpl(url,options);
+  await runSourceWalletBackfillBatch(backfill,{fetchSignatures:async()=>[],hydrateTransaction:async()=>null,fetchEvmPage:j=>loadEvmWalletBackfillPage(configured,j,{now:NOW,fetchImpl})},{now:NOW,maximum_jobs:1});
+  assert.equal(await store.latestProfile(identity.source_wallet_id),null);
+  const calls=p.calls.length;
+  const history={backfill_state:'queued',window_start_block:0,window_end_block:136};
+  const profile=await persistSourceWalletProfile(store,identity.source_wallet_id,NOW/1000,history);
+  assert.equal(p.calls.length,calls,'profile materialization only uses cached evidence');
+  assert.equal(profile.schema_version,'ravenos.evm_wallet_basic_profile.v2');
+  assert.equal(profile.source_wallet.chain,chain);assert.equal(profile.source_wallet.chain_id,chainId);
+  assert.equal(profile.coverage.transactions_observed,1);
+  assert.equal(profile.source_performance.realized_pnl_usdc,null);
+  assert.equal(profile.wallet_reconstruction.decoded_trades,0);
+  assert.equal(profile.capital_observations.native.amount,null);
+  assert.equal(profile.capital_observations.native.observed_at,null);
+  assert.equal(profile.balances_observed_at,null);
+  assert.equal(profile.evidence_boundary.provider_reported_balances,false);
+  assert.equal(profile.coverage.source_history_complete,false);
+  assert.equal(profile.retained_lookup.activity.pagination.provider_has_more,true);
+  const [event]=await store.listSourceEvents(identity.source_wallet_id);
+  await store.recordEvents(identity.source_wallet_id,[{...event,event_id:'swe_'+'b'.repeat(40),chain_evidence:{...event.chain_evidence,transaction_reference:hash(2),block_number:101}}],NOW/1000+1);
+  const refreshed=await persistSourceWalletProfile(store,identity.source_wallet_id,NOW/1000+1,history);
+  assert.equal(refreshed.coverage.transactions_observed,2);
+  assert.equal(refreshed.provider_activity.observed_transfer_rows,2);
+  assert.equal(refreshed.balances_observed_at,null,'a history refresh cannot invent a balance timestamp');
+  assert.equal((await store.latestProfile(identity.source_wallet_id)).coverage.transactions_observed,2);
+ });
+}
+
 test('decoder improvements append evidence but activity and rolling counts retain one transaction revision',async()=>{
   const db=sqliteStore(),store=createD1CustomerWalletCopyStore(db),p=provider();
   await store.upsertSourceWallet({...id,now:NOW/1000,state:'requested',provider_scope:'history'});

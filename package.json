@@ -57,7 +57,7 @@
     "deploy:whoami": "npm exec --yes --package=node@22.23.1 -- node scripts/run-local-wrangler.mjs whoami",
     "deploy:dry-run": "npm run build && npm exec --yes --package=node@22.23.1 -- node scripts/run-local-wrangler.mjs deploy --dry-run",
     "test:product": "node --test --experimental-test-isolation=none tests/customer_pro_rewards.test.mjs tests/customer_rewards_ledger.test.mjs tests/customer_product_routes.test.mjs tests/customer_pro_billing.test.mjs tests/customer_reward_claims.test.mjs tests/customer_referral_conversion.test.mjs tests/customer_finance_operations.test.mjs",
-    "test:wallet-history": "node --test --experimental-test-isolation=none tests/customer_wallet_history_providers.test.mjs tests/source_wallet_backfill.test.mjs tests/market_wallet_index.test.mjs tests/wallet_discovery_depth.test.mjs",
+    "test:wallet-history": "node --test --experimental-test-isolation=none tests/customer_wallet_history_providers.test.mjs tests/source_wallet_backfill.test.mjs tests/market_wallet_index.test.mjs tests/wallet_discovery_depth.test.mjs tests/evm_wallet_reconstruction.test.mjs tests/wallet_parity_history.test.mjs tests/evm_wallet_lookup.test.mjs",
     "build:privy-export": "esbuild client/ravenos-privy-export-entry.jsx --bundle --minify --format=esm --target=es2022 --define:process.env.NODE_ENV=\\\"production\\\" --outfile=ravenos-privy-export.js",
     "build:reserve": "esbuild client/ravenos-reserve-entry.js --bundle --minify --format=esm --target=es2022 --outfile=ravenos-reserve.js",
     "test:shielded": "node --test tests/shielded_reserve.test.mjs tests/shielded_research_server.test.mjs tests/customer_shielded_routes.test.mjs tests/shielded_comparison.test.mjs",
