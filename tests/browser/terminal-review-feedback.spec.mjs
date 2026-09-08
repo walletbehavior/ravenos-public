@@ -76,8 +76,8 @@ test("unfunded EVM wallet review and retry keep funding separate from exit evide
   await expect(page.locator('#terminalSpotLiveState')).toHaveText('Insufficient funds');
   await expect(page.locator('#terminalSpotLiveMessage')).toContainText('exit check has not completed');
   await expect(page.locator('#terminalSpotExitCompact')).toHaveText('Not checked');
-  await page.locator('#terminalSpotLiveAction').click();
+  await page.locator('#terminalSpotQuoteAction').click();
   await expect.poll(()=>calls).toBe(2);
   await expect(page.locator('#terminalSpotLiveState')).toHaveText('Insufficient funds');
-  await expect(page.locator('#terminalSpotLiveAction')).not.toHaveAttribute('data-live-action','execute');
+  await expect(page.locator('#terminalSpotLiveAction')).toHaveCount(0);
 });

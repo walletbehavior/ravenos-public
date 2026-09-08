@@ -676,7 +676,15 @@
             <small id="terminalSpotFeeCompactNote">Pro cashback · shown in review</small>
           </div>
 
-          <button class="terminal-preview-action" id="terminalSpotQuoteAction" type="button">Review buy + exit</button>
+          <div class="terminal-spot-estimate" id="terminalSpotEstimate" aria-live="polite">
+            <div><span>You receive</span><strong id="terminalSpotEstimateOutput">Enter an amount</strong></div>
+            <div class="terminal-spot-estimate-meta"><span id="terminalSpotEstimateSlippage">Slippage 0.50%</span><span id="terminalSpotEstimateImpact">Impact —</span></div>
+            <small id="terminalSpotEstimateMinimum">Route and token estimate update automatically.</small>
+          </div>
+          <button class="terminal-preview-action" id="terminalSpotQuoteAction" type="button">Buy</button>
+          <details class="terminal-spot-route-details" id="terminalSpotRouteDetails">
+            <summary>Route details</summary>
+            <button id="terminalSpotPreviewAction" type="button">Refresh estimate</button>
           <label class="terminal-quote-follow">
             <input id="terminalSpotQuoteFollow" type="checkbox" />
             <span><strong>Follow quote</strong><small id="terminalSpotQuoteAutoState">Off</small></span>
@@ -699,6 +707,8 @@
             <p id="terminalSpotQuoteTiming">Request route.</p>
           </div>
 
+          </details>
+
           <section class="terminal-live-execution terminal-spot-live-execution" id="terminalSpotLiveExecution" data-state="unavailable" hidden>
             <header><span>Wallet trade</span><strong id="terminalSpotLiveState">Unavailable</strong></header>
             <div class="terminal-live-execution-order" id="terminalSpotLiveOrder" hidden>
@@ -706,19 +716,18 @@
               <small id="terminalSpotLiveDetail"></small>
               <small id="terminalSpotLiveCashback" hidden></small>
             </div>
-            <button class="terminal-preview-action" id="terminalSpotLiveAction" type="button" hidden>Prepare wallet trade</button>
             <a class="terminal-live-execution-link" id="terminalSpotLiveLink" hidden>Sign in to trade</a>
             <p id="terminalSpotLiveMessage"></p>
           </section>
 
-          <ol class="terminal-execution-rail" id="terminalSpotExecutionRail" aria-label="Trade readiness">
+          <ol class="terminal-execution-rail" id="terminalSpotExecutionRail" aria-label="Automatic route checks" hidden>
             <li data-terminal-step="connect"><span>1</span><strong>Wallet</strong><small>Quote optional</small></li>
             <li data-terminal-step="quote"><span>2</span><strong>Buy quote</strong><small>Exact token</small></li>
             <li data-terminal-step="review"><span>3</span><strong>Exit proof</strong><small>Back to USDC</small></li>
             <li data-terminal-step="sign" aria-disabled="true"><span>4</span><strong>Sign</strong><small>Locked</small></li>
             <li data-terminal-step="send" aria-disabled="true"><span>5</span><strong>Send</strong><small>Locked</small></li>
           </ol>
-          <p class="terminal-preview-message" id="terminalSpotQuoteMessage">Review only. No submission.</p>
+          <p class="terminal-preview-message" id="terminalSpotQuoteMessage" hidden></p>
 
           <details class="terminal-bracket terminal-spot-advanced" id="terminalSpotAdvanced">
             <summary><span>Plans, wallet &amp; routing</span><strong id="terminalSpotAdvancedState">Preset · 0.50% slippage</strong></summary>

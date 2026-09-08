@@ -1633,8 +1633,8 @@ test("mobile spot Terminal keeps the live chart in context while trade review op
   const dock = page.locator("#terminalMobileTradeDock");
   await expect(chart).toBeVisible();
   await expect(dock).toBeVisible();
-  await expect(dock.locator('[data-terminal-mobile-side="primary"]')).toHaveText("Review buy");
-  await expect(dock.locator('[data-terminal-mobile-side="secondary"]')).toHaveText("Review sell");
+  await expect(dock.locator('[data-terminal-mobile-side="primary"]')).toHaveText("Buy");
+  await expect(dock.locator('[data-terminal-mobile-side="secondary"]')).toHaveText("Sell");
 
   await dock.locator('[data-terminal-mobile-side="primary"]').click();
   await expect(page.locator(".terminal-live")).toHaveAttribute("data-terminal-pane", "trade");
@@ -1741,11 +1741,12 @@ test("Solana spot ticket keeps quick sizing, plans, fees, and wallet-backed sell
   await expect(page.locator('[data-spot-buy-amount="75"]')).toHaveText("$75");
   await page.locator('[data-spot-buy-amount="75"]').click();
   await page.locator("#terminalSpotQuoteAction").click();
+  await page.locator("#terminalSpotRouteDetails > summary").click();
   await expect(page.locator("#terminalSpotQuoteResult")).toBeVisible();
-  await expect(page.locator("#terminalSpotQuoteOutput")).toHaveText("8450.25 JUP");
-  await expect(page.locator("#terminalSpotQuoteMinimum")).toHaveText("Minimum 8408 JUP");
+  await expect(page.locator("#terminalSpotQuoteOutput")).toHaveText("8365.7475 JUP");
+  await expect(page.locator("#terminalSpotQuoteMinimum")).toHaveText("Minimum 8323.92 JUP");
   await expect(page.locator("#terminalSpotQuoteRoute")).toHaveText("Raydium → Meteora");
-  await expect(page.locator("#terminalSpotQuoteFee")).toHaveText("No fee in preview · listed rate 1.00%");
+  await expect(page.locator("#terminalSpotQuoteFee")).toHaveText("1.00% · included in estimate");
   await expect(page.locator("#terminalSpotQuoteExit")).toHaveText("$73.84 USDC");
   await expect(page.locator("#terminalSpotQuoteFrictionLabel")).toHaveText("Before network costs");
   await expect(page.locator("#terminalSpotQuoteFriction")).toHaveText("1.55% loss");
@@ -1761,7 +1762,7 @@ test("Solana spot ticket keeps quick sizing, plans, fees, and wallet-backed sell
   await expect(page.locator("#terminalWalletConnect")).toHaveText("Disconnect view");
   await page.locator('[data-spot-sell-pct="25"]').click();
   await page.locator("#terminalSpotQuoteAction").click();
-  await expect(page.locator("#terminalSpotQuoteOutput")).toHaveText("0.42 USDC");
+  await expect(page.locator("#terminalSpotQuoteOutput")).toHaveText("0.4158 USDC");
   await expect(page.locator("#terminalSpotBalance")).toHaveText("100000");
 
   await expect(page.locator('[data-spot-plan-source="raven_exact_market"]')).toBeEnabled();
@@ -1829,8 +1830,8 @@ test("Solana spot ticket binds Auto, USDC, and native SOL preferences to the exa
   await page.locator("#terminalWalletChooser").getByRole("button", { name: /Phantom/ }).click();
   await page.locator('[data-spot-sell-pct="25"]').click();
   await page.locator("#terminalSpotQuoteAction").click();
-  await expect(page.locator("#terminalSpotQuoteOutput")).toHaveText("0.42 SOL");
-  await expect(page.locator("#terminalSpotQuoteExit")).toHaveText("0.42 SOL");
+  await expect(page.locator("#terminalSpotQuoteOutput")).toHaveText("0.4158 SOL");
+  await expect(page.locator("#terminalSpotQuoteExit")).toHaveText("0.4158 SOL");
   expect(fixtures.spotQuoteCalls.at(-1)).toMatchObject({ side: "sell", settlement_preference: "native", sell_percent: 25 });
   expect(await page.evaluate(() => window.__SOLANA_SIGN_CALLS__)).toBe(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(2);
@@ -1874,6 +1875,8 @@ test("spot route expiry fails closed and cannot leave the quote rail complete", 
   await mockTerminalLiveApis(page, { spotQuotePreview: true, spotQuoteTtlMs: 700 });
   await page.goto("/terminal/?instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&token_address=fixture-token-address&quote_address=fixture-quote-address&panel=trade");
   await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1h" });
+  await page.locator("#terminalSpotRouteDetails > summary").click();
+  await page.locator("#terminalSpotQuoteFollow").uncheck();
   await page.locator("#terminalSpotQuoteAction").click();
   await expect(page.locator("#terminalSpotQuoteState")).toHaveText("Current quote");
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_TERMINAL__?.getState?.().spotQuoteCurrent)).toBe(false);
@@ -1892,6 +1895,7 @@ test("an earlier reverse-route expiry governs currentness and follow refresh", a
   });
   await page.goto("/terminal/?instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&token_address=fixture-token-address&quote_address=fixture-quote-address&panel=trade");
   await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1h" });
+  await page.locator("#terminalSpotRouteDetails > summary").click();
   await page.locator("#terminalSpotQuoteFollow").check();
   await page.locator("#terminalSpotQuoteAction").click();
   await expect(page.locator("#terminalSpotQuoteState")).toHaveText("Current quote");
@@ -1916,16 +1920,18 @@ test("spot route response is bound to the exact ticket and output asset", async 
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_TERMINAL__?.getState?.().spotQuoteCurrent)).toBe(false);
 });
 
-test("follow quote refreshes only an unchanged visible ticket and stops on input change", async ({ page }) => {
+test("follow refreshes the edited amount automatically and can be paused", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   const fixtures = await mockTerminalLiveApis(page, { spotQuotePreview: true, spotQuoteTtlMs: 1_200 });
   await page.goto("/terminal/?instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&token_address=fixture-token-address&quote_address=fixture-quote-address&panel=trade");
   await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1h" });
-  await page.locator("#terminalSpotQuoteAction").click();
-  await page.locator("#terminalSpotQuoteFollow").check();
+  await page.locator("#terminalSpotRouteDetails > summary").click();
+  await expect(page.locator("#terminalSpotQuoteFollow")).toBeChecked();
   await expect.poll(() => fixtures.spotQuoteCalls.length).toBeGreaterThanOrEqual(2);
   await page.locator("#terminalSpotAmount").fill("75");
-  await expect(page.locator("#terminalSpotQuoteFollow")).not.toBeChecked();
+  await expect.poll(() => fixtures.spotQuoteCalls.at(-1)?.display_amount).toBe("75");
+  await expect(page.locator("#terminalSpotQuoteFollow")).toBeChecked();
+  await page.locator("#terminalSpotQuoteFollow").uncheck();
   const stoppedAt = fixtures.spotQuoteCalls.length;
   await page.waitForTimeout(1_500);
   expect(fixtures.spotQuoteCalls.length).toBe(stoppedAt);
@@ -1968,14 +1974,14 @@ test("BNB Chain opens the native wallet route only when its reviewed adapter is 
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_TERMINAL__?.getState?.().lane)).toBe("spot");
   await expect(page.locator("#terminalSpotTicketSection")).toBeVisible();
   await expect(page.locator("#terminalSpotTicketSection")).toHaveAttribute("data-adapter-state", "active");
-  await expect(page.locator("#terminalSpotTicketEyebrow")).toContainText("BNB Chain · route review");
+  await expect(page.locator("#terminalSpotTicketEyebrow")).toContainText("BNB Chain · spot trading");
   await expect(page.locator("#terminalSpotTicketTitle")).toHaveText("Buy MEMESTOCK with Auto");
   await expect(page.locator("#terminalSpotNativeAssetLabel")).toHaveText("BNB");
   await expect(page.locator("#terminalSpotActiveFee")).toHaveText("Standard · 1.00%");
   await expect(page.locator("#terminalSpotFeeCompact")).toHaveText("1.00%");
   await expect(page.locator("#terminalSpotQuoteAction")).toBeVisible();
   await expect(page.locator("#terminalSpotQuoteAction")).toBeEnabled();
-  await expect(page.locator("#terminalSpotQuoteAction")).toHaveText("Review buy + exit");
+  await expect(page.locator("#terminalSpotQuoteAction")).toHaveText("Preview buy");
   await expect(page.locator("#terminalSpotAdapterNotice")).toBeHidden();
   await expect(page.locator("#terminalSpotTicketSection")).not.toContainText("Trading is not");
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(2);
@@ -2607,6 +2613,8 @@ test("expired spot exit proof loses current verification labels everywhere", asy
   await mockTerminalLiveApis(page, { spotQuotePreview: true, velocitySpotContext: true });
   await page.goto("/terminal/?instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&token_address=fixture-token-address&quote_address=fixture-quote-address&panel=trade");
   await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1h" });
+  await page.locator("#terminalSpotRouteDetails > summary").click();
+  await page.locator("#terminalSpotQuoteFollow").uncheck();
   await page.clock.install();
   await page.locator("#terminalSpotQuoteAction").click();
   await expect(page.locator("#terminalSpotQuoteExitState")).toHaveText("Verified now");

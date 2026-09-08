@@ -36,12 +36,12 @@ function key(seed) {
   return Buffer.alloc(32, seed);
 }
 
-function unsignedV0Transaction(walletBytes) {
+function unsignedV0Transaction(walletBytes, feeAccount = RAVEN_JUPITER_REFERRAL.usdc_fee_account) {
   const message = Buffer.concat([
     Buffer.from([0x80, 1, 0, 0]),
     shortVec(2),
     walletBytes,
-    bs58.decode(RAVEN_JUPITER_REFERRAL.usdc_fee_account),
+    bs58.decode(feeAccount),
     key(7),
     shortVec(0),
     shortVec(0),
@@ -49,14 +49,16 @@ function unsignedV0Transaction(walletBytes) {
   return Buffer.concat([shortVec(1), Buffer.alloc(64), message]).toString("base64");
 }
 
-function fixture({ now = Date.now() } = {}) {
+function fixture({ now = Date.now(), native = false } = {}) {
+  const feeMint = native ? RAVEN_JUPITER_REFERRAL.sol_mint : SOLANA_USDC_MINT;
+  const feeAccount = native ? RAVEN_JUPITER_REFERRAL.sol_fee_account : RAVEN_JUPITER_REFERRAL.usdc_fee_account;
   const wallet = nacl.sign.keyPair();
   const walletAddress = bs58.encode(wallet.publicKey);
   const poolAddress = bs58.encode(key(8));
   const tokenAddress = bs58.encode(key(9));
   const referralAccount = RAVEN_JUPITER_REFERRAL.account;
   const collectorAddress = bs58.encode(key(13));
-  const transaction = unsignedV0Transaction(Buffer.from(wallet.publicKey));
+  const transaction = unsignedV0Transaction(Buffer.from(wallet.publicKey), feeAccount);
   const decoded = decodeSolanaTransaction(transaction);
   const preflight = {
     ok: true,
@@ -67,7 +69,7 @@ function fixture({ now = Date.now() } = {}) {
     transaction_review: {
       message_hash: decoded.message_hash,
       transaction_hash: decoded.transaction_hash,
-      fee_instruction_evidence: { fee_account: RAVEN_JUPITER_REFERRAL.usdc_fee_account, fee_bps: 100, positive_slippage_bps: 0 },
+      fee_instruction_evidence: { fee_account: feeAccount, fee_bps: 100, positive_slippage_bps: 0 },
     },
     intent: {
       terminal_instrument_id: `solana:pool:${poolAddress}`,
@@ -75,9 +77,9 @@ function fixture({ now = Date.now() } = {}) {
       selected_token_mint: tokenAddress,
       wallet_address: walletAddress,
       side: "buy",
-      funding_kind: "canonical_usdc",
+      funding_kind: native ? "native_sol" : "canonical_usdc",
       settlement_kind: "selected_token",
-      input_mint: SOLANA_USDC_MINT,
+      input_mint: feeMint,
       output_mint: tokenAddress,
       input_amount_base_units: "1000000",
       expected_output_amount_base_units: "420000",
@@ -88,7 +90,7 @@ function fixture({ now = Date.now() } = {}) {
       message_hash: decoded.message_hash,
       referral_account: referralAccount,
       referral_fee_bps: 100,
-      fee_mint: SOLANA_USDC_MINT,
+      fee_mint: feeMint,
       platform_fee_amount_base_units: "10000",
     },
     quote: {
@@ -98,17 +100,17 @@ function fixture({ now = Date.now() } = {}) {
       fee_bps: 100,
       platform_fee_bps: 100,
       platform_fee_amount_base_units: "10000",
-      fee_mint: SOLANA_USDC_MINT,
+      fee_mint: feeMint,
       referral_account: referralAccount,
       referral_fee_bps: 100,
     },
     simulation: {
-      native_balance_evidence: { maximum_allowed_debit_lamports: "6000" },
+      native_balance_evidence: { maximum_allowed_debit_lamports: native ? "1006000" : "6000" },
       referral_fee_balance_evidence: {
         independently_simulated: true,
-        fee_account: RAVEN_JUPITER_REFERRAL.usdc_fee_account,
+        fee_account: feeAccount,
         referral_account: referralAccount,
-        fee_mint: SOLANA_USDC_MINT,
+        fee_mint: feeMint,
         fee_bps: 100,
         gross_fee_amount_base_units: "10000",
         minimum_collector_credit_base_units: "8000",
@@ -439,5 +441,27 @@ test("the D1 ticket is one-shot and its append-only evidence contains no transac
   assert.equal(rows.length, 3);
   assert.equal(rows.some((row) => row.evidence_json.includes(value.transaction)), false);
   assert.equal(rows.some((row) => row.evidence_json.includes(verification.signed_transaction_base64)), false);
+  await store.finalize({execution_id:value.prepared.ticket.ticket_id,user_id:"usr_solana_live_fixture",reconciliation:{state:"provider_confirmed",evidence:{economic_result_verified:true}},now_seconds:nowSeconds+1});
+  await assert.rejects(store.finalize({execution_id:value.prepared.ticket.ticket_id,user_id:"usr_solana_live_fixture",reconciliation:{state:"indeterminate"},now_seconds:nowSeconds+2}),/execution_ticket_not_reconcilable/);
+  assert.equal(db.sqlite.prepare("SELECT state FROM ravenos_customer_live_execution_intents").get().state,"provider_confirmed");
+  assert.equal(db.sqlite.prepare("SELECT COUNT(*) n FROM ravenos_customer_live_execution_events").get().n,4);
   db.sqlite.close();
+});
+
+test("SOL-funded tickets bind the reviewed SOL fee ATA and never value SOL as USDC",()=>{
+  const value=fixture({native:true});
+  assert.equal(value.prepared.ticket.fee.fee_token,RAVEN_JUPITER_REFERRAL.sol_mint);
+  assert.equal(value.prepared.ticket.fee.fee_account,RAVEN_JUPITER_REFERRAL.sol_fee_account);
+  assert.equal(value.prepared.ticket.fee.estimated_raven_fee_usdc,null);
+  assert.equal(value.prepared.ticket.fee.fee_bps,100);
+});
+
+test("signing validity permits wallet interaction while respecting provider expiry and the hard cap",()=>{
+  const value=fixture();
+  const input={preflight:structuredClone(value.preflight),notional_usdc:1,maximum_notional_usdc:500,fee_policy:value.feePolicy,fee_collector_address:value.collectorAddress,exit_proof:value.exitProof};
+  input.preflight.quote.expires_at=new Date(value.now+120000).toISOString();
+  assert.equal(Date.parse(createSolanaLiveTicket(input,{now:value.now}).ticket.expires_at)-value.now,45000);
+  assert.equal(Date.parse(createSolanaLiveTicket(input,{now:value.now,ttl_ms:120000}).ticket.expires_at)-value.now,60000);
+  input.preflight.quote.expires_at=new Date(value.now+7000).toISOString();
+  assert.equal(Date.parse(createSolanaLiveTicket(input,{now:value.now}).ticket.expires_at)-value.now,7000);
 });

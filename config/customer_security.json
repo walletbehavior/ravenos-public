@@ -905,7 +905,7 @@
     "identity_jwks_rotation_bounded_by_kid": true,
     "csrf_required_for_mutations": true,
     "delegated_signing_enabled": false,
-    "manual_signing_enabled": false,
+    "manual_signing_enabled": true,
     "terminal_evm_provider_integrated": true,
     "terminal_reuses_fee_bound_zero_x_review": true,
     "owner_evm_wallet_canary_release_enabled": true,

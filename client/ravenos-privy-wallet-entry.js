@@ -5,6 +5,25 @@ import Privy, {
   getUserEmbeddedSolanaWallet,
 } from "@privy-io/js-sdk-core";
 
+// Adapt Privy's request-based Solana provider to Raven's existing wallet
+// abstraction. It exposes sign-only; submission stays in the fee-bound executor.
+export function ravenSolanaSigningProvider(provider, wallet) {
+  const address = String(wallet?.address || "");
+  if (!provider?.request || !/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address)) throw new Error("privy_solana_provider_invalid");
+  const publicKey = Object.freeze({ toString: () => address, toBase58: () => address });
+  return Object.freeze({
+    publicKey,
+    ravenEmbeddedWallet: true,
+    connect: async () => ({ publicKey }),
+    disconnect: async () => {},
+    signTransaction: async (transaction) => {
+      const result = await provider.request({ method: "signTransaction", params: { transaction } });
+      if (!result?.signedTransaction) throw new Error("privy_solana_signature_missing");
+      return result.signedTransaction;
+    },
+  });
+}
+
 function requireConfig(value) {
   const appId = String(value?.appId || "").trim();
   const clientId = String(value?.clientId || "").trim();
@@ -112,7 +131,7 @@ export function createRavenPrivyWalletClient(options) {
     const solanaWallet = getUserEmbeddedSolanaWallet(user);
     return {
       evm: ecosystem !== "solana" && evmWallet ? await privy.embeddedWallet.getEthereumProvider({ wallet: evmWallet, ...entropy }) : null,
-      solana: ecosystem !== "evm" && solanaWallet ? await privy.embeddedWallet.getSolanaProvider(solanaWallet, entropy?.entropyId, entropy?.entropyIdVerifier) : null,
+      solana: ecosystem !== "evm" && solanaWallet ? ravenSolanaSigningProvider(await privy.embeddedWallet.getSolanaProvider(solanaWallet, entropy?.entropyId, entropy?.entropyIdVerifier), solanaWallet) : null,
     };
   }
 

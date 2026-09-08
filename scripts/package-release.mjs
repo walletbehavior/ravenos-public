@@ -62,8 +62,9 @@ const privyEvmWalletCanaryActive = privyJwksBootstrapActive
   && customerSecurity.privy_wallets?.dashboard_identity_token_return_enabled === true
   && customerSecurity.privy_wallets?.owner_evm_wallet_canary_release_enabled === true
   && customerSecurity.privy_wallets?.owner_evm_wallet_provisioning_enabled === true
-  && customerSecurity.privy_wallets?.manual_signing_enabled === false
   && customerSecurity.privy_wallets?.delegated_signing_enabled === false;
+const privyManualSigningActive = privyEvmWalletCanaryActive
+  && customerSecurity.privy_wallets?.manual_signing_enabled === true;
 const privySolanaWalletCanaryActive = privyEvmWalletCanaryActive
   && customerSecurity.privy_wallets?.owner_solana_wallet_provisioning_enabled === true;
 const customerLiveExecutionCodeReady = customerSecurity.customer_live_execution_canary?.implementation_status === "owner_canary_code_ready";
@@ -248,7 +249,7 @@ const releaseWrangler = {
     RAVENOS_PRIVY_WALLETS_ENABLED: privyEvmWalletCanaryActive ? "1" : "0",
     RAVENOS_PRIVY_EVM_ENABLED: privyEvmWalletCanaryActive ? "1" : "0",
     RAVENOS_PRIVY_SOLANA_ENABLED: privySolanaWalletCanaryActive ? "1" : "0",
-    RAVENOS_PRIVY_MANUAL_SIGNING_ENABLED: "0",
+    RAVENOS_PRIVY_MANUAL_SIGNING_ENABLED: privyManualSigningActive ? "1" : "0",
     RAVENOS_PRIVY_DELEGATED_SIGNING_ENABLED: "0",
     RAVENOS_PRIVY_DEFAULT_WALLET_ONBOARDING: "0",
   },

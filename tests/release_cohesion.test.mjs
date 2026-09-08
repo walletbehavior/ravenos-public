@@ -248,7 +248,7 @@ test("release packaging carries the versioned on-chain provider gate without har
   assert.match(source, /RAVENOS_PRIVY_SOLANA_ENABLED: privySolanaWalletCanaryActive \? "1" : "0"/);
   assert.match(source, /dashboard_client_auth_enabled === true/);
   assert.match(source, /owner_solana_wallet_provisioning_enabled === true/);
-  assert.match(source, /RAVENOS_PRIVY_MANUAL_SIGNING_ENABLED: "0"/);
+  assert.match(source, /RAVENOS_PRIVY_MANUAL_SIGNING_ENABLED: privyManualSigningActive \? "1" : "0"/);
   assert.match(source, /RAVENOS_PRIVY_DELEGATED_SIGNING_ENABLED: "0"/);
   assert.match(source, /"RAVENOS_PRIVY_CUSTOM_AUTH_PRIVATE_JWK"/);
   assert.match(source, /"RAVENOS_PRIVY_IDENTITY_JWKS"/);

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { PublicKey } from "@solana/web3.js";
-import { RAVEN_JUPITER_REFERRAL as id, verifyRavenJupiterReferral } from "../lib/customer_trade/jupiter_referral.mjs";
+import { RAVEN_JUPITER_REFERRAL as id, verifyRavenJupiterReferral, ravenJupiterRouteFeeAsset } from "../lib/customer_trade/jupiter_referral.mjs";
 import { referralFixture } from "./fixtures/jupiter_referral.mjs";
 
 test("reviewed USDC account is the canonical V2 ATA and referral is the named Ultra PDA", () => {
@@ -29,4 +29,15 @@ for (const index of [0, 1]) test(`referral guard rejects missing/wrong-program a
 });
 test("referral guard rejects the Limit Order identity", () => {
   assert.throws(() => verifyRavenJupiterReferral(referralFixture(), "AvDJehWmpt6w8rkhwqbE2QVKW13Kvtgw9vqDQNiMhfZn"), /identity_mismatch/);
+});
+
+test("SOL fee account uses V2 ATA derivation and mint priority, without arbitrary token accounts", () => {
+  const ata = PublicKey.findProgramAddressSync([new PublicKey(id.account).toBuffer(), new PublicKey(id.token_program).toBuffer(), new PublicKey(id.sol_mint).toBuffer()], new PublicKey("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"))[0];
+  assert.equal(ata.toBase58(), id.sol_fee_account);
+  assert.equal(ravenJupiterRouteFeeAsset(id.sol_mint, id.usdc_mint).mint, id.sol_mint);
+  assert.equal(verifyRavenJupiterReferral(referralFixture(id.sol_mint), id.account, id.sol_mint).fee_account, id.sol_fee_account);
+  assert.throws(() => verifyRavenJupiterReferral(referralFixture(), id.account, id.sol_mint), /mint_mismatch/);
+  const missing = referralFixture(id.sol_mint); missing.value[1] = null;
+  assert.throws(() => verifyRavenJupiterReferral(missing, id.account, id.sol_mint), /sol_fee_account_missing/);
+  assert.throws(() => ravenJupiterRouteFeeAsset(id.account, id.authority), /fee_asset_unreviewed/);
 });

@@ -2017,3 +2017,24 @@ body .terminal-market-evidence summary { font-family: -apple-system, BlinkMacSys
 .terminal-holder-wallet-context{display:grid;gap:4px;margin-top:8px;font-size:12px;line-height:1.5;color:var(--muted,#93a4b8)}
 .terminal-holder-wallet-actions{display:flex;flex-wrap:wrap;gap:16px;margin-top:8px;font-size:12px}
 .terminal-holder-address-line a{overflow-wrap:anywhere;white-space:normal;text-overflow:clip}
+
+/* Compact, continuously quoted spot ticket. Advanced evidence is optional. */
+.terminal-spot-ticket > .terminal-spot-estimate { order: 8; }
+.terminal-spot-ticket > .terminal-spot-route-details { order: 13; margin-top: 10px; }
+.terminal-spot-estimate { padding: 12px 0; color: var(--terminal-text); border-top: 1px solid var(--terminal-line); }
+.terminal-spot-estimate > div:first-child { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.terminal-spot-estimate strong { font-size: 18px; overflow-wrap: anywhere; text-align: right; }
+.terminal-spot-estimate-meta { display: flex; justify-content: space-between; gap: 12px; margin-top: 8px; font-size: 12px; color: var(--terminal-muted); }
+.terminal-spot-estimate small { display: block; margin-top: 6px; font-size: 11px; color: var(--terminal-muted); }
+.terminal-spot-estimate[data-state="stale"] strong { color: var(--terminal-muted); }
+.terminal-spot-route-details > summary { cursor: pointer; color: var(--terminal-muted); padding: 6px 0; }
+#terminalSpotExecutionRail[hidden], #terminalSpotQuoteMessage[hidden] { display: none !important; }
+#terminalSpotQuoteAction { position: static; min-height: 48px; box-shadow: none; }
+#terminalSpotLiveExecution { padding: 10px; border-color: transparent; background: transparent; }
+#terminalSpotLiveExecution[data-state="error"] { border-color: var(--terminal-negative); }
+
+@media (max-width: 700px) {
+  .terminal-spot-estimate { padding: 8px 0; }
+  .terminal-spot-estimate-meta { margin-top: 4px; }
+  .terminal-spot-estimate small { margin-top: 2px; }
+}

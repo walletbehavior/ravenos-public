@@ -333,8 +333,7 @@
 .terminal-live.terminal-desk .desk-comparison > header { grid-template-columns: 1fr auto; }
 
 /* Keep the existing review action reachable while the ticket scrolls. */
-.terminal-live.terminal-desk #terminalPreviewAction,
-.terminal-live.terminal-desk #terminalSpotQuoteAction {
+.terminal-live.terminal-desk #terminalPreviewAction {
   position: sticky;
   top: 8px;
   bottom: 8px;
@@ -386,3 +385,6 @@
 .desk-brief-disclosure > summary > span { font-size: 11px; color: #9eafc5; }
 .desk-brief-disclosure[open] > summary > span { display: none; }
 .desk-brief-method { color: #9eafc5; font: 11px/1.5 var(--desk-font); }
+
+/* A single spot action stays in normal flow, including the mobile sheet. */
+.terminal-live.terminal-desk #terminalSpotQuoteAction { position: static; box-shadow: none; min-height: 48px; }

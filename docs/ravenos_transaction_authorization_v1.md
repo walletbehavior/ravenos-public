@@ -1,6 +1,6 @@
 # RavenOS transaction authorization v1
 
-Status: design only; public signing and submission remain disabled  
+Status: original authorization design; the implemented manual spot flow is described in [Single-action spot execution, September 8](ravenos_single_action_spot_execution_2026-09-08.md). The original staged boundaries below are historical, not the current deployment status.
 Contract: `ravenos.transaction_authorization.v1`
 
 ## Invariant

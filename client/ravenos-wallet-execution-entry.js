@@ -1,3 +1,4 @@
+import { RAVEN_STANDARD_EXECUTION_FEE_BPS } from "../lib/customer_product.mjs";
 import { ExchangeClient, HttpTransport } from "@nktkas/hyperliquid";
 import { PublicKey, VersionedTransaction } from "@solana/web3.js";
 import { createWalletClient, custom, getAddress } from "viem";
@@ -149,7 +150,7 @@ async function approveHyperliquidBuilderFee({ approval, provider, address }) {
   });
 }
 
-async function signSolanaTicket({ ticket, unsignedTransactionBase64, provider, address }) {
+async function signSolanaTicket({ ticket, unsignedTransactionBase64, provider, address, assertCurrent = () => {} }) {
   if (ticket?.schema_version !== "ravenos.solana_live_ticket.v1") throw executionError("live_ticket_schema_invalid");
   if (Date.parse(ticket.expires_at || "") <= Date.now() + 500) throw executionError("live_ticket_expired");
   if (String(ticket.wallet_address || "") !== String(address || "")) throw executionError("wallet_account_identity_mismatch");
@@ -165,8 +166,7 @@ async function signSolanaTicket({ ticket, unsignedTransactionBase64, provider, a
   if (fee.enabled !== true
     || fee.raven_fee_enabled !== true
     || !Number.isSafeInteger(feeBps)
-    || feeBps < 50
-    || feeBps > 100
+    || feeBps !== RAVEN_STANDARD_EXECUTION_FEE_BPS
     || Number(fee.raven_fee_bps) !== feeBps
     || fee.collection_method !== "jupiter_referral_program"
     || Number(fee.provider_share_bps) !== 2_000
@@ -187,6 +187,7 @@ async function signSolanaTicket({ ticket, unsignedTransactionBase64, provider, a
   if (await sha256Bytes(transaction.serialize()) !== ticket.transaction?.unsigned_transaction_hash) {
     throw executionError("solana_unsigned_transaction_hash_mismatch");
   }
+  assertCurrent();
   const signed = await provider.signTransaction(transaction);
   if (!signed?.message || !Array.isArray(signed?.signatures) || typeof signed?.serialize !== "function") {
     throw executionError("solana_wallet_signature_response_invalid");
@@ -1012,7 +1013,7 @@ async function validateEvmLiveTicket(ticket, quote, reviewed, address, profile) 
   return true;
 }
 
-async function executeEvmZeroXTicket({ profile: requestedProfile, ticket, quote, provider, address }) {
+async function executeEvmZeroXTicket({ profile: requestedProfile, ticket, quote, provider, address, assertCurrent = () => {} }) {
   if (!provider?.request) throw executionError("evm_wallet_unavailable");
   const profile = exactEvmZeroXProfile(requestedProfile);
   const expectedAddress = exactEvmAddress(address, "wallet_address");
@@ -1051,6 +1052,7 @@ async function executeEvmZeroXTicket({ profile: requestedProfile, ticket, quote,
   if (String(await provider.request({ method: "eth_chainId" }) || "").toLowerCase() !== profile.wallet_chain_hex) {
     throw executionError("evm_chain_identity_mismatch");
   }
+  assertCurrent();
   let submittedHash;
   try {
     submittedHash = await provider.request({
@@ -1074,7 +1076,66 @@ async function executeEvmZeroXTicket({ profile: requestedProfile, ticket, quote,
   });
 }
 
+async function approveEvmTradeToken({ profile: selector, approval, provider, address, expectedToken, expectedAmount, assertCurrent = () => {}, pollIntervalMs = 1000, timeoutMs = 45000 }) {
+  const profile = exactEvmZeroXProfile(selector);
+  const wallet = exactEvmAddress(address, "wallet_address");
+  const token = exactEvmAddress(expectedToken, "approval_token");
+  const amount = exactPositiveInteger(expectedAmount, "approval_amount");
+  if (!provider?.request || token === EVM_NATIVE_ASSET || amount >= (1n << 256n)) throw executionError("token_approval_invalid");
+  if (approval?.schema_version !== "ravenos.exact_token_approval.v1" || approval.unlimited !== false
+    || approval.profile_id !== profile.profile_id || approval.chain_id !== profile.chain_id
+    || exactEvmAddress(approval.wallet_address, "approval_wallet") !== wallet
+    || exactEvmAddress(approval.token_address, "approval_token") !== token
+    || approval.spender !== ZERO_X_ALLOWANCE_HOLDER || approval.amount_base_units !== amount.toString()) throw executionError("token_approval_identity_mismatch");
+  if (Date.parse(approval.expires_at || "") <= Date.now() || !Number.isFinite(Date.parse(approval.expires_at || ""))) throw executionError("token_approval_expired");
+  let chain = String(await provider.request({ method: "eth_chainId" })).toLowerCase();
+  if (chain !== profile.wallet_chain_hex) await provider.request({ method: "wallet_switchEthereumChain", params: [{ chainId: profile.wallet_chain_hex }] });
+  const checkWallet = async () => {
+    assertCurrent();
+    await connectedRobinhoodAccount(provider, wallet);
+    if (String(await provider.request({ method: "eth_chainId" })).toLowerCase() !== profile.wallet_chain_hex) throw executionError("evm_chain_identity_mismatch");
+  };
+  await checkWallet();
+  const allowanceData = `0xdd62ed3e${wallet.slice(2).padStart(64, "0")}${ZERO_X_ALLOWANCE_HOLDER.slice(2).padStart(64, "0")}`;
+  const current = await provider.request({ method: "eth_call", params: [{ to: token, data: allowanceData }, "latest"] });
+  if (!/^0x[0-9a-fA-F]{64}$/.test(String(current))) throw executionError("token_allowance_unavailable");
+  if (BigInt(current) >= amount) return { state: "already_sufficient", transaction_hash: null };
+  const tx = { from: wallet, to: token, value: "0x0", data: `0x095ea7b3${ZERO_X_ALLOWANCE_HOLDER.slice(2).padStart(64, "0")}${amount.toString(16).padStart(64, "0")}` };
+  const estimated = await provider.request({ method: "eth_estimateGas", params: [tx] });
+  if (!/^0x[0-9a-fA-F]+$/.test(String(estimated)) || BigInt(estimated) <= 0n || BigInt(estimated) > 150000n) throw executionError("token_approval_gas_out_of_bounds");
+  tx.gas = rpcQuantity((BigInt(estimated) * 120n + 99n) / 100n);
+  await checkWallet();
+  let hash;
+  try { hash = exactEvmTransactionHash(await provider.request({ method: "eth_sendTransaction", params: [tx] })); }
+  catch (error) {
+    if (String(error?.code) === "4001" || /user (rejected|denied)/i.test(error?.message || "")) throw executionError("user_rejected_request");
+    throw executionError("token_approval_submission_indeterminate");
+  }
+  const until = Date.now() + Math.min(45000, timeoutMs);
+  try {
+    do {
+      const receipt = await provider.request({ method: "eth_getTransactionReceipt", params: [hash] });
+      if (receipt) {
+        if (String(receipt.transactionHash).toLowerCase() !== hash || String(receipt.to).toLowerCase() !== token || String(receipt.from).toLowerCase() !== wallet) throw executionError("token_approval_receipt_mismatch");
+        if (receipt.status === "0x0") throw executionError("token_approval_failed");
+        if (receipt.status !== "0x1" || !receipt.blockHash) throw executionError("token_approval_receipt_mismatch");
+        await checkWallet();
+        const updated = await provider.request({ method: "eth_call", params: [{ to: token, data: allowanceData }, "latest"] });
+        if (!/^0x[0-9a-fA-F]{64}$/.test(String(updated)) || BigInt(updated) < amount) throw executionError("token_approval_not_effective");
+        return { state: "confirmed", transaction_hash: hash };
+      }
+      await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
+    } while (Date.now() < until);
+  } catch (error) {
+    if (["token_approval_failed", "token_approval_not_effective", "spot_trade_changed"].includes(error.code || error.message)) throw error;
+  }
+  const error = executionError("token_approval_submission_indeterminate");
+  error.transaction_hash = hash;
+  throw error;
+}
+
 globalThis.RavenOSWalletExecution = Object.freeze({
+  approveEvmTradeToken,
   approveHyperliquidBuilderFee,
   executeEvmZeroXTicket,
   executeRobinhoodZeroXTicket,

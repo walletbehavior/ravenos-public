@@ -109,7 +109,7 @@ assert.equal(config.privy_wallets.dashboard_client_auth_enabled, true);
 assert.equal(config.privy_wallets.dashboard_identity_token_return_enabled, true);
 assert.equal(config.privy_wallets.csrf_required_for_mutations, true);
 assert.equal(config.privy_wallets.delegated_signing_enabled, false);
-assert.equal(config.privy_wallets.manual_signing_enabled, false);
+assert.equal(config.privy_wallets.manual_signing_enabled, true);
 assert.equal(config.privy_wallets.terminal_evm_provider_integrated, true);
 assert.equal(config.privy_wallets.terminal_reuses_fee_bound_zero_x_review, true);
 assert.equal(config.privy_wallets.owner_evm_wallet_canary_release_enabled, true);

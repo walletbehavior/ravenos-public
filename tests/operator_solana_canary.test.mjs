@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import bs58 from "bs58";
-import { RAVEN_JUPITER_REFERRAL } from "../lib/customer_trade/jupiter_referral.mjs";
+import { RAVEN_JUPITER_REFERRAL, ravenJupiterFeeAsset } from "../lib/customer_trade/jupiter_referral.mjs";
 import { referralFixture } from "./fixtures/jupiter_referral.mjs";
 
 import {
@@ -24,6 +24,7 @@ const JUPITER_PROGRAM = "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4";
 const LOOKUP_TABLE_PROGRAM = "AddressLookupTab1e1111111111111111111111111";
 const SYSTEM_PROGRAM = "11111111111111111111111111111111";
 const TOKEN_PROGRAM = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
+const TOKEN_2022_PROGRAM = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
 
 function shortVec(value) {
   const out = [];
@@ -46,7 +47,7 @@ function fixtureTransaction(walletAddress, programAddress = JUPITER_PROGRAM, dyn
   const program = Buffer.from(bs58.decode(programAddress));
   const lookupAddress = key(22);
   const dynamicAccounts = Array.from({ length: dynamicCount }, (_, index) => key(23 + index));
-  if (feeIndex !== null) dynamicAccounts[feeIndex] = Buffer.from(bs58.decode(RAVEN_JUPITER_REFERRAL.usdc_fee_account));
+  if (feeIndex !== null) dynamicAccounts[feeIndex] = Buffer.from(bs58.decode(ravenJupiterFeeAsset(feeContext.feeMint).account));
   const feeData = Buffer.alloc(41);
   Buffer.from("d19853937cfed8e9", "hex").copy(feeData);
   feeData.writeBigUInt64LE(1_000_000n, 9);
@@ -54,7 +55,11 @@ function fixtureTransaction(walletAddress, programAddress = JUPITER_PROGRAM, dyn
   feeData.writeUInt16LE(50, 25);
   feeData.writeUInt16LE(feeContext?.bps ?? 100, 27);
   feeData.writeUInt32LE(feeContext?.routeCount ?? 1, 31);
-  const instructionAccounts = feeContext ? [1, 0, 5, 5, 5, 5, 2, 3, 4, 4, 1, 1, 5 + feeIndex] : [0, 2];
+  const token2022 = feeContext?.tokenProgram === TOKEN_2022_PROGRAM;
+  const dynamicStart = token2022 ? 6 : 5;
+  const sourceProgramIndex = token2022 && feeContext.side === "sell" ? 5 : 4;
+  const destinationProgramIndex = token2022 && feeContext.side === "buy" ? 5 : 4;
+  const instructionAccounts = feeContext ? [1, 0, dynamicStart, dynamicStart, dynamicStart, dynamicStart, 2, 3, sourceProgramIndex, destinationProgramIndex, 1, 1, dynamicStart + feeIndex] : [0, 2];
   const instructionData = feeContext ? feeData : Buffer.from([9, 10]);
   const instruction = Buffer.concat([
     Buffer.from([1]),
@@ -64,11 +69,12 @@ function fixtureTransaction(walletAddress, programAddress = JUPITER_PROGRAM, dyn
     instructionData,
   ]);
   const message = Buffer.concat([
-    Buffer.from([0x80, 1, 0, feeContext ? 4 : 1]),
-    shortVec(feeContext ? 5 : 2),
+    Buffer.from([0x80, 1, 0, feeContext ? dynamicStart - 1 : 1]),
+    shortVec(feeContext ? dynamicStart : 2),
     wallet,
     program,
     ...(feeContext ? [bs58.decode(feeContext.inputMint), bs58.decode(feeContext.outputMint), bs58.decode(TOKEN_PROGRAM)] : []),
+    ...(token2022 ? [bs58.decode(TOKEN_2022_PROGRAM)] : []),
     key(7),
     shortVec(1),
     instruction,
@@ -90,7 +96,7 @@ function fixtureTransaction(walletAddress, programAddress = JUPITER_PROGRAM, dyn
   };
 }
 
-function tokenAccount(mint, owner, amount, lamports = 2_039_280) {
+function tokenAccount(mint, owner, amount, lamports = 2_039_280, program = TOKEN_PROGRAM, extensions = Buffer.from([2, 7, 0, 0, 0])) {
   const data = Buffer.alloc(165);
   Buffer.from(bs58.decode(mint)).copy(data, 0);
   Buffer.from(bs58.decode(owner)).copy(data, 32);
@@ -104,9 +110,9 @@ function tokenAccount(mint, owner, amount, lamports = 2_039_280) {
   }
   return {
     lamports,
-    owner: TOKEN_PROGRAM,
+    owner: program,
     executable: false,
-    data: [data.toString("base64"), "base64"],
+    data: [(program === TOKEN_2022_PROGRAM ? Buffer.concat([data, extensions]) : data).toString("base64"), "base64"],
   };
 }
 
@@ -188,6 +194,10 @@ function runtime({
   platformFeeAmount = "10000",
   referralPreBalance = 0,
   referralPostBalance = 8_000,
+  mintProgram = TOKEN_PROGRAM,
+  mintExtensions = [{ extension: "metadataPointer" }, { extension: "tokenMetadata" }],
+  tokenAccountExtensions,
+  routeTokenProgram = mintProgram,
 } = {}) {
   const wallet = bs58.encode(key(11));
   const context = exactContext();
@@ -201,9 +211,9 @@ function runtime({
   const outputMint = side === "buy"
     ? context.token
     : settlementKind === "canonical_usdc" ? SOLANA_USDC_MINT : SOLANA_WRAPPED_MINT;
-  const feeMint = hasReferral && usesUsdc ? SOLANA_USDC_MINT : inputMint;
+  const feeMint = usesUsdc ? SOLANA_USDC_MINT : SOLANA_WRAPPED_MINT;
   const transaction = fixtureTransaction(wallet, program, resolvedDynamicCount, hasReferral ? 1 + Number(hasWrappedState) + Number(usesUsdc) : null,
-    hasReferral ? { inputMint, outputMint, bps: referralFeeBps, routeCount: routePlan?.length || 1 } : null);
+    hasReferral ? { inputMint, outputMint, feeMint, bps: referralFeeBps, routeCount: routePlan?.length || 1, tokenProgram: routeTokenProgram, side } : null);
   const selectedPreAmount = preTokenBalance ?? (side === "buy" ? 0 : 1_000_000);
   const selectedPostAmount = postTokenBalance ?? (side === "buy" ? 420_000 : 0);
   const authoritativePreWalletBalance = preWalletBalance ?? walletBalance;
@@ -300,13 +310,15 @@ function runtime({
       return response({ jsonrpc: "2.0", id: 1, result: {
         context: { slot: 500 },
         value: {
-          owner: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+          owner: mintProgram,
           executable: false,
           data: { parsed: { type: "mint", info: {
             decimals: 6,
             supply: "1000000000",
             mintAuthority: null,
             freezeAuthority: null,
+            isInitialized: true,
+            ...(mintProgram === TOKEN_2022_PROGRAM ? { extensions: mintExtensions } : {}),
           } } },
         },
       } });
@@ -319,8 +331,8 @@ function runtime({
     }
     if (request.method === "getMultipleAccounts") {
       if (request.params[0][0] === RAVEN_JUPITER_REFERRAL.account) {
-        assert.deepEqual(request.params[0], [RAVEN_JUPITER_REFERRAL.account, RAVEN_JUPITER_REFERRAL.usdc_fee_account]);
-        return response({ jsonrpc: "2.0", id: 1, result: referralFixture() });
+        assert.deepEqual(request.params[0], [RAVEN_JUPITER_REFERRAL.account, ravenJupiterFeeAsset(feeMint).account]);
+        return response({ jsonrpc: "2.0", id: 1, result: referralFixture(feeMint) });
       }
       if (request.params[0].length === 1 && request.params[0][0] === transaction.lookupAddress) {
         assert.equal(request.params[1].minContextSlot, 500);
@@ -339,12 +351,12 @@ function runtime({
         context: { slot: 502 },
         value: [
           walletAccount(authoritativePreWalletBalance),
-          selectedPreAmount > 0 ? tokenAccount(context.token, wallet, selectedPreAmount) : null,
+          selectedPreAmount > 0 ? tokenAccount(context.token, wallet, selectedPreAmount, 2_039_280, mintProgram, tokenAccountExtensions) : null,
           ...(hasWrappedState
             ? [preWrappedBalance === null ? null : tokenAccount(SOLANA_WRAPPED_MINT, wallet, preWrappedBalance, preWrappedAccountLamports)]
             : []),
           ...(usesUsdc ? [tokenAccount(SOLANA_USDC_MINT, wallet, authoritativePreUsdcBalance)] : []),
-          ...(hasReferral ? [tokenAccount(feeMint, referralAccount, referralPreBalance)] : []),
+          ...(hasReferral ? [tokenAccount(feeMint, referralAccount, referralPreBalance, 2_039_280 + (feeMint === SOLANA_WRAPPED_MINT ? referralPreBalance : 0))] : []),
           ...transaction.dynamicAddresses.slice(1 + Number(hasWrappedState) + Number(usesUsdc) + Number(hasReferral)).map(() => null),
         ],
       } });
@@ -372,12 +384,12 @@ function runtime({
           fee: simulationFee,
           accounts: [
             walletAccount(simulatedWalletBalance),
-            tokenAccount(context.token, wallet, selectedPostAmount),
+            tokenAccount(context.token, wallet, selectedPostAmount, 2_039_280, mintProgram, tokenAccountExtensions),
             ...(hasWrappedState
               ? [postWrappedBalance === null ? null : tokenAccount(SOLANA_WRAPPED_MINT, wallet, postWrappedBalance, postWrappedAccountLamports)]
               : []),
             ...(usesUsdc ? [tokenAccount(SOLANA_USDC_MINT, wallet, simulatedPostUsdcBalance)] : []),
-            ...(hasReferral ? [tokenAccount(feeMint, referralAccount, referralPostBalance)] : []),
+            ...(hasReferral ? [tokenAccount(feeMint, referralAccount, referralPostBalance, 2_039_280 + (feeMint === SOLANA_WRAPPED_MINT ? referralPostBalance : 0))] : []),
             ...transaction.dynamicAddresses.slice(1 + Number(hasWrappedState) + Number(usesUsdc) + Number(hasReferral)).map(() => null),
           ],
           innerInstructions: [{ index: 0, instructions: [] }],
@@ -810,4 +822,97 @@ test("output USDC fee absent from provider quote requires exact independent simu
   assert.equal(result.quote.platform_fee_amount_base_units, "4242");
   assert.equal(result.quote.platform_fee_amount_source, "independent_simulation");
   assert.equal(result.simulation.referral_fee_balance_evidence.observed_credit_base_units, "4242");
+});
+
+test("Terminal buy selected_token settlement reaches a fee-verified unsigned transaction", async () => {
+  const value = runtime({ fundingKind: "canonical_usdc", referralAccount: RAVEN_JUPITER_REFERRAL.account });
+  const result = await runCustomerSolanaLivePreflight(requestFor(value, { wallet_role: "customer", funding_kind: "canonical_usdc", settlement_kind: "selected_token", referral_account: RAVEN_JUPITER_REFERRAL.account, referral_fee_bps: 100 }), {
+    rpc_url: "https://rpc.example", jupiter_api_key: "fixture-key", fetch_impl: value.fetchImpl,
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.intent.settlement_kind, "selected_token");
+  assert.equal(result.transaction_review.fee_instruction_evidence.fee_bps, 100);
+});
+
+test("Terminal percentage sell uses selected-token funding and canonical USDC settlement", async () => {
+  const value = runtime({ side: "sell", settlementKind: "canonical_usdc", referralAccount: RAVEN_JUPITER_REFERRAL.account, platformFeeAmount: null, referralPostBalance: 4242 });
+  const result = await runCustomerSolanaLivePreflight(requestFor(value, { side: "sell", wallet_role: "customer", funding_kind: "sell_percentage", settlement_kind: "canonical_usdc", referral_account: RAVEN_JUPITER_REFERRAL.account, referral_fee_bps: 100 }), {
+    rpc_url: "https://rpc.example", jupiter_api_key: "fixture-key", fetch_impl: value.fetchImpl,
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.intent.funding_kind, "selected_token");
+  assert.equal(result.quote.fee_mint, SOLANA_USDC_MINT);
+});
+
+for (const tier of ["Standard", "Paid Pro", "Trial Pro"]) test(`${tier} SOL-funded buy has an exact 100 bps SOL referral instruction and simulated collection`, async () => {
+  const value = runtime({ referralAccount: RAVEN_JUPITER_REFERRAL.account });
+  const result = await runCustomerSolanaLivePreflight(requestFor(value, { wallet_role: "customer", funding_kind: "native_sol", settlement_kind: "selected_token", referral_account: RAVEN_JUPITER_REFERRAL.account, referral_fee_bps: 100 }), { rpc_url: "https://rpc.example", jupiter_api_key: "fixture-key", fetch_impl: value.fetchImpl });
+  assert.equal(result.ok, true);
+  assert.equal(result.quote.fee_mint, SOLANA_WRAPPED_MINT);
+  assert.equal(result.transaction_review.fee_instruction_evidence.fee_bps, 100);
+  assert.equal(result.transaction_review.fee_instruction_evidence.fee_account, RAVEN_JUPITER_REFERRAL.sol_fee_account);
+  assert.equal(result.simulation.referral_fee_balance_evidence.observed_credit_base_units, "8000");
+});
+
+test("native SOL sell fee is reconstructed from net capital with rent and network cost separated", async () => {
+  const value = runtime({ side: "sell", settlementKind: "native_sol", referralAccount: RAVEN_JUPITER_REFERRAL.account, platformFeeAmount: null, referralPostBalance: 4242, postWalletBalance: 100_414_000 });
+  const result = await runCustomerSolanaLivePreflight(requestFor(value, { side: "sell", wallet_role: "customer", funding_kind: "sell_percentage", settlement_kind: "native_sol", referral_account: RAVEN_JUPITER_REFERRAL.account, referral_fee_bps: 100 }), { rpc_url: "https://rpc.example", jupiter_api_key: "fixture-key", fetch_impl: value.fetchImpl });
+  assert.equal(result.ok, true);
+  assert.equal(result.quote.fee_mint, SOLANA_WRAPPED_MINT);
+  assert.equal(result.quote.platform_fee_amount_base_units, "4242");
+});
+
+async function token2022Preflight(options = {}) {
+  const side = options.side || "buy";
+  const value = runtime({ mintProgram: TOKEN_2022_PROGRAM, fundingKind: "canonical_usdc", settlementKind: "canonical_usdc",
+    referralAccount: RAVEN_JUPITER_REFERRAL.account, invokedProgram: TOKEN_2022_PROGRAM,
+    ...(side === "sell" ? { platformFeeAmount: null, referralPostBalance: 4242 } : {}), ...options });
+  return runCustomerSolanaLivePreflight(requestFor(value, { wallet_role: "customer", funding_kind: side === "sell" ? "sell_percentage" : "canonical_usdc",
+    settlement_kind: side === "sell" ? "canonical_usdc" : "selected_token", referral_account: RAVEN_JUPITER_REFERRAL.account, referral_fee_bps: 100 }), {
+    rpc_url: "https://rpc.example", jupiter_api_key: "fixture-key", fetch_impl: value.fetchImpl,
+  });
+}
+
+for (const side of ["buy", "sell"]) test(`Token-2022 metadata-only ${side} verifies mint program, token movement and 100 bps collection`, async () => {
+  const result = await token2022Preflight({ side });
+  assert.equal(result.ok, true);
+  assert.equal(result.selected_mint.token_2022_extensions_reviewed, true);
+  assert.deepEqual(result.selected_mint.reviewed_extension_types, ["metadataPointer", "tokenMetadata"]);
+  assert.equal(result.intent.selected_token_program, TOKEN_2022_PROGRAM);
+  const fee = result.transaction_review.fee_instruction_evidence;
+  assert.equal(fee[side === "buy" ? "destination_token_program" : "source_token_program"], TOKEN_2022_PROGRAM);
+  assert.equal(fee[side === "buy" ? "source_token_program" : "destination_token_program"], TOKEN_PROGRAM);
+  assert.equal(fee.fee_bps, 100);
+  assert.equal(result.simulation.referral_fee_balance_evidence.fee_account, RAVEN_JUPITER_REFERRAL.usdc_fee_account);
+});
+
+test("Token-2022 base token account without extensions also preserves exact receipt proof", async () => {
+  assert.equal((await token2022Preflight({ tokenAccountExtensions: Buffer.alloc(0) })).ok, true);
+});
+
+for (const extension of ["transferFeeConfig", "transferHook", "permanentDelegate", "nonTransferable", "confidentialTransferMint", "unknownExtension"]) {
+  test(`Token-2022 ${extension} is not treated as an ordinary transferable token`, async () => {
+    await assert.rejects(token2022Preflight({ mintExtensions: [{ extension }] }), /selected_mint_token_2022_extensions_not_supported/);
+  });
+}
+
+test("missing Token-2022 extension evidence cannot silently qualify", async () => {
+  await assert.rejects(token2022Preflight({ mintExtensions: null }), /selected_mint_token_2022_extensions_not_supported/);
+});
+
+for (const extensions of [Buffer.from([1, 7, 0, 0, 0]), Buffer.from([2, 7]), Buffer.from([2, 7, 0, 1, 0]),
+  Buffer.from([2, 8, 0, 0, 0]), Buffer.from([2, 7, 0, 0, 0, 7, 0, 0, 0])]) {
+  test(`malformed or unreviewed Token-2022 account tail ${extensions.toString("hex")} fails closed`, async () => {
+    await assert.rejects(token2022Preflight({ tokenAccountExtensions: extensions }), /wallet_token_2022_/);
+  });
+}
+
+test("Jupiter cannot substitute the selected mint's verified token program", async () => {
+  await assert.rejects(token2022Preflight({ routeTokenProgram: TOKEN_PROGRAM }), /jupiter_fee_instruction_token_program_mismatch/);
+});
+
+test("Token-2022 program admission does not extend to an unrelated SPL mint", async () => {
+  const result = await token2022Preflight({ mintProgram: TOKEN_PROGRAM });
+  assert.equal(result.ok, false);
+  assert.ok(result.safety_blocking_reasons.includes("invoked_program_review_required"));
 });

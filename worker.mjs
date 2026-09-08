@@ -1,3 +1,5 @@
+import { readExecutionStatusContext } from "./lib/customer_trade/live_execution_status.mjs";
+import { evmTokenApprovalContext } from "./lib/customer_trade/evm_token_approval.mjs";
 import { enrichHolderWalletContext } from './lib/customer_trade/holder_wallet_context.mjs';
 import { loadWalletHistoricalPrices } from './lib/customer_trade/wallet_historical_prices.mjs';
 import { loadEvmWalletBackfillPage } from './lib/customer_trade/evm_wallet_backfill.mjs';
@@ -7737,7 +7739,7 @@ function handleTradeFlags(env = {}) {
       enabled: solanaFee.fee_enabled,
       collection_method: solanaFee.collection_method,
       provider_share_pct: 20,
-      fee_token_policy: "canonical_USDC_input_on_buys_output_on_sells",
+      fee_token_policy: "SOL_when_present_otherwise_canonical_USDC",
       disclosure_string: solanaFee.fee_enabled
         ? "Raven fee: 1.00% for Standard and Pro. Eligible Pro earns 30% cashback on the confirmed Raven fee."
         : freeJupiterFee.disclosure_string,
@@ -8039,7 +8041,7 @@ async function loadCurrentRobinhoodLivePreparation(body = {}, env = {}) {
   });
   if (!entryQuote.wallet_handoff_eligible) {
     const reason = entryQuote.blockers?.[0] || "robinhood_entry_quote_blocked";
-    throw Object.assign(new Error(reason), { code: reason, details: { allowance: entryQuote.allowance, blockers: entryQuote.blockers } });
+    throw Object.assign(new Error(reason), { code: reason, details: { allowance: entryQuote.allowance, blockers: entryQuote.blockers, approval: evmTokenApprovalContext(entryQuote, { profile: "robinhood", token: tokenEvidence, side, instrument_id: instrumentId, pool_address: poolAddress }) } });
   }
 
   let notionalBaseUnits;
@@ -8287,7 +8289,7 @@ async function loadCurrentEvmLivePreparation(body = {}, env = {}, profile) {
   });
   if (!entryQuote.wallet_handoff_eligible) {
     const reason = entryQuote.blockers?.[0] || `${profile.chain_namespace}_entry_quote_blocked`;
-    throw Object.assign(new Error(reason), { code: reason, details: { allowance: entryQuote.allowance, blockers: entryQuote.blockers } });
+    throw Object.assign(new Error(reason), { code: reason, details: { allowance: entryQuote.allowance, blockers: entryQuote.blockers, approval: evmTokenApprovalContext(entryQuote, { profile: profile, token: tokenEvidence, side, instrument_id: instrumentId, pool_address: poolAddress }) } });
   }
   const gasEvidence = await currentProfileGasEvidence(rpcClient, profile, walletAddress, entryQuote);
 
@@ -8953,6 +8955,32 @@ async function handleTradeLiveEthereumPrepare(request, env = {}) {
 
 async function handleTradeLiveEthereumReport(request, env = {}) {
   return handleTradeLiveEvmReport(request, env, ETHEREUM_EVM_CHAIN_PROFILE);
+}
+
+// Reconcile an already authorized submission. This endpoint never signs,
+// submits, or resubmits a transaction, including after network timeouts.
+async function handleTradeLiveStatus(request, env = {}) {
+  const authorization = await authorizeCustomerApiRequest(request, env, {}, { require_csrf: true });
+  if (authorization.response) return authorization.response;
+  try {
+    const body = await parseBoundedJsonBody(request, { max_bytes: 2048 });
+    const db = env.RAVENOS_CUSTOMER_DB;
+    const context = await readExecutionStatusContext(db, body.ticket_id, authorization.principal.user_id);
+    if (!context) return liveExecutionResponse({ ok: false, error: "execution_ticket_not_found" }, authorization, { status: 404 });
+    if (context.body) return liveExecutionResponse(context.body, authorization);
+    if (context.kind === "evm") {
+      const headers = new Headers(request.headers);
+      headers.delete("content-length");
+      const forwarded = new Request(request.url,{method:"POST",headers,body:JSON.stringify(context.report)});
+      return context.chain === "robinhood" ? handleTradeLiveRobinhoodReport(forwarded,env) : handleTradeLiveEvmReport(forwarded,env,({base:BASE_EVM_CHAIN_PROFILE,bsc:BSC_EVM_CHAIN_PROFILE,ethereum:ETHEREUM_EVM_CHAIN_PROFILE})[context.chain]);
+    }
+    const reconciliation = await reconcileSolanaExecution({ticket:context.prepared,provider_observation:{signature:context.signature}},{rpc_url:spotQuotePreviewRuntime(env).rpc_url});
+    await createD1SolanaLiveExecutionStore(db).finalize({execution_id:context.ticket_id,user_id:authorization.principal.user_id,reconciliation,now_seconds:authorization.now});
+    const rewards = await reconcileExecutionRewards(db,context.ticket_id).catch(()=>({state:"reconciliation_pending"}));
+    return liveExecutionResponse({ok:reconciliation.state!=="provider_rejected",ticket_id:context.ticket_id,reconciliation,rewards},authorization);
+  } catch {
+    return liveExecutionResponse({ok:false,error:"execution_status_unavailable"},authorization,{status:503});
+  }
 }
 
 async function handleTradeLiveSolanaPrepare(request, env = {}) {
@@ -11244,6 +11272,7 @@ async function routeApi(request, env, executionContext = null) {
   }
   if (url.pathname === "/api/trade/live/hyperliquid/prepare" && request.method === "POST") return handleTradeLiveHyperliquidPrepare(request, env);
   if (url.pathname === "/api/trade/live/hyperliquid/report" && request.method === "POST") return handleTradeLiveHyperliquidReport(request, env);
+  if (url.pathname === "/api/trade/live/status" && request.method === "POST") return handleTradeLiveStatus(request, env);
   if (url.pathname === "/api/trade/live/solana/prepare" && request.method === "POST") return handleTradeLiveSolanaPrepare(request, env);
   if (url.pathname === "/api/trade/live/solana/execute" && request.method === "POST") return handleTradeLiveSolanaExecute(request, env);
   if (url.pathname === "/api/trade/live/robinhood/prepare" && request.method === "POST") return handleTradeLiveRobinhoodPrepare(request, env);

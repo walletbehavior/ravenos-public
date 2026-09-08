@@ -2,6 +2,8 @@
 
 Status: market review and authenticated wallet-signed manual execution are public on the enabled venue lanes. Raven signing, custody, arbitrary submission, and agentic live execution remain disabled.
 
+The current manual spot flow is documented in [Single-action spot execution, September 8](ravenos_single_action_spot_execution_2026-09-08.md). The earlier preview checkpoints below describe their original boundaries.
+
 ## Owner-canary execution boundary
 
 The authenticated workspace may expose a manual trade only when the global kill switch is clear, the signed-in user is explicitly allowlisted, the venue lane is enabled, and recent authentication is present. The connected wallet signs every order or transaction. RavenOS has no customer key and cannot originate a different action.
@@ -10,7 +12,7 @@ Hyperliquid uses a short-lived, exact-market order ticket and direct wallet subm
 
 The Solana canary supports native SOL or canonical Solana USDC funding and native SOL or canonical USDC settlement. Autonomous bridging is not included. A balance on another chain is not available Solana capital.
 
-Raven's Solana execution fee uses Jupiter's provider-native Referral Program: 1.00% for Free and 0.70% for Pro. Jupiter currently retains 20% of the configured integrator fee. RavenOS requires the exact referral account, basis points, fee mint, nonzero platform fee, independently simulated referral-account credit, and post-transaction onchain credit before reporting collection. If that evidence is absent or differs, the order is not signable or is reconciled as indeterminate.
+Raven's Solana execution fee uses Jupiter's provider-native Referral Program: 1.00% for Standard, paid Pro, and trial Pro. Pro cashback is a separate rebate of 30% of confirmed Raven execution fees, accounted in USDC value; it is never a synthetic 0.70% upfront fee. Jupiter's provider share is recorded separately. RavenOS requires the exact referral account, basis points, fee mint, nonzero platform fee, independently simulated referral-account credit, and post-transaction onchain credit before reporting collection. SOL routes use the verified SOL fee account; otherwise the supported fee asset is canonical USDC. If evidence is absent or differs, the order is not signable or is reconciled as indeterminate.
 
 One public EVM collector may be configured across supported EVM networks because the address format is shared, while each network's receipts and balances remain separately reconciled. EVM trading and fee collection are not activated by configuring that address.
 
