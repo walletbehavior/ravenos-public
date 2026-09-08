@@ -126,6 +126,7 @@ cpSync(join(repoRoot, ".deploy-public"), join(bundleRoot, "assets"), { recursive
 cpSync(join(repoRoot, "worker.mjs"), join(bundleRoot, "worker.mjs"));
 cpSync(join(repoRoot, "ravenos-chart-data-plane.js"), join(bundleRoot, "ravenos-chart-data-plane.js"));
 cpSync(join(repoRoot, "ravenos-discover-intelligence.js"), join(bundleRoot, "ravenos-discover-intelligence.js"));
+cpSync(join(repoRoot, "ravenos-market-scope.js"), join(bundleRoot, "ravenos-market-scope.js"));
 cpSync(join(repoRoot, "lib"), join(bundleRoot, "lib"), { recursive: true });
 
 const chartProviderConfig = releaseConfig.onchain_chart_provider || {};
