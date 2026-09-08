@@ -386,6 +386,8 @@ test("Worker APIs receive baseline security headers and authenticated surfaces r
   assert.match(csp, /object-src 'none'/);
   assert.match(csp, /frame-ancestors 'none'/);
   assert.match(csp, /script-src 'self'/);
+  assert.match(csp, /frame-src[^;]*https:\/\/auth\.privy\.io/);
+  assert.match(csp, /connect-src[^;]*https:\/\/auth\.privy\.io/);
   assert(!csp.includes("unsafe-inline"));
   assert(!csp.includes("unsafe-eval"));
 

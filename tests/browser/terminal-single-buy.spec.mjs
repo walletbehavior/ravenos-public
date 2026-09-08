@@ -4,7 +4,7 @@ const WALLET="11111111111111111111111111111111";
 const USDC="EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 const SOL="So11111111111111111111111111111111111111112";
 const URL="https://app.ravenos.xyz/terminal/?instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&token_address=fixture-token-address&quote_address=fixture-quote-address&panel=trade";
-async function setup(page,baseURL,{delay=0,reject=false,pending=false,statusResult=null,minimum="8323920000",embedded=false}={}) {
+async function setup(page,baseURL,{delay=0,reject=false,pending=false,statusResult=null,minimum="8323920000",embedded=false,stalledWallet=false}={}) {
   await page.route("https://app.ravenos.xyz/**", async route=>{
     const u=new globalThis.URL(route.request().url());
     await route.fulfill({response:await page.request.fetch(`${baseURL}${u.pathname}${u.search}`)});
@@ -15,17 +15,17 @@ async function setup(page,baseURL,{delay=0,reject=false,pending=false,statusResu
   await page.route("**/api/v1/wallets/privy",route=>route.fulfill({json:embedded ? {ok:true,available:true,app_id:"cmfixtureabcdefghijkl",client_id:"fixture",capabilities:{solana:true,evm:false,manual_signing:true},wallets:[{ecosystem:"solana",address:WALLET}]} : {ok:true,available:false}}));
   await page.route("**/api/v1/wallets/privy/session",route=>route.fulfill({json:{ok:true,token:"fixture.auth.token"}}));
   await page.route("**/api/v1/wallets/privy/link",route=>route.fulfill({json:{ok:true,linked:true,wallets:[{ecosystem:"solana",address:WALLET}]}}));
-  await page.addInitScript(({wallet,reject})=>{
-    window.buyCalls={sign:0,provider:0};
+  await page.addInitScript(({wallet,reject,stalledWallet})=>{
+    window.buyCalls={sign:0,provider:0,sync:0,provision:0,open:0};
     const provider={publicKey:wallet,connect:async()=>({publicKey:wallet}),disconnect:async()=>{},signTransaction:async()=>{window.buyCalls.provider++;}};
     window.phantom={solana:provider};
-    window.__RAVENOS_PRIVY_WALLET_FACTORY__={create:()=>({sync:async()=>{},provision:async()=>({solana:{ecosystem:"solana",address:wallet}}),identityToken:async()=>"fixture-id",providers:async()=>({solana:provider})})};
+    window.__RAVENOS_PRIVY_WALLET_FACTORY__={create:()=>({sync:async()=>{window.buyCalls.sync++;return {solana:{ecosystem:"solana",address:wallet}};},provision:async()=>{window.buyCalls.provision++;return {solana:{ecosystem:"solana",address:wallet}};},identityToken:async()=>"fixture-id",providers:async()=>{window.buyCalls.open++;if(stalledWallet)return new Promise(()=>{});return {solana:provider};}})};
     window.RavenOSWalletExecution={signSolanaTicket:async({ticket,assertCurrent})=>{
       assertCurrent();window.buyCalls.sign++;
       if(reject)throw Error("user_rejected_request");
       return {ticket_id:ticket.ticket_id,signed_transaction_base64:"fixture-signed-only"};
     }};
-  },{wallet:WALLET,reject});
+  },{wallet:WALLET,reject,stalledWallet});
   const prepare=[],execute=[],statuses=[];
   await page.route("**/api/trade/live/solana/prepare",async route=>{
     const input=route.request().postDataJSON();prepare.push(input);
@@ -128,4 +128,28 @@ for(const statusResult of ["provider_confirmed","provider_rejected"])test(`pendi
   expect(h.statuses).toHaveLength(1);
   expect(h.execute).toHaveLength(1);
   expect(await page.evaluate(()=>window.buyCalls.sign)).toBe(1);
+});
+
+
+test("an already opened Raven Wallet is reused for a second explicit Buy",async({page,baseURL})=>{
+  const h=await setup(page,baseURL,{embedded:true});
+  await page.locator("#terminalSpotQuoteAction").click();
+  await expect(page.locator("#terminalSpotLiveState")).toHaveText("Trade confirmed");
+  await page.locator("#terminalSpotAmount").fill("20");
+  await page.locator("#terminalSpotQuoteAction").click();
+  await expect.poll(()=>h.execute.length).toBe(2);
+  expect(await page.evaluate(()=>({sync:window.buyCalls.sync,open:window.buyCalls.open,provision:window.buyCalls.provision}))).toEqual({sync:1,open:1,provision:0});
+});
+
+test("a stalled wallet open ends without signing or preparing and restores Buy",async({page,baseURL})=>{
+  const h=await setup(page,baseURL,{embedded:true,stalledWallet:true});
+  await page.clock.install();
+  await page.locator("#terminalSpotQuoteAction").click();
+  await expect.poll(()=>page.evaluate(()=>window.buyCalls.open)).toBe(1);
+  await page.clock.runFor(26000);
+  await expect(page.locator("#terminalSpotLiveState")).toHaveText("Not sent");
+  await expect(page.locator("#terminalSpotLiveMessage")).toContainText("did not open in time");
+  await expect(page.locator("#terminalSpotQuoteAction")).toBeEnabled();
+  expect(h.prepare).toHaveLength(0);expect(h.execute).toHaveLength(0);
+  expect(await page.evaluate(()=>window.buyCalls.sign)).toBe(0);
 });

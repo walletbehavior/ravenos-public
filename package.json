@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "build:wallet-execution": "esbuild client/ravenos-wallet-execution-entry.js --bundle --minify --format=iife --target=es2022 --outfile=ravenos-wallet-execution.js",
-    "build:privy-wallet": "esbuild client/ravenos-privy-wallet-entry.js --bundle --minify --format=esm --target=es2022 --outfile=ravenos-privy-wallet.js",
+    "build:privy-wallet": "esbuild client/ravenos-privy-wallet-entry.js --bundle --inject:client/privy-buffer-shim.js --minify --format=esm --target=es2022 --outfile=ravenos-privy-wallet.js",
     "prebuild": "npm run build:wallet-execution && npm run build:privy-wallet && npm run build:privy-export && npm run build:reserve && node scripts/generate-public-routes.mjs && node scripts/generate-build-manifest.mjs && node scripts/prepare-deploy-assets.mjs",
     "build": "node scripts/cloudflare-build-check.mjs && npm run validate:security && npm run validate:no-leak",
     "test:discover-radar": "node --test --experimental-test-isolation=none tests/discover_radar.test.mjs",
@@ -81,7 +81,8 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "tweetnacl": "^1.0.3",
-    "viem": "2.56.0"
+    "viem": "2.56.0",
+    "buffer": "6.0.3"
   },
   "overrides": {
     "jayson": {

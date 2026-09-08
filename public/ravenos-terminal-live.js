@@ -138,7 +138,7 @@ const state = {
   walletListenersBound: false,
   selectedEvmWalletProvider: null,
   selectedSolanaWalletProvider: null,
-  privyWallet: { config: null, client: null, wallets: [], provider: null },
+  privyWallet: { config: null, client: null, wallets: [], provider: null, providers: new Map(), opening: new Map() },
   privyWalletBundle: null,
   paneScrollPositions: {},
   selectedMarker: null,
@@ -1206,68 +1206,84 @@ async function loadPrivyWalletConfiguration({ refresh = false } = {}) {
   }
 }
 
+const RAVEN_WALLET_OPEN_TIMEOUT_MS = 25000;
+
 async function connectRavenEmbeddedWallet(chainType = "evm") {
-  let phase = "session";
-  try {
-  const cfg = await loadPrivyWalletConfiguration({ refresh: true });
   const ecosystem = chainType === "solana" ? "solana" : "evm";
-  if (!cfg?.capabilities?.[ecosystem]) throw new Error("privy_wallet_unavailable");
-  const existingWallet = cfg.wallets?.find(wallet => wallet.ecosystem === ecosystem);
-  if (existingWallet && cfg.capabilities.manual_signing !== true) {
-    const provider = createEmbeddedWalletView(existingWallet);
-    state.privyWallet.provider = provider;
+  if (state.privyWallet.opening.has(ecosystem)) return state.privyWallet.opening.get(ecosystem);
+  let phase = "session", expired = false, timer;
+  const active = () => { if (expired) throw new Error("raven_wallet_open_timeout"); };
+  const operation = (async () => {
+    const cfg = await loadPrivyWalletConfiguration({ refresh: true });
+    active();
+    if (!cfg?.capabilities?.[ecosystem]) throw new Error("privy_wallet_unavailable");
+    const existingWallet = cfg.wallets?.find(wallet => wallet.ecosystem === ecosystem);
+    if (existingWallet && cfg.capabilities.manual_signing !== true) {
+      const provider = createEmbeddedWalletView(existingWallet);
+      if (ecosystem === "evm") ravenEmbeddedEvmProviders.add(provider);
+      return { provider, wallet: existingWallet };
+    }
+    const cached = state.privyWallet.providers.get(ecosystem);
+    if (cached && existingWallet && sameSelectedAddress(ecosystem, cached.wallet.address, existingWallet.address)) return cached;
+    const csrf = String(state.liveAuth?.csrf_token || "");
+    if (!csrf) throw new Error("recent_authentication_required");
+    const factory = await loadPrivyWalletFactory();
+    active();
+    const session = await fetchJson("/api/v1/wallets/privy/session", {
+      method: "POST", headers: { "content-type": "application/json", "x-ravenos-csrf": csrf }, body: "{}",
+    });
+    active();
+    if (!session.response.ok || !session.payload?.token) throw new Error("privy_session_unavailable");
+    const client = state.privyWallet.client || factory.create({ appId: cfg.app_id, clientId: cfg.client_id });
+    state.privyWallet.client = client;
+    phase = "authenticate";
+    let wallets = await client.sync(session.payload.token);
+    active();
+    // Already linked wallets do not need another creation or linking flow.
+    let wallet = wallets?.[ecosystem];
+    if (existingWallet) {
+      if (!wallet || !sameSelectedAddress(ecosystem, wallet.address, existingWallet.address)) throw new Error("privy_wallet_identity_mismatch");
+    } else {
+      phase = "create";
+      wallets = await client.provision({ evm: ecosystem === "evm", solana: ecosystem === "solana" });
+      active(); wallet = wallets?.[ecosystem];
+      phase = "verify";
+      const identityToken = await client.identityToken();
+      active(); phase = "link";
+      const linked = await fetchJson("/api/v1/wallets/privy/link", {
+        method: "POST", headers: { "content-type": "application/json", "x-ravenos-csrf": csrf, "privy-id-token": identityToken }, body: "{}",
+      });
+      active();
+      if (!linked.response.ok || linked.payload?.linked !== true) throw new Error("privy_link_failed");
+      state.privyWallet.wallets = Array.isArray(linked.payload.wallets) ? linked.payload.wallets : [];
+      const verified = state.privyWallet.wallets.find(row => row.ecosystem === ecosystem);
+      if (!wallet || !verified || !sameSelectedAddress(ecosystem, wallet.address, verified.address)) throw new Error("privy_wallet_identity_mismatch");
+    }
+    if (cfg.capabilities.manual_signing !== true) {
+      const provider = createEmbeddedWalletView(wallet);
+      if (ecosystem === "evm") ravenEmbeddedEvmProviders.add(provider);
+      return { provider, wallet };
+    }
+    phase = "open";
+    const providers = await client.providers({ ecosystem });
+    active();
+    const provider = ecosystem === "evm" ? providers.evm : providers.solana;
+    if (!provider) throw new Error("privy_wallet_provider_unavailable");
     if (ecosystem === "evm") ravenEmbeddedEvmProviders.add(provider);
-    return { provider, wallet: existingWallet };
-  }
-  const csrf = String(state.liveAuth?.csrf_token || "");
-  if (!csrf) throw new Error("recent_authentication_required");
-  const factory = await loadPrivyWalletFactory();
-  const session = await fetchJson("/api/v1/wallets/privy/session", {
-    method: "POST",
-    headers: { "content-type": "application/json", "x-ravenos-csrf": csrf },
-    body: "{}",
-  });
-  if (!session.response.ok || !session.payload?.token) throw new Error(session.payload?.error || "privy_session_unavailable");
-  const client = state.privyWallet.client || factory.create({ appId: cfg.app_id, clientId: cfg.client_id });
-  state.privyWallet.client = client;
-  phase = "authenticate";
-  await client.sync(session.payload.token);
-  phase = "create";
-  const wallets = await client.provision({ evm: ecosystem === "evm", solana: ecosystem === "solana" });
-  phase = "verify";
-  const identityToken = await client.identityToken();
-  phase = "link";
-  const linked = await fetchJson("/api/v1/wallets/privy/link", {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-ravenos-csrf": csrf,
-      "privy-id-token": identityToken,
-    },
-    body: "{}",
-  });
-  if (!linked.response.ok || linked.payload?.linked !== true) throw new Error(linked.payload?.error || "privy_link_failed");
-  state.privyWallet.wallets = Array.isArray(linked.payload.wallets) ? linked.payload.wallets : [];
-  if (cfg.capabilities.manual_signing !== true) {
-    const wallet = state.privyWallet.wallets.find(row => row.ecosystem === ecosystem);
-    const provider = createEmbeddedWalletView(wallet);
-    state.privyWallet.provider = provider;
-    if (ecosystem === "evm") ravenEmbeddedEvmProviders.add(provider);
-    return { provider, wallet };
-  }
-  phase = "open";
-  const providers = await client.providers({ ecosystem });
-  const provider = ecosystem === "evm" ? providers.evm : providers.solana;
-  if (!provider) throw new Error("privy_wallet_provider_unavailable");
-  state.privyWallet.provider = provider;
-  if (ecosystem === "evm") ravenEmbeddedEvmProviders.add(provider);
-  return { provider, wallet: wallets?.[ecosystem] || state.privyWallet.wallets.find((row) => row.ecosystem === ecosystem) || null };
-  } catch (error) {
-    // Only an allowlisted phase leaves the connection flow. Never render provider error bodies or tokens.
-    const failure = new Error(`raven_wallet_${phase}_failed`);
+    const result = { provider, wallet };
+    state.privyWallet.providers.set(ecosystem, result);
+    return result;
+  })();
+  const opening = Promise.race([operation, new Promise((_, reject) => {
+    timer = setTimeout(() => { expired = true; reject(new Error("raven_wallet_open_timeout")); }, RAVEN_WALLET_OPEN_TIMEOUT_MS);
+  })]).catch(error => {
+    const timeout = error?.message === "raven_wallet_open_timeout";
+    const failure = new Error(timeout ? "raven_wallet_open_timeout" : `raven_wallet_${phase}_failed`);
     failure.walletPhase = phase;
     throw failure;
-  }
+  }).finally(() => { clearTimeout(timer); state.privyWallet.opening.delete(ecosystem); });
+  state.privyWallet.opening.set(ecosystem, opening);
+  return opening;
 }
 
 async function defaultSpotTradingProvider(ecosystem) {
@@ -1571,7 +1587,7 @@ function renderSpotPrimaryAction() {
   const run = state.spotSubmitRun;
   const busy = Boolean(run || state.spotLivePending);
   const pending = Boolean(state.spotUnresolvedSubmission);
-  const labels = { connecting: "Connecting wallet…", routing: "Finding your route…", preparing: "Preparing trade…", approval: "Approve token in wallet…", wallet: "Confirm in wallet…", submitting: "Sending trade…" };
+  const labels = { opening_wallet: "Opening Raven Wallet…", connecting: "Connecting wallet…", routing: "Finding your route…", preparing: "Preparing trade…", approval: "Approve token in wallet…", wallet: "Confirm in wallet…", submitting: "Sending trade…" };
   action.textContent = pending ? "Transaction pending" : run ? labels[run.phase] || "Working…"
     : busy ? "Finding your route…" : !qualified ? `${chainDisplayName(currentSpotChain())} route pending`
       : live ? `${side} ${symbol}` : `Preview ${side.toLowerCase()}`;
@@ -1615,7 +1631,7 @@ function renderSpotLiveExecution() {
     setText("terminalSpotLiveSummary", pending.transaction_hash || pending.signature || "Wallet / chain confirmation pending");
     setText("terminalSpotLiveDetail", "Your Buy action will not be repeated automatically.");
   } else if (run) {
-    label = ({ connecting: "Connect wallet", routing: "Routing", preparing: "Preparing", approval: "Token approval", wallet: "Wallet signature", submitting: "Sending" })[run.phase] || "Working";
+    label = ({ opening_wallet: "Opening Raven Wallet", connecting: "Connect wallet", routing: "Routing", preparing: "Preparing", approval: "Token approval", wallet: "Wallet signature", submitting: "Sending" })[run.phase] || "Working";
     message = run.phase === "approval" ? "Approve only this trade’s token amount in your wallet; Raven continues automatically." : run.phase === "wallet" ? "Confirm the transaction in your wallet. No additional Raven confirmation."
       : run.phase === "submitting" ? "Waiting for chain confirmation…" : "Raven is checking your amount, funding, fee, and current exit route.";
   } else if (result?.ok === true) {
@@ -1664,6 +1680,8 @@ function renderSpotLiveExecution() {
 }
 
 function spotTradeErrorMessage(code) {
+  if (code === "raven_wallet_open_timeout") return "Raven Wallet did not open in time. Nothing was sent. You can retry this buy.";
+  if (/^raven_wallet_(?:session|authenticate|create|verify|link|open)_failed$/.test(String(code))) return "Raven Wallet could not open for signing. Nothing was sent. Your wallet and funds are unchanged.";
   if (/reject|denied|cancel/i.test(String(code))) return "Canceled in your wallet. Nothing was sent.";
   if (code === "spot_trade_changed") return "The amount, market, or wallet changed. Choose Buy or Sell again for the updated trade.";
   if (code === "spot_price_moved") return "The price moved beyond your displayed minimum. Nothing was sent. Check the latest estimate before buying again.";
@@ -7779,8 +7797,9 @@ async function submitSpotTrade() {
   if (state.spotSubmitRun || state.spotLivePending || state.spotUnresolvedSubmission) return;
   if (!spotTradeEnabled()) return requestSpotQuote();
   if (!spotTicketQualified()) return;
-  const run = { phase: "connecting", cancelled: false, fingerprint: null, follow: state.spotQuoteFollow, ticketId: null };
+  const run = { phase: currentSpotWallet().connected ? "routing" : "connecting", cancelled: false, fingerprint: null, follow: state.spotQuoteFollow, ticketId: null };
   state.spotSubmitRun = run;
+  state.spotLiveResult = null;
   clearSpotQuoteRefresh();
   clearTimeout(state.spotQuoteExpiryTimer);
   state.spotQuoteFollow = false;
@@ -7807,6 +7826,8 @@ async function submitSpotTrade() {
     }
     const currentWallet = currentSpotWallet();
     if (currentWallet.provider?.ravenWalletViewOnly === true) {
+      run.phase = "opening_wallet";
+      renderSpotLiveExecution();
       const ecosystem = currentSpotChain() === "solana" ? "solana" : "evm";
       const opened = await connectRavenEmbeddedWallet(ecosystem);
       const openedAddress = ecosystem === "solana" ? String(opened.provider.publicKey) : opened.wallet?.address;
