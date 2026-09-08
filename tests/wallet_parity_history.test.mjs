@@ -134,6 +134,13 @@ test('historical price reads share day cache and never send wallet addresses',as
   await loadWalletHistoricalPrices(env,db,events,{now:NOW+1000,fetchImpl});assert.equal(calls,1);db.raw.close();
 });
 
+test('cached historical FX remains readable without provider credentials and cannot trigger a fresh call',async()=>{
+  const db=sqliteStore(),at=NOW/1000;
+  db.raw.prepare('INSERT INTO ravenos_wallet_historical_prices VALUES (?,?,?,?,?)').run('ETH',at,'2000',at,'alchemy_historical_5m');
+  const prices=await loadWalletHistoricalPrices({RAVENOS_WALLET_HISTORICAL_USD_ENABLED:'1'},db,[{source_wallet:{chain:'base'},chain_evidence:{block_time:new Date(NOW).toISOString()}}],{now:NOW,maximumDays:0,fetchImpl:()=>{throw Error('must_not_fetch');}});
+  assert.equal(prices.length,1);assert.equal(prices[0].price_usd,'2000');db.raw.close();
+});
+
 test('holder context is cache-only, chain exact and excludes private account fields',async()=>{
   const db=sqliteStore(),store=createD1CustomerWalletCopyStore(db);
   await store.upsertSourceWallet({...id,now:NOW/1000,state:'requested',provider_scope:'history'});

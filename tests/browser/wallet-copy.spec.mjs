@@ -1349,3 +1349,26 @@ test('verified EVM results show separate currencies and the coverage of unrealiz
  expect(overflow).toEqual([]);
  await captureVisual(page,'wallet-evm-reconstruction-mobile');
 });
+
+test('wallet valuation shows screened missing marks and uses reconciled historical USD cost',async({page})=>{
+  const shared={requests:[]};await install(page,shared);
+  const snapshot=evmProfile();snapshot.generated_at='2026-09-08T12:00:00Z';
+  snapshot.provider_balance_summary={visible_priced_rows:1,visible_unpriced_rows:1,visible_provider_mark_value_usd:'100'};
+  snapshot.positions.provider_reported_token_balances=[
+    {contract:EVM_TOKEN,symbol:'MARKED',balance_display:'5',provider_mark_price_usd:'20',provider_mark_value_usd:'100',price_authority:'dexscreener_pool_reference',mark_observed_at:snapshot.generated_at,mark_evidence:{liquidity_usd:100000,pool_address:EVM_TOKEN_TWO}},
+    {contract:EVM_TOKEN_TWO,symbol:'THIN',balance_display:'9999999',provider_mark_price_usd:null,provider_mark_value_usd:null},
+  ];
+  snapshot.mark_coverage={unavailable:[{contract:EVM_TOKEN_TWO,reason:'thin_liquidity'}]};
+  snapshot.trading_record={periods:{},tokens:[],usd:{priced_trades:1,eligible_trades:1,periods:{d30:{}},unrealized_summary:{value_usd:'37',covered_tokens:1,visible_holdings:2},tokens:[{mint:EVM_TOKEN,unrealized_pnl_usd:'37'}]}};
+  await page.route('**/api/v1/wallet-copy/inspect',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,source_wallet_id:EVM_SOURCE_ID,profile:snapshot,recent_events:[]})}));
+  await page.goto(`/account/copy/?wallet=${EVM_WALLET}&chain=bsc`);
+  await expect(page.locator('#copyOverviewMetrics')).toContainText('1 priced · 1 unpriced');
+  await expect(page.locator('#copyOverviewMetrics')).toContainText('$37.00 · 1/2 tokens');
+  await expect(page.locator('#copyHoldingsTable')).toContainText('Low liquidity');
+  await expect(page.locator('#copyHoldingsTable')).toContainText('$37.00');
+  await expect(page.locator('#copyHoldingsTable [title*="Pool liquidity"]')).toHaveText('$20');
+  await captureVisual(page,'wallet-mark-coverage-desktop');
+  await page.setViewportSize({width:390,height:844});
+  const overflow=await page.evaluate(()=>[...document.querySelectorAll('#copyProfile *')].filter(n=>n.getBoundingClientRect().right>innerWidth+1).map(n=>n.id||n.className));
+  expect(overflow).toEqual([]);await captureVisual(page,'wallet-mark-coverage-mobile');
+});

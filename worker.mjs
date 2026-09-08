@@ -11,8 +11,8 @@ import { captureExecutionRewards, reconcileExecutionRewards, sweepExecutionRewar
 import { readProductAccess, expireProTrials } from "./lib/customer_pro.mjs";
 import { RAVEN_STANDARD_EXECUTION_FEE_BPS, RAVEN_PRO_CASHBACK_PERCENT, productFlags } from "./lib/customer_product.mjs";
 import { emergingDiscoverCandidate } from "./lib/discover_radar.mjs";
-import { loadSolanaWalletHoldings } from "./lib/customer_trade/solana_wallet_holdings.mjs";
-import { createSolanaTokenMetadataLoader } from "./lib/customer_trade/solana_token_metadata.mjs";
+import { createSolanaWalletProfileReads } from "./lib/customer_trade/solana_wallet_profile_provider.mjs";
+import { rememberSeenWalletTokenMarks } from "./lib/customer_trade/wallet_token_marks.mjs";
 const solanaWalletTokenMetadataCache = new Map();
 import { RAVEN_JUPITER_REFERRAL } from "./lib/customer_trade/jupiter_referral.mjs";
 import { normalizeHyperliquidPerps } from "./lib/ravenos_perps_intelligence.mjs";
@@ -1135,6 +1135,7 @@ async function cachedDex(path) {
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(`dexscreener_http_${response.status}`);
+  rememberSeenWalletTokenMarks(Array.isArray(payload)?payload:payload.pairs);
   dexCache.set(path, { payload, expires: now + 30_000 });
   if (dexCache.size > 200) dexCache.delete(dexCache.keys().next().value);
   return payload;
@@ -11258,16 +11259,7 @@ async function routeApi(request, env, executionContext = null) {
   const walletCopyDependencies = {
     walletProvider: {
       loadHistory: (input) => loadBoundedSolanaWalletHistory(env, input),
-      loadTokenMetadata: createSolanaTokenMetadataLoader({ cache: solanaWalletTokenMetadataCache, rpc: (method, params) => {
-        const runtime = heliusWalletHistoryRuntime(env);
-        if (!runtime.enabled) throw new Error("wallet_metadata_unavailable");
-        return boundedSolanaTradeRpc(runtime.rpc_url, method, params, { timeoutMs: 3500, maxBytes: 1024 * 1024 });
-      } }),
-      loadHoldings: ({ address, now }) => loadSolanaWalletHoldings({ address, now: new Date(now * 1000).toISOString(), rpc: (method, params) => {
-        const rpcUrl = publicSolanaTradeRpcUrl(env);
-        if (!rpcUrl) throw new Error("wallet_holdings_rpc_unavailable");
-        return boundedSolanaTradeRpc(rpcUrl, method, params);
-      } }),
+      ...createSolanaWalletProfileReads(env,{rpc:boundedSolanaTradeRpc,metadataCache:solanaWalletTokenMetadataCache,cache:typeof caches!=='undefined'?caches.default:null}),
       quoteCopySignal: (input) => quoteSolanaWalletCopySignal(env, input),
       quoteCopyExit: (input) => quoteSolanaWalletCopyExit(env, input),
     },

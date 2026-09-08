@@ -12,6 +12,7 @@ import {
 import { createSourceWalletBackfillJob } from "../lib/customer_trade/source_wallet_backfill.mjs";
 import { createSourceWalletId } from "../lib/customer_trade/source_wallet_chain_identity.mjs";
 import { applyShadowCopyExitHistory } from "../lib/customer_trade/wallet_copy.mjs";
+import { walletUsdTradingRecord } from '../lib/customer_trade/wallet_historical_prices.mjs';
 import {
   CustomerWalletCopyContract,
   createD1CustomerWalletCopyStore,
@@ -628,6 +629,32 @@ test("repeat address lookup shares retained evidence across accounts without his
   assert.deepEqual(rebuilt.token_metadata, first.profile.token_metadata);
   assert.equal(cached.freshness.current_balance_claimed, false);
   assert.equal(cached.freshness.observed_at, first.profile.generated_at);
+});
+
+test("a Solana wallet with verified empty history still displays its confirmed holdings", async () => {
+  const store=memoryStore();let calls=0;
+  const provider={async loadHistory(){calls++;return {events:[],history_exhausted:true,signatures_requested:0,transactions_decoded:0};},
+    async loadHoldings(){return {chain:'solana',address:WALLET,state:'available',observed_at:new Date(NOW*1000).toISOString(),native:{amount:0,amount_base_units:'0'},tokens:[]};}};
+  const lookup=()=>request('/api/v1/wallet-copy/inspect',{method:'POST',body:{address:WALLET}});
+  const response=await routeCustomerWalletCopy(lookup(),env(),deps(store,provider)),first=await json(response);
+  assert.equal(response.status,200,JSON.stringify(first));assert.equal(first.profile.source_wallet.address,WALLET);
+  assert.equal(first.profile.holdings_snapshot.native.amount_base_units,'0');assert.equal(first.profile.coverage.transactions_observed,0);
+  assert.equal(first.profile.source_performance.realized_pnl_usdc,null);
+  const cached=await json(await routeCustomerWalletCopy(lookup(),env(),deps(store,provider)));
+  assert.equal(cached.provider_request_performed,false);assert.equal(calls,1);
+});
+
+test("an empty response without provider exhaustion cannot fabricate an empty Solana history",async()=>{
+  const response=await routeCustomerWalletCopy(request('/api/v1/wallet-copy/inspect',{method:'POST',body:{address:WALLET}}),env(),deps(memoryStore(),{async loadHistory(){return {events:[]};}}));
+  assert.notEqual(response.status,200);
+});
+
+test('Solana held-token marks produce USD unrealized results only when retained cost and exact quantity reconcile',()=>{
+  const profile={source_wallet:{chain:'solana',address:WALLET},generated_at:new Date(NOW*1000).toISOString(),holdings_snapshot:{tokens:[{contract:TOKEN,mint:TOKEN,decimals:6,balance_base_units:'10000000',provider_mark_value_usd:'40'}]}};
+  const usd=walletUsdTradingRecord(profile,[walletEvent()],[]);
+  assert.equal(usd.unrealized_summary.value_usd,'15');assert.equal(usd.priced_trades,1);
+  profile.holdings_snapshot.tokens[0].balance_base_units='9000000';
+  assert.equal(walletUsdTradingRecord(profile,[walletEvent()],[]).unrealized_summary.value_usd,null);
 });
 
 test("retained events rebuild a missing profile without RPC and reject the wrong cached wallet", async () => {

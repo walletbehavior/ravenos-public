@@ -836,6 +836,8 @@ function renderWalletRecord() {
   const nativeSymbol = native?.symbol || (profile.source_wallet.chain === "bsc" ? "BNB" : profile.source_wallet.chain === "solana" ? "SOL" : "ETH");
   const markedValue = (snapshot?.provider_balance_summary || profile.provider_balance_summary)?.visible_provider_mark_value_usd;
   const usd = record?.usd?.periods?.[period];
+  const unrealized=record?.usd?.unrealized_summary||record?.unrealized_summary;
+  const markSummary=snapshot?.provider_balance_summary||profile.provider_balance_summary;
   const metrics = [
     fact("Realized P&L · settlement", recordPnl(row.realized_pnl)),
     ...(record?.usd ? [fact("Realized P&L · USD reference", recordUsd(usd?.realized_pnl?.usd)),fact("Historical USD coverage", `${record.usd.priced_trades} / ${record.usd.eligible_trades} retained trades`),fact("Observed network fees · USD reference",recordUsd(usd?.observed_network_fee_usd))] : []),
@@ -846,7 +848,8 @@ function renderWalletRecord() {
     fact("Matched sells", row.observations ?? "—"),
     fact("Native balance · last observed", nativeAmount == null ? "—" : `${decimal(nativeAmount)} ${nativeSymbol}`),
     fact("Visible token value · provider marks", markedValue == null ? "—" : money(markedValue)),
-    fact(record?.unrealized_summary?.value_usd != null ? "Unrealized · priced known-cost holdings" : "Unrealized P&L", record?.unrealized_summary?.value_usd != null ? `${recordUsd(record.unrealized_summary.value_usd)} · ${record.unrealized_summary.covered_tokens}/${record.unrealized_summary.visible_holdings} tokens` : "Needs cost + current valuation"),
+    fact("Token pricing coverage",Number.isInteger(markSummary?.visible_priced_rows)&&Number.isInteger(markSummary?.visible_unpriced_rows)?`${markSummary.visible_priced_rows} priced · ${markSummary.visible_unpriced_rows} unpriced`:"Not available"),
+    fact(unrealized?.value_usd != null ? "Unrealized · priced known-cost holdings" : "Unrealized P&L", unrealized?.value_usd != null ? `${recordUsd(unrealized.value_usd)} · ${unrealized.covered_tokens}/${unrealized.visible_holdings} tokens` : "Needs cost + current valuation"),
     fact("Average buy size", recordBasis(row.buy_notional_by_basis, "average")),
     fact("Total buy cost", recordBasis(row.buy_notional_by_basis, "total")),
     fact("Total sell proceeds", recordBasis(row.sell_notional_by_basis, "total")),
@@ -876,9 +879,14 @@ function renderWalletRecord() {
   const holdingRows = [...balances].sort((a,b) => (b.provider_mark_value_usd ?? -1) - (a.provider_mark_value_usd ?? -1)).map(token => [
     recordToken(token.mint || token.contract, token.symbol || symbolFor(token.mint)),
     token.balance_display ?? "—",
-    (()=>{const mark=document.createElement("span");mark.textContent=recordUsd(token.provider_mark_price_usd,true);if(token.mark_observed_at){mark.title=`${readable(token.price_authority)} · observed ${when(token.mark_observed_at)}`;mark.setAttribute("aria-label",`${mark.textContent}, ${mark.title}`);}return mark;})(),
+    (()=>{
+      const mark=document.createElement("span"),reason=(snapshot?.mark_coverage||profile.mark_coverage)?.unavailable?.find(row=>row.contract===(token.mint||token.contract))?.reason;
+      const reasons={thin_liquidity:"Low liquidity",inactive_market:"Inactive market",conflicting_pools:"Conflicting prices",no_qualified_market:"No reliable mark",provider_unavailable:"Mark unavailable"};
+      mark.textContent=token.provider_mark_price_usd==null?(reasons[reason]||"—"):recordUsd(token.provider_mark_price_usd,true);
+      if(token.mark_observed_at){mark.title=`${readable(token.price_authority||token.mark_source)} · observed ${when(token.mark_observed_at)}${token.mark_evidence?` · Pool liquidity ${money(token.mark_evidence.liquidity_usd)} · indicative, not an exit quote${token.mark_evidence.position_exceeds_ten_percent_of_pool?" · Holding exceeds 10% of reference pool liquidity":""}`:""}`;mark.setAttribute("aria-label",`${mark.textContent}, ${mark.title}`);}return mark;
+    })(),
     recordUsd(token.provider_mark_value_usd),
-    record?.tokens?.find(row => row.mint === (token.mint || token.contract))?.unrealized_pnl_usd == null ? "Not reconstructed" : recordUsd(record.tokens.find(row => row.mint === (token.mint || token.contract)).unrealized_pnl_usd),
+    (()=>{const row=(record?.usd?.tokens||record?.tokens)?.find(row=>row.mint===(token.mint||token.contract));return row?.unrealized_pnl_usd==null?"Not reconstructed":recordUsd(row.unrealized_pnl_usd);})(),
   ]);
   document.getElementById("copyHoldingsTable").replaceChildren(recordTable(["Token / contract", "Balance", "Mark price", "Marked value", "Unrealized P&L"], holdingRows, "No token balances in this snapshot"));
   const query = document.getElementById("copyTokenSearch").value.trim().toLowerCase();
@@ -1066,7 +1074,7 @@ function renderProfile(payload, { scroll = true, from_poll: fromPoll = false } =
     setText("copyHoldingsScope", `${chainLabel(profileChain)} · ${snapshot.state === "available" ? "Confirmed scan" : "Partial scan"} ${when(snapshot.observed_at)}`);
     if (profile.token_metadata?.rows?.length) {
       const observed = profile.token_metadata.rows.map(row => row.observed_at).filter(Boolean).sort()[0];
-      setText("copyHoldingsScope", `${chainLabel(profileChain)} · Balances ${when(snapshot.observed_at)} · Helius token metadata observed ${when(observed)}. Cached indicative marks, not exit quotes.`);
+      setText("copyHoldingsScope", `${chainLabel(profileChain)} · Balances ${when(snapshot.observed_at)} · Token metadata ${when(observed)}. Cached indicative marks, not exit quotes.`);
     }
     if (snapshot.native) holdings.push(fact("SOL", `${decimal(snapshot.native.amount)} SOL`));
     for (const token of snapshot.tokens || []) if (token.mint === SOLANA_USDC) holdings.push(fact("USDC", `${token.balance_display} USDC`));

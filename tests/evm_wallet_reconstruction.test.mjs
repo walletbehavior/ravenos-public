@@ -187,6 +187,19 @@ test('background projection extends cached activity without refreshing balance t
  assert.equal(p.calls.length,count);db.raw.close();
 });
 
+test('balance refresh preserves durable EVM USD results and reads cached historical prices only',async()=>{
+ const db=sqliteStore(),store=createD1CustomerWalletCopyStore(db),p=provider(),now=Math.floor(NOW/1000);
+ const active={...env,RAVENOS_WALLET_HISTORICAL_USD_ENABLED:'1'},input={chain:'base',address:W,env:active,fetchImpl:p.fetchImpl,now:iso(NOW)};
+ const first=await inspectRetainedEvmWallet(input,{db,store,now});
+ await persistSourceWalletProfile(store,first.source_wallet_id,now+1,{backfill_state:'complete',window_start_block:101,window_end_block:102,opening_balances:{[T]:'0'},historical_prices:[]});
+ const refreshed=await inspectRetainedEvmWallet({...input,refresh:true,now:iso(NOW+601000)},{db,store,now:now+601});
+ assert.equal(refreshed.profile.trading_record.usd.periods.d30.realized_pnl.usd,'25');
+ assert.equal(refreshed.profile.trading_record.usd.unrealized_summary.value_usd,'50');
+ assert.equal(refreshed.profile.durable_history.window_end_block,102);
+ assert.equal(refreshed.profile.balances_observed_at,iso(NOW+601000));
+ assert.equal(refreshed.profile.evidence_boundary.copy_signal_created,false);db.raw.close();
+});
+
 test('V3 signed pool deltas and factory fee-tier membership establish a swap',async()=>{
  const r=receipt(),factory=WALLET_SWAP_FACTORIES.base.v3[0];
  r.logs[2]={...r.logs[2],topics:[WALLET_SWAP_TOPICS.v3,aw(R),aw(W)],data:'0x'+[100000000n,2n**256n-10000000n,1n,1n,0n].map(word).join('')};
