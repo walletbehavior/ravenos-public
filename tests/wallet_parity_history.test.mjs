@@ -146,6 +146,46 @@ test('decoder improvements append evidence but activity and rolling counts retai
   assert.equal((await store.listSourceEventPage(id.source_wallet_id)).matching_event_count,1);db.raw.close();
 });
 
+for(const [chain,chainId,key,host] of [['base',8453,'BASE','base-mainnet'],['ethereum',1,'ETH','eth-mainnet'],['bsc',56,'BSC','bnb-mainnet'],['robinhood',4663,'ROBINHOOD','robinhood-mainnet']]) {
+ for(const cachedCount of [1,2]) test(`${chain} cached receipt references advance a real database page (${cachedCount}/2 reused)`,async t=>{
+  const db=sqliteStore();t.after(()=>db.raw.close());
+  const walletStore=createD1CustomerWalletCopyStore(db),backfill=createD1SourceWalletBackfillStore(db,{record_events:walletStore.recordEvents});
+  const identity=normalizeSourceWalletChainIdentity({chain,network:'mainnet',address:W});
+  await walletStore.upsertSourceWallet({...identity,now:NOW/1000,state:'requested',provider_scope:'history'});
+  const job=await backfill.enqueueJob({chain,address:W,now:NOW});
+  const configured={...env,[`ALCHEMY_${key}_RPC_URL`]:`https://${host}.g.alchemy.com/v2/private-fixture`},p=provider(),receiptReads=[];
+  const fetchImpl=async(url,options)=>{
+   const {method,params}=JSON.parse(options.body),response=await p.fetchImpl(url,options),body=await response.json();
+   if(method==='eth_chainId')body.result=hex(chainId);
+   if(method==='alchemy_getAssetTransfers'&&body.result.transfers.length)body.result.transfers.push({...body.result.transfers[0],hash:hash(2),uniqueId:'transfer-2'});
+   if(method==='eth_getTransactionReceipt'){receiptReads.push(params[0]);body.result.transactionHash=params[0];}
+   if(method==='eth_getTransactionByHash')body.result.hash=params[0];
+   return Response.json(body);
+  };
+  const initial=await loadEvmWalletBackfillPage(configured,job,{fetchImpl,now:NOW});
+  assert.equal(initial.events.length,2);
+  // An interactive inspection has already persisted some or all of this page.
+  await walletStore.recordEvents(identity.source_wallet_id,initial.events.slice(0,cachedCount),NOW/1000);
+  receiptReads.length=0;
+  const run=await runSourceWalletBackfillBatch(backfill,{fetchSignatures:async()=>{throw Error('unexpected_solana_read');},hydrateTransaction:async()=>{throw Error('unexpected_solana_read');},fetchEvmPage:current=>loadEvmWalletBackfillPage(configured,current,{fetchImpl,now:NOW,existingTransaction:async(sourceId,reference,blockHash)=>{
+   const row=db.raw.prepare('SELECT event_json,block_hash FROM ravenos_wallet_latest_events WHERE source_wallet_id=? AND transaction_reference=?').get(sourceId,reference);
+   if(row)assert.equal(row.block_hash,blockHash);
+   return row?JSON.parse(row.event_json):null;
+  }})},{now:NOW,maximum_jobs:1});
+  assert.equal(run.totals.pages_completed,1);
+  assert.equal(run.totals.transactions_decoded,2);
+  const current=await backfill.jobForSource(identity.source_wallet_id);
+  assert.equal(current.state,'queued');assert.equal(current.provider_cursor.direction,'out');
+  assert.equal(current.transactions_decoded,2);assert.equal(current.signatures_seen,2);
+  assert.equal(receiptReads.length,2-cachedCount);
+  assert.equal(db.raw.prepare('SELECT COUNT(*) n FROM ravenos_source_wallet_events').get().n,2);
+  const page=db.raw.prepare('SELECT signature_count,decoded_count,failure_count,evidence_json FROM ravenos_source_wallet_backfill_pages').get();
+  assert.equal(page.signature_count,2);assert.equal(page.decoded_count,2);assert.equal(page.failure_count,0);
+  assert.equal(JSON.parse(page.evidence_json).reused_reference_count,cachedCount);
+  assert.equal(db.raw.prepare('PRAGMA foreign_key_check').all().length,0);
+ });
+}
+
 test('historical USD uses integer rounding, preceding five-minute evidence and no present-day substitution',()=>{
   const at=Math.floor(NOW/1000),prices=[{symbol:'ETH',bucket_at:at,price_usd:'2497.1234567',provider:'alchemy_historical_5m'}];
   assert.equal(historicalUsdValue('1000000000000000000',18,'ETH',at+20,prices).micro_usd,'2497123456');

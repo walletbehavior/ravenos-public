@@ -10,6 +10,8 @@ Receipt identity, status, block hash, transfer amounts and pool verification rem
 
 A real read-only Robinhood canary advanced the formerly blocked wallet `0x110d57ea4dbb4d050a19014bba276acd703a3609`: four verified events, including three 2,000-log distributions, with 50 RPC reads. Existing durable cursors, replay deduplication, per-chain queue fairness, cost-basis rules, and profile refreshes are unchanged.
 
+Live inspection exposed a second queue defect: a page containing already cached receipts counted only newly inserted events as decoded, violating the database page constraint (`failure_count = signature_count - decoded_count`). The page now counts all verified references as decoded and records the reused count separately. Event rows remain deduplicated. Eight regression cases exercise mixed and fully cached pages on all four EVM chains against the real SQLite migrations; they failed before the correction.
+
 ## Holders
 
 Cached holder projections remain first. On a shared Blockscout availability failure, Base and Ethereum can use their official chain-instance endpoints without forwarding the Pro key. No fallback masks a successful wrong-token response. If indexed holders remain unavailable, Raven uses the existing Alchemy chain connection to verify an observed wallet sample:
