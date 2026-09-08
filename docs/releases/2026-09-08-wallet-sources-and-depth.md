@@ -39,6 +39,8 @@ Tests cover actual SQLite recall beyond event 24,000 in a 25,010-event archive, 
 
 The source import is reviewable with `node scripts/import-wallet-universe.mjs <public-sources.jsonl>` and writes only with `--apply`. Final deployment IDs, test results and production observations belong in the deployment receipt.
 
+Production follow-up: the first large pages exposed an older 100-row receipt-table constraint. Normalized events were retained, but `INSERT OR IGNORE` skipped their page receipts. Migration `0045_wallet_page_receipts.sql` preserves existing receipt rows while widening that bound to 1,000. Receipt writes now ignore only duplicate primary keys; other constraint failures stop cursor advancement. Tests assert receipt persistence and historical-row preservation. The early receipt gap remains documented rather than inventing original provider-page evidence. Public-list failures also retain a bounded reason code, and fetches identify Raven openly. The initial Worker refresh was unavailable despite a successful public-page read from the existing host; verify the scheduled state before promising unattended refreshes.
+
 ## Sources
 
 - [Kolscan public leaderboard](https://kolscan.io/leaderboard): public wallet discovery links, with daily/weekly/monthly views.

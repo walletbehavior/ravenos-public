@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {readFileSync} from 'node:fs';
+import {DatabaseSync} from 'node:sqlite';
 import bs58 from 'bs58';
 import {sqliteStore} from './customer_pro_rewards.test.mjs';
 import {createD1CustomerWalletCopyStore} from '../lib/customer_wallet_copy.mjs';
@@ -20,6 +21,21 @@ const signature=n=>{const b=Buffer.alloc(64,7);b.writeUInt32BE(n,60);return bs58
 const transaction=n=>({slot:100000-n,blockTime:NOW-n,
   transaction:{signatures:[signature(n)],message:{accountKeys:[{pubkey:WALLET,signer:true}],instructions:[]}},
   meta:{err:null,fee:5000,preBalances:[1000000000],postBalances:[999995000],preTokenBalances:[],postTokenBalances:[],innerInstructions:[],logMessages:[]}});
+
+test('page receipt migration preserves old evidence exactly and keeps append-only protection',()=>{
+ const raw=new DatabaseSync(':memory:');
+ const original=readFileSync('customer-migrations/0011_source_wallet_backfill.sql','utf8');
+ raw.exec('CREATE TABLE ravenos_source_wallet_backfill_jobs(job_id TEXT PRIMARY KEY);CREATE TABLE ravenos_source_wallets(source_wallet_id TEXT PRIMARY KEY);CREATE TABLE ravenos_public_wallet_list_refresh(state TEXT,next_refresh_at INTEGER);');
+ raw.exec(original.slice(original.indexOf('CREATE TABLE ravenos_source_wallet_backfill_pages ('),original.indexOf('CREATE TABLE ravenos_source_wallet_backfill_runs (')));
+ const id='swbp_'+ 'a'.repeat(40),proof=JSON.stringify({raw_provider_payload_persisted:false,transaction_material_persisted:false,subscriber_identity_included:false});
+ raw.prepare("INSERT INTO ravenos_source_wallet_backfill_jobs VALUES ('job')").run();raw.prepare("INSERT INTO ravenos_source_wallets VALUES ('wallet')").run();
+ raw.prepare("INSERT INTO ravenos_source_wallet_backfill_pages VALUES (?,'ravenos.source_wallet_backfill_page.v1','job','wallet','head',NULL,'complete',100,100,0,0,?,'helius_address_history',?,?)").run(id,'b'.repeat(40),proof,NOW);
+ const before=raw.prepare('SELECT * FROM ravenos_source_wallet_backfill_pages').all();
+ raw.exec(readFileSync('customer-migrations/0045_wallet_page_receipts.sql','utf8'));
+ assert.deepEqual(raw.prepare('SELECT * FROM ravenos_source_wallet_backfill_pages').all(),before);
+ assert.throws(()=>raw.prepare('UPDATE ravenos_source_wallet_backfill_pages SET decoded_count=0').run(),/append_only/);
+ raw.close();
+});
 const packet=(kind,addresses,at=NOW)=>({schema_version:'ravenos.wallet_source_list.v1',source_kind:kind,provider:'gmgn_public_list',
   source_reference:'https://gmgn.ai/discover',chain:'solana',observed_at:at,wallets:addresses.map((address,i)=>({address,rank:i+1}))});
 async function source(db,wallet=WALLET,chain='solana') {
@@ -47,6 +63,7 @@ test('free public Kolscan intake reads visible links once per interval without i
  assert.equal(calls,1);
  const failure=await refreshPublicWalletList(env,{walletStore,now:NOW+21600,fetchImpl:async()=>new Response('provider unavailable',{status:503})});
  assert.equal(failure.state,'unavailable');assert.equal(db.raw.prepare('SELECT count(*) n FROM ravenos_wallet_discovery_sources').get().n,1);
+ assert.equal(db.raw.prepare('SELECT last_error_code FROM ravenos_public_wallet_list_refresh').get().last_error_code,'public_wallet_list_http_503');
 });
 
 test('older list observations cannot overwrite fresher rank or priority evidence',async()=>{
@@ -114,6 +131,11 @@ test('a full 1,000-transaction Helius page performs one RPC and zero transaction
  assert.equal(calls,1);assert.equal(hydrates,0);assert.equal(report.totals.transactions_decoded,1000);
  const job=await backfill.jobForSource(id.source_wallet_id);assert.equal(job.provider_cursor.pagination_token,'99000:1');assert.equal(job.state,'queued');
  assert.equal((await store.listSourceEventPage(id.source_wallet_id,{limit:12})).matching_event_count,1000);
+ const receipt=db.raw.prepare('SELECT * FROM ravenos_source_wallet_backfill_pages').get();
+ assert.equal(receipt.signature_count,1000);assert.equal(receipt.decoded_count,1000);
+ assert.equal(JSON.parse(receipt.evidence_json).raw_provider_payload_persisted,false);
+ assert.throws(()=>db.raw.prepare('UPDATE ravenos_source_wallet_backfill_pages SET decoded_count=0').run(),/append_only/);
+ await assert.rejects(backfill.recordPage({...JSON.parse(receipt.evidence_json),page_id:'swbp_'+ 'e'.repeat(40),signature_count:1001,decoded_count:1001}),/CHECK/);
  assert(!JSON.stringify(report).includes('fixture-secret'));
 });
 
