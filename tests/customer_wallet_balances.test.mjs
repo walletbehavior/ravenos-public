@@ -20,11 +20,11 @@ test('balance cache is separate per user, recent reads make no new RPC calls, no
 });
 test('Solana balance preserves integer precision, canonical USDC and frozen token restrictions',async()=>{
  const methods=[];
- const fetchImpl=async(_url,init)=>{const q=JSON.parse(init.body);methods.push(q.method);let result;
+ const fetchImpl=async(_url,init)=>{assert.equal(new URL(_url).hostname,'mainnet.helius-rpc.com');assert.equal(new URL(_url).searchParams.get('api-key'),'test');const q=JSON.parse(init.body);methods.push(q.method);let result;
  if(q.method==='getBalance')result={context:{slot:12},value:1234567890};
  else result={context:{slot:12},value:q.params[1].programId===WALLET_TOKEN_PROGRAMS[0]?['initialized','frozen'].map((state,i)=>({account:{owner:WALLET_TOKEN_PROGRAMS[0],data:{parsed:{info:{owner:address,mint:usdc,state,tokenAmount:{amount:i?'2000000':'83000001',decimals:6}}}}}})):[]};
  return Response.json({jsonrpc:'2.0',id:1,result});};
- const result=await loadCustomerWalletBalance({RAVENOS_SOLANA_RPC_URL:'https://mainnet.helius-rpc.com/?api-key=test'}, {public_address:address},'solana',{fetchImpl,now:100000});
+ const result=await loadCustomerWalletBalance({HELIUS_API_KEY:'test',RAVENOS_HELIUS_WALLET_HISTORY_ENABLED:'0'}, {public_address:address},'solana',{fetchImpl,now:100000});
  assert.equal(methods.length,3);assert.equal(result.assets[0].amount,'1.234567890');assert.equal(result.assets[1].amount,'85.000001');assert.equal(result.assets[1].spendable_before_network_fees,'83.000001');assert.equal(result.assets[1].canonical_usdc,true);assert.equal(result.execution_authority,false);
 });
 test('missing token balance is unknown, never zero; balance errors do not expose provider secrets',async()=>{
