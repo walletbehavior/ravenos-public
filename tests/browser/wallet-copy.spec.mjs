@@ -736,6 +736,7 @@ test("BNB lookup renders provider balances and transfer evidence without pretend
   await expect(page.getByLabel("Paste an address")).toHaveAttribute("maxlength", "42");
   await page.getByLabel("Paste an address").fill(EVM_WALLET);
   await page.getByRole("button", { name: "Analyze wallet" }).click();
+  await page.locator("#copyRavenEvidence > summary").click();
   await expect(page.locator("#copySourcePnl")).toHaveText("Insufficient evidence");
   await expect(page.locator("#copyProfileCoverage")).toContainText("123 tx reported · trades not decoded");
   await expect(page.locator("#copySourceMetrics")).toContainText("Recent transfers");
@@ -784,10 +785,10 @@ test("Raven-indexed screener exposes honest evidence and opens a retained profil
   await expect(page.getByText("At Raven detection", { exact: true })).toBeVisible();
   await expect(page.getByText("$750K cap · $125K liq · 1h pair", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Save", exact: true }).click();
-  await expect(page.locator("#copySavedWallets").getByText("7KxQmT…MpfHrt", { exact: true })).toBeVisible();
+  await expect(page.locator("#copySavedWallets").getByText(WALLET, { exact: true })).toBeVisible();
   const saveRequest = shared.requests.find((row) => row.method === "POST" && row.path.endsWith("/saved-wallets"));
   expect(saveRequest.headers["x-ravenos-csrf"]).toBe("csrf_wallet_copy");
-  expect(JSON.parse(saveRequest.body)).toEqual({ source_wallet_id: SOURCE_ID, list_name: "Research", label: "7KxQmT…MpfHrt" });
+  expect(JSON.parse(saveRequest.body)).toEqual({ source_wallet_id: SOURCE_ID, list_name: "Research", label: WALLET });
   expect(shared.watch).toBeNull();
   await captureVisual(page, "wallet-copy-screener-desktop-1440");
   await page.getByRole("button", { name: "Open analysis" }).click();
@@ -1041,8 +1042,8 @@ test("free wallets show observed holdings and keep advanced discovery hidden", a
   const shared = { requests: [] };
   await install(page, shared, { entitled: false });
   await page.goto(`/account/copy/?wallet=${EVM_WALLET}&chain=bsc`);
-  await expect(page.locator("#copyWalletBalances")).toContainText("USDC");
-  await expect(page.locator("#copyWalletBalances")).toContainText("2.5");
+  await expect(page.locator("#copyHoldingsTable")).toContainText("USDC");
+  await expect(page.locator("#copyHoldingsTable")).toContainText("2.5");
   await expect(page.locator('[data-discovery-field="mooner_tokens"]')).toBeHidden();
   await expect(page.locator("#copyStartSetup")).toBeDisabled();
 });
@@ -1233,4 +1234,52 @@ test('a late activity page cannot overwrite a newly opened profile', async ({pag
   await page.waitForResponse(response=>response.url().includes('/events?'));
   await expect(page.locator('#copyEventCount')).toHaveText('2 of 26 retained');
   await expect(page.locator('#copyActivityFilter')).toHaveValue('all');
+});
+
+test('wallet overview uses cached period records, full identities and token costs on mobile', async ({page}) => {
+  const shared={requests:[]}; await install(page,shared);
+  const record=profile(); record.generated_at='2026-08-29T12:00:00.000Z';
+  record.trading_record={token_count:1,tokens_truncated:false,periods:{
+    d30:{...record.source_performance.windows.d30,buy_count:14,sell_count:8,win_rate_pct:62.5,average_hold_seconds:2100,distribution:[{label:'0% to 100%',count:8}]},
+    d7:{...record.source_performance.windows.d7,buy_count:6,sell_count:5,win_rate_pct:60,average_hold_seconds:1200,distribution:[{label:'0% to 100%',count:5}]},
+  },tokens:[{mint:TOKEN,buy_count:4,sell_count:2,last_trade_at:'2026-08-29T11:59:58.000Z',by_basis:{usdc:{matched_cost:'25.000000',matched_proceeds:'30.000000',realized_pnl:'5.000000',remaining_cost:12},sol:{}}}]};
+  await page.route(`**/api/v1/wallet-copy/wallets/${SOURCE_ID}`,route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,source_wallet_id:SOURCE_ID,profile:record,recent_events:[event()],provider_request_performed:false})}));
+  await page.setViewportSize({width:390,height:844});
+  await page.goto('/account/copy/');
+  await page.getByRole('button',{name:'Open analysis',exact:true}).click();
+  await expect(page.locator('#copyProfileAddress')).toHaveText(WALLET);
+  await expect(page.locator('#copyProfileExplorer')).toHaveAttribute('href',`https://solscan.io/account/${WALLET}`);
+  await expect(page.locator('#copyOverviewMetrics')).toContainText('14 / 8');
+  await expect(page.locator('#copyOverviewMetrics')).toContainText('+428.12 USDC');
+  const before=shared.requests.filter(row=>row.path.endsWith('/inspect')).length;
+  await page.getByLabel('Wallet performance period').selectOption('d7');
+  await expect(page.locator('#copyOverviewMetrics')).toContainText('6 / 5');
+  await expect(page.locator('#copyOverviewMetrics')).toContainText('+211.40 USDC');
+  await expect(page.locator('#copyTokenTable')).toContainText('5.000000 USDC');
+  await expect(page.locator('#copyTokenTable')).toContainText(TOKEN);
+  await page.getByLabel('Filter token results').fill('missing-token');
+  await expect(page.locator('#copyTokenTable')).toContainText('No tokens match this filter');
+  expect(shared.requests.filter(row=>row.path.endsWith('/inspect')).length).toBe(before);
+  await page.getByLabel('Filter token results').fill('');
+  const overflow=await page.evaluate(()=>[...document.querySelectorAll('#copyProfile *')].filter(node=>node.getBoundingClientRect().right>innerWidth+1).map(node=>node.id||node.className));
+  expect(overflow).toEqual([]);
+  if(process.env.RAVENOS_VISUAL_ARTIFACT_DIR){
+    await page.locator('#copyWalletOverview').screenshot({path:join(process.env.RAVENOS_VISUAL_ARTIFACT_DIR,'wallet-overview-mobile.png')});
+    await page.setViewportSize({width:1440,height:1100});
+    await page.locator('#copyWalletOverview').screenshot({path:join(process.env.RAVENOS_VISUAL_ARTIFACT_DIR,'wallet-overview-desktop.png')});
+  }
+});
+
+test('missing provider transaction count is never shown as zero and advanced EVM panels start collapsed',async({page})=>{
+  const shared={requests:[]};await install(page,shared);
+  const snapshot=evmProfile();snapshot.positions.provider_reported_token_balances[0].provider_mark_price_usd=0.0000025;snapshot.coverage.transactions_reported_by_provider=null;snapshot.coverage.transactions_observed=0;
+  await page.route('**/api/v1/wallet-copy/inspect',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,source_wallet_id:EVM_SOURCE_ID,profile:snapshot,recent_events:[],persistence:{state:'on_demand_only'}})}));
+  await page.goto(`/account/copy/?wallet=${EVM_WALLET}&chain=bsc`);
+  await expect(page.locator('#copyProfileAddress')).toHaveText(EVM_WALLET);
+  await expect(page.locator('#copyProfileCoverage')).toContainText('1 transfers observed');
+  await expect(page.locator('#copyProfileCoverage')).not.toContainText('0 tx');
+  await expect(page.locator('#copyRavenEvidence')).not.toHaveAttribute('open');
+  await expect(page.locator('#copyOverviewScope')).toContainText('swaps and cost basis are not reconstructed');
+  await expect(page.locator('#copyHoldingsTable')).toContainText(EVM_TOKEN);
+  await expect(page.locator('#copyHoldingsTable')).toContainText('$0.0000025');
 });

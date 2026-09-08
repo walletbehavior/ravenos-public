@@ -77,6 +77,8 @@ function setText(id, value) {
   if (node) node.textContent = String(value ?? "");
 }
 
+function walletAddress(value) { return text(value, "Wallet"); }
+
 function shortAddress(value) {
   const address = text(value, "Wallet");
   return address.length > 14 ? `${address.slice(0, 6)}…${address.slice(-6)}` : address;
@@ -763,6 +765,123 @@ function scheduleDeepHistoryPoll(token) {
   }, delay);
 }
 
+function recordTable(headers, rows, emptyLabel) {
+  if (!rows.length) return empty(emptyLabel, "Only retained evidence is shown.");
+  const table = document.createElement("table");
+  const thead = document.createElement("thead");
+  const head = document.createElement("tr");
+  headers.forEach(label => { const th = document.createElement("th"); th.scope = "col"; th.textContent = label; head.append(th); });
+  thead.append(head);
+  const body = document.createElement("tbody");
+  rows.forEach(values => {
+    const row = document.createElement("tr");
+    values.forEach((value, index) => {
+      const cell = document.createElement("td"); cell.dataset.label = headers[index];
+      if (value instanceof Node) cell.append(value); else cell.textContent = text(value);
+      row.append(cell);
+    });
+    body.append(row);
+  });
+  table.append(thead, body); return table;
+}
+
+function recordToken(identity, symbol) {
+  const node = document.createElement("div"); node.className = "copy-record-token";
+  if (symbol) { const name = document.createElement("strong"); name.textContent = symbol; node.append(name); }
+  const contract = document.createElement("code"); contract.textContent = identity || "Identity unavailable"; node.append(contract);
+  return node;
+}
+
+function recordUsd(value, price = false) {
+  if (value == null || value === "" || !Number.isFinite(Number(value))) return "—";
+  return new Intl.NumberFormat("en-US", {style:"currency",currency:"USD",...(price ? {maximumSignificantDigits:6} : {minimumFractionDigits:2,maximumFractionDigits:Math.abs(Number(value)) < .01 && Number(value) !== 0 ? 8 : 2})}).format(Number(value));
+}
+
+function recordPnl(pair) {
+  return ["usdc", "sol"].flatMap(basis => {
+    const value = pair?.[basis];
+    if (value == null || !Number.isFinite(Number(value))) return [];
+    const number = Number(value);
+    return [`${number >= 0 ? "+" : ""}${number.toLocaleString("en-US", {minimumFractionDigits: basis === "usdc" ? 2 : 0, maximumFractionDigits: basis === "usdc" ? 6 : 9})} ${basis.toUpperCase()}`];
+  }).join(" · ") || "Not reconstructed";
+}
+
+function recordBasis(row, key) {
+  const values = ["usdc", "sol"].flatMap(basis => row?.[basis]?.[key] == null ? [] : [`${row[basis][key]} ${basis.toUpperCase()}`]);
+  return values.join(" · ") || "—";
+}
+
+function renderWalletRecord() {
+  const profile = state.profile;
+  if (!profile) return;
+  const performance = profile.source_performance || {};
+  const period = document.getElementById("copyOverviewPeriod").value;
+  const record = profile.trading_record;
+  const selected = record?.periods?.[period] || performance.windows?.[period];
+  const all = period === "all_available";
+  const row = selected || (all ? {
+    realized_pnl: { usdc: performance.realized_pnl_usdc, sol: performance.realized_pnl_sol },
+    roi_pct: performance.roi_pct, win_rate_pct: performance.win_rate_pct,
+    buy_count: profile.behavior?.buy_count, sell_count: profile.behavior?.sell_count,
+    average_hold_seconds: profile.behavior?.average_hold_seconds,
+    observations: performance.closed_observations ?? performance.closed_lots,
+    buy_notional_by_basis: profile.behavior?.buy_notional_by_basis,
+    sell_notional_by_basis: profile.behavior?.sell_notional_by_basis,
+  } : {});
+  const native = profile.capital_observations?.native || profile.capital_observations?.sol;
+  const snapshot = profile.holdings_snapshot;
+  const nativeAmount = snapshot?.native?.amount ?? native?.amount;
+  const nativeSymbol = native?.symbol || (profile.source_wallet.chain === "bsc" ? "BNB" : profile.source_wallet.chain === "solana" ? "SOL" : "ETH");
+  const metrics = [
+    fact("Realized P&L", recordPnl(row.realized_pnl)),
+    fact("Return on matched cost", pct(row.roi_pct)),
+    fact("Win rate · matched sells", pct(row.win_rate_pct)),
+    fact("Buys / sells", `${row.buy_count ?? "—"} / ${row.sell_count ?? "—"}`),
+    fact("Average hold · matched sells", humanDuration(row.average_hold_seconds)),
+    fact("Matched sells", row.observations ?? "—"),
+    fact("Native balance · last observed", nativeAmount == null ? "—" : `${decimal(nativeAmount)} ${nativeSymbol}`),
+    fact("Visible token value · provider marks", profile.provider_balance_summary?.visible_provider_mark_value_usd == null ? "—" : money(profile.provider_balance_summary.visible_provider_mark_value_usd)),
+    fact("Unrealized P&L", "Needs cost + current valuation"),
+    fact("Average buy size", recordBasis(row.buy_notional_by_basis, "average")),
+    fact("Total buy cost", recordBasis(row.buy_notional_by_basis, "total")),
+    fact("Total sell proceeds", recordBasis(row.sell_notional_by_basis, "total")),
+  ];
+  document.getElementById("copyOverviewMetrics").replaceChildren(...metrics);
+  const decoded = profile.coverage?.trade_events != null;
+  setText("copyOverviewScope", `${chainLabel(profile.source_wallet.chain)} · Snapshot ${when(profile.generated_at)}. ${decoded ? "Results cover retained decoded activity; matched cost only, network fees separate. SOL and USDC stay separate." : "Transfer history is available; swaps and cost basis are not reconstructed yet."} ${selected || all ? "" : "This snapshot has no period breakdown. "}Retained activity: ${when(profile.coverage?.first_observed_at || profile.behavior?.first_trade_at)} → ${when(profile.coverage?.last_observed_at || profile.behavior?.last_trade_at)}; not wallet age. Missing values are not zero.`);
+  const distribution = document.getElementById("copyOutcomeDistribution");
+  distribution.replaceChildren();
+  if (selected?.distribution?.length && selected.observations > 0) {
+    const title = document.createElement("strong"); title.textContent = "Matched sell return distribution"; distribution.append(title);
+    const items = document.createElement("div");
+    selected.distribution.forEach(bucket => {
+      const item = document.createElement("div"); const label = document.createElement("span"); const value = document.createElement("strong"); const bar = document.createElement("meter");
+      label.textContent = bucket.label; value.textContent = bucket.count; bar.min = 0; bar.max = selected.observations; bar.value = bucket.count; bar.setAttribute("aria-label", `${bucket.label}: ${bucket.count} matched sells`);
+      item.append(label, value, bar); items.append(item);
+    });
+    distribution.append(items);
+  }
+  const balances = snapshot ? snapshot.tokens || [] : profile.positions?.provider_reported_token_balances || [];
+  const symbolFor = mint => mint === SOLANA_USDC ? "USDC" : balances.find(token => (token.mint || token.contract) === mint)?.symbol;
+  const holdingRows = [...balances].sort((a,b) => (b.provider_mark_value_usd ?? -1) - (a.provider_mark_value_usd ?? -1)).map(token => [
+    recordToken(token.mint || token.contract, token.symbol || symbolFor(token.mint)),
+    token.balance_display ?? "—",
+    recordUsd(token.provider_mark_price_usd, true),
+    recordUsd(token.provider_mark_value_usd),
+    "Not reconstructed",
+  ]);
+  document.getElementById("copyHoldingsTable").replaceChildren(recordTable(["Token / contract", "Balance", "Mark price", "Marked value", "Unrealized P&L"], holdingRows, "No token balances in this snapshot"));
+  const query = document.getElementById("copyTokenSearch").value.trim().toLowerCase();
+  const tokens = record?.tokens || [];
+  const tokenRows = tokens.filter(token => `${token.mint} ${symbolFor(token.mint) || ""}`.toLowerCase().includes(query)).map(token => [
+    recordToken(token.mint, symbolFor(token.mint)), `${token.buy_count} / ${token.sell_count}`,
+    recordBasis(token.by_basis, "matched_cost"), recordBasis(token.by_basis, "matched_proceeds"),
+    recordBasis(token.by_basis, "realized_pnl"), recordBasis(token.by_basis, "remaining_cost"), when(token.last_trade_at),
+  ]);
+  document.getElementById("copyTokenTable").replaceChildren(recordTable(["Token / contract", "Buys / sells", "Matched cost", "Matched proceeds", "Realized P&L", "Known open cost", "Last trade"], tokenRows, tokens.length ? "No tokens match this filter" : "Token cost records not reconstructed yet"));
+  setText("copyTokenScope", record ? `${tokenRows.length} shown · ${record.token_count} tokens with known-cost activity. All retained time; period control above applies to the overview. Transfers and unknown starting inventory are excluded from profit. ${record.tokens_truncated ? "Limited to the 100 most recently traded tokens." : ""}` : "This snapshot does not contain per-token cost records. Refresh analysis to use retained history where available.");
+}
+
 function renderProfile(payload, { scroll = true, from_poll: fromPoll = false } = {}) {
   if (!fromPoll) {
     clearTimeout(state.deep_poll_timer);
@@ -800,11 +919,23 @@ function renderProfile(payload, { scroll = true, from_poll: fromPoll = false } =
   saveButton.title = onDemandOnly ? "Refresh this bounded on-demand provider scan." : "Save this wallet to a research list.";
   document.getElementById("copyProfileProGate").hidden = state.access.advanced_wallet_intelligence;
   renderDeepHistory(payload.deep_history);
-  setText("copyProfileAddress", shortAddress(state.address));
+  setText("copyProfileAddress", walletAddress(state.address));
+  const explorers = {solana: "https://solscan.io/account/", base: "https://basescan.org/address/", ethereum: "https://etherscan.io/address/", bsc: "https://bscscan.com/address/", robinhood: "https://robinhoodchain.blockscout.com/address/"};
+  const explorer = document.getElementById("copyProfileExplorer");
+  explorer.href = `${explorers[profileChain]}${encodeURIComponent(state.address)}`;
+  explorer.hidden = !explorers[profileChain];
+  if (!fromPoll) {
+    setText("copyProfileCopyAddress", "Copy address");
+    document.getElementById("copyRavenEvidence").open = profileChain === "solana";
+    document.getElementById("copyOverviewPeriod").value = profile.trading_record || profile.source_performance?.windows ? "d30" : "all_available";
+    document.getElementById("copyTokenSearch").value = "";
+  }
+  renderWalletRecord();
   const historyLabel = profile.data_quality?.provider_history_exhausted ? "provider window exhausted" : "bounded partial history";
-  const reportedTransactions = profile.coverage.transactions_reported_by_provider ?? profile.coverage.transactions_observed;
+  const reportedTransactions = profile.coverage.transactions_reported_by_provider;
+  const transactionLabel = reportedTransactions != null ? `${reportedTransactions} tx reported` : profile.schema_version === "ravenos.evm_wallet_basic_profile.v2" ? `${profile.coverage.token_transfers_observed ?? "Unknown"} transfers observed` : `${profile.coverage.transactions_observed ?? "Unknown"} tx observed`;
   const tradeLabel = profile.coverage.trade_events === null || profile.coverage.trade_events === undefined ? "trades not decoded" : `${profile.coverage.trade_events} trades`;
-  setText("copyProfileCoverage", `${reportedTransactions ?? "Unknown"} tx reported · ${tradeLabel} · ${profile.coverage.known_cost_basis_pct === null ? "basis unresolved" : `${profile.coverage.known_cost_basis_pct.toFixed(1)}% basis`} · ${historyLabel}`);
+  setText("copyProfileCoverage", `${transactionLabel} · ${tradeLabel} · ${profile.coverage.known_cost_basis_pct === null ? "basis unresolved" : `${profile.coverage.known_cost_basis_pct.toFixed(1)}% basis`} · ${historyLabel}`);
   const thesis = profile.research_thesis;
   const thesisNode = document.getElementById("copyProfileThesis");
   thesisNode.hidden = !thesis;
@@ -924,13 +1055,13 @@ function renderProfile(payload, { scroll = true, from_poll: fromPoll = false } =
   if (snapshot) {
     setText("copyHoldingsScope", `${chainLabel(profileChain)} · ${snapshot.state === "available" ? "Confirmed scan" : "Partial scan"} ${when(snapshot.observed_at)}`);
     if (snapshot.native) holdings.push(fact("SOL", `${decimal(snapshot.native.amount)} SOL`));
-    for (const token of snapshot.tokens || []) holdings.push(fact(token.mint === SOLANA_USDC ? "USDC" : shortAddress(token.mint), `${token.balance_display} · token balance`));
+    for (const token of snapshot.tokens || []) if (token.mint === SOLANA_USDC) holdings.push(fact("USDC", `${token.balance_display} USDC`));
     if (snapshot.state !== "available") holdings.push(empty("Some balances unavailable", "One or more token programs could not be read."));
     if (!holdings.length && snapshot.state === "available") holdings.push(empty("No balances observed", "Confirmed native and token-account scan."));
   }
   if (!snapshot && native?.amount !== null && native?.amount !== undefined) holdings.push(fact(`Last observed ${nativeSymbol}`, `${decimal(native.amount)} ${nativeSymbol} · ${when(native.observed_at)}`));
   if (!snapshot && capital.canonical_usdc?.amount !== null && capital.canonical_usdc?.amount !== undefined) holdings.push(fact("Last observed USDC", `${money(capital.canonical_usdc.amount)} · ${when(capital.canonical_usdc.observed_at)}`));
-  for (const position of snapshot ? [] : providerBalances) holdings.push(fact(position.symbol || position.contract || position.mint || "Token", `${decimal(position.balance_display)} · ${position.provider_mark_price_usd == null ? "mark unavailable" : money(position.provider_mark_price_usd) + " provider mark"}`));
+
   document.getElementById("copyWalletBalances").replaceChildren(...(holdings.length ? holdings : [empty("Balances unavailable", "This scan does not establish current holdings. Missing balances do not mean an empty wallet.")]));
   const capitalMetrics = [
     fact(`Last observed ${nativeSymbol}`, native?.amount === null || native?.amount === undefined ? "Unavailable" : `${decimal(native.amount)} ${nativeSymbol}`),
@@ -1032,7 +1163,7 @@ function watchCard(watch) {
   const address = document.createElement("p");
   stateLabel.textContent = watch.backfill_complete ? "Ready for new trades" : "First check needed";
   title.textContent = watch.label;
-  address.textContent = shortAddress(watch.source_wallet.address);
+  address.textContent = walletAddress(watch.source_wallet.address);
   main.append(stateLabel, title, address);
   const details = document.createElement("dl");
   details.append(
@@ -1176,7 +1307,7 @@ function positionCard(position) {
   const detail = document.createElement("p");
   stateLabel.textContent = readable(position.state);
   title.textContent = shortAddress(position.destination_asset?.mint);
-  detail.textContent = `Source ${shortAddress(position.source_wallet?.address)}`;
+  detail.textContent = `Source ${walletAddress(position.source_wallet?.address)}`;
   main.append(stateLabel, title, detail);
   const facts = document.createElement("dl");
   const remaining = exactAssetAmount({
@@ -1393,7 +1524,7 @@ function savedResearchRow(save) {
   const address = document.createElement("small");
   list.textContent = save.list_name;
   label.textContent = save.label;
-  const short = shortAddress(save.source_wallet?.address);
+  const short = walletAddress(save.source_wallet?.address);
   address.textContent = save.label === short ? `${chainLabel(save.source_wallet?.chain)} · exact wallet` : `${short} · ${chainLabel(save.source_wallet?.chain)}`;
   identity.append(list, label, address);
   const actions = document.createElement("div");
@@ -1480,10 +1611,10 @@ function robinhoodActivityRow(event) {
   action.textContent = String(event.action || "swap").toUpperCase();
   token.textContent = event.token?.symbol || shortAddress(event.token?.contract || event.token?.asset_id);
   const confirmed = event.chain_evidence?.independently_confirmed ? "confirmed" : "single source";
-  detail.textContent = `${shortAddress(event.trader?.address)} · ${when(event.observed_at)} · ${confirmed}`;
+  detail.textContent = `${walletAddress(event.trader?.address)} · ${when(event.observed_at)} · ${confirmed}`;
   save.type = "button";
   save.textContent = "Watch";
-  save.addEventListener("click", () => saveResearchWallet(event.trader?.source_wallet_id, shortAddress(event.trader?.address), save));
+  save.addEventListener("click", () => saveResearchWallet(event.trader?.source_wallet_id, walletAddress(event.trader?.address), save));
   identity.append(token, detail);
   row.append(action, identity, save);
   return row;
@@ -1520,7 +1651,7 @@ function robinhoodRelationshipRow(relationship) {
   const detail = document.createElement("small");
   const save = document.createElement("button");
   rate.textContent = `${Number(relationship.lead_rate_pct || 0).toFixed(0)}%`;
-  wallets.textContent = `${shortAddress(relationship.leading_wallet)} → ${shortAddress(relationship.following_wallet)}`;
+  wallets.textContent = `${walletAddress(relationship.leading_wallet)} → ${walletAddress(relationship.following_wallet)}`;
   detail.textContent = `${relationship.independent_token_sample || 0} tokens · median ${humanDuration(relationship.median_lead_seconds)}`;
   save.type = "button";
   save.textContent = "Research";
@@ -1596,7 +1727,7 @@ function screenerCard(wallet) {
   const observed = document.createElement("p");
   const thesis = wallet.research_thesis;
   stateLabel.textContent = thesis?.evidence_strength?.label || readable(wallet.source_performance?.state || "insufficient_evidence");
-  address.textContent = shortAddress(wallet.source_wallet?.address);
+  address.textContent = walletAddress(wallet.source_wallet?.address);
   observed.textContent = `Last trade ${when(wallet.behavior?.last_trade_at || wallet.coverage?.last_observed_at)} · exact ${chainLabel(wallet.source_wallet?.chain)} address`;
   identity.append(stateLabel, address, observed);
   const follower = wallet.follower_reality || {};
@@ -1658,7 +1789,7 @@ function screenerCard(wallet) {
   analyze.type = "button";
   save.textContent = "Save";
   analyze.textContent = "Open analysis";
-  save.addEventListener("click", () => saveResearchWallet(wallet.source_wallet_id, shortAddress(wallet.source_wallet?.address), save));
+  save.addEventListener("click", () => saveResearchWallet(wallet.source_wallet_id, walletAddress(wallet.source_wallet?.address), save));
   analyze.addEventListener("click", () => loadStoredWallet(wallet.source_wallet_id, analyze));
   actions.append(save, analyze);
   card.append(identity, metrics, why, actions);
@@ -1674,13 +1805,13 @@ function sampledUsd(micros) {
 function seenWalletCard(wallet) {
   const card = document.createElement("article"); card.className = "copy-seen-wallet";
   const identity = document.createElement("div"), address = document.createElement("strong"), detail = document.createElement("p");
-  address.textContent = `${shortAddress(wallet.source_wallet.address)} · ${chainLabel(wallet.source_wallet.chain)}`;
+  address.textContent = `${walletAddress(wallet.source_wallet.address)} · ${chainLabel(wallet.source_wallet.chain)}`;
   address.title = wallet.source_wallet.address;
   detail.textContent = `Observed ${when(wallet.last_observed_at)} · ${wallet.history_available ? "bounded history cached" : "history not analyzed"}`;
   identity.append(address, detail);
   const actions = document.createElement("div"); actions.className = "copy-seen-actions";
   const save = document.createElement("button"); save.type = "button"; save.textContent = "Save";
-  save.addEventListener("click", () => saveResearchWallet(wallet.source_wallet_id, shortAddress(wallet.source_wallet.address), save));
+  save.addEventListener("click", () => saveResearchWallet(wallet.source_wallet_id, walletAddress(wallet.source_wallet.address), save));
   const inspect = document.createElement("button"); inspect.type = "button"; inspect.textContent = wallet.history_available ? "Open cached" : "Inspect wallet";
   inspect.addEventListener("click", async () => {
     setInspectChain(wallet.source_wallet.chain, { announce: false });
@@ -1998,7 +2129,7 @@ document.getElementById("copySaveProfile").addEventListener("click", async (even
     await inspectWalletAddress(state.address, button, { refresh: true });
     return;
   }
-  await saveResearchWallet(state.source_wallet_id, shortAddress(state.address), button);
+  await saveResearchWallet(state.source_wallet_id, walletAddress(state.address), button);
 });
 document.getElementById("copyStartSetup").addEventListener("click", () => {
   const source = state.profile?.source_wallet;
@@ -2086,3 +2217,13 @@ window.RavenOSWalletCopy = Object.freeze({
 
 for (const id of ["copySavedChain", "copySavedSearch"]) document.getElementById(id).addEventListener("input", renderSavedResearch);
 document.getElementById("copySavedRetry").addEventListener("click", loadSavedResearch);
+
+// Period changes and token filtering operate entirely on the current cached snapshot.
+document.getElementById("copyOverviewPeriod").addEventListener("change", renderWalletRecord);
+document.getElementById("copyTokenSearch").addEventListener("input", renderWalletRecord);
+document.getElementById("copyProfileCopyAddress").addEventListener("click", async event => {
+  if (!state.address) return;
+  const button = event.currentTarget;
+  try { await navigator.clipboard.writeText(state.address); button.textContent = "Address copied"; }
+  catch { button.textContent = "Select address to copy"; }
+});

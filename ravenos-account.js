@@ -363,7 +363,7 @@ function setText(id, value) {
 
 function shortWalletAddress(value) {
   const address = String(value || "");
-  return address.length > 16 ? `${address.slice(0, 7)}…${address.slice(-5)}` : address;
+  return address;
 }
 
 function solanaWalletProvider() {

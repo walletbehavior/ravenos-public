@@ -289,7 +289,7 @@ test("FIFO accounting keeps native-SOL returns useful without inventing historic
   }), "l", { observation_mode: "historical_backfill" });
   const profile = buildSolanaWalletProfile([sell, buy], { generated_at: "2026-08-29T12:00:00.000Z" });
   assert.equal(buy.economic.cost_basis_state, "known_native_sol");
-  assert.equal(profile.profile_version, 5);
+  assert.equal(profile.profile_version, 6);
   assert.equal(profile.coverage.known_cost_basis_pct, 100);
   assert.equal(profile.coverage.known_sol_cost_basis_pct, 100);
   assert.equal(profile.source_performance.realized_pnl_sol, 0.2);
@@ -358,7 +358,7 @@ test("profile v5 separates USDC and SOL buy notionals and counts exact traded as
     { generated_at: "2026-08-29T12:00:00.000Z" },
   );
 
-  assert.equal(profile.profile_version, 5);
+  assert.equal(profile.profile_version, 6);
   assert.equal(profile.behavior.first_trade_at, new Date(1_777_100_000_000).toISOString());
   assert.equal(profile.behavior.last_trade_at, new Date(1_777_186_500_000).toISOString());
   assert.equal(profile.behavior.active_days, 2);
@@ -465,4 +465,39 @@ test("holdings aggregate exact token balances and reject mismatched owners witho
   assert.equal(partial.tokens.length, 0);
   assert.equal(partial.native.amount, 0);
   assert.equal(partial.executable_valuation_available, false);
+});
+
+test("wallet trading record reuses exact partial FIFO closes, bounds periods, and excludes transfer profits", () => {
+  const at = 1777000000;
+  const buy = normalize(transaction({ blockTime: at, pre: [balance(WALLET, SOLANA_CANONICAL_USDC_MINT, 100000000, 6)], post: [balance(WALLET, SOLANA_CANONICAL_USDC_MINT, 69999999, 6), balance(WALLET, TOKEN, 3000000, 6)] }), "A");
+  const sell = normalize(transaction({ blockTime: at + 86400 * 2, pre: [balance(WALLET, SOLANA_CANONICAL_USDC_MINT, 69999999, 6), balance(WALLET, TOKEN, 3000000, 6)], post: [balance(WALLET, SOLANA_CANONICAL_USDC_MINT, 84999999, 6), balance(WALLET, TOKEN, 2000000, 6)] }), "B");
+  const transfer = normalize(transaction({ blockTime: at + 86400 * 2 + 1, pre: [], post: [balance(WALLET, TOKEN_TWO, 5000000, 6)], programId: "11111111111111111111111111111111", logs: ["Program log: Instruction: TransferChecked"] }), "C");
+  const result = buildSolanaWalletProfile([transfer, sell, buy], { generated_at: new Date((at + 86400 * 2 + 60) * 1000).toISOString() });
+  const record = result.trading_record;
+  assert.equal(record.tokens.length, 1);
+  assert.equal(record.tokens[0].mint, TOKEN);
+  assert.equal(record.tokens[0].by_basis.usdc.matched_cost, "10.000000");
+  assert.equal(record.tokens[0].by_basis.usdc.matched_proceeds, "15.000000");
+  assert.equal(record.tokens[0].by_basis.usdc.realized_pnl, "5.000000");
+  assert.equal(record.tokens[0].by_basis.sol.realized_pnl, null);
+  assert.equal(record.periods.h24.buy_count, 0);
+  assert.equal(record.periods.h24.sell_count, 1);
+  assert.equal(record.periods.d7.buy_count, 1);
+  assert.equal(record.periods.d7.buy_notional_by_basis.usdc.total, "30.000001");
+  assert.equal(record.periods.d7.buy_notional_by_basis.usdc.average, "30.000001");
+  assert.equal(record.periods.d7.distribution.reduce((n, row) => n + row.count, 0), 1);
+  assert.equal(record.periods.d7.average_hold_seconds, 172800);
+  assert.equal(record.wallet_creation_time_claimed, false);
+  assert.equal(record.settlement_bases_combined, false);
+  assert.equal(record.network_fees_included, false);
+  assert(Object.isFrozen(record.tokens[0].by_basis));
+});
+
+test("wallet token results keep SOL profits denominated in SOL", () => {
+  const buy = normalize(transaction({blockTime:1777000000,preLamports:10000000000,postLamports:8999995000,pre:[],post:[balance(WALLET,TOKEN,1000000,6)]}), "D");
+  const sell = normalize(transaction({blockTime:1777000100,preLamports:8999995000,postLamports:10199990000,pre:[balance(WALLET,TOKEN,1000000,6)],post:[balance(WALLET,TOKEN,0,6)]}), "E");
+  const record=buildSolanaWalletProfile([buy,sell],{generated_at:new Date(1777000200000).toISOString()}).trading_record;
+  assert.equal(record.tokens[0].by_basis.sol.realized_pnl,"0.200000000");
+  assert.equal(record.tokens[0].by_basis.usdc.realized_pnl,null);
+  assert.equal(record.periods.d30.buy_notional_by_basis.sol.total,"1.000000000");
 });

@@ -106,6 +106,7 @@ test("bounded Base lookup exposes balances and transfers without inventing trade
   assert.equal(result.profile.source_wallet.chain, "base");
   assert.equal(result.profile.source_wallet.chain_id, 8453);
   assert.equal(result.profile.coverage.transactions_reported_by_provider, 123);
+  assert.equal(result.profile.coverage.transactions_observed, 1);
   assert.equal(result.profile.coverage.token_transfers_reported_by_provider, 456);
   assert.equal(result.profile.behavior.trade_count, null);
   assert.deepEqual(result.profile.provider_activity, {

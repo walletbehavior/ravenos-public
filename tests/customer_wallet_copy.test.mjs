@@ -1110,3 +1110,21 @@ test("advanced observed activity is server-gated to Pro and disabled infrastruct
   const malformed=await routeCustomerWalletCopy(request("/api/v1/wallet-copy/screener",{method:"POST",body:{observed:{signal:"profit"}}}),activeEnv,deps(store,{}));
   assert.equal(malformed.status,400);assert.equal((await json(malformed)).error,"wallet_screener_observation_invalid");
 });
+
+test("old Solana profile gains token records from retained events without refreshing balances or requesting RPC",async()=>{
+  const store=memoryStore();const sourceId=createSourceWalletId({chain:'solana',network:'mainnet',address:WALLET});
+  await store.upsertSourceWallet({source_wallet_id:sourceId,address:WALLET,now:NOW,state:'current'});
+  await store.recordEvents(sourceId,[walletEvent()]);
+  const result=await json(await routeCustomerWalletCopy(request('/api/v1/wallet-copy/inspect',{method:'POST',body:{address:WALLET}}),env(),deps(store,null)));
+  const {trading_record,...old}=result.profile;
+  store.profiles.set(sourceId,{...old,profile_version:5});
+  const response=await routeCustomerWalletCopy(request(`/api/v1/wallet-copy/wallets/${sourceId}`),{...env(),RAVENOS_WALLET_SCREENER_ENABLED:"1"},deps(store,null));
+  assert.equal(response.status,200,await response.clone().text());const payload=await json(response);
+  assert.equal(payload.provider_request_performed,false);
+  assert.equal(payload.profile.generated_at,old.generated_at);
+  assert.equal(payload.profile.trading_record.schema_version,'ravenos.wallet_trading_record.v1');
+  assert.deepEqual(payload.profile.trading_record,trading_record);
+  const lookup=await json(await routeCustomerWalletCopy(request('/api/v1/wallet-copy/inspect',{method:'POST',body:{address:WALLET}}),env(),deps(store,null)));
+  assert.deepEqual(lookup.profile.trading_record,trading_record);
+  assert.equal(lookup.provider_request_performed,false);
+});

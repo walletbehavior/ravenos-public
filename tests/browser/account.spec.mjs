@@ -398,14 +398,14 @@ test("signed-in users can connect Solana or EVM addresses read only without sign
 
   await page.getByRole("button", { name: "Solana", exact: true }).click();
   await expect(page.locator("#accountWalletConnectionState")).toHaveText("Connected");
-  await expect(page.locator("#accountWalletConnectionTitle")).toHaveText("Stake11…11111");
+  await expect(page.locator("#accountWalletConnectionTitle")).toHaveText(solanaAddress);
   await expect(page.locator("#accountWalletConnectStatus")).toHaveText("Phantom connected · no signature");
   await expect(page.locator("#accountConnectSolana")).toHaveAttribute("data-connected", "true");
 
   await page.getByRole("button", { name: "Clear", exact: true }).click();
   await expect(page.locator("#accountWalletConnectionTitle")).toHaveText("No wallet connected");
   await page.getByRole("button", { name: "EVM", exact: true }).click();
-  await expect(page.locator("#accountWalletConnectionTitle")).toHaveText("0x11111…11111");
+  await expect(page.locator("#accountWalletConnectionTitle")).toHaveText(evmAddress);
   await expect(page.locator("#accountWalletConnectStatus")).toHaveText("EVM connected · no signature");
 
   expect(await page.evaluate(() => globalThis.__ACCOUNT_WALLET_CALLS__)).toEqual(["solana:connect", "evm:eth_requestAccounts"]);

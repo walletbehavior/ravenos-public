@@ -1078,7 +1078,7 @@ function accountTone(value) {
 
 function shortAccountAddress(value) {
   const address = String(value || "");
-  return address.length > 16 ? `${address.slice(0, 8)}…${address.slice(-6)}` : address;
+  return address;
 }
 
 function evmWalletName(provider, fallback = "Browser wallet") {
@@ -4068,7 +4068,7 @@ function renderHolderListProjection(payload) {
       : holderExplorerUrl(payload.identity.chain, row.holder_address);
     if (!walletOwner) address.target = "_blank";
     address.rel = "noopener noreferrer nofollow";
-    address.textContent = compactHolderAddress(row.holder_address);
+    address.textContent = String(row.holder_address);
     address.title = row.holder_address;
     const classification = document.createElement("small");
     const holderKey = payload.identity.chain === "solana" ? row.holder_address : row.holder_address.toLowerCase();
@@ -4432,7 +4432,7 @@ function renderSpotTradeRows(payload) {
     const trader = document.createElement("div");
     trader.className = "terminal-spot-trader";
     if (row.trader_address) {
-      appendSpotTradeLink(trader, { href: row.trader_explorer_url, label: compactHolderAddress(row.trader_address), title: row.trader_address });
+      appendSpotTradeLink(trader, { href: row.trader_explorer_url, label: String(row.trader_address), title: row.trader_address });
     } else {
       const unavailable = document.createElement("span");
       unavailable.textContent = "Not listed";
@@ -4531,7 +4531,7 @@ function renderActiveTraders(payload) {
     rank.textContent = `#${row.rank}`;
     const identity = document.createElement("div");
     identity.className = "terminal-active-wallet-identity";
-    appendSpotTradeLink(identity, { href: row.explorer_url, label: compactHolderAddress(row.trader_address), title: row.trader_address });
+    appendSpotTradeLink(identity, { href: row.explorer_url, label: String(row.trader_address), title: row.trader_address });
     const description = document.createElement("small");
     const direction = row.direction === "buy_dominant" ? "Buy-heavy" : row.direction === "sell_dominant" ? "Sell-heavy" : "Mixed flow";
     const lastSeenAge = Math.max(0, (Date.now() - Date.parse(row.last_seen_at)) / 1_000);
@@ -6496,7 +6496,7 @@ function solanaWalletAddress(value) {
 
 function shortSolanaAddress(value) {
   const address = String(value || "");
-  return address.length > 14 ? `${address.slice(0, 6)}…${address.slice(-5)}` : address;
+  return address;
 }
 
 function spotTicketQualified() {

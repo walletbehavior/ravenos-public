@@ -71,7 +71,7 @@ function positionCell(label, value, detail, { tone = "", state = "available" } =
 
 function shortAddress(address) {
   const value = String(address || "");
-  return value.length > 16 ? `${value.slice(0, 8)}…${value.slice(-6)}` : value;
+  return value;
 }
 
 function observedLabel(value) {

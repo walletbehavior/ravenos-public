@@ -170,7 +170,7 @@ function publicWalletCommandResult(query = "") {
   return chains.map((chain) => ({
     commandType: "wallet",
     label: "Analyze public wallet",
-    detail: `${shortMarketId(address)} · ${chain === "bsc" ? "BNB Chain" : chain[0].toUpperCase() + chain.slice(1)} public address`,
+    detail: `${address} · ${chain === "bsc" ? "BNB Chain" : chain[0].toUpperCase() + chain.slice(1)} public address`,
     group: "Wallet intelligence",
     state: "Holdings & trades",
     href: `https://app.ravenos.xyz/account/copy/?wallet=${encodeURIComponent(address)}&chain=${chain}`,

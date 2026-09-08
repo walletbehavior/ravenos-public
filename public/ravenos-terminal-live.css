@@ -2005,3 +2005,10 @@ body .terminal-market-evidence summary { font-family: -apple-system, BlinkMacSys
 #terminalEvidenceRefresh { display: block; margin-top: 8px; padding: 8px 10px; min-height: 36px; border: 1px solid #35474f; border-radius: 4px; color: #bedbd7; background: #111d23; font: 600 11px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; cursor: pointer; }
 #terminalEvidenceRefresh:disabled { opacity: .6; cursor: wait; }
 #terminalEvidenceRefresh:focus-visible { outline: 2px solid #9cd4cb; outline-offset: 2px; }
+
+/* Wallet identities are complete and selectable, including narrow holder views. */
+.terminal-holder-row a, .terminal-spot-trade-row > .terminal-spot-trader,
+.terminal-spot-trader a, #terminalTicketAddress, #terminalSpotWalletState {
+  white-space:normal; overflow-wrap:anywhere; text-overflow:clip; overflow:visible;
+}
+.terminal-spot-trader { min-width:0; }

@@ -73,7 +73,7 @@
           <form class="copy-wallet-search" id="copyWalletSearch">
             <span>Direct wallet lookup</span>
             <label for="copyWalletAddress">Paste an address</label>
-            <div class="copy-wallet-query"><select id="copyWalletChain" aria-label="Wallet chain"><option value="solana">Solana</option><option value="robinhood">Robinhood</option><option value="bsc">BNB</option><option value="base">Base</option><option value="ethereum">Ethereum</option></select><input id="copyWalletAddress" name="address" inputmode="text" autocomplete="off" spellcheck="false" placeholder="7Kx…9qP" maxlength="44" required /><button type="submit">Analyze wallet</button></div>
+            <div class="copy-wallet-query"><select id="copyWalletChain" aria-label="Wallet chain"><option value="solana">Solana</option><option value="robinhood">Robinhood</option><option value="bsc">BNB</option><option value="base">Base</option><option value="ethereum">Ethereum</option></select><input id="copyWalletAddress" name="address" inputmode="text" autocomplete="off" spellcheck="false" placeholder="Solana wallet address" maxlength="44" required /><button type="submit">Analyze wallet</button></div>
             <p id="copySearchStatus" aria-live="polite">Choose wallet.</p>
           </form>
 
@@ -212,15 +212,22 @@
 
         <section class="copy-profile" id="copyProfile" hidden>
           <header>
-            <div><span>Wallet profile</span><h2 id="copyProfileAddress">Wallet</h2><p id="copyProfileCoverage">Loading evidence…</p></div>
+            <div><span>Wallet profile</span><h2 id="copyProfileAddress">Wallet</h2><div class="copy-identity-actions"><button id="copyProfileCopyAddress" type="button">Copy address</button><a id="copyProfileExplorer" target="_blank" rel="noopener noreferrer">View on explorer ↗</a></div><p id="copyProfileCoverage">Loading evidence…</p></div>
             <div class="copy-profile-actions"><button id="copyRefreshProfile" type="button">Refresh wallet</button><button id="copySaveProfile" type="button">Save wallet</button><button id="copyStartSetup" type="button">Copy this wallet</button></div>
           </header>
+          <nav class="copy-profile-nav" aria-label="Wallet record"><a href="#copyWalletOverview">Overview</a><a href="#copyHoldingsTitle">Holdings</a><a href="#copyWalletActivity">Activity</a><a href="#copyTokenRecord">Token results</a><a href="#copyRavenEvidence">Raven signals · Pro</a></nav>
+          <section id="copyWalletOverview" class="copy-wallet-overview" aria-label="Wallet overview">
+            <header><div><span>Wallet record</span><h3>Performance &amp; activity</h3></div><label>Period <select id="copyOverviewPeriod" aria-label="Wallet performance period"><option value="h24">24H</option><option value="d7">7D</option><option value="d30" selected>30D</option><option value="all_available">All observed</option></select></label></header>
+            <dl id="copyOverviewMetrics"></dl>
+            <div id="copyOverviewScope" class="copy-record-scope" role="status"></div>
+            <div id="copyOutcomeDistribution" aria-label="Matched sell return distribution"></div>
+          </section>
           <section class="copy-holdings" aria-labelledby="copyHoldingsTitle">
             <header><div><span>Wallet holdings</span><h3 id="copyHoldingsTitle">Last observed balances</h3></div><p id="copyHoldingsScope"></p></header>
             <dl id="copyWalletBalances" class="copy-wallet-balances"></dl>
-            <p>Observed balances; execution may differ.</p>
+            <div id="copyHoldingsTable" class="copy-data-table" aria-label="Token holdings"></div>
           </section>
-          <section class="copy-event-list">
+          <section class="copy-event-list" id="copyWalletActivity">
             <header>
               <div><span>Wallet activity</span><strong id="copyEventCount">0 retained</strong></div>
               <label><span>Show</span><select id="copyActivityFilter" aria-label="Wallet activity filter"><option value="all">All activity</option><option value="trades">All trades</option><option value="buys">Buys</option><option value="sells">Sells</option><option value="transfers">Transfers</option><option value="unresolved">Needs review</option><option value="other">Other activity</option></select></label>
@@ -228,6 +235,8 @@
             <div id="copyRecentEvents"></div>
             <footer><p id="copyActivityStatus">Choose a wallet.</p><button type="button" id="copyActivityMore" hidden>Load older</button></footer>
           </section>
+          <section id="copyTokenRecord" class="copy-token-record" aria-label="Token trading results"><header><h3>Token results</h3><label>Find token <input id="copyTokenSearch" type="search" placeholder="Symbol or contract" aria-label="Filter token results" /></label></header><div id="copyTokenTable" class="copy-data-table"></div><div id="copyTokenScope" class="copy-record-scope"></div></section>
+          <details id="copyRavenEvidence" class="copy-raven-evidence"><summary>Raven signals &amp; detailed evidence <span>Copyability, behavior and coverage</span></summary>
           <section class="copy-profile-pro-gate" id="copyProfileProGate" hidden>
             <div><span>Raven Pro</span><strong>Unlock the full wallet record</strong></div>
             <p>Cohorts, history, copyability.</p>
@@ -317,6 +326,7 @@
             <footer><p>Unverified transfer: Copy awaits route and balance evidence.</p></footer>
           </section>
 
+          </details>
         </section>
 
         <form class="copy-policy" id="copyPolicy" hidden>

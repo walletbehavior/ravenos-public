@@ -49,7 +49,7 @@ function nowIso() {
 
 function shortAddress(value) {
   const text = String(value || "").trim();
-  return text ? `${text.slice(0, 4)}...${text.slice(-4)}` : "Not connected";
+  return text || "Not connected";
 }
 
 function parseDisplayToBaseUnits(displayAmount, decimals) {
