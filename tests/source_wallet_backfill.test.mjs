@@ -450,7 +450,7 @@ test("D1 store shares one resumable job per source wallet and preserves its leas
   }]);
   assert.equal(health.subscriber_identity_included, false);
   assert.equal(recorded.length, 0);
-  assert.match(sqlSeen.join("\n"), /ORDER BY demand_priority DESC, evidence_priority DESC, next_attempt_at ASC/i);
+  assert.match(sqlSeen.join("\n"), /ORDER BY CASE WHEN demand_priority>=300 THEN 1000\+demand_priority/i);
   assert.match(sqlSeen.join("\n"), /ORDER BY j\.demand_priority DESC, j\.evidence_priority DESC, j\.updated_at ASC/i);
   assert.doesNotMatch(sqlSeen.join("\n"), /SELECT\s+.*\buser_id\b|policy_json|private_key|transaction_hash/i);
 });

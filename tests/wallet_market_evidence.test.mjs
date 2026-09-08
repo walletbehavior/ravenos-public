@@ -146,9 +146,11 @@ test('existing cached EVM history is filterable without promoting it to reconstr
 });
 
 test('ordinary observed pages share their filtered count scan; an out-of-range page keeps the real total',async()=>{
- const db=sqliteStore();await add(db,projection());let reads=0;
- const proxy={prepare(sql){reads++;return db.prepare(sql);}};const store=createD1CustomerWalletCopyStore(proxy);
- assert.equal((await store.listSeenWallets(query(),enabled)).total,1);assert.equal(reads,2);
+ const db=sqliteStore();await add(db,projection());let reads=0;const statements=[];
+ const proxy={prepare(sql){reads++;statements.push(sql);return db.prepare(sql);}};const store=createD1CustomerWalletCopyStore(proxy);
+ assert.equal((await store.listSeenWallets(query(),enabled)).total,1);assert.equal(reads,3);
+ assert.equal(statements.filter(sql=>sql.includes('WITH identities')).length,1);
+ assert.equal(statements.filter(sql=>sql.includes('ROW_NUMBER()')&&sql.includes('ravenos_wallet_discovery_sources')).length,1);
  reads=0;const past=await store.listSeenWallets(query({},{page:2}),enabled);assert.equal(past.rows.length,0);assert.equal(past.total,1);assert.equal(reads,2);
 });
 

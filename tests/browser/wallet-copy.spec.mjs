@@ -1215,8 +1215,33 @@ test("Standard can browse stored history states while advanced pool filters rema
   await expect(page.locator("#copySeenResults .copy-seen-wallet")).toHaveCount(2);
   await expect(page.locator("#copyObservedSignal")).toBeHidden();await expect(page.locator("#copyObservedSort")).toBeHidden();
   await expect(page.getByRole("combobox",{name:"History",exact:true})).toBeVisible();
-  expect(queries[0].observed).toMatchObject({signal:"any",sort:"recent"});
+  expect(queries[0].observed).toMatchObject({signal:"any",sort:"priority"});
   expect(shared.requests.some(row=>row.path.endsWith("/inspect"))).toBe(false);
+});
+
+test('source lists filter cached wallets, preserve full addresses and restore across refresh',async({page})=>{
+  const shared={requests:[]},queries=[];await install(page,shared,{marketEvidence:true});
+  await page.route('**/api/v1/wallet-copy/screener',route=>{
+    queries.push(route.request().postDataJSON());
+    return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,rows:[],scope:{chain:'all'},pagination:{page:1,page_size:12},seen_wallets:{total:1,rows:[{
+      source_wallet_id:SOURCE_ID,source_wallet:{chain:'solana',address:WALLET},history_available:true,last_observed_at:'2026-09-08T12:00:00Z',
+      discovery_sources:[{kind:'kol',label:'KOL list',provider:'kolscan_public_daily',rank:3,observed_at:'2026-09-08T12:00:00Z'}],
+    }]}})});
+  });
+  await page.goto('/account/copy/?wallets=observed');
+  await expect(page.locator('#copySeenResults')).toContainText(WALLET);
+  await expect(page.locator('#copySeenResults')).toContainText('Kolscan Public Daily');
+  await expect(page.locator('#copySeenResults')).toContainText('#3');
+  await page.getByLabel('Source list').selectOption('kol');
+  await page.getByRole('button',{name:'Filter wallets',exact:true}).click();
+  expect(queries.at(-1).observed).toMatchObject({source:'kol',sort:'priority'});
+  expect(queries.at(-1).chain).toBe('all');
+  await page.reload();await expect(page.getByLabel('Source list')).toHaveValue('kol');
+  expect(shared.requests.some(row=>row.path.endsWith('/inspect'))).toBe(false);
+  await page.setViewportSize({width:390,height:844});
+  await page.locator('#copySeenWallets').scrollIntoViewIfNeeded();
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)).toBe(false);
+  await captureVisual(page,'wallet-source-lists-mobile');
 });
 
 test('observed wallets save privately and cached research survives refresh and removal failures', async ({page}) => {

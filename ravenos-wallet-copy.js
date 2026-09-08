@@ -735,7 +735,7 @@ function renderDeepHistory(history) {
     leased: ["Indexing older activity", "Normalizing provider evidence."],
     retry_wait: ["History retry queued", "Cursor preserved."],
     complete: history.chain && history.chain !== "solana" ? ["30-day indexed window processed", "Receipt-backed activity is saved. Unsupported internal transfers and unknown costs remain excluded."] : ["Provider history exhausted", "Oldest available page reached."],
-    bounded_partial: ["10,000-signature window indexed", "Older activity may exist."],
+    bounded_partial: [`${maximum.toLocaleString()}-event window retained`, "Older activity may exist. Stored activity remains available without a fresh provider lookup."],
     dead_letter: ["History needs operator review", "Evidence gap preserved."],
     unavailable: ["Deep history unavailable", "Current evidence remains visible."],
   };
@@ -1350,7 +1350,8 @@ function positionCard(position) {
 function observedRequest() {
   const advanced = state.access.advanced_wallet_intelligence && state.activation.wallet_market_evidence;
   return { signal: advanced ? document.getElementById("copyObservedSignal").value : "any",
-    sort: advanced ? document.getElementById("copyObservedSort").value : "recent",
+    sort: advanced ? document.getElementById("copyObservedSort").value : "priority",
+    source: document.getElementById("copyObservedSource").value,
     history: document.getElementById("copyObservedHistory").value,
     active_within_hours: document.getElementById("copyObservedActive").value ? Number(document.getElementById("copyObservedActive").value) : null };
 }
@@ -1427,6 +1428,7 @@ function syncScreenerUrl() {
     obs_history: document.getElementById("copyObservedHistory").value,
     obs_active: document.getElementById("copyObservedActive").value,
     obs_sort: document.getElementById("copyObservedSort").value,
+    obs_source: document.getElementById("copyObservedSource").value,
     screen: state.screener.preset,
     active: document.getElementById("copyScreenActive").value,
     trades: document.getElementById("copyScreenTrades").value,
@@ -1470,7 +1472,7 @@ function hydrateScreenerFromUrl() {
   const view = params.get("wallets");
   if (["observed", "analyzed"].includes(view)) state.screener.view = view;
   else if (params.has("screen") || params.has("sort") || [...params.keys()].some(key => key.startsWith("df_"))) state.screener.view = "analyzed";
-  for (const [key, id] of Object.entries({obs_signal:"copyObservedSignal",obs_history:"copyObservedHistory",obs_active:"copyObservedActive",obs_sort:"copyObservedSort"})) {
+  for (const [key, id] of Object.entries({obs_signal:"copyObservedSignal",obs_history:"copyObservedHistory",obs_active:"copyObservedActive",obs_sort:"copyObservedSort",obs_source:"copyObservedSource"})) {
     const value = params.get(key), input = document.getElementById(id);
     if (value !== null && [...input.options].some(option => option.value === value)) {
       if (["obs_signal", "obs_sort"].includes(key) && !(state.access.advanced_wallet_intelligence && state.activation.wallet_market_evidence)) continue;
@@ -1832,6 +1834,13 @@ function seenWalletCard(wallet) {
   address.title = wallet.source_wallet.address;
   detail.textContent = `Observed ${when(wallet.last_observed_at)} · ${wallet.history_available ? "bounded history cached" : "history not analyzed"}`;
   identity.append(address, detail);
+  for(const source of (wallet.discovery_sources||[]).slice(0,3)) {
+    const provenance=document.createElement('p');
+    provenance.className='copy-observed-source';
+    provenance.textContent=`${source.label} · ${readable(source.provider)}${source.rank?` · #${source.rank}`:''}`;
+    provenance.title=`List observed ${when(source.observed_at)}. A source label, not verified identity or a Raven performance rating.`;
+    identity.append(provenance);
+  }
   const actions = document.createElement("div"); actions.className = "copy-seen-actions";
   const save = document.createElement("button"); save.type = "button"; save.textContent = "Save";
   save.addEventListener("click", () => saveResearchWallet(wallet.source_wallet_id, walletAddress(wallet.source_wallet.address), save));

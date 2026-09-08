@@ -169,12 +169,13 @@
           <div class="copy-screener-results" id="copyScreenerResults"></div>
           <section class="copy-seen-wallets" id="copySeenWallets" hidden>
             <header><h3>Seen by Raven</h3><strong id="copySeenCount"></strong></header>
-            <p>Stored observations do not prove profitability or copyability.</p>
+            <p>Source labels are not verified identities. Stored observations do not prove profitability or copyability.</p>
             <form id="copyObservedFilters" class="copy-observed-filters" aria-label="Observed wallet filters">
               <label><span>Seen within</span><select id="copyObservedActive"><option value="">Any retained time</option><option value="1">Last hour</option><option value="6">Last 6 hours</option><option value="24">Last 24 hours</option></select></label>
               <label><span>History</span><select id="copyObservedHistory"><option value="any">Any history state</option><option value="cached">History cached</option><option value="not_analyzed">Not analyzed yet</option></select></label>
               <label data-observed-advanced hidden><span>Pool activity · Pro</span><select id="copyObservedSignal"><option value="any">Any observed activity</option><option value="repeat_activity">3+ transactions in one pool</option><option value="multiple_markets">Seen in multiple pools</option><option value="two_sided">Both buys and sells</option></select></label>
-              <label data-observed-advanced hidden><span>Order by · Pro</span><select id="copyObservedSort"><option value="recent">Most recently seen</option><option value="activity">Busiest sampled pool</option><option value="markets">Most observed pools</option></select></label>
+              <label><span>Source list</span><select id="copyObservedSource"><option value="any">All sources</option><option value="kol">KOL lists</option><option value="smart_money">Smart-money lists</option><option value="top_holder">Top holders</option><option value="top_trader">Top trader lists</option><option value="active_trader">Active pool traders</option></select></label>
+              <label data-observed-advanced hidden><span>Order by · Pro</span><select id="copyObservedSort"><option value="priority">Priority sources first</option><option value="recent">Most recently seen</option><option value="activity">Busiest sampled pool</option><option value="markets">Most observed pools</option></select></label>
               <div class="copy-observed-actions"><button type="submit">Filter wallets</button><button type="button" id="copyObservedReset">Reset</button></div>
             </form>
             <p id="copyObservedScope" hidden>24-hour pool samples; incomplete coverage, not wallet-wide volume or returns.</p>

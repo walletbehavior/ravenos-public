@@ -576,7 +576,7 @@ test("inspect queues one shared deep-history job and source detail reports its h
       enqueueCount += 1;
       enqueueInput = input;
       const { address } = input;
-      job ||= createSourceWalletBackfillJob({ address, requested_at: new Date(NOW * 1_000).toISOString() });
+      job ||= createSourceWalletBackfillJob({ ...input, address, requested_at: new Date(NOW * 1_000).toISOString() });
       return job;
     },
     async jobForSource(sourceId) {
@@ -590,6 +590,7 @@ test("inspect queues one shared deep-history job and source detail reports its h
   assert.equal(inspected.status, 200);
   assert.equal(inspectedPayload.deep_history.state, "queued");
   assert.equal(inspectedPayload.deep_history.signatures_indexed, 0);
+  assert.equal(inspectedPayload.deep_history.maximum_signatures, 50_000);
   assert.equal(inspectedPayload.deep_history.history_complete_claimed, false);
   const detail = await routeCustomerWalletCopy(request(`/api/v1/wallet-copy/wallets/${inspectedPayload.source_wallet_id}`), activeEnv, d);
   const detailPayload = await json(detail);
