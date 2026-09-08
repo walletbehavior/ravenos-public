@@ -3609,6 +3609,8 @@ function verifiedHolderProjection(payload, identity) {
   const top3WalletPct = finite(payload?.summary?.top_3_wallet_supply_pct);
   const top10WalletPct = finite(payload?.summary?.top_10_wallet_supply_pct);
   const poolExclusionUnresolved = payload?.coverage?.pool_account_exclusion_state === "unresolved_pool_id";
+  const observedSample = chain !== "solana" && payload?.coverage?.scope === "observed_wallet_balances";
+  const balanceEvidence = payload?.coverage?.balance_evidence;
   if (
     payload?.ok !== true
     || payload?.safe_public !== true
@@ -3622,7 +3624,11 @@ function verifiedHolderProjection(payload, identity) {
     || ![true, false].includes(complete)
     || (complete && (!Number.isInteger(totalOwners) || totalOwners < payload.holders.length || payload?.coverage?.scan_state !== "complete"))
     || (!complete && (!Number.isInteger(maximumSourceAccounts) || maximumSourceAccounts < payload.holders.length || maximumSourceAccounts > (chain === "solana" ? 20 : 50)))
-    || (poolExclusionUnresolved
+    || (observedSample && (complete || payload.summary?.holder_count !== null || payload.coverage?.total_owner_rows !== null
+      || payload.coverage?.global_ranking_available !== false || balanceEvidence?.scope !== "observed_wallet_balances"
+      || !/^0x[0-9a-f]{64}$/i.test(balanceEvidence.block_hash || '') || !/^\d+$/.test(balanceEvidence.block_number || '')
+      || !Number.isFinite(Date.parse(balanceEvidence.block_observed_at)) || payload.holders.length > 20))
+    || (poolExclusionUnresolved || observedSample
       ? [largestWalletPct, top3WalletPct, top10WalletPct].some((value) => value !== null)
         || payload.holders.some((row) => row?.excluded_from_wallet_concentration === true || row?.classification === "exact_pool_account")
       : [largestWalletPct, top3WalletPct, top10WalletPct].some((value) => value === null || value < 0 || value > 100)
@@ -3865,7 +3871,7 @@ function renderVerifiedHolderConcentration(payload) {
   if (top10 === null || top10 < 0 || top10 > 100) {
     root.hidden = false;
     setText("terminalHolderMapLabel", "Wallet concentration");
-    setText("terminalHolderMapState", payload?.coverage?.pool_account_exclusion_state === "unresolved_pool_id"
+    setText("terminalHolderMapState", payload?.coverage?.scope === "observed_wallet_balances" ? "Observed sample · global concentration unknown" : payload?.coverage?.pool_account_exclusion_state === "unresolved_pool_id"
       ? "Pool exclusion unresolved"
       : "Unavailable");
     for (const id of ["terminalHolderTop10Cell", "terminalHolderNext10Cell", "terminalHolderNext20Cell", "terminalHolderRestCell"]) {
@@ -4061,6 +4067,7 @@ function renderHolderListProjection(payload) {
     const rank = document.createElement("span");
     rank.className = "terminal-holder-rank";
     rank.textContent = `#${row.rank}`;
+    if(payload.coverage?.scope === "observed_wallet_balances") rank.title = "Position in this observed sample, not a global holder rank";
     const identity = document.createElement("div");
     const address = document.createElement("a");
     const walletOwner = row.classification === "owner";
@@ -4173,7 +4180,9 @@ function renderHolderListProjection(payload) {
     : totalOwners !== null ? `${visibleRows.length} of ${compact(totalOwners)} owners` : filteredRows.length > visibleRows.length ? `${visibleRows.length} of ${filteredRows.length} indexed` : `${visibleRows.length} owners`);
   const observed = timestamp(payload.observed_at);
   const source = customerFacingText(payload?.source?.label, "On-chain source");
-  setText("terminalHolderListNote", complete
+  setText("terminalHolderListNote", payload.coverage?.scope === "observed_wallet_balances"
+    ? `${payload.holders.length} observed wallets · balances verified ${timestamp(payload.coverage.balance_evidence?.block_observed_at || payload.observed_at)}. This is a sample; top holders and total holder count are not available.`
+    : complete
     ? `${compact(totalOwners)} owners · ${source} · ${observed}.`
     : `${payload.holders.length} indexed${totalOwners !== null ? ` of ${compact(totalOwners)}` : ""} · ${source} · ${observed}.`);
   renderVerifiedHolderConcentration(payload);

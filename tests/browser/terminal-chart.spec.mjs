@@ -1409,6 +1409,25 @@ test("free top-holder rows have a dedicated, readable 390px Terminal pane", asyn
   await expect(page.locator("#terminalAnatomySection")).toBeHidden();
 });
 
+test('observed EVM holder sample remains inspectable without presenting global concentration or ranking',async({page})=>{
+  await page.setViewportSize({width:390,height:844});await mockTerminalLiveApis(page);
+  await page.route('**/api/onchain/holders**',route=>{
+    const q=new URL(route.request().url()).searchParams,now=new Date().toISOString(),wallet='0x'+'a'.repeat(40);
+    return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,safe_public:true,schema_version:'ravenos.onchain_holder_list.v2',state:'available',identity:{chain:q.get('chain'),pool_address:q.get('pair_address'),token_address:q.get('token_address'),quote_token_address:q.get('quote_address')},observed_at:now,
+      coverage:{scope:'observed_wallet_balances',complete_holder_census:false,total_owner_rows:null,maximum_source_accounts:20,pool_account_exclusion_state:'unresolved_pool_id',global_ranking_available:false,balance_evidence:{scope:'observed_wallet_balances',block_number:'1000',block_hash:'0x'+'1'.repeat(64),block_observed_at:now}},summary:{holder_count:null,largest_non_pool_wallet_supply_pct:null,top_3_wallet_supply_pct:null,top_10_wallet_supply_pct:null},
+      holders:[{rank:1,holder_address:wallet,token_account_address:wallet,token_account_count:1,balance:'123.456',supply_share_pct:1.5,classification:'owner',excluded_from_wallet_concentration:false,explorer_url:'https://robinhoodchain.blockscout.com/address/'+wallet}],source:{label:'Raven observed wallets · verified token balances'},risk_screen:null})});
+  });
+  await page.goto('/terminal/?market_scope=perps');await waitForTerminalLive(page,{instrument:'SOL-PERP'});
+  await openExactSpotSearch(page,'RUNNER');await waitForTerminalLive(page,{lane:'spot',instrument:'RUNNER/WETH',timeframe:'1h'});
+  await page.locator('[data-terminal-pane-button="holders"]').click();
+  await expect(page.locator('#terminalHolderListRows .terminal-holder-row')).toHaveCount(1);
+  await expect(page.locator('#terminalHolderListNote')).toContainText('1 observed wallets · balances verified');
+  await expect(page.locator('#terminalHolderListNote')).toContainText('top holders and total holder count are not available');
+  await expect(page.locator('#terminalHolderCheck')).toBeHidden();await expect(page.locator('#terminalHolderTop10Cell')).toBeHidden();
+  await expect(page.locator('#terminalHolderMapState')).toHaveText('Observed sample · global concentration unknown');
+  await expect(page.getByRole('link',{name:'Wallet details',exact:true})).toHaveAttribute('href',/wallet=0x[a-f0-9]{40}&chain=robinhood/);
+});
+
 test("Robinhood exact-token holders and valuation follow the live exact-pool tape", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   const { holderCalls, tradeCalls } = await mockTerminalLiveApis(page, {

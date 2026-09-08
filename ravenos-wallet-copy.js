@@ -2053,6 +2053,14 @@ function renderScreener(payload) {
   host.replaceChildren(...(wallets.length ? wallets.map(screenerCard) : [empty(indexEmpty ? "No completed profiles yet" : "No matching wallet evidence", indexEmpty
     ? "Raven has no completed wallet profiles for this chain selection yet. Inspect an address to request its history; changing performance filters will not create evidence."
     : "Adjust filters or inspect an address. Only retained evidence is included.")]));
+  if(!observed && !wallets.length && seen > 0) {
+    const browse=document.createElement("button");browse.type="button";browse.className="raven-button";
+    browse.textContent=`Browse ${seen.toLocaleString()} discovered wallets`;
+    browse.addEventListener("click",()=>document.querySelector('[data-wallet-view="observed"]')?.click());
+    const note=document.createElement("p");
+    note.textContent="Browse cached addresses while deeper profiles are built. Your analysis filters stay saved.";
+    host.append(note,browse);
+  }
   const seenSection = document.getElementById("copySeenWallets");
   seenSection.hidden = !observed;
   setText("copySeenCount", `${seenTotal.toLocaleString()} observed`);

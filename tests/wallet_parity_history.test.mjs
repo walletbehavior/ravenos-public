@@ -8,6 +8,8 @@ import { loadEvmWalletBackfillPage } from '../lib/customer_trade/evm_wallet_back
 import { historicalUsdValue, loadWalletHistoricalPrices, walletUsdTradingRecord } from '../lib/customer_trade/wallet_historical_prices.mjs';
 import { enrichHolderWalletContext } from '../lib/customer_trade/holder_wallet_context.mjs';
 import { evmSettlementBases, decodeEvmWalletReceipt, WALLET_SWAP_TOPICS } from '../lib/customer_trade/evm_wallet_swaps.mjs';
+import { loadAlchemyWalletInputs } from '../lib/customer_trade/alchemy_wallet_history.mjs';
+import { EvmWalletReceiptPolicy, readEvmWalletRpcResponse } from '../lib/customer_trade/evm_wallet_receipt_policy.mjs';
 
 const NOW=Date.parse('2026-09-08T12:00:00Z'), W='0x'+'11'.repeat(20), T='0x'+'22'.repeat(20), S='0x'+'33'.repeat(20);
 const id=normalizeSourceWalletChainIdentity({chain:'base',network:'mainnet',address:W});
@@ -39,6 +41,43 @@ test('EVM history uses pinned heads, both directions and receipt-backed transfer
   assert.equal(second.exhausted,true);assert.equal(second.cursor.direction,'done');
   const queries=p.calls.filter(c=>c.method==='alchemy_getAssetTransfers');assert.equal(queries[0].params[0].toBlock,queries[1].params[0].toBlock);
   assert(p.calls.every(c=>!c.method.match(/send|sign|approve/i)));assert(first.request_count<=100);
+});
+
+for(const [chain,chainId,key,host] of [['base',8453,'BASE','base-mainnet'],['ethereum',1,'ETH','eth-mainnet'],['bsc',56,'BSC','bnb-mainnet'],['robinhood',4663,'ROBINHOOD','robinhood-mainnet']])test(`${chain} bulk distributions retain the last wallet leg and allow deeper history to advance`,async()=>{
+  const p=provider();let corrupt=false;
+  const fetchImpl=async(url,options)=>{
+    const req=JSON.parse(options.body);
+    if(req.method==='eth_chainId')return Response.json({id:1,result:hex(chainId)});
+    const res=await p.fetchImpl(url,options);
+    if(req.method!=='eth_getTransactionReceipt')return res;
+    const body=await res.json(),receipt=body.result;
+    receipt.logs=Array.from({length:2000},(_,i)=>({address:T,topics:[WALLET_SWAP_TOPICS.transfer,word(S),word(i===1999?W:'0x'+BigInt(i+10000).toString(16).padStart(40,'0'))],data:hash(5000000),logIndex:hex(i),transactionHash:hash(1),blockHash:corrupt&&i===1999?hash(999):block(100).hash,blockNumber:hex(100),transactionIndex:'0x0',removed:false,blockTimestamp:block(100).timestamp}));
+    assert(JSON.stringify(body).length>1024*1024);
+    return Response.json(body);
+  };
+  const configured={...env,[`ALCHEMY_${key}_RPC_URL`]:`https://${host}.g.alchemy.com/v2/private-fixture`};
+  const job=createSourceWalletBackfillJob({chain,address:W,requested_at:new Date(NOW).toISOString()});
+  const page=await loadEvmWalletBackfillPage(configured,job,{fetchImpl,now:NOW});
+  assert.equal(page.cursor.direction,'out');assert.equal(page.events.length,1);
+  assert.equal(page.events[0].wallet_accounting.movements[0].delta_raw,'5000000');
+  assert.equal(page.events[0].classification.kind,'TRANSFER_IN');assert.equal(page.events[0].wallet_accounting.trade,null);
+  const quick=await loadAlchemyWalletInputs(configured,chain,W,{fetchImpl,now:NOW,historyPage:{transfers:[{hash:hash(1),blockNum:hex(100),uniqueId:'transfer',category:'erc20',from:S,to:W,rawContract:{address:T},metadata:{blockTimestamp:new Date(Number(BigInt(block(100).timestamp))*1000).toISOString()}}]}});
+  assert.equal(quick.reconstruction.events.length,1);
+  corrupt=true;await assert.rejects(loadEvmWalletBackfillPage(configured,job,{fetchImpl,now:NOW}),/receipt_incomplete/);
+});
+
+test('receipt byte and log limits remain bounded and do not silently truncate evidence',async()=>{
+  const fail=code=>{throw Error(code);};
+  for(const declared of [false,true]){
+    const response=new Response('x'.repeat(EvmWalletReceiptPolicy.maximum_receipt_bytes+1),{headers:declared?{'content-length':String(EvmWalletReceiptPolicy.maximum_receipt_bytes+1)}:{}});
+    await assert.rejects(readEvmWalletRpcResponse(response,'eth_getTransactionReceipt',fail,'test'),/response_too_large/);
+  }
+  await assert.rejects(readEvmWalletRpcResponse(new Response('x'.repeat(1024*1024+1)),'eth_call',fail,'test'),/response_too_large/);
+  const p=provider(),job=createSourceWalletBackfillJob({chain:'base',address:W,requested_at:new Date(NOW).toISOString()});
+  await assert.rejects(loadEvmWalletBackfillPage(env,job,{now:NOW,fetchImpl:async(url,options)=>{
+    const r=await p.fetchImpl(url,options);if(JSON.parse(options.body).method!=='eth_getTransactionReceipt')return r;
+    const body=await r.json();body.result.logs=Array(EvmWalletReceiptPolicy.maximum_logs+1).fill({});return Response.json(body);
+  }}),/receipt_log_budget/);
 });
 
 test('wrong network, changed pinned head, missing receipt and disabled feature fail closed',async()=>{

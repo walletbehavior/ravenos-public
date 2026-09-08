@@ -1548,3 +1548,19 @@ test('coverage distinguishes Raven discovery from analyzed profiles and chain-wi
  await expect(page.locator('#copyScreenerCoverage')).toContainText('not the chain’s total wallet count');
  expect(shared.requests.some(row=>row.path.endsWith('/inspect'))).toBe(false);
 });
+
+for(const chain of ['base','ethereum','bsc','robinhood'])test(`${chain} empty analysis offers cached discovery without losing performance filters`,async({page})=>{
+ const shared={requests:[]};await install(page,shared);const calls=[];
+ await page.route('**/api/v1/wallet-copy/screener',route=>{
+  const body=route.request().postDataJSON();calls.push(body);const observed=body.view==='observed';
+  return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,rows:[],scope:{chain},index_coverage:{chains:[{chain,seen_wallets:3500,indexed_wallets:0}]},pagination:{page:1,page_size:12},seen_wallets:observed?{total:3500,rows:[{source_wallet_id:EVM_SOURCE_ID,source_wallet:{chain,network:'mainnet',address:EVM_WALLET},history_available:false,last_observed_at:'2026-09-08T12:00:00Z'}]}:null})});
+ });
+ await page.goto(`/account/copy/?chain=${chain}&wallets=analyzed`);
+ await page.locator('#copyScreenTrades').fill('20');
+ await page.getByRole('button',{name:'Browse 3,500 discovered wallets',exact:true}).click();
+ await expect(page.locator('#copySeenWallets')).toBeVisible();await expect(page.locator('#copySeenResults')).toContainText(EVM_WALLET);
+ await page.locator('[data-wallet-view="analyzed"]').click();
+ await expect(page.locator('#copyScreenTrades')).toHaveValue('20');
+ expect(calls.map(c=>c.view)).toEqual(['analyzed','observed','analyzed']);
+ expect(shared.requests.some(row=>row.path.endsWith('/inspect'))).toBe(false);
+});
