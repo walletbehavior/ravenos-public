@@ -12,7 +12,7 @@ const token = chain => ({ chain, address: address(2), name: 'Token', symbol: 'TO
 
 test('shared provider reads coalesce, preserve observation time, and refresh expired snapshots', async () => {
   let now = NOW, calls = 0;
-  const reader = new MarketProviderReader({ now: () => now, cache: () => null, fetchFn: async (_, init) => { calls++; assert.equal(init.redirect, 'error'); return json({ value: calls }); } });
+  const reader = new MarketProviderReader({ now: () => now, cache: () => null, fetchFn: async (_, init) => { calls++; assert.equal(init.redirect, 'manual'); return json({ value: calls }); } });
   const url = 'https://api.dexscreener.com/latest/dex/search?q=WETH';
   const [a,b] = await Promise.all([reader.snapshot(url), reader.snapshot(url)]);
   assert.equal(calls, 1); assert.deepEqual(a,b);
