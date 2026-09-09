@@ -397,8 +397,11 @@
   body .terminal-live.terminal-desk[data-terminal-lane='spot'] .desk-workspace-menu { display: none; }
   body .terminal-live.terminal-desk[data-terminal-lane='spot'] .terminal-market-head > div { min-height: 37px; padding: 5px 8px; }
   body .terminal-live.terminal-desk[data-terminal-lane='spot'] .terminal-market-head .terminal-instrument { min-height: 48px; }
-  body .terminal-live.terminal-desk[data-terminal-lane='spot'] .terminal-market-head > div:not(.terminal-instrument):not(#terminalLastMetric):not(#terminalMetric5Cell):not(#terminalMetric6Cell) { min-height: 30px; display: flex; flex-wrap: wrap; flex-direction: row; align-items: center; gap: 4px; padding: 4px 8px; }
-  body .terminal-live.terminal-desk[data-terminal-lane='spot'] .terminal-chart-panel { order: 1; height: clamp(210px, 26dvh, 300px); min-height: 0; flex: none; margin-top: 6px; }
+  body .terminal-live.terminal-desk[data-terminal-lane='spot'] .terminal-market-head > div:not(.terminal-instrument):not(#terminalLastMetric):not(#terminalMetric5Cell):not(#terminalMetric6Cell) { min-height: 34px; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 0; padding: 3px 8px; }
+  body .terminal-live.terminal-desk[data-terminal-lane='spot'] .terminal-chart-panel { order: 1; height: clamp(240px, 34svh, 320px); min-height: 0; flex: none; margin-top: 6px; }
+  /* Provider toolbars and attribution take about 140px inside the frame.
+     Reserve room for the candles themselves, including with browser chrome open. */
+  body .terminal-live.terminal-desk[data-terminal-lane='spot'] .terminal-chart-panel:has(.rpw-provider-chart) { height: clamp(400px, 56svh, 480px); }
   body .terminal-live.terminal-desk[data-terminal-lane='spot'] #terminalChart { height: 100% !important; min-height: 0 !important; }
   body .terminal-live.terminal-desk[data-terminal-lane='spot'] #terminalChart .rpw:not(.rpw-focus-mode) { height: 100%; min-height: 0; --rpw-height: 100%; grid-template-rows: 26px 34px minmax(120px, 1fr) 0; }
   body .terminal-live.terminal-desk[data-terminal-lane='spot'] .rpw-provenance { min-height: 26px; padding-block: 2px; }
@@ -470,7 +473,6 @@ body .terminal-desk .ros-layer-body #terminalRavenEmptySection { display: block;
 @media (max-width: 820px) {
   body .terminal-live.terminal-desk[data-terminal-lane='spot'] #terminalMetric5Cell,
   body .terminal-live.terminal-desk[data-terminal-lane='spot'] #terminalMetric6Cell { display: none; }
-  body .terminal-live.terminal-desk[data-terminal-lane='spot'] .terminal-chart-panel { height: clamp(180px, 24dvh, 250px); }
   .desk-mobile-extra-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 13px; }
   .desk-mobile-extra-facts dd { margin: 0; text-align: right; }
 }

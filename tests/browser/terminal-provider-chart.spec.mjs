@@ -2,10 +2,24 @@ import { test, expect } from '@playwright/test';
 import { normalizeChartInstrument, dexscreenerChartSurface } from '../../ravenos-chart-data-plane.js';
 import { mockTerminalLiveApis, ROBINHOOD_CONTRACT, ROBINHOOD_POOL, ROBINHOOD_QUOTE } from './terminal-live-fixtures.mjs';
 
-for (const width of [390, 1440]) test(`provider chart preserves the trade ticket and overlays at ${width}px`, async ({page},testInfo) => {
- await page.setViewportSize({width,height:width===390?844:1100});
+// Model the provider's own controls as well as the plot. An iframe can be visible
+// while its toolbar, legend, timeline and attribution consume all candle space.
+const providerFixture = `<!doctype html><html><head><meta charset="utf-8"><style>
+* { box-sizing: border-box; } html,body { height:100%; margin:0; }
+body { display:flex; flex-direction:column; background:#0b1016; color:#cbd5e1; font:12px sans-serif; }
+header { flex:0 0 40px; padding:12px; border-bottom:1px solid #334155; }
+.legend { flex:0 0 28px; padding:6px 12px; }
+[data-testid=provider-plot] { flex:1 1 0; min-height:0; background:repeating-linear-gradient(#0b1016 0 39px,#243142 40px); overflow:hidden; }
+svg { display:block; width:100%; height:100%; } .timeline { flex:0 0 32px; padding:9px; }
+footer { flex:0 0 42px; padding:14px; text-align:center; background:#06090c; }
+</style></head><body><header>1m　5m　15m　1h　4h　D</header><div class=legend>ETH/USDC · Chart fixture</div>
+<div data-testid=provider-plot><svg viewBox="0 0 360 240" preserveAspectRatio="none"><path d="M30 190V130 M65 175V110 M100 160V125 M135 180V95 M170 135V80 M205 145V65 M240 100V50 M275 120V40 M310 100V25" stroke="#54cba0" stroke-width="3"/><path d="M30 172V150 M65 145V128 M100 150V133 M135 165V110 M170 120V94 M205 127V76 M240 85V65 M275 103V55 M310 80V40" stroke="#54cba0" stroke-width="12"/></svg></div>
+<div class=timeline>10:00　　　　10:30　　　　11:00</div><footer>Provider attribution</footer></body></html>`;
+
+for (const [width,height] of [[375,650],[390,664],[430,740],[1440,1100]]) test(`provider chart preserves readable candles, trade ticket and overlays at ${width}px`, async ({page},testInfo) => {
+ await page.setViewportSize({width,height});
  await mockTerminalLiveApis(page,{spotQuotePreview:true,spotQuoteChains:['robinhood']});
- await page.route('https://dexscreener.com/**', route => route.fulfill({contentType:'text/html',body:'<html><body style="margin:0;background:#0b1016;color:white">Provider chart fixture</body></html>'}));
+ await page.route('https://dexscreener.com/**', route => route.fulfill({contentType:'text/html',body:providerFixture}));
  await page.route('**/api/terminal/chart**',async route=>{
   const u=new URL(route.request().url());if(u.searchParams.get('chain')!=='robinhood')return route.fallback();
   const args={chain:'robinhood',pairAddress:ROBINHOOD_POOL,tokenAddress:ROBINHOOD_CONTRACT,quoteAddress:ROBINHOOD_QUOTE,timeframe:u.searchParams.get('timeframe')||'1h'};
@@ -25,6 +39,16 @@ for (const width of [390, 1440]) test(`provider chart preserves the trade ticket
   await expect(page.locator('.desk-market-quote').first()).toContainText('Snapshot');
  }
  await expect(page.locator('#terminalChart .rpw-chart-tools')).toBeHidden();
+ await page.screenshot({path:testInfo.outputPath(`provider-chart-first-open-${width}.png`)});
+ const plot = page.frameLocator('#terminalChart iframe.rpw-provider-frame').getByTestId('provider-plot');
+ await expect(plot).toBeVisible();
+ const plotBox = await plot.boundingBox();
+ expect(plotBox.height, 'provider controls must leave at least 200px for candles').toBeGreaterThanOrEqual(200);
+ if(width<821) {
+  const nav = await page.locator('.ros-mobile-nav').boundingBox();
+  const visibleHeight = Math.min(plotBox.y+plotBox.height,nav?.y??height)-Math.max(0,plotBox.y);
+  expect(visibleHeight, 'candles must be readable on first open, above mobile navigation').toBeGreaterThanOrEqual(200);
+ }
  await page.locator('#terminalSpotAmount').fill('37');
  await expect(page.locator('#terminalSpotQuoteAction')).toBeVisible();
  const source=await frame.getAttribute('src');
