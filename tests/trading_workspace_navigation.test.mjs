@@ -9,7 +9,8 @@ test('chart and Discovery navigation stay on the authenticated host and preserve
     const path = `/${page}${suffix}?market_scope=memecoins&chain=solana&instrument_id=solana%3Apool%3AExactCase&token_address=ExactToken&amount=25`;
     const publicResponse = await worker.fetch(new Request(`https://ravenos.xyz${path}`, { method }), env);
     assert.equal(publicResponse.status, 307);
-    assert.equal(publicResponse.headers.get('location'), `https://app.ravenos.xyz${path}`);
+    assert.equal(publicResponse.headers.get('location'), `https://app.ravenos.xyz${path}&raven_app=1`);
+    assert.match(publicResponse.headers.get('cache-control'), /\bno-store\b/);
     const appResponse = await worker.fetch(new Request(`https://app.ravenos.xyz${path}`, { method }), env);
     assert.equal(appResponse.status, 200, `${method} ${path} must not bounce the remembered session to the public host`);
     assert.equal(appResponse.headers.has('location'), false);
@@ -24,4 +25,19 @@ test('workspace routing neither redirects mutations nor opens unknown authentica
   const alias = await worker.fetch(new Request('https://app.ravenos.xyz/brief/?chain=base&token_address=exact'), env);
   assert.equal(alias.status, 308);
   assert.equal(alias.headers.get('location'), 'https://app.ravenos.xyz/terminal/?chain=base&token_address=exact');
+});
+test('old permanent app-to-public browser redirects cannot form a navigation loop', async () => {
+  for (const page of paths) {
+    const cachedOldRedirect = new Map([[`https://app.ravenos.xyz/${page}/`, `https://ravenos.xyz/${page}/`]]);
+    let url = `https://ravenos.xyz/${page}/`, response;
+    const visited = new Set();
+    for (let hop = 0; hop < 4; hop++) {
+      assert.equal(visited.has(url), false, 'cached redirect loop'); visited.add(url);
+      response = cachedOldRedirect.has(url) ? Response.redirect(cachedOldRedirect.get(url), 308) : await worker.fetch(new Request(url), env);
+      if (response.status === 200) break;
+      url = response.headers.get('location');
+    }
+    assert.equal(response.status, 200);
+    assert.equal(url, `https://app.ravenos.xyz/${page}/?raven_app=1`);
+  }
 });

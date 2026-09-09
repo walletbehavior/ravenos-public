@@ -12416,7 +12416,12 @@ export default {
       if (url.hostname.toLowerCase() === "ravenos.xyz" && TRADING_WORKSPACE_PATHS.has(url.pathname)) {
         const target = new URL(url.pathname, `https://${AUTHENTICATED_APP_HOST}`);
         target.search = url.search;
-        return attachReleaseHeaders(applyAssetSecurityHeaders(Response.redirect(target, 307), url.pathname), releaseState, url.pathname);
+        // Previous app builds emitted permanent redirects to the public host.
+        // A stable migration marker bypasses those browser-cached 308s without
+        // clearing cookies or discarding the exact market/filter parameters.
+        target.searchParams.set('raven_app', '1');
+        const redirect = new Response(null, { status: 307, headers: { location: target.href, 'cache-control': 'no-store' } });
+        return attachReleaseHeaders(applyAssetSecurityHeaders(redirect, url.pathname), releaseState, url.pathname);
       }
       const intelligenceSplits = resolveCoordinatedIntelligenceSplits(env || {});
       const artifactKind = publicIntelligenceArtifactKind(url.pathname);

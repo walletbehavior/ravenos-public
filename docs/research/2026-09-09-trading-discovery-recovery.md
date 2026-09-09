@@ -5,6 +5,7 @@
 - The live trade gate imposed a 12-hour authentication-age limit on otherwise valid remembered sessions. Production live flags were already enabled; an unexpired iPhone session older than 12 hours was refused.
 - Existing embedded wallets were not restored at terminal startup. The first Buy opened the signer, adding avoidable latency and a misleading connecting state.
 - Production verification exposed an additional host handoff: authenticated Discover redirected to the public host, whose terminal could not use the host-only app session. Discover, Terminal, Perps and Atlas now stay on the app host; public workspace bookmarks redirect there with the full instrument/filter query preserved. Cookie scope is unchanged.
+- Older browsers can retain those permanent redirects. Workspace links use a stable `raven_app=1` migration marker and public redirects are `no-store`, preventing a cached redirect loop without clearing login cookies.
 - The slippage setting defaulted to 3% in one panel while empty and pending estimates still displayed an older 0.5% fallback.
 - Participation measured six-hour returns, but its click-through showed activity/velocity ranking and five-minute changes. The group API also truncated before ranking.
 - Stock tokens appeared as primary Onchain assets. Some provider names already classified as reference assets; Backpack Securities names remained unclassified. A stock used as the quote asset must not replace or exclude the coin being traded.

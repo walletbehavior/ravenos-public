@@ -53,6 +53,18 @@ test("navigation preserves a section while an explicit section switch discards f
   assert.equal(exact.searchParams.get("market_scope"), "memecoins");
   assert.equal(exact.searchParams.has("chain"), false);
 });
+test('remembered workspace links bypass cached public-host redirects without changing market selection', () => {
+  const windowRef = fixture(); windowRef.location.origin = 'https://app.ravenos.xyz';
+  const store = createRavenOSContextStore({ windowRef });
+  for (const page of ['discover', 'terminal', 'perps', 'atlas']) {
+    const href = new URL(store.decorateHref(`/${page}/?market_scope=memecoins&instrument_id=solana%3Apool%3AExactCase`), windowRef.location.origin);
+    assert.equal(href.origin, 'https://app.ravenos.xyz');
+    assert.equal(href.searchParams.get('raven_app'), '1');
+    assert.equal(href.searchParams.get('instrument_id'), 'solana:pool:ExactCase');
+  }
+  assert.equal(new URL(store.decorateHref('/account/'), windowRef.location.origin).searchParams.has('raven_app'), false);
+  assert.equal(store.decorateHref('https://other.example/terminal/'), 'https://other.example/terminal/');
+});
 test("another browser tab cannot switch the active section or active instrument", () => {
   const windowRef = fixture(), store = createRavenOSContextStore({ windowRef });
   store.setSelection({ subject: spot }, { updateUrl: false });

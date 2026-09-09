@@ -298,7 +298,7 @@ function providerCreditMarkup() {
 function marketSectionMarkup() {
   const scope = ravenOSContext.getState().marketScope;
   const workspace = location.pathname.startsWith('/terminal') ? '/terminal/' : '/discover/';
-  return `<nav class="ros-market-sections" aria-label="Market section">${Object.entries(MARKET_SCOPES).map(([key, label]) => `<a href="${workspace}?market_scope=${key}" data-market-section="${key}" aria-current="${key === scope ? "page" : "false"}">${label}</a>`).join("")}<a class="ros-section-reads" data-section-reads href="/discover/?market_scope=${scope}&view=reads">Raven Reads <span>→</span></a></nav>`;
+  return `<nav class="ros-market-sections" aria-label="Market section">${Object.entries(MARKET_SCOPES).map(([key, label]) => `<a href="${escapeHtml(ravenOSContext.decorateHref(`${workspace}?market_scope=${key}`))}" data-market-section="${key}" aria-current="${key === scope ? "page" : "false"}">${label}</a>`).join("")}<a class="ros-section-reads" data-section-reads href="${escapeHtml(ravenOSContext.decorateHref(`/discover/?market_scope=${scope}&view=reads`))}">Raven Reads <span>→</span></a></nav>`;
 }
 
 function createShellMarkup(slug) {
@@ -710,7 +710,7 @@ export function mountRavenOSShell(options = {}) {
     document.body.dataset.marketScope = context.marketScope;
     document.querySelectorAll("[data-market-section]").forEach(link => link.setAttribute("aria-current", link.dataset.marketSection === context.marketScope ? "page" : "false"));
     const reads = document.querySelector("[data-section-reads]");
-    if (reads) { reads.href = `/discover/?market_scope=${context.marketScope}&view=reads`; reads.setAttribute("aria-label", `${MARKET_SCOPES[context.marketScope]} Raven Reads`); }
+    if (reads) { reads.href = ravenOSContext.decorateHref(`/discover/?market_scope=${context.marketScope}&view=reads`); reads.setAttribute("aria-label", `${MARKET_SCOPES[context.marketScope]} Raven Reads`); }
     if (intelligence?.subject?.id !== "unselected" && !matchesMarketScope(intelligence.subject, context.marketScope) && intelligence?.presentation?.sectionScope !== context.marketScope) {
       setIntelligence({ subject, presentation: { context: false, status: false } });
     }

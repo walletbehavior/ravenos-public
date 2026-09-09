@@ -25,7 +25,8 @@ for (const host of [publicOrigin, app]) {
 for (const page of ['discover', 'terminal', 'perps', 'atlas']) {
   const query = '?market_scope=memecoins&chain=solana&instrument_id=solana%3Apool%3AExactCase';
   const redirected = await read(`${publicOrigin}/${page}/${query}`, 307);
-  assert.equal(redirected.headers.get('location'), `${app}/${page}/${query}`);
+  assert.equal(redirected.headers.get('location'), `${app}/${page}/${query}&raven_app=1`);
+  assert.match(redirected.headers.get('cache-control'), /\bno-store\b/);
 }
 for (const page of ['discover', 'terminal', 'perps', 'atlas', 'account', 'portfolio', 'account/copy']) {
   const html = await (await read(`${app}/${page}/`)).text();

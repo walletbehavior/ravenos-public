@@ -338,6 +338,7 @@ export function createRavenOSContextStore(options = {}) {
       : state;
     const contextual = contextSearchParams(targetContext, { search: target.search });
     for (const [key, value] of explicit.entries()) contextual.set(key, value);
+    if (windowRef.location.origin === 'https://app.ravenos.xyz' && /^\/(discover|terminal|perps|atlas)(?:\/|\/index\.html)?$/.test(target.pathname)) contextual.set('raven_app', '1');
     target.search = contextual.toString();
     return `${target.pathname}${target.search}${target.hash}`;
   }
