@@ -1384,11 +1384,15 @@ function validRadarScore(value, kind) {
   return value;
 }
 
-function validDiscoverRow(row) {
+function validDiscoverRow(row, { allowExpiredSnapshot = false } = {}) {
   const discovery = row?.discovery;
   const identity = discovery?.exact_identity;
   const chain = text(row?.chain_id || row?.chain, "").toLowerCase();
   const facts = spotMarketFactFreshness(row);
+  // A loaded six-hour group may outlive the two-minute quote window while a
+  // provider refresh is pending. Preserve its exact identities for ten minutes;
+  // rendering still hides stale prices, returns and signals.
+  const expiredSnapshot = allowExpiredSnapshot && facts.age_seconds > 120 && facts.age_seconds <= 600;
   if (
     discovery?.schema_version !== "ravenos.discover_market.v1"
     || row?.identity_scope !== "exact_pool"
@@ -1419,9 +1423,9 @@ function validDiscoverRow(row) {
     || finite(discovery?.facts?.freshness?.target_seconds) !== DISCOVER_MARKET_FACT_TARGET_SECONDS
     || !["current", "stale"].includes(discovery?.facts?.freshness?.state)
     || (facts.current && discovery?.facts?.freshness?.state !== "current")
-    || (!facts.current && discovery?.facts?.freshness?.state === "current")
-    || (!facts.current && discovery?.registry?.retained_after_trending !== true)
-    || (!facts.current && discovery?.notability?.default_opportunity_eligible !== false)
+    || (!facts.current && !expiredSnapshot && discovery?.facts?.freshness?.state === "current")
+    || (!facts.current && !expiredSnapshot && discovery?.registry?.retained_after_trending !== true)
+    || (!facts.current && !expiredSnapshot && discovery?.notability?.default_opportunity_eligible !== false)
     || discovery?.primary_behavior_state?.hysteresis?.contradictory_directional_state_published !== false
     || !validRadarScore(discovery?.velocity_state?.score, "velocity_ranking")
     || !validRadarScore(discovery?.activity_state?.score, "activity_ranking")
@@ -1615,7 +1619,8 @@ function setSpotAgeNode(node, row, prefix = "", separator = " · ") {
 }
 
 function updateSpotAgeLabels(nowMs = Date.now()) {
-  const byId = new Map(state.spotRows.map((row) => [spotRowId(row), row]));
+  const rows = state.participationFilter && state.participationGroupLoaded ? state.participationGroupRows : state.spotRows;
+  const byId = new Map(rows.map((row) => [spotRowId(row), row]));
   let freshnessTransition = false;
   for (const anchor of document.querySelectorAll(".discover-token-row[data-token-row-id]")) {
     const row = byId.get(anchor.dataset.tokenRowId);
@@ -1787,7 +1792,7 @@ function spotRankedRows() {
     const currentFacts = spotMarketFactFreshness(row).current;
     return ["solana", "robinhood", "base", "bsc", "ethereum"].includes(chain)
       && (state.spotChain === "all" || chain === state.spotChain)
-      && validDiscoverRow(row)
+      && validDiscoverRow(row, { allowExpiredSnapshot: Boolean(state.participationFilter) })
       && opportunityLaneMatches(row)
       && revivalScanMatches(row)
       && cohortMatches(row)
@@ -1795,7 +1800,7 @@ function spotRankedRows() {
       && (!state.participationFilter || matchesParticipationCell(row, state.participationFilter))
       && (state.spotLane !== "opportunities" || currentFacts)
       && (state.spotSort !== "raven" || currentFacts)
-      && (retained || (state.participationFilter && currentFacts) || (
+      && (retained || state.participationFilter || (
         survivesCurrentSpotMarket(row, { allowQuietLifecycle: lifecycleBrowseActive() })
         && ((lifecycleBrowseActive() && reportedLaunchpadLifecycle(row))
           || (broadDegenScan ? hasDegenRelevantSpotActivity(row) : hasDecisionUsefulSpotActivity(row)))
@@ -2765,7 +2770,7 @@ async function loadParticipationGroup(filter, forceOrder = false) {
     const { response, payload } = await participationJson(`/api/onchain/participation?${new URLSearchParams({ chain: filter.chain, band: filter.band, order: filter.order || 'gainers' })}`);
     if (request !== state.participationGroupRequest || state.participationFilter !== filter || state.marketScope !== 'memecoins') return;
     if (response.ok && payload?.safe_public === true && payload?.schema_version === 'ravenos.participation_group.v1' && Array.isArray(payload.rows)) {
-      state.participationGroupRows = payload.rows.slice(0, 200).filter(validDiscoverRow);
+      state.participationGroupRows = payload.rows.slice(0, 200).filter(row => validDiscoverRow(row, { allowExpiredSnapshot: true }));
       state.participationGroupLoaded = true;
       renderSpotPulse(state.spotRows, { forceOrder });
     }

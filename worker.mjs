@@ -350,6 +350,9 @@ import { runScheduledRobinhoodChainIngestion } from "./lib/agentic_trading/robin
 
 const AUTHENTICATED_APP_HOST = "app.ravenos.xyz";
 const PUBLIC_ORIGIN = "https://ravenos.xyz";
+// Trading workspaces share the host-only Raven session. A public-domain
+// bookmark must not strand an already signed-in customer in preview mode.
+const TRADING_WORKSPACE_PATHS = new Set(['discover', 'terminal', 'perps', 'atlas'].flatMap(page => [`/${page}`, `/${page}/`, `/${page}/index.html`]));
 let publicProjectionCachePromise = null;
 const PUBLIC_INTELLIGENCE_ARTIFACT_ALIASES = Object.freeze({
   perps: new Set(["/perps.json", "/ravenos/perps.json", "/public/ravenos/perps.json"]),
@@ -463,6 +466,7 @@ function authenticatedAppBoundary(request) {
   const readRequest = request.method === "GET" || request.method === "HEAD";
   const accountPath = url.pathname === "/account" || url.pathname === "/account/" || url.pathname === "/account/index.html";
   const terminalPath = url.pathname === "/terminal" || url.pathname === "/terminal/" || url.pathname === "/terminal/index.html";
+  const tradingWorkspacePath = TRADING_WORKSPACE_PATHS.has(url.pathname);
   const agentsPath = url.pathname === "/agents" || url.pathname === "/agents/" || url.pathname === "/agents/index.html";
   const communityPath = url.pathname === "/community"
     || url.pathname === "/community/"
@@ -540,6 +544,7 @@ function authenticatedAppBoundary(request) {
       "/api/onchain/participation",
     ]).has(url.pathname)
     || url.pathname.startsWith("/api/chains/")
+    || url.pathname.startsWith("/api/atlas/")
   );
   const terminalReviewApi = request.method === "POST" && new Set([
     "/api/trade/account-history",
@@ -551,11 +556,11 @@ function authenticatedAppBoundary(request) {
   ]).has(url.pathname);
   const releaseProbe = readRequest && url.pathname === "/api/build";
   const immutableAsset = readRequest && (url.pathname.startsWith("/assets/") || AUTHENTICATED_APP_STATIC_PATHS.has(url.pathname));
-  if ((readRequest && (portfolioPath || accountPath || terminalPath || agentsPath || communityPath || proIntelligencePath || walletCopyPath || monitorPath)) || identityApi || legalApi || privyWalletApi || portfolioPreviewApi || researchStateApi || entitlementApi || monitorAlertsApi || walletCopyApi || walletObserverIngressApi || liveExecutionApi || agenticApi || communityApi || referralApi || productApi || terminalReadApi || terminalReviewApi || releaseProbe || immutableAsset) return { allowed: true, response: null };
+  if ((readRequest && (tradingWorkspacePath || portfolioPath || accountPath || terminalPath || agentsPath || communityPath || proIntelligencePath || walletCopyPath || monitorPath)) || identityApi || legalApi || privyWalletApi || portfolioPreviewApi || researchStateApi || entitlementApi || monitorAlertsApi || walletCopyApi || walletObserverIngressApi || liveExecutionApi || agenticApi || communityApi || referralApi || productApi || terminalReadApi || terminalReviewApi || releaseProbe || immutableAsset) return { allowed: true, response: null };
 
   const firstSegment = url.pathname.split("/").filter(Boolean)[0] || "";
   if (readRequest && firstSegment === "brief") {
-    const target = new URL("/terminal/", PUBLIC_ORIGIN);
+    const target = new URL("/terminal/", url.origin);
     target.search = url.search;
     return { allowed: false, response: Response.redirect(target, 308) };
   }
@@ -11814,7 +11819,10 @@ async function routeApi(request, env, executionContext = null) {
       if (!snapshot?.rows?.length) return json({ ok: false, state: 'refreshing', rows: [] }, { status: 503, headers: { 'cache-control': 'no-store' } });
       if (chain) {
         const matching = rankParticipationMarkets(snapshot.rows, { filter: { chain, band, kind: band === 'new_pairs' ? 'new_pairs' : 'capitalization' }, order });
-        const radar = buildDiscoverRadarProjection(matching.slice(0, 200), { timeframe: '5m', generatedAt: snapshot.generated_at, nowMs: Date.now(), sourceState: 'current' });
+        // Keep known group identities visible through a delayed refresh. The
+        // radar removes stale prices/signals and retains the original time.
+        const retained = matching.slice(0, 200).map(row => ({ ...row, registry: { ...row.registry, retained_after_trending: true } }));
+        const radar = buildDiscoverRadarProjection(retained, { timeframe: '5m', generatedAt: snapshot.generated_at, nowMs: Date.now(), sourceState: 'current' });
         return json({ ok: true, safe_public: true, schema_version: 'ravenos.participation_group.v1', total_matching: matching.length, return_window: '6h', order, rows: radar.rows }, { headers: { 'cache-control': 'public, max-age=15' } });
       }
       return json({ ok: true, safe_public: true, schema_version: 'ravenos.participation_boards.v1', coverage: snapshot.coverage,
@@ -12405,6 +12413,11 @@ export default {
       });
     }
     if (["GET", "HEAD"].includes(request.method)) {
+      if (url.hostname.toLowerCase() === "ravenos.xyz" && TRADING_WORKSPACE_PATHS.has(url.pathname)) {
+        const target = new URL(url.pathname, `https://${AUTHENTICATED_APP_HOST}`);
+        target.search = url.search;
+        return attachReleaseHeaders(applyAssetSecurityHeaders(Response.redirect(target, 307), url.pathname), releaseState, url.pathname);
+      }
       const intelligenceSplits = resolveCoordinatedIntelligenceSplits(env || {});
       const artifactKind = publicIntelligenceArtifactKind(url.pathname);
       if (artifactKind === "perps" && intelligenceSplits.perps) {

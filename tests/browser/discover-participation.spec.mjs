@@ -8,6 +8,7 @@ for (const chain of ['solana', 'base']) test(`${chain}: green group opens the co
   await page.setViewportSize({ width: 390, height: 844 });
   await mockTerminalLiveApis(page);
   const now = Date.now(), observed = new Date(now).toISOString();
+  await page.clock.install({ time: new Date(now) });
   const rows = [1, 85, 44, 5, 12, 3].map((change, index) => ({
     instrument_id: `${chain}:pool:pool${index}`, market_type: 'spot', source_type: 'market_activity', chain_id: chain, chain,
     pool_address: `pool${index}`, token_address: `coin${index}`, quote_token_address: 'stock-address', quote_symbol: 'AAPLx',
@@ -51,6 +52,11 @@ for (const chain of ['solana', 'base']) test(`${chain}: green group opens the co
   expect(href.searchParams.get('asset')).toBe('TREE/AAPLx');
   expect(groupRequests[0].searchParams.get('order')).toBe('gainers');
   await expect(page.locator('#discoverTokenTapeList [data-token-address="stock-address"]')).toHaveCount(0);
+  await page.clock.fastForward(125_000);
+  await expect(coins).toHaveCount(6);
+  await expect(coins.first()).toHaveAttribute('data-freshness', 'stale');
+  await expect(coins.first()).toContainText('Refreshing quote');
+  await expect(coins.first()).not.toContainText('+85.00%');
   await page.locator('#discoverParticipationClear').click();
   await expect(page.locator('#discoverSpotPulseTitle')).not.toHaveText('Top 6h movers');
 });

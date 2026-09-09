@@ -77,5 +77,7 @@ for (const chain of ['solana', 'robinhood', 'base', 'bsc', 'ethereum']) test(`${
   assert.equal(instrumentMarketScope(coin), 'memecoins');
   assert.equal(instrumentMarketScope({ ...coin, symbol: 'AAPLx', name: 'Apple xStock', token_address: 'stock' }), 'equities');
   assert.equal(instrumentMarketScope({ ...coin, symbol: 'RBLX', name: 'Roblox - Backpack Securities' }), 'equities');
+  assert.equal(instrumentMarketScope({ ...coin, symbol: 'DDOG', name: 'Datadog • Robinhood Token' }), 'equities');
+  assert.equal(instrumentMarketScope({ ...coin, quote_name: 'Datadog • Robinhood Token' }), 'memecoins');
   for (const name of ['Stockland', 'XStock', 'Tree receives Apple stock', 'Not Apple']) assert.equal(instrumentMarketScope({ ...coin, name, symbol: 'AAPL' }), 'memecoins');
 });

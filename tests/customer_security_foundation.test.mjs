@@ -373,7 +373,7 @@ test("Worker APIs receive baseline security headers and authenticated surfaces r
       },
     },
   };
-  const terminal = await worker.fetch(new Request("https://ravenos.xyz/terminal/"), env);
+  const terminal = await worker.fetch(new Request("https://app.ravenos.xyz/terminal/"), env);
   assert.equal(terminal.status, 200);
   assert.equal(terminal.headers.get("x-content-type-options"), "nosniff");
   assert.equal(terminal.headers.get("x-frame-options"), "DENY");

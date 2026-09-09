@@ -12,7 +12,7 @@ export function isTokenizedEquity(row = {}) {
   const type = String(primary.asset_class || primary.assetClass || primary.instrument_type || primary.market_type || '').toLowerCase();
   if (['tokenized_equity', 'tokenized_stock', 'stock_token'].includes(type)) return true;
   const name = String(primary.name || primary.token_name || '').trim();
-  return /\S\s+xstocks?$/i.test(name) || /\s[-–—]\s*Backpack Securities$/i.test(name);
+  return /\S\s+xstocks?$/i.test(name) || /\s[-–—]\s*Backpack Securities$/i.test(name) || /\S\s*[•·]\s*Robinhood Token$/i.test(name);
 }
 export function instrumentMarketScope(row = {}) {
   const subject = row.subject || row.instrument_contract || (typeof row.instrument === "object" ? row.instrument : row);

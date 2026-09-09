@@ -134,6 +134,14 @@ test('public board and group endpoints read the shared snapshot without refreshi
   assert.equal(appResponse.status, 200);
   const group = await worker.fetch(new Request('https://ravenos.xyz/api/onchain/participation?chain=base&band=500k_2m'), env);
   const matches = await group.json(); assert.equal(matches.rows.length, 12); assert.equal(matches.rows[0].discovery.exact_identity.instrument_id, matches.rows[0].instrument_id);
+  const oldTime = new Date(Date.now() - 150_000).toISOString();
+  const oldSnapshot = { ...data, rows: data.rows.map(row => ({ ...row, observed_at: oldTime })) };
+  await db.prepare("UPDATE ravenos_participation_snapshot SET body_json=? WHERE scope='onchain'").bind(JSON.stringify(oldSnapshot)).run();
+  const stale = await (await worker.fetch(new Request('https://ravenos.xyz/api/onchain/participation?chain=base&band=500k_2m'), env)).json();
+  assert.equal(stale.rows.length, 12, 'known group identities survive a delayed provider refresh');
+  assert.equal(stale.rows[0].discovery.facts.freshness.state, 'stale');
+  assert.equal(stale.rows[0].observed_at, oldTime, 'retention must not invent fresh observations');
+  assert.equal(stale.rows[0].discovery.notability.default_opportunity_eligible, false);
   const disabled = await worker.fetch(new Request('https://ravenos.xyz/api/onchain/participation'), {}); assert.equal(disabled.status, 503);
   const invalid = await worker.fetch(new Request('https://ravenos.xyz/api/onchain/participation?chain=bad&band=any'), env); assert.equal(invalid.status, 400);
   db.raw.close();
