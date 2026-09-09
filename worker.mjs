@@ -1,4 +1,5 @@
 import { dexscreenerChartSurface } from './ravenos-chart-data-plane.js';
+import { resolveReleaseFlags } from './lib/runtime_release_flags.mjs';
 import { readExecutionStatusContext } from "./lib/customer_trade/live_execution_status.mjs";
 import { evmTokenApprovalContext } from "./lib/customer_trade/evm_token_approval.mjs";
 import { enrichHolderWalletContext } from './lib/customer_trade/holder_wallet_context.mjs';
@@ -4864,7 +4865,9 @@ async function fetchDexscreenerChart(options = {}) {
   const { chain, pairAddress, tokenAddress, quoteAddress, asset, timeframe = '1m', before } = options;
   if (before) throw new Error('provider_managed_history');
   const surface = dexscreenerChartSurface({ chain, pairAddress, tokenAddress, quoteAddress, timeframe });
-  const envelope = await cachedDex(`/latest/dex/pairs/${encodeURIComponent(chain)}/${encodeURIComponent(pairAddress)}`);
+  const snapshot = await marketProviderReader.snapshot(`${DEXSCREENER_BASE_URL}/latest/dex/pairs/${encodeURIComponent(chain)}/${encodeURIComponent(pairAddress)}`, { ttlMs: 30_000 });
+  const envelope = snapshot.value;
+  rememberSeenWalletTokenMarks(envelope.pairs);
   const pair = (envelope.pairs || []).find(row => row.chainId === chain && sameOnchainAddress(chain, row.pairAddress, pairAddress));
   // The embed defaults to the pool's base asset. Never silently invert it.
   if (!pair || !sameOnchainAddress(chain, pair.baseToken?.address, tokenAddress) || !sameOnchainAddress(chain, pair.quoteToken?.address, quoteAddress)) {
@@ -4878,6 +4881,9 @@ async function fetchDexscreenerChart(options = {}) {
     market_identity: `${chain}:${pairAddress}`, instrument, timeframe, chart_surface: surface,
     source: 'DexScreener', source_label: 'DexScreener chart', source_type: 'provider_embed',
     candles: [], returned_bars: 0, freshness_state: 'provider_managed', observed_at: new Date().toISOString(),
+    market_state: { last: optionalFiniteNumber(pair.priceUsd), observed_at: snapshot.observed_at, source: 'DexScreener market snapshot' },
+    market_health: classifyOnchainMarketState({ providerRequestSucceeded: true, providerManagedChart: true,
+      snapshotPrice: pair.priceUsd, transactions24h: optionalFiniteNumber(pair.txns?.h24?.buys) === null ? null : Number(pair.txns.h24.buys) + Number(pair.txns.h24.sells || 0) }),
     attribution: { required: true, label: 'Chart by DexScreener', url: 'https://dexscreener.com/' },
     capabilities: { chart_embed: true, live_bars: false, older_bar_backfill: false, raven_candle_analytics: false },
     lineage: { provider: 'DexScreener', data_access: 'provider_rendered_only', raven_observations_are_candles: false },
@@ -5702,7 +5708,7 @@ async function terminalChartPayload({
         ).catch(() => []))[0];
         if (pair) payload.market_state = {
           ...(payload.market_state || {}),
-          last: pair.priceUsd,
+          last: payload.chart_surface ? payload.market_state?.last : pair.priceUsd,
           liquidity_usd: pair.liquidityUsd,
           volume_24h: pair.volume24h,
           transactions_24h: pair.txns24h,
@@ -5714,6 +5720,7 @@ async function terminalChartPayload({
         };
         const marketHealth = classifyOnchainMarketState({
           providerRequestSucceeded: true,
+          providerManagedChart: Boolean(payload.chart_surface),
           lastCandleAgeSeconds: payload.last_candle_age_seconds,
           intervalSeconds: timeframeSeconds(payload.timeframe || timeframe),
           lastCandleClose: payload.candles?.at(-1)?.close,
@@ -11984,6 +11991,7 @@ export async function runWalletHistoryIngestion(env) {
 
 export default {
   async scheduled(_controller, env, context) {
+    env = resolveReleaseFlags(env);
     if (_controller?.cron === PARTICIPATION_UNIVERSE_POLICY.cron) {
       const refresh = participationSnapshot(env, context, { refreshOnly: true }).catch(() => null);
       if (context?.waitUntil) context.waitUntil(refresh); else await refresh;
@@ -12344,6 +12352,9 @@ export default {
     else await work;
   },
   async fetch(request, env, executionContext) {
+    try { env = resolveReleaseFlags(env); } catch {
+      return new Response('Service configuration unavailable', { status: 503 });
+    }
     const url = new URL(request.url);
     if (url.pathname.startsWith("/.git") || url.pathname.startsWith("/.wrangler")) {
       return new Response("Not found", { status: 404 });

@@ -10,7 +10,7 @@ for (const width of [390, 1440]) test(`provider chart preserves the trade ticket
   const u=new URL(route.request().url());if(u.searchParams.get('chain')!=='robinhood')return route.fallback();
   const args={chain:'robinhood',pairAddress:ROBINHOOD_POOL,tokenAddress:ROBINHOOD_CONTRACT,quoteAddress:ROBINHOOD_QUOTE,timeframe:u.searchParams.get('timeframe')||'1h'};
   const instrument=normalizeChartInstrument({instrumentType:'spot_pool',marketType:'spot',chain:'robinhood',venue:'onchain_pool',symbol:'ETH/USDC',pairAddress:ROBINHOOD_POOL,tokenAddress:ROBINHOOD_CONTRACT,baseAsset:'ETH/USDC',quoteAsset:'USD'});
-  return route.fulfill({json:{ok:true,instrument,chart_surface:dexscreenerChartSurface(args),market_identity:`robinhood:${ROBINHOOD_POOL}`,source:'DexScreener',source_label:'DexScreener chart',timeframe:args.timeframe,candles:[],capabilities:{chart_embed:true,live_bars:false,raven_candle_analytics:false},available_scopes:{exact_pool:true},lineage:{raven_observations_are_candles:false}}});
+  return route.fulfill({json:{ok:true,instrument,chart_surface:dexscreenerChartSurface(args),market_identity:`robinhood:${ROBINHOOD_POOL}`,source:'DexScreener',source_label:'DexScreener chart',timeframe:args.timeframe,candles:[],market_state:{last:1.25,observed_at:new Date().toISOString(),source:'DexScreener market snapshot'},market_health:{operator_label:'Chart unavailable',candle_recency_state:'unavailable'},capabilities:{chart_embed:true,live_bars:false,raven_candle_analytics:false},available_scopes:{exact_pool:true},lineage:{raven_observations_are_candles:false}}});
  });
  await page.goto(`/terminal/?asset=ETH%2FUSDC&chain=robinhood&instrument_id=${encodeURIComponent('robinhood:pool:'+ROBINHOOD_POOL)}&lane=spot&market=spot&instrument_type=exact_pool&token_address=${ROBINHOOD_CONTRACT}&quote_address=${ROBINHOOD_QUOTE}`);
  const frame=page.locator('#terminalChart iframe.rpw-provider-frame');
@@ -18,6 +18,12 @@ for (const width of [390, 1440]) test(`provider chart preserves the trade ticket
  await expect(frame).toHaveAttribute('referrerpolicy','no-referrer');
  await expect(frame).toHaveAttribute('sandbox','allow-scripts allow-same-origin allow-popups');
  await expect(page.locator('#terminalChart [data-rpw-state]')).toHaveText('Chart');
+ await expect(page.locator('#terminalMarketFreshness')).toHaveText('Chart');
+ await expect(page.locator('[data-terminal-pane-button="chart"]')).not.toContainText('Unavailable');
+ if(width===1440) {
+  await expect(page.locator('.desk-market-quote').first()).toContainText('1.25');
+  await expect(page.locator('.desk-market-quote').first()).toContainText('Snapshot');
+ }
  await expect(page.locator('#terminalChart .rpw-chart-tools')).toBeHidden();
  await page.locator('#terminalSpotAmount').fill('37');
  await expect(page.locator('#terminalSpotQuoteAction')).toBeVisible();

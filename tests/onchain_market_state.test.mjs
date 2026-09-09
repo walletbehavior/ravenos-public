@@ -6,6 +6,16 @@ import {
   onchainCandleFreshnessWindow,
 } from "../lib/onchain_market_state.mjs";
 
+test('a provider-managed chart is available without pretending Raven received native candles', () => {
+  const result = classifyOnchainMarketState({ providerManagedChart: true, providerRequestSucceeded: true, snapshotPrice: 1.25, transactions24h: 12 });
+  assert.equal(result.chart_state, 'provider_managed');
+  assert.equal(result.operator_label, 'Chart');
+  assert.equal(result.candle_recency_state, 'unavailable');
+  assert.equal(result.price_continuity_state, 'unavailable');
+  assert.equal(result.market_activity_state, 'activity_reported');
+  assert.equal(classifyOnchainMarketState({ providerManagedChart: true }).chart_state, 'unavailable');
+});
+
 test("short spot intervals retain a bounded candle freshness window", () => {
   assert.equal(onchainCandleFreshnessWindow(60), 600);
   assert.equal(onchainCandleFreshnessWindow(900), 1_800);

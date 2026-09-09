@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import worker from '../worker.mjs';
+import { packReleaseFlags } from '../lib/runtime_release_flags.mjs';
 const address = n => '0x' + n.toString(16).padStart(40,'0');
 const TOKEN=address(202),POOL=address(201),QUOTE=address(203);
 const now=Date.now(),time=Math.floor(now/60000)*60;
@@ -73,10 +74,12 @@ test('production chart fallback preserves exact identity on every chain and make
   for(const chain of ['solana','base','bsc','ethereum','robinhood']){
    const args={chain,pairAddress:chain==='solana'?'58oQChx4yWmvKdwLLZzBi4ChoCc2fqCUWBkwMihLYQo2':address(800),tokenAddress:chain==='solana'?'So11111111111111111111111111111111111111112':address(801),quoteAddress:chain==='solana'?'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v':address(802),timeframe:'1m'};
    const query=new URLSearchParams({market:'crypto_spot',asset:'TEST/USDC',timeframe:'1m',chain,pair_address:args.pairAddress,token_address:args.tokenAddress,quote_address:args.quoteAddress});
-   const response=await worker.fetch(new Request('https://ravenos.xyz/api/terminal/chart?'+query),production);const body=await response.json();const chart=body.data||body;
+   const response=await worker.fetch(new Request('https://ravenos.xyz/api/terminal/chart?'+query),packReleaseFlags(production));const body=await response.json();const chart=body.data||body;
    assert.equal(chart.ok,true,JSON.stringify(chart));assert.equal(qualifiedChartSurface(chart,args),true,JSON.stringify(chart));
    assert.equal(qualifiedChartSurface(chart,{...args,nativeRequired:true}),false);
    assert.equal(chart.capabilities.raven_candle_analytics,false);assert.equal(chart.candles.length,0);
+   assert.equal(chart.market_health.operator_label,'Chart');
+   assert.equal(chart.market_health.candle_recency_state,'unavailable');
    assert.equal(validateDexscreenerChartSurface({...chart.chart_surface,url:'https://evil.example/'},args),false);
    assert.equal(validateDexscreenerChartSurface({...chart.chart_surface,url:chart.chart_surface.url+'&wallet=private'},args),false);
    assert.equal(validateDexscreenerChartSurface(chart.chart_surface,{...args,tokenAddress:address(999)}),false);

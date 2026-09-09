@@ -5,7 +5,23 @@ import {
   marketRequest,
   quoteFromCandles,
   quoteMatchesMarket,
+  quoteFromCurrentChart,
 } from "../ravenos-desk-tools.js";
+
+test('embedded charts reuse only timestamped exact-market snapshots and never invent candle statistics', () => {
+  const market = { lane: 'spot', chain: 'base', pool: '0xpool', token: '0xtoken' };
+  const state = { state: 'provider_managed', marketIdentity: 'base:pool:0xpool',
+    instrument: { instrument_type: 'spot_pool', identity_scope: 'exact_pool', chain: 'base', pool_address: market.pool, token_address: market.token },
+    marketState: { last: 1.25, observed_at: '2026-09-09T15:00:00Z', source: 'DexScreener market snapshot' } };
+  const quote = quoteFromCurrentChart(market, state);
+  assert.equal(quote.price, 1.25);
+  assert.equal(quote.kind, 'market_snapshot');
+  assert.equal(quote.change, null);
+  assert.equal(quote.volume, null);
+  assert.deepEqual(quote.points, []);
+  assert.equal(quoteFromCurrentChart({ ...market, token: '0xother' }, state), null);
+  assert.equal(quoteFromCurrentChart(market, { ...state, marketState: { last: 1.25 } }), null);
+});
 test("tools persistence strips private and unexpected fields and bounds user collections", () => {
   const input = {
     lists: Array.from({ length: 20 }, (_, i) => ({

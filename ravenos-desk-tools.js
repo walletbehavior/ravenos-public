@@ -184,9 +184,16 @@ export function quoteFromCandles(candles, observedAt, source) {
   };
 }
 export function quoteFromCurrentChart(market, state) {
-  if (!market || !["live", "historical", "delayed"].includes(state?.state)) return null;
+  if (!market || !["live", "historical", "delayed", "provider_managed"].includes(state?.state)) return null;
   if (!quoteMatchesMarket(market, { ok: true, instrument: state.instrument, market_identity: state.marketIdentity })) return null;
+  if (state.state === 'provider_managed') return quoteFromMarketSnapshot(state.marketState);
   return quoteFromCandles(state.candles, state.observedAt, state.source);
+}
+export function quoteFromMarketSnapshot(snapshot) {
+  const price = Number(snapshot?.last);
+  if (!Number.isFinite(price) || price <= 0 || !Number.isFinite(Date.parse(snapshot?.observed_at))) return null;
+  return { price, observedAt: snapshot.observed_at, source: String(snapshot.source || 'Market snapshot'),
+    kind: 'market_snapshot', change: null, volume: null, points: [], start: null, end: null };
 }
 const number = (n) =>
   Number.isFinite(n)
@@ -575,7 +582,7 @@ export function enhanceDesk({
             const body = await response.json();
             const payload = body.data || body;
             if (!response.ok || !quoteMatchesMarket(market, payload)) continue;
-            const quote = quoteFromCandles(
+            const quote = payload.chart_surface ? quoteFromMarketSnapshot(payload.market_state) : quoteFromCandles(
               payload.candles,
               payload.observed_at || payload.generated_at,
               payload.source_label || payload.source,
@@ -681,7 +688,8 @@ export function enhanceDesk({
         Date.now() - Date.parse(quote.observedAt) > 180000 ||
         Date.parse(quote.observedAt) - Date.now() > 60000;
       cell.dataset.stale = String(stale);
-      cell.title = `${quote.source} · ${quote.observedAt || "Timestamp unavailable"} · Change and volume cover ${Math.round((quote.end - quote.start) / 3600)} hours of available candles. Volume is provider-reported units.`;
+      cell.title = quote.kind === 'market_snapshot' ? `${quote.source} · ${quote.observedAt} · Market snapshot`
+        : `${quote.source} · ${quote.observedAt || "Timestamp unavailable"} · Change and volume cover ${Math.round((quote.end - quote.start) / 3600)} hours of available candles. Volume is provider-reported units.`;
       const price = document.createElement("strong"),
         change = document.createElement("span"),
         vol = document.createElement("small");
@@ -700,6 +708,12 @@ export function enhanceDesk({
               minute: "2-digit",
             })}`
           : "Timestamp unavailable";
+      if (quote.kind === 'market_snapshot') {
+        vol.textContent = `Snapshot${stale ? ' · Stale' : ''}`;
+        cell.append(price, vol, observed);
+        row.append(cell);
+        return;
+      }
       cell.append(price, change, vol, observed);
       const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
       svg.setAttribute("viewBox", "0 0 80 22");

@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { cloudflareReleaseEnv } from "./lib/cloudflare-release-env.mjs";
+import { assertReleaseBindingPreservation } from "../lib/runtime_release_flags.mjs";
 
 const repoRoot = process.cwd();
 const bundleRoot = resolve(process.argv[2] || "");
@@ -104,6 +105,9 @@ if (missingSecrets.length) {
 }
 
 const configPath = join(bundleRoot, "wrangler.release.jsonc");
+const releaseWrangler = JSON.parse(readFileSync(configPath, "utf8"));
+const currentSettings = await cloudflare(`/accounts/${encodeURIComponent(cloudflareEnv.CLOUDFLARE_ACCOUNT_ID)}/workers/scripts/${encodeURIComponent(packageManifest.worker_name)}/settings`);
+assertReleaseBindingPreservation(currentSettings.bindings || [], releaseWrangler.vars || {});
 function versionList() {
   const parsed = JSON.parse(wrangler(["versions", "list", "--name", packageManifest.worker_name, "--json"], { echo: false }));
   return Array.isArray(parsed) ? parsed : (parsed.items || parsed.versions || []);
@@ -126,13 +130,28 @@ if (!versionReused) {
     "--tag", packageManifest.release_id,
     "--message", `RavenOS immutable staged release ${packageManifest.release_id}`,
     "--preview-alias", previewAlias,
-    "--keep-vars",
   ];
+  // versions upload inherits secrets independently; plain flags are replaced by
+  // the complete, checked release configuration instead of keeping stale copies.
+  if (releaseWrangler.keep_vars) uploadArguments.push("--keep-vars");
   if (releaseSecretsFile) uploadArguments.push("--secrets-file", releaseSecretsFile);
   wrangler(uploadArguments);
   version = taggedVersion(versionList());
 }
 if (!version?.id) throw new Error("Uploaded Worker version could not be reconciled by release tag");
+
+const stagedVersion = await cloudflare(`/accounts/${encodeURIComponent(cloudflareEnv.CLOUDFLARE_ACCOUNT_ID)}/workers/scripts/${encodeURIComponent(packageManifest.worker_name)}/versions/${encodeURIComponent(version.id)}`);
+const stagedBindings = stagedVersion?.resources?.bindings;
+if (!Array.isArray(stagedBindings)) throw new Error("Staged version bindings could not be verified");
+const stagedSecrets = new Set(stagedBindings.filter(binding => binding.type === 'secret_text').map(binding => binding.name));
+if ([...configuredSecrets, ...suppliedSecrets].some(name => !stagedSecrets.has(name))) {
+  throw new Error("Staged version did not preserve every server secret binding");
+}
+const stagedVars = stagedBindings.filter(binding => ['plain_text', 'json'].includes(binding.type));
+if (!releaseWrangler.keep_vars && (stagedVars.length !== Object.keys(releaseWrangler.vars || {}).length
+  || stagedVars.some(binding => !Object.hasOwn(releaseWrangler.vars || {}, binding.name)))) {
+  throw new Error("Staged configuration differs from the packaged binding inventory");
+}
 
 const accountId = encodeURIComponent(cloudflareEnv.CLOUDFLARE_ACCOUNT_ID);
 const scriptName = encodeURIComponent(packageManifest.worker_name);

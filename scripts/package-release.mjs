@@ -11,6 +11,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, join, relative } from "node:path";
+import { packReleaseFlags } from "../lib/runtime_release_flags.mjs";
 
 const repoRoot = process.cwd();
 const args = new Set(process.argv.slice(2));
@@ -146,7 +147,7 @@ const releaseWrangler = {
   main: "worker.mjs",
   compatibility_date: baseWrangler.compatibility_date,
   preview_urls: true,
-  keep_vars: true,
+  keep_vars: false,
   observability: baseWrangler.observability,
   assets: {
     binding: "ASSETS",
@@ -262,6 +263,7 @@ const releaseWrangler = {
     RAVENOS_PRIVY_DEFAULT_WALLET_ONBOARDING: "0",
   },
 };
+releaseWrangler.vars = packReleaseFlags(releaseWrangler.vars);
 writeFileSync(join(bundleRoot, "wrangler.release.jsonc"), `${JSON.stringify(releaseWrangler, null, 2)}\n`, "utf8");
 
 const packagedFiles = listFiles(bundleRoot).sort();
