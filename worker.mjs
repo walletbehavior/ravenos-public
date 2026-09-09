@@ -2,7 +2,8 @@ import { readExecutionStatusContext } from "./lib/customer_trade/live_execution_
 import { evmTokenApprovalContext } from "./lib/customer_trade/evm_token_approval.mjs";
 import { enrichHolderWalletContext } from './lib/customer_trade/holder_wallet_context.mjs';
 import { loadWalletHistoricalPrices } from './lib/customer_trade/wallet_historical_prices.mjs';
-import { loadEvmWalletBackfillPage } from './lib/customer_trade/evm_wallet_backfill.mjs';
+import { WalletIngestionPolicy, walletIngestionPolicy, reserveEvmHistoryRequests, settleEvmHistoryRequests } from './lib/customer_trade/wallet_ingestion_policy.mjs';
+import { EvmWalletBackfillPolicy, loadEvmWalletBackfillPage } from './lib/customer_trade/evm_wallet_backfill.mjs';
 import { createWalletUniverseStore, runWalletUniverse } from "./lib/customer_trade/wallet_universe.mjs";
 import { WalletHistoryPolicy, heliusBackfillPolicy, reserveHeliusBackfillCredits } from './lib/customer_trade/wallet_history_policy.mjs';
 import { queuePriorityWalletWarmups } from './lib/customer_trade/wallet_discovery_sources.mjs';
@@ -11724,8 +11725,79 @@ async function routeApi(request, env, executionContext = null) {
   return json({ ok: false, error: "not_found" }, { status: 404 });
 }
 
+// Dedicated read-only history cadence. It reuses the shared source jobs,
+// event ledger and profile builder; it has no execution or account authority.
+export async function runWalletHistoryIngestion(env) {
+    const policy=walletIngestionPolicy(env);
+    const backfillActivation = resolveSourceWalletBackfillActivation(env || {});
+    return backfillActivation.evaluator && env?.RAVENOS_CUSTOMER_DB?.prepare
+      ? (async () => {
+          const walletStore = createD1CustomerWalletCopyStore(env.RAVENOS_CUSTOMER_DB);
+          const backfillStore = createD1SourceWalletBackfillStore(env.RAVENOS_CUSTOMER_DB, {
+            record_events: (sourceId, events, now) => walletStore.recordEvents(sourceId, events, now),
+          });
+          const warmup=env.RAVENOS_WALLET_PRIORITY_WARMUP_ENABLED==='1'
+            ? await queuePriorityWalletWarmups(env.RAVENOS_CUSTOMER_DB,backfillStore,{helius:heliusWalletHistoryRuntime(env).enabled,evm:env.RAVENOS_EVM_WALLET_BACKFILL_ENABLED==='1'}).catch(()=>({queued:0,state:'unavailable'}))
+            : {queued:0,state:'disabled'};
+          return runSourceWalletBackfillBatch(backfillStore, {
+            fetchSignatures: (input) => fetchSourceWalletBackfillSignatures(env, input),
+            hydrateTransaction: (input) => hydrateSourceWalletBackfillTransaction(env, input),
+            fetchEvmPage: async (job) => {
+              const modern=env.RAVENOS_WALLET_INGESTION_ENABLED==='1';
+              const retryReferences=modern?await backfillStore.dueReferences(job.job_id):[];
+              const reservation=modern?await reserveEvmHistoryRequests(env.RAVENOS_CUSTOMER_DB,{limit:EvmWalletBackfillPolicy.maximum_requests_per_run,budget:policy.evm_requests_per_hour}):null;
+              let requests=reservation?.limit||0;
+              try {
+                const page=await loadEvmWalletBackfillPage(env,job,{deferReferenceFailures:modern,retryReferences,
+                  referenceFailure:reference=>backfillStore.referenceFailure(job.job_id,reference),
+                  maximumNewReferences:Math.min(EvmWalletBackfillPolicy.transactions_per_run,job.history_target-job.signatures_seen),existingTransaction:async(sourceId,reference,blockHash)=>{
+              const row=await env.RAVENOS_CUSTOMER_DB.prepare('SELECT event_json, block_hash, decode_version FROM ravenos_wallet_latest_events WHERE source_wallet_id=? AND transaction_reference=? LIMIT 1').bind(sourceId,reference).first();
+              if (row && row.block_hash !== blockHash) throw new Error('evm_wallet_backfill_reorg_requires_review');
+              return row && row.decode_version >= 102 ? JSON.parse(row.event_json) : null;
+            }});
+                requests=page.request_count;return page;
+              } catch(error) {if(Number.isInteger(error.request_count))requests=error.request_count;throw error;}
+              finally {if(reservation)await settleEvmHistoryRequests(env.RAVENOS_CUSTOMER_DB,reservation,requests).catch(()=>null);}
+            },
+          }, {
+            worker_id: `backfill_worker_${Date.now().toString(36)}`,
+            maximum_jobs: policy.jobs_per_run,
+            breadth_slots: policy.breadth_slots, depth_slots: policy.depth_slots,
+            maximum_pages_per_job: 1,
+            solana_page_size:heliusWalletHistoryRuntime(env).enabled?heliusBackfillPolicy(env).page_size:100,
+            concurrency: 8,
+          }).then(async (run) => {
+            const now = Math.floor(Date.now() / 1_000);
+            const candidates = await backfillStore.listProfileRefreshCandidates(policy.profiles_per_run,{first_profile_slots:policy.breadth_slots});
+            const profileResults = [];
+            for(const job of candidates)profileResults.push(...await Promise.allSettled([(async()=>{
+              const events=await walletStore.listSourceEvents(job.source_wallet_id,job.source_wallet.chain==='solana'?WalletHistoryPolicy.solana_analysis_events:WalletHistoryPolicy.evm_analysis_events);
+              const historicalPrices=await loadWalletHistoricalPrices(env,env.RAVENOS_CUSTOMER_DB,events).catch(()=>[]);
+              return persistSourceWalletProfile(walletStore, job.source_wallet_id, now, {...sourceWalletBackfillHistoryEvidence(job),historical_prices:env.RAVENOS_WALLET_HISTORICAL_USD_ENABLED === "1" ? historicalPrices : null,opening_balances:job.provider_cursor?.opening_balances,window_start_block:job.provider_cursor?.from_block ? Number(BigInt(job.provider_cursor.from_block)) : null,window_end_block:job.provider_cursor?.verified_through_block ? Number(BigInt(job.provider_cursor.verified_through_block)) : null,verified_through_at:job.provider_cursor?.verified_through_at || null});
+            })()]));
+            return {
+              ...run,
+              discovery_warmup:warmup,
+              profile_refresh_candidates: candidates.length,
+              profiles_refreshed: profileResults.filter((row) => row.status === "fulfilled" && row.value).length,
+              profile_refresh_failures: profileResults.filter((row) => row.status === "rejected").length,
+            };
+          });
+        })()
+      : Promise.resolve({ state: "disabled" });
+}
+
 export default {
   async scheduled(_controller, env, context) {
+    if(_controller?.cron===WalletIngestionPolicy.cron) {
+      if(env.RAVENOS_WALLET_INGESTION_ENABLED!=='1')return;
+      const work=runWalletHistoryIngestion(env).then(run=>{
+        console.log(JSON.stringify({event:'wallet_history_ingestion',totals:run.totals,
+          profiles_refreshed:run.profiles_refreshed,profile_refresh_failures:run.profile_refresh_failures}));
+      }).catch(()=>console.error(JSON.stringify({event:'wallet_history_ingestion',state:'unavailable'})));
+      if(context?.waitUntil)context.waitUntil(work);else await work;
+      return;
+    }
     if (env?.RAVENOS_CUSTOMER_DB?.prepare) {
       const publicListWork=refreshPublicWalletList(env,{walletStore:createD1CustomerWalletCopyStore(env.RAVENOS_CUSTOMER_DB)})
         .catch(()=>({state:'unavailable',provider_requests:0}));
@@ -11935,49 +12007,8 @@ export default {
           });
         })()
       : Promise.resolve({ state: "disabled" });
-    const backfillActivation = resolveSourceWalletBackfillActivation(env || {});
-    const backfillWork = backfillActivation.evaluator && env?.RAVENOS_CUSTOMER_DB?.prepare
-      ? (async () => {
-          const walletStore = createD1CustomerWalletCopyStore(env.RAVENOS_CUSTOMER_DB);
-          const backfillStore = createD1SourceWalletBackfillStore(env.RAVENOS_CUSTOMER_DB, {
-            record_events: (sourceId, events, now) => walletStore.recordEvents(sourceId, events, now),
-          });
-          const warmup=env.RAVENOS_WALLET_PRIORITY_WARMUP_ENABLED==='1'
-            ? await queuePriorityWalletWarmups(env.RAVENOS_CUSTOMER_DB,backfillStore,{helius:heliusWalletHistoryRuntime(env).enabled,evm:env.RAVENOS_EVM_WALLET_BACKFILL_ENABLED==='1'}).catch(()=>({queued:0,state:'unavailable'}))
-            : {queued:0,state:'disabled'};
-          return runSourceWalletBackfillBatch(backfillStore, {
-            fetchSignatures: (input) => fetchSourceWalletBackfillSignatures(env, input),
-            hydrateTransaction: (input) => hydrateSourceWalletBackfillTransaction(env, input),
-            fetchEvmPage: (job) => loadEvmWalletBackfillPage(env,job,{existingTransaction:async(sourceId,reference,blockHash)=>{
-              const row=await env.RAVENOS_CUSTOMER_DB.prepare('SELECT event_json, block_hash, decode_version FROM ravenos_wallet_latest_events WHERE source_wallet_id=? AND transaction_reference=? LIMIT 1').bind(sourceId,reference).first();
-              if (row && row.block_hash !== blockHash) throw new Error('evm_wallet_backfill_reorg_requires_review');
-              return row && row.decode_version >= 102 ? JSON.parse(row.event_json) : null;
-            }}),
-          }, {
-            worker_id: `backfill_worker_${Date.now().toString(36)}`,
-            maximum_jobs: 4,
-            maximum_pages_per_job: 1,
-            solana_page_size:heliusWalletHistoryRuntime(env).enabled?heliusBackfillPolicy(env).page_size:100,
-            concurrency: 8,
-          }).then(async (run) => {
-            const now = Math.floor(Date.now() / 1_000);
-            const candidates = await backfillStore.listProfileRefreshCandidates(4);
-            const profileResults = [];
-            for(const job of candidates)profileResults.push(...await Promise.allSettled([(async()=>{
-              const events=await walletStore.listSourceEvents(job.source_wallet_id,job.source_wallet.chain==='solana'?WalletHistoryPolicy.solana_analysis_events:WalletHistoryPolicy.evm_analysis_events);
-              const historicalPrices=await loadWalletHistoricalPrices(env,env.RAVENOS_CUSTOMER_DB,events).catch(()=>[]);
-              return persistSourceWalletProfile(walletStore, job.source_wallet_id, now, {...sourceWalletBackfillHistoryEvidence(job),historical_prices:env.RAVENOS_WALLET_HISTORICAL_USD_ENABLED === "1" ? historicalPrices : null,opening_balances:job.provider_cursor?.opening_balances,window_start_block:job.provider_cursor?.from_block ? Number(BigInt(job.provider_cursor.from_block)) : null,window_end_block:job.provider_cursor?.verified_through_block ? Number(BigInt(job.provider_cursor.verified_through_block)) : null,verified_through_at:job.provider_cursor?.verified_through_at || null});
-            })()]));
-            return {
-              ...run,
-              discovery_warmup:warmup,
-              profile_refresh_candidates: candidates.length,
-              profiles_refreshed: profileResults.filter((row) => row.status === "fulfilled" && row.value).length,
-              profile_refresh_failures: profileResults.filter((row) => row.status === "rejected").length,
-            };
-          });
-        })()
-      : Promise.resolve({ state: "disabled" });
+    const backfillWork = env.RAVENOS_WALLET_INGESTION_ENABLED==='1'
+      ? Promise.resolve({state:'dedicated_schedule'}) : runWalletHistoryIngestion(env);
     const discoveryActivation = resolveSourceWalletDiscoveryAdmissionActivation(env || {});
     const researchCohortActivation = resolveSourceWalletResearchCohortActivation(env || {});
     const discoveryWork = discoveryActivation.evaluator && env?.RAVENOS_CUSTOMER_DB?.prepare

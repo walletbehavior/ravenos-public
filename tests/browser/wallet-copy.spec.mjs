@@ -1367,6 +1367,20 @@ test('background EVM history without a balance snapshot never displays a fresh b
  await expect(page.locator('#copyOverviewScope')).toContainText('Balances have not been indexed.');
 });
 
+test('EVM receipt gaps stay explicit on desktop and mobile without a false full-window claim',async({page})=>{
+ const shared={requests:[]};await install(page,shared);
+ const snapshot=evmProfile();snapshot.durable_history={state:'bounded_partial',unresolved_references:2};
+ const deep_history={state:'bounded_partial',chain:'bsc',unresolved_references:2,signatures_indexed:48,transactions_decoded:46,maximum_signatures:10000,pages_indexed:8};
+ await page.route('**/api/v1/wallet-copy/inspect',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,source_wallet_id:EVM_SOURCE_ID,profile:snapshot,recent_events:[],deep_history})}));
+ await page.goto(`/account/copy/?wallet=${EVM_WALLET}&chain=bsc`);
+ await expect(page.locator('#copyOverviewScope')).toContainText('2 transaction receipts remain unresolved');
+ await expect(page.locator('#copyDeepHistoryHeadline')).toHaveText('History retained with gaps');
+ await expect(page.locator('#copyDeepHistoryDetail')).toContainText('complete cost basis is not established');
+ await expect(page.locator('#copyDeepHistoryHeadline')).not.toContainText('10,000');
+ await page.setViewportSize({width:390,height:844});
+ await expect(page.locator('#copyOverviewScope')).toContainText('history and cost basis are incomplete');
+});
+
 test('verified EVM results show separate currencies and the coverage of unrealized marks on desktop and mobile',async({page})=>{
  const shared={requests:[]};await install(page,shared);
  const snapshot=evmProfile();snapshot.generated_at='2026-09-08T12:00:00Z';snapshot.coverage.trade_events=4;

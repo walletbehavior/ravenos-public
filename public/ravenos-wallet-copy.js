@@ -784,7 +784,8 @@ function renderDeepHistory(history) {
   if (!active) return;
   const signatures = Math.max(0, Number(history.signatures_indexed || 0));
   const maximum = Math.max(1, Number(history.maximum_signatures || 10_000));
-  const progress = history.state === "complete" || history.state === "bounded_partial"
+  const gaps = Math.max(0, Number(history.unresolved_references || 0));
+  const progress = !gaps && (history.state === "complete" || history.state === "bounded_partial")
     ? 100
     : Math.min(99, (signatures / maximum) * 100);
   const labels = {
@@ -796,9 +797,11 @@ function renderDeepHistory(history) {
     dead_letter: ["History needs operator review", "Evidence gap preserved."],
     unavailable: ["Deep history unavailable", "Current evidence remains visible."],
   };
-  const [headline, detail] = labels[history.state] || ["History state forming", "Evidence boundary preserved."];
+  const [headline, detail] = gaps && history.state === "bounded_partial"
+    ? ["History retained with gaps", `${gaps.toLocaleString()} transaction receipts remain unresolved. Verified activity is available; complete cost basis is not established.`]
+    : labels[history.state] || ["History state forming", "Evidence boundary preserved."];
   setText("copyDeepHistoryHeadline", headline);
-  setText("copyDeepHistoryDetail", detail);
+  setText("copyDeepHistoryDetail", gaps && history.state !== "bounded_partial" ? `${detail} ${gaps.toLocaleString()} transaction receipts awaiting verification; other history continues indexing.` : detail);
   const progressNode = document.getElementById("copyDeepHistoryProgress");
   progressNode.value = progress;
   progressNode.textContent = `${Math.round(progress)}%`;
@@ -920,7 +923,9 @@ function renderWalletRecord() {
   const fxScope = record?.usd ? " USD values use historical five-minute native-asset price references and canonical USDC equivalents; network fees remain separate. " : " ";
   const balanceObservedAt = Object.hasOwn(profile, "balances_observed_at") ? profile.balances_observed_at : profile.generated_at;
   const balanceScope = balanceObservedAt ? `Balances observed ${when(balanceObservedAt)}.` : "Balances have not been indexed.";
-  setText("copyOverviewScope", `${chainLabel(profile.source_wallet.chain)} · ${balanceScope} ${fxScope}${decoded ? "Results cover retained decoded activity; matched cost only, network fees separate. Settlement currencies stay separate." : "Transfer history is available; swaps and cost basis are not reconstructed yet."} ${selected || all ? "" : "This snapshot has no period breakdown. "}Retained activity: ${when(profile.coverage?.first_observed_at || profile.behavior?.first_trade_at)} → ${when(profile.coverage?.last_observed_at || profile.behavior?.last_trade_at)}; not wallet age. Missing values are not zero.`);
+  const historyGaps = Number(profile.durable_history?.unresolved_references || 0);
+  const gapScope = historyGaps ? `${historyGaps.toLocaleString()} transaction receipts remain unresolved; history and cost basis are incomplete. ` : "";
+  setText("copyOverviewScope", `${chainLabel(profile.source_wallet.chain)} · ${balanceScope} ${gapScope}${fxScope}${decoded ? "Results cover retained decoded activity; matched cost only, network fees separate. Settlement currencies stay separate." : "Transfer history is available; swaps and cost basis are not reconstructed yet."} ${selected || all ? "" : "This snapshot has no period breakdown. "}Retained activity: ${when(profile.coverage?.first_observed_at || profile.behavior?.first_trade_at)} → ${when(profile.coverage?.last_observed_at || profile.behavior?.last_trade_at)}; not wallet age. Missing values are not zero.`);
   const distribution = document.getElementById("copyOutcomeDistribution");
   distribution.replaceChildren();
   if (selected?.distribution?.length && selected.observations > 0) {

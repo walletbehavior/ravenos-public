@@ -197,6 +197,8 @@ const releaseWrangler = {
     RAVENOS_WALLET_DEX_MARKS_ENABLED: walletIntelligenceActive && baseWrangler.vars?.RAVENOS_WALLET_DEX_MARKS_ENABLED === '1' ? '1' : '0',
     RAVENOS_WALLET_PRIORITY_WARMUP_ENABLED: walletScreenerActive && baseWrangler.vars?.RAVENOS_WALLET_PRIORITY_WARMUP_ENABLED === '1' ? '1' : '0',
     RAVENOS_WALLET_PUBLIC_LISTS_ENABLED: walletScreenerActive && baseWrangler.vars?.RAVENOS_WALLET_PUBLIC_LISTS_ENABLED === '1' ? '1' : '0',
+    RAVENOS_WALLET_INGESTION_ENABLED: walletScreenerActive && baseWrangler.vars?.RAVENOS_WALLET_INGESTION_ENABLED === '1' ? '1' : '0',
+    RAVENOS_EVM_HISTORY_REQUESTS_PER_HOUR: String(baseWrangler.vars?.RAVENOS_EVM_HISTORY_REQUESTS_PER_HOUR || '6000'),
     RAVENOS_HELIUS_BACKFILL_PAGE_SIZE: String(baseWrangler.vars?.RAVENOS_HELIUS_BACKFILL_PAGE_SIZE || '500'),
     RAVENOS_HELIUS_BACKFILL_CREDITS_PER_HOUR: String(baseWrangler.vars?.RAVENOS_HELIUS_BACKFILL_CREDITS_PER_HOUR || '600'),
     RAVENOS_SHADOW_COPY_ENABLED: customerSecurity.wallet_copy?.shadow_copy_release_enabled === true ? "1" : "0",

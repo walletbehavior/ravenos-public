@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { sqliteStore } from './customer_pro_rewards.test.mjs';
 import { createD1CustomerWalletCopyStore, persistSourceWalletProfile } from '../lib/customer_wallet_copy.mjs';
-import { createD1SourceWalletBackfillStore, createSourceWalletBackfillJob, runSourceWalletBackfillBatch, publicSourceWalletBackfillJob } from '../lib/customer_trade/source_wallet_backfill.mjs';
+import { createD1SourceWalletBackfillStore, createSourceWalletBackfillJob, runSourceWalletBackfillBatch, publicSourceWalletBackfillJob, sourceWalletBackfillHistoryEvidence } from '../lib/customer_trade/source_wallet_backfill.mjs';
 import { normalizeSourceWalletChainIdentity } from '../lib/customer_trade/source_wallet_chain_identity.mjs';
 import { loadEvmWalletBackfillPage } from '../lib/customer_trade/evm_wallet_backfill.mjs';
 import { historicalUsdValue, loadWalletHistoricalPrices, walletUsdTradingRecord } from '../lib/customer_trade/wallet_historical_prices.mjs';
@@ -92,8 +92,10 @@ test('wrong network, changed pinned head, missing receipt and disabled feature f
 test('expired provider tokens restart inclusively at the last block and reuse saved receipt evidence',async()=>{
   const job=createSourceWalletBackfillJob({chain:'base',address:W,requested_at:new Date(NOW).toISOString()}),p=provider({more:true});
   const first=await loadEvmWalletBackfillPage(env,job,{fetchImpl:p.fetchImpl,now:NOW});
+  const outbound=await loadEvmWalletBackfillPage(env,{...job,provider_cursor:first.cursor},{fetchImpl:p.fetchImpl,now:NOW+1000});
+  assert.equal(outbound.cursor.direction,'in');
   p.calls.length=0;
-  const second=await loadEvmWalletBackfillPage(env,{...job,provider_cursor:first.cursor},{fetchImpl:p.fetchImpl,now:NOW+11*60000,existingTransaction:async()=>first.events[0]});
+  const second=await loadEvmWalletBackfillPage(env,{...job,provider_cursor:outbound.cursor},{fetchImpl:p.fetchImpl,now:NOW+11*60000,existingTransaction:async()=>first.events[0]});
   const q=p.calls.find(c=>c.method==='alchemy_getAssetTransfers').params[0];
   assert.equal(q.pageKey,undefined);assert.equal(q.toBlock,hex(100));assert.equal(second.events.length,0);
   assert(!p.calls.some(c=>c.method==='eth_getTransactionReceipt'));
@@ -266,4 +268,83 @@ test('holder context is cache-only, chain exact and excludes private account fie
   assert.equal(result.holders[0].wallet_context.token.by_basis.usdc.realized_pnl,'25');
   assert.equal(result.wallet_context_coverage.provider_request_performed,false);assert(!JSON.stringify(result).includes('private@'));assert(!JSON.stringify(result).includes('99999'));
   const other=await enrichHolderWalletContext({identity:{chain:'ethereum',token_address:T},holders:[{holder_address:W,classification:'owner'}]},db);assert.equal(other.holders[0].wallet_context,null);db.raw.close();
+});
+
+
+for(const [chain,chainId,key,host] of [['base',8453,'BASE','base-mainnet'],['ethereum',1,'ETH','eth-mainnet'],['bsc',56,'BSC','bnb-mainnet'],['robinhood',4663,'ROBINHOOD','robinhood-mainnet']]) {
+ test(`${chain} one missing receipt is quarantined while good history and profiles advance`,async t=>{
+  const db=sqliteStore();t.after(()=>db.raw.close());
+  const walletStore=createD1CustomerWalletCopyStore(db),backfill=createD1SourceWalletBackfillStore(db,{record_events:walletStore.recordEvents});
+  const identity=normalizeSourceWalletChainIdentity({chain,network:'mainnet',address:W});
+  await walletStore.upsertSourceWallet({...identity,now:NOW/1000,state:'requested',provider_scope:'history'});
+  await backfill.enqueueJob({chain,address:W,now:NOW});
+  const configured={...env,[`ALCHEMY_${key}_RPC_URL`]:`https://${host}.g.alchemy.com/v2/private-fixture`},p=provider();
+  let recovered=false,clock=NOW;
+  const reads=[];
+  const fetchImpl=async(url,options)=>{
+   const {method,params}=JSON.parse(options.body);reads.push({method,params});
+   const body=await (await p.fetchImpl(url,options)).json();
+   if(method==='eth_chainId')body.result=hex(chainId);
+   if(method==='alchemy_getAssetTransfers'&&body.result.transfers.length)body.result.transfers.push({...body.result.transfers[0],hash:hash(2),uniqueId:'transfer-2'});
+   if(method==='eth_getTransactionReceipt')body.result=params[0]===hash(2)&&!recovered?null:{...body.result,transactionHash:params[0]};
+   if(method==='eth_getTransactionByHash')body.result.hash=params[0];
+   return Response.json(body);
+  };
+  const run=()=>runSourceWalletBackfillBatch(backfill,{fetchSignatures:async()=>{throw Error('unexpected_solana');},hydrateTransaction:async()=>{throw Error('unexpected_solana');},fetchEvmPage:async job=>loadEvmWalletBackfillPage(configured,job,{fetchImpl,now:clock,deferReferenceFailures:true,retryReferences:await backfill.dueReferences(job.job_id,clock)})},{now:clock,maximum_jobs:1});
+  const first=await run();assert.equal(first.totals.pages_partial,1);assert.equal(first.totals.transactions_decoded,1);
+  let job=await backfill.jobForSource(identity.source_wallet_id);
+  assert.equal(job.state,'queued');assert.equal(job.provider_cursor.direction,'out');assert.equal(job.provider_cursor.unresolved_references,1);
+  const profile=await persistSourceWalletProfile(walletStore,identity.source_wallet_id,clock/1000,sourceWalletBackfillHistoryEvidence(job));
+  assert(profile);assert.equal(profile.durable_history.unresolved_references,1);assert.equal(profile.durable_history.complete_wallet_history,false);
+  assert.equal((await walletStore.listSourceEvents(identity.source_wallet_id)).length,1);
+  clock+=1000;await run();job=await backfill.jobForSource(identity.source_wallet_id);
+  assert.equal(job.state,'retry_wait');assert.equal(job.provider_cursor.direction,'done');assert.equal(job.history_exhausted,false);
+  assert.equal(job.provider_cursor.verified_through_block,undefined);
+  // No retry happens before its cooldown; the other direction was still read.
+  assert.equal(reads.filter(r=>r.method==='eth_getTransactionReceipt'&&r.params[0]===hash(2)).length,1);
+  clock=NOW+61000;recovered=true;await run();job=await backfill.jobForSource(identity.source_wallet_id);
+  assert.equal(job.state,'complete');assert.equal(job.provider_cursor.unresolved_references,0);
+  assert.equal(job.provider_cursor.verified_through_block,hex(136));
+  assert.equal(job.transactions_decoded,2);assert.equal(job.signatures_seen,2);
+  assert.equal((await walletStore.listSourceEvents(identity.source_wallet_id)).length,2);
+  const retry=db.raw.prepare('SELECT * FROM ravenos_wallet_reference_retries').get();assert.equal(retry.state,'resolved');
+  const pages=db.raw.prepare('SELECT * FROM ravenos_source_wallet_backfill_pages ORDER BY observed_at').all();
+  assert.equal(pages.length,3);assert.equal(pages[0].state,'partial');assert.equal(pages[0].failure_count,1);
+  assert.throws(()=>db.raw.prepare("UPDATE ravenos_source_wallet_backfill_pages SET state='complete'").run(),/append_only/);
+  assert(!JSON.stringify(pages).includes('private-fixture'));
+  assert(reads.every(r=>!r.method.match(/send|sign|approve/i)));
+ });
+}
+
+
+test('receipt progress survives a crash before cursor commit and reuses retained evidence',async t=>{
+ const db=sqliteStore();t.after(()=>db.raw.close());
+ const walletStore=createD1CustomerWalletCopyStore(db),backfill=createD1SourceWalletBackfillStore(db,{record_events:walletStore.recordEvents});
+ await walletStore.upsertSourceWallet({...id,now:NOW/1000,state:'requested',provider_scope:'history'});
+ await backfill.enqueueJob({chain:'base',address:W,now:NOW});
+ const p=provider();let clock=NOW,crash=true;
+ const deps={fetchSignatures:async()=>[],hydrateTransaction:async()=>null,fetchEvmPage:async job=>loadEvmWalletBackfillPage(env,job,{fetchImpl:p.fetchImpl,now:clock,deferReferenceFailures:true,existingTransaction:async(sourceId,reference)=>{
+  const row=db.raw.prepare('SELECT event_json FROM ravenos_wallet_latest_events WHERE source_wallet_id=? AND transaction_reference=?').get(sourceId,reference);
+  return row?JSON.parse(row.event_json):null;
+ }})};
+ const interrupted={...backfill,advanceJob:async input=>{if(crash){crash=false;throw Error('simulated_cursor_write_failure');}return backfill.advanceJob(input);}};
+ await runSourceWalletBackfillBatch(interrupted,deps,{now:clock,maximum_jobs:1});
+ assert.equal((await walletStore.listSourceEvents(id.source_wallet_id)).length,1);
+ assert.equal((await backfill.jobForSource(id.source_wallet_id)).provider_cursor,null);
+ const receiptReads=p.calls.filter(row=>row.method==='eth_getTransactionReceipt').length;
+ clock+=60000;await runSourceWalletBackfillBatch(backfill,deps,{now:clock,maximum_jobs:1});
+ const job=await backfill.jobForSource(id.source_wallet_id);
+ assert.equal(job.state,'queued');assert.equal(job.signatures_seen,1);assert.equal(job.transactions_decoded,1);
+ assert.equal(p.calls.filter(row=>row.method==='eth_getTransactionReceipt').length,receiptReads);
+ assert.equal((await walletStore.listSourceEvents(id.source_wallet_id)).length,1);
+});
+
+test('overlapping incoming/outgoing indexes cannot bypass an individual receipt retry limit',async()=>{
+ const job=createSourceWalletBackfillJob({chain:'base',address:W,requested_at:new Date(NOW).toISOString()});
+ const p=provider({failReceipt:true});
+ const page=await loadEvmWalletBackfillPage(env,job,{fetchImpl:p.fetchImpl,now:NOW,deferReferenceFailures:true,
+   referenceFailure:async()=>({state:'unresolved',last_error_code:'evm_wallet_backfill_receipt_incomplete'})});
+ assert.equal(page.events.length,0);assert.equal(page.cursor.direction,'out');
+ assert.equal(page.reference_outcomes[0].deferred,true);
+ assert(!p.calls.some(call=>call.method==='eth_getTransactionReceipt'));
 });
