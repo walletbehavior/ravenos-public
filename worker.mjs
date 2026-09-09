@@ -25,6 +25,7 @@ import { createSolanaWalletProfileReads } from "./lib/customer_trade/solana_wall
 import { rememberSeenWalletTokenMarks } from "./lib/customer_trade/wallet_token_marks.mjs";
 const solanaWalletTokenMetadataCache = new Map();
 import { RAVEN_JUPITER_REFERRAL } from "./lib/customer_trade/jupiter_referral.mjs";
+import { jupiterDiscoveryLifecycle, jupiterDiscoveryAge } from "./lib/jupiter_discovery_lifecycle.mjs";
 import { normalizeHyperliquidPerps } from "./lib/ravenos_perps_intelligence.mjs";
 import {
   normalizeHyperliquidBook,
@@ -3766,13 +3767,15 @@ function jupiterVelocityStats(token = {}, duration = "5m") {
   };
 }
 
-function normalizeJupiterVelocityToken(token = {}, pair = {}, { duration = "5m", rank = 0, fetchedAt } = {}) {
+function normalizeJupiterVelocityToken(token = {}, pair = {}, { duration = "5m", rank = 0, fetchedAt, category = 'toptrending' } = {}) {
   const tokenAddress = String(token.id || "").trim();
   if (!SOLANA_ADDRESS_RE.test(tokenAddress) || pair.chainId !== "solana" || pair.tokenAddress !== tokenAddress) return null;
   const poolAddress = String(pair.pairAddress || "").trim();
   const liquidityUsd = optionalFiniteNumber(pair.liquidityUsd);
   const priceUsd = optionalFiniteNumber(token.usdPrice ?? pair.priceUsd);
-  if (!poolAddress || !(liquidityUsd > 0) || !(priceUsd > 0)) return null;
+  const lifecycle = jupiterDiscoveryLifecycle(token, pair, fetchedAt);
+  const activeBonding = lifecycle?.state === 'BONDING' && !lifecycle.quality.contradictions.length;
+  if (!poolAddress || !(priceUsd > 0) || (liquidityUsd === null ? !activeBonding : liquidityUsd <= 0)) return null;
   const metrics = Object.fromEntries(["5m", "1h", "24h"].flatMap((window) => {
     const stats = jupiterVelocityStats(token, window);
     return [
@@ -3793,10 +3796,10 @@ function normalizeJupiterVelocityToken(token = {}, pair = {}, { duration = "5m",
     : Number.isFinite(firstPoolAt) ? Math.max(0, Math.round((Date.now() - firstPoolAt) / 1_000)) : null;
   const symbol = boundedPublicLabel(token.symbol, pair.symbol || "TOKEN", 24);
   return {
-    public_attention_id: `jupiter:velocity:${duration}:${tokenAddress}`,
+    public_attention_id: `jupiter:${category}:${duration}:${tokenAddress}`,
     instrument_id: `solana:pool:${poolAddress}`,
     source_type: "jupiter_velocity",
-    discovery_source: "jupiter_toptrending",
+    discovery_source: `jupiter_${category}`,
     market_type: "spot",
     chain: "Solana",
     chain_id: "solana",
@@ -3813,6 +3816,7 @@ function normalizeJupiterVelocityToken(token = {}, pair = {}, { duration = "5m",
     observed_at: fetchedAt,
     age_seconds: 0,
     context_state: "current",
+    ...(lifecycle ? { lifecycle_evidence: lifecycle } : {}),
     movement_state: current.price_change_pct === null
       ? "Flow accelerating"
       : current.price_change_pct >= 0 ? "Upside velocity" : "Downside velocity",
@@ -3833,10 +3837,11 @@ function normalizeJupiterVelocityToken(token = {}, pair = {}, { duration = "5m",
       holder_count: optionalFiniteNumber(token.holderCount),
       market_age_seconds: marketAgeSeconds,
       pool_created_at: marketAgeSeconds === null ? null : new Date(Date.now() - marketAgeSeconds * 1_000).toISOString(),
+      ...jupiterDiscoveryAge(token, fetchedAt),
       ...metrics,
     },
     jupiter: {
-      category: "toptrending",
+      category,
       interval: duration,
       rank,
       organic_score: optionalFiniteNumber(token.organicScore),
@@ -3854,16 +3859,18 @@ function normalizeJupiterVelocityToken(token = {}, pair = {}, { duration = "5m",
   };
 }
 
-async function jupiterVelocityRows({ env = {}, duration = "5m", fetchedAt = new Date().toISOString() } = {}) {
+async function jupiterVelocityRows({ env = {}, duration = "5m", fetchedAt = new Date().toISOString(), category = 'toptrending' } = {}) {
   const apiKey = String(env.JUPITER_API_KEY || "").trim();
   if (!apiKey) return [];
-  const cacheKey = `toptrending:${duration}:limit-${JUPITER_DISCOVERY_LIMIT}`;
+  if (!['toptrending', 'recent'].includes(category)) return [];
+  const cacheKey = `${category}:${duration}:limit-${JUPITER_DISCOVERY_LIMIT}`;
   const cached = cacheGet(jupiterVelocityCache, cacheKey);
   if (cached) return cached;
   const payload = await runProviderOperation({
     component: "jupiter_token_discovery",
     operation_key: cacheKey,
-    fn: () => boundedProviderJson(`${JUPITER_TOKENS_BASE_URL}/toptrending/${encodeURIComponent(duration)}?limit=${JUPITER_DISCOVERY_LIMIT}`, {
+    fn: () => boundedProviderJson(category === 'recent' ? `${JUPITER_TOKENS_BASE_URL}/recent`
+      : `${JUPITER_TOKENS_BASE_URL}/toptrending/${encodeURIComponent(duration)}?limit=${JUPITER_DISCOVERY_LIMIT}`, {
       headers: { "x-api-key": apiKey },
       maxBytes: 1024 * 1024,
       timeoutMs: 5_000,
@@ -3881,7 +3888,7 @@ async function jupiterVelocityRows({ env = {}, duration = "5m", fetchedAt = new 
   }
   const pairSettled = await Promise.allSettled(tokenBatches.map((batch, batchIndex) => runProviderOperation({
     component: "jupiter_token_discovery",
-    operation_key: `exact-pools:${duration}:${batchIndex}:${batch.map((row) => row.id).join(",")}`,
+    operation_key: `exact-pools:${category}:${duration}:${batchIndex}:${batch.map((row) => row.id).join(",")}`,
     fn: async () => {
       const addresses = batch.map((row) => row.id).join(",");
       const exactPools = await boundedProviderJson(
@@ -3904,7 +3911,7 @@ async function jupiterVelocityRows({ env = {}, duration = "5m", fetchedAt = new 
     if (!bestPair.has(pair.tokenAddress)) bestPair.set(pair.tokenAddress, pair);
   }
   const rows = tokens.filter(token => !isTokenizedEquity(token))
-    .map((token, index) => normalizeJupiterVelocityToken(token, bestPair.get(token.id), { duration, rank: index + 1, fetchedAt }))
+    .map((token, index) => normalizeJupiterVelocityToken(token, bestPair.get(token.id), { duration, rank: index + 1, fetchedAt, category }))
     .filter(Boolean)
     .slice(0, JUPITER_DISCOVERY_LIMIT);
   // A popular paired stock can be a discovery seed without becoming the card.
@@ -3914,6 +3921,36 @@ async function jupiterVelocityRows({ env = {}, duration = "5m", fetchedAt = new 
   const selected = rows.slice(0, JUPITER_DISCOVERY_LIMIT);
   cacheSet(jupiterVelocityCache, cacheKey, selected, 30_000);
   return selected;
+}
+
+async function solanaBondingDiscovery({ env = {}, duration = '5m' } = {}) {
+  const apiKey = String(env.JUPITER_API_KEY || '').trim();
+  if (!apiKey) return [];
+  const cacheKey = `bonding:${duration}`;
+  const cached = cacheGet(jupiterVelocityCache, cacheKey);
+  if (cached) return cached;
+  // A venue search supplies active curves that are older than Jupiter's
+  // last-30-launch window. Recheck the exact mint's graduation before admission.
+  const snapshot = await marketProviderReader.snapshot(`${DEXSCREENER_BASE_URL}/latest/dex/search?q=pumpfun`, { ttlMs: 60_000 });
+  const raw = (snapshot.value?.pairs || []).filter(pair => pair.chainId === 'solana' && pair.dexId === 'pumpfun'
+    && SOLANA_ADDRESS_RE.test(pair.baseToken?.address || '')).slice(0, 30);
+  if (!raw.length) return [];
+  const addresses = [...new Set(raw.map(pair => pair.baseToken.address))];
+  const tokens = await runProviderOperation({
+    component: 'jupiter_token_discovery', operation_key: `bonding-metadata:${addresses.join(',')}`,
+    fn: () => boundedProviderJson(`${JUPITER_TOKENS_BASE_URL}/search?query=${addresses.join(',')}`, {
+      headers: { 'x-api-key': apiKey }, maxBytes: 1024 * 1024, timeoutMs: 5_000, errorPrefix: 'jupiter_tokens',
+    }),
+  });
+  const byMint = new Map((Array.isArray(tokens) ? tokens : []).map(token => [token.id, token]));
+  const rows = sortedDexResults(raw).flatMap((pair, rank) => {
+    const token = byMint.get(pair.tokenAddress);
+    if (!token) return [];
+    const row = normalizeJupiterVelocityToken(token, pair, { duration, rank: rank + 1, fetchedAt: snapshot.observed_at, category: 'launchpads' });
+    return row?.lifecycle_evidence?.state === 'BONDING' ? [row] : [];
+  });
+  cacheSet(jupiterVelocityCache, cacheKey, rows, 30_000);
+  return rows;
 }
 
 function legacyDiscoverRavenEvidence(row = {}) {
@@ -4240,7 +4277,8 @@ function balancedDiscoverCandidates(rows = [], chains = [], { timeframe = "5m", 
   const nowMs = Date.now();
   const exactTokens = bestExactSpotMarketPerToken(rows, { timeframe });
   if (exactTokens.length <= limit) return exactTokens;
-  exactTokens.sort((left, right) => Number(emergingDiscoverCandidate(right, { nowMs })) - Number(emergingDiscoverCandidate(left, { nowMs })));
+  exactTokens.sort((left, right) => Number(pulseSupplementPriority(right) >= 3_000_000) - Number(pulseSupplementPriority(left) >= 3_000_000)
+    || Number(emergingDiscoverCandidate(right, { nowMs })) - Number(emergingDiscoverCandidate(left, { nowMs })));
   const orderedChains = [...new Set(chains.map((chain) => String(chain || "").trim().toLowerCase()).filter(Boolean))];
   const buckets = new Map(orderedChains.map((chain) => [chain, []]));
   const remainder = [];
@@ -4322,7 +4360,11 @@ async function onchainMarketPulse({ env = {}, request = null, chains = [], durat
     reason: new Error(runtime.runtime_block_reason || "onchain_market_pulse_provider_unavailable"),
   })));
   const jupiterPromise = chains.includes("solana")
-    ? jupiterVelocityRows({ env, duration, fetchedAt }).catch(() => [])
+    ? Promise.allSettled([
+      ...['toptrending', 'recent'].map(category => jupiterVelocityRows({ env, duration, fetchedAt, category })),
+      solanaBondingDiscovery({ env, duration }),
+    ])
+      .then(results => results.flatMap(result => result.status === 'fulfilled' ? result.value : []))
     : Promise.resolve([]);
   const dexchPromise = dexchPulseDiscovery({ env, chains, duration, fetchedAt }).catch(() => ({
     state: "unavailable",
@@ -4360,7 +4402,14 @@ async function onchainMarketPulse({ env = {}, request = null, chains = [], durat
     dexchDiscoveryTokenKey(token.chain, token.address),
     token,
   ]));
-  const currentRows = [...jupiterRows, ...providerRows, ...existingRows].map((row) => {
+  // Reuse the independent, cached market universe for older-token scans. This
+  // does not trigger collection, RPC fan-out, or refresh observation timestamps.
+  const participation = env.RAVENOS_PARTICIPATION_UNIVERSE_ENABLED === '1' && env.RAVENOS_CUSTOMER_DB?.prepare
+    ? await createParticipationSnapshotStore(env.RAVENOS_CUSTOMER_DB).read().catch(() => null) : null;
+  const cachedUniverseRows = (participation?.payload?.rows || []).filter(row => chains.includes(row.chain_id)
+    && Date.now() - Date.parse(row.observed_at) >= 0 && Date.now() - Date.parse(row.observed_at) <= 120_000)
+    .map(row => ({ ...row, discovery_source: 'cached_participation_universe' }));
+  const currentRows = [...jupiterRows, ...providerRows, ...existingRows, ...cachedUniverseRows].map((row) => {
     const token = dexchByToken.get(dexchDiscoveryTokenKey(row.chain_id || row.chain, row.token_address));
     return token ? attachDexchLifecycle(row, token, fetchedAt) : row;
   });
@@ -4453,6 +4502,9 @@ async function onchainMarketPulse({ env = {}, request = null, chains = [], durat
     discovery_lanes: {
       raven_tracked: false,
       jupiter_velocity: jupiterRows.length > 0,
+      jupiter_recent: jupiterRows.filter(row => row.jupiter?.category === 'recent').length,
+      solana_bonding_markets: jupiterRows.filter(row => row.lifecycle_evidence?.state === 'BONDING').length,
+      cached_universe_markets: cachedUniverseRows.length,
       meteora_exact_pools: rows.some((row) => /meteora/i.test(String(row.venue || ""))),
       robinhood_velocity: rows.some((row) => String(row.chain_id || "").toLowerCase() === "robinhood"),
       dexch_launchpads: dexchDiscovery.rows?.length || 0,

@@ -91,7 +91,8 @@ function qualifiedJupiterVelocityProjection(value) {
       && row?.identity_scope === "exact_pool"
       && row?.instrument_id === `solana:pool:${row?.pool_address}`
       && row?.evidence_scope === "exact_token_flow_plus_exact_pool_route"
-      && row?.jupiter?.category === "toptrending"
+      && ["toptrending", "recent", "launchpads"].includes(row?.jupiter?.category)
+      && row?.discovery_source === `jupiter_${row.jupiter.category}`
       && row?.jupiter?.metric_scope === "exact_token"
       && row?.jupiter?.route_scope === "best_current_exact_pool"
       && row?.research_only === true

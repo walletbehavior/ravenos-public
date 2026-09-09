@@ -7,6 +7,7 @@ import {
   opportunityLifecycle,
   spotMarketCapitalization,
   spotMarketFactFreshness,
+  reportedSpotLifecycle,
   spotRouteIsCurrent,
   validateAttentionBenchmark,
 } from "/ravenos-discover-intelligence.js";
@@ -1073,21 +1074,7 @@ function hasDegenRelevantSpotActivity(row) {
 }
 
 function reportedLaunchpadLifecycle(row = {}) {
-  const evidence = row.lifecycle_evidence;
-  const chain = text(row.chain_id || row.chain, "").toLowerCase();
-  const namespace = { solana: "solana:mainnet-beta", robinhood: "eip155:4663", base: "eip155:8453", bsc: "eip155:56", ethereum: "eip155:1" }[chain];
-  const observed = Date.parse(evidence?.observed_at || "");
-  return evidence?.schema_version === "ravenos.token_lifecycle.dexch.v1"
-    && evidence.provider === "dexch"
-    && evidence.evidence_class === "DEXCH_REPORTED"
-    && evidence.token_address === row.token_address
-    && namespace && evidence.chain_id === namespace
-    && ["BONDING", "GRADUATED"].includes(evidence.state)
-    && evidence.raven_verified === false
-    && evidence.execution_authority === false
-    && Array.isArray(evidence.quality?.contradictions)
-    && evidence.quality.contradictions.length === 0
-    && Number.isFinite(observed) && Math.abs(Date.now() - observed) <= DISCOVER_MARKET_FACT_TARGET_SECONDS * 1_000;
+  return reportedSpotLifecycle(row) !== null;
 }
 
 function lifecycleBrowseActive() {
@@ -1655,12 +1642,14 @@ function recordSpotSessionChanges(rows) {
   }
 }
 
-function cohortMatches(row) {
-  const filter = state.spotCohort;
+function cohortMatches(row, filter = state.spotCohort) {
   if (filter === "all") return true;
   const cohort = text(row?.discovery?.migration_cohort?.value, "");
   const behavior = text(row?.discovery?.primary_behavior_state?.value, "");
-  if (filter === "new") return cohort === "initial_discovery" || behavior === "initial_discovery";
+  if (filter === "new") {
+    const age = finite(row.market?.token_age_seconds) ?? finite(row.market?.first_pool_age_seconds) ?? finite(row.market?.market_age_seconds);
+    return (age !== null && age <= 86_400) || cohort === "initial_discovery" || behavior === "initial_discovery";
+  }
   if (filter === "bonding") return cohort === "pre_migration";
   if (filter === "migrated") return cohort === "post_migration" || behavior === "post_migration_expansion";
   if (filter === "mature") return cohort === "mature";
@@ -1672,15 +1661,15 @@ function cohortMatches(row) {
   return false;
 }
 
-function opportunityLaneMatches(row) {
+function opportunityLaneMatches(row, selected = state.spotLane) {
   const lane = text(row?.discovery?.opportunity_lane?.value, "");
-  if (state.spotLane === "all") return true;
-  if (state.spotLane === "opportunities") return row?.discovery?.notability?.default_opportunity_eligible === true;
-  return lane === state.spotLane;
+  if (selected === "all") return true;
+  if (selected === "opportunities") return row?.discovery?.notability?.default_opportunity_eligible === true;
+  return lane === selected;
 }
 
-function revivalScanMatches(row) {
-  if (!state.spotRevivalOnly) return true;
+function revivalScanMatches(row, enabled = state.spotRevivalOnly) {
+  if (!enabled) return true;
   const revival = row?.discovery?.revival_scan;
   return revival?.schema_version === DISCOVER_REVIVAL_SCAN_SCHEMA
     && revival.qualified === true
@@ -1783,8 +1772,9 @@ function degenMarketCapFilterActive() {
   return maximum !== null && maximum <= 100_000;
 }
 
-function spotRankedRows() {
-  const broadDegenScan = degenMarketCapFilterActive() || state.spotRevivalOnly;
+function spotRankedRows({ cohort = state.spotCohort, revival = state.spotRevivalOnly, lane = state.spotLane } = {}) {
+  const broadDegenScan = degenMarketCapFilterActive() || revival;
+  const lifecycleBrowse = ['new', 'bonding', 'migrated'].includes(cohort);
   const candidates = state.participationFilter && state.participationGroupLoaded ? state.participationGroupRows : state.spotRows;
   const current = candidates.filter((row) => {
     const chain = text(row.chain_id || row.chain, "").toLowerCase();
@@ -1793,16 +1783,16 @@ function spotRankedRows() {
     return ["solana", "robinhood", "base", "bsc", "ethereum"].includes(chain)
       && (state.spotChain === "all" || chain === state.spotChain)
       && validDiscoverRow(row, { allowExpiredSnapshot: Boolean(state.participationFilter) })
-      && opportunityLaneMatches(row)
-      && revivalScanMatches(row)
-      && cohortMatches(row)
+      && opportunityLaneMatches(row, lane)
+      && revivalScanMatches(row, revival)
+      && cohortMatches(row, cohort)
       && advancedFiltersMatch(row)
       && (!state.participationFilter || matchesParticipationCell(row, state.participationFilter))
-      && (state.spotLane !== "opportunities" || currentFacts)
+      && (lane !== "opportunities" || currentFacts)
       && (state.spotSort !== "raven" || currentFacts)
       && (retained || state.participationFilter || (
-        survivesCurrentSpotMarket(row, { allowQuietLifecycle: lifecycleBrowseActive() })
-        && ((lifecycleBrowseActive() && reportedLaunchpadLifecycle(row))
+        survivesCurrentSpotMarket(row, { allowQuietLifecycle: lifecycleBrowse })
+        && ((lifecycleBrowse && reportedLaunchpadLifecycle(row))
           || (broadDegenScan ? hasDegenRelevantSpotActivity(row) : hasDecisionUsefulSpotActivity(row)))
       ));
   });
@@ -2572,6 +2562,14 @@ function renderSpotTokenTape({ forceOrder = false } = {}) {
         : `No ${state.spotTimeframe} matches.`);
     append(copy, "small", "", refreshing ? "Retrying automatically." : "Unavailable ≠ zero.");
     const actions = append(copy, "div", "discover-token-empty-actions", "");
+    if (lifecycleBrowseActive() || state.spotRevivalOnly) {
+      const allMarkets = append(actions, 'button', '', state.spotChain === 'all' ? 'Show all markets' : `Show ${spotChainLabel(state.spotChain)} markets`);
+      allMarkets.type = 'button';
+      allMarkets.addEventListener('click', () => {
+        state.spotCohort = 'all'; state.spotRevivalOnly = false; state.spotLane = 'all';
+        renderSpotPulse(state.spotRows, { forceOrder: true });
+      });
+    }
     if (state.spotLane === "opportunities") {
       const everything = append(actions, "button", "", "Open everything");
       everything.type = "button";
@@ -2663,10 +2661,26 @@ function renderSpotPulse(rows = state.spotRows, { forceOrder = false } = {}) {
     button.classList.toggle("active", active);
     button.setAttribute("aria-pressed", String(active));
   });
+  // Counts use the same admission and user filters as the results. No quick
+  // category is advertised just because another chain has matching tokens.
+  const lifecycleCounts = Object.fromEntries(['all', 'new', 'bonding', 'migrated'].map(cohort => [cohort,
+    groupSpotRowsByCanonicalAsset(spotRankedRows({ cohort, revival: false, lane: 'all' })).length]));
+  const revivalCount = groupSpotRowsByCanonicalAsset(spotRankedRows({ cohort: 'all', revival: true, lane: 'all' })).length;
+  const updateQuickCategory = (button, count, active) => {
+    if (!button.closest('.discover-lifecycle-quickbar')) return;
+    const label = button.dataset.categoryLabel || button.textContent;
+    button.dataset.categoryLabel = label;
+    button.dataset.matchCount = String(count);
+    button.textContent = count ? `${label} · ${count}` : label;
+    button.hidden = count === 0 && !active && button.dataset.spotCohort !== 'all';
+    button.disabled = count === 0 && !active && button.dataset.spotCohort !== 'all';
+    button.title = `${count} matching ${spotChainLabel(state.spotChain)} markets`;
+  };
   document.querySelectorAll("[data-spot-cohort]").forEach((button) => {
     const active = button.dataset.spotCohort === state.spotCohort;
     button.classList.toggle("active", active);
     button.setAttribute("aria-pressed", String(active));
+    if (Object.hasOwn(lifecycleCounts, button.dataset.spotCohort)) updateQuickCategory(button, lifecycleCounts[button.dataset.spotCohort], active);
   });
   document.querySelectorAll("[data-spot-market-cap]").forEach((button) => {
     const active = button.dataset.spotMarketCap === state.spotMarketCapFilter;
@@ -2682,6 +2696,7 @@ function renderSpotPulse(rows = state.spotRows, { forceOrder = false } = {}) {
   document.querySelectorAll("[data-spot-revival]").forEach((button) => {
     button.classList.toggle("active", state.spotRevivalOnly);
     button.setAttribute("aria-pressed", String(state.spotRevivalOnly));
+    updateQuickCategory(button, revivalCount, state.spotRevivalOnly);
   });
   const contractToggle = document.getElementById("discoverSameSymbolToggle");
   if (contractToggle) {
@@ -3465,8 +3480,8 @@ function currentOnchainPulsePayload(payload) {
     const sourceValid = row?.source_type === "market_activity"
       || (row?.source_type === "launchpad_discovery" && reportedLaunchpadLifecycle(row)) || (
       row?.source_type === "jupiter_velocity"
-      && row?.discovery_source === "jupiter_toptrending"
-      && row?.jupiter?.category === "toptrending"
+      && ['toptrending', 'recent', 'launchpads'].includes(row?.jupiter?.category)
+      && row?.discovery_source === `jupiter_${row.jupiter.category}`
       && row?.jupiter?.metric_scope === "exact_token"
       && row?.jupiter?.route_scope === "best_current_exact_pool"
     );

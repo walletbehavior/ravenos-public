@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { buildDiscoverRadarProjection } from "../../lib/discover_radar.mjs";
 import { buildParticipationMap } from '../../ravenos-participation-map.js';
+import { jupiterDiscoveryLifecycle } from '../../lib/jupiter_discovery_lifecycle.mjs';
 
 test('the shared participation universe is broader than Discovery and a group opens its cached members', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
@@ -175,6 +176,50 @@ for (const width of [1440, 390]) test(`Discover lifecycle controls show quiet re
   await expect(page.locator('.discover-token-row')).toHaveCount(0);
 });
 
+for (const width of [1440, 390]) test(`Solana lifecycle tabs use Jupiter evidence and chain-specific counts at ${width}px`, async ({ page }) => {
+  await page.setViewportSize({ width, height: 900 });
+  const bonding = quietLaunchpadRow(solanaPulseRow, 'SOLBOND', 'BONDING');
+  const graduated = quietLaunchpadRow(solanaPulseRow, 'SOLGRAD', 'GRADUATED');
+  graduated.token_address = 'G'.repeat(32);
+  graduated.pool_address = 'H'.repeat(32);
+  graduated.instrument_id = `solana:pool:${graduated.pool_address}`;
+  for (const row of [bonding, graduated]) {
+    row.source_type = 'jupiter_velocity';
+    row.discovery_source = 'jupiter_launchpads';
+    row.jupiter = { category: 'launchpads', metric_scope: 'exact_token', route_scope: 'best_current_exact_pool' };
+    row.lifecycle_evidence = jupiterDiscoveryLifecycle({ id: row.token_address, launchpad: 'pump.fun',
+      ...(row === graduated ? { graduatedPool: row.pool_address, graduatedAt: new Date(Date.now() - 3600000).toISOString() } : {}),
+    }, { chainId: 'solana', tokenAddress: row.token_address, dexId: row === graduated ? 'pumpswap' : 'pumpfun' }, new Date().toISOString());
+  }
+  // Bonding-curve liquidity can be absent; it is never invented as zero.
+  bonding.market.liquidity_usd = null;
+  const rh = quietLaunchpadRow(robinhoodPulseRow, 'RHGRAD', 'GRADUATED');
+  const rows = [bonding, graduated, rh];
+  await mockWorkspaceApis(page, { pulseRowsOverride: rows });
+  await page.goto('/discover/');
+  await page.locator('[data-spot-chain="solana"]').click();
+  const quick = page.locator('.discover-lifecycle-quickbar');
+  await expect(quick.locator('[data-spot-cohort="bonding"]')).toHaveText('Bonding · 1');
+  await expect(quick.locator('[data-spot-cohort="migrated"]')).toHaveText('Migrated · 1');
+  await quick.locator('[data-spot-cohort="bonding"]').click();
+  await expect(page.locator('.discover-token-row')).toHaveCount(1);
+  await expect(page.locator('#discoverTokenTapeList')).toContainText('SOLBOND');
+  await quick.locator('[data-spot-cohort="migrated"]').click();
+  await expect(page.locator('#discoverTokenTapeList')).toContainText('SOLGRAD');
+  await expect(page.locator('#discoverTokenTapeList')).not.toContainText('RHGRAD');
+  // A route that loses lifecycle evidence can recover within the same chain.
+  delete graduated.lifecycle_evidence;
+  graduated.migration_cohort = { value: 'mature' };
+  Object.assign(graduated.market, { volume_usd_5m: 2000, volume_usd_1h: 5000, volume_usd_24h: 10000,
+    buys_5m: 12, sells_5m: 8, buys_1h: 30, sells_1h: 20, traders_5m: 15, price_change_5m_pct: 5 });
+  await page.evaluate(() => window.__RAVENOS_DISCOVER__.refresh({ manual: true }));
+  await page.locator('#discoverTokenUpdates').click();
+  await page.getByRole('button', { name: 'Show Solana markets', exact: true }).click();
+  await expect(page.locator('[data-spot-chain="solana"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#discoverTokenTapeList')).toContainText('SOLGRAD');
+  await expect(quick.locator('[data-spot-cohort="migrated"]')).toBeHidden();
+});
+
 test('Discover lifecycle admission rejects mismatched, stale, contradictory and collapsed launch evidence', async ({ page }) => {
   const mutations = [
     row => { row.lifecycle_evidence.token_address = '0x0000000000000000000000000000000000000001'; },
@@ -193,7 +238,7 @@ test('Discover lifecycle admission rejects mismatched, stale, contradictory and 
   });
   await mockWorkspaceApis(page, { pulseRowsOverride: rows });
   await page.goto('/discover/');
-  await page.locator('.discover-lifecycle-quickbar [data-spot-cohort="migrated"]').click();
+  await expect(page.locator('.discover-lifecycle-quickbar [data-spot-cohort="migrated"]')).toBeHidden();
   await expect(page.locator('.discover-token-row')).toHaveCount(0);
   await expect(page.locator('#discoverTokenTapeList')).not.toContainText('REJECT');
 });
@@ -1471,7 +1516,10 @@ test("Discover groups same-symbol contracts for clarity and reveals every exact 
   await page.goto("/discover/");
 
   await expect(page.locator(".discover-lifecycle-quickbar")).toBeVisible();
-  await expect(page.locator(".discover-lifecycle-quickbar > div button")).toHaveText(["All", "New", "Bonding", "Migrated", "Trading again"]);
+  await expect(page.locator('.discover-lifecycle-quickbar [data-spot-cohort="all"]')).toHaveText('All · 2');
+  await expect(page.locator('.discover-lifecycle-quickbar [data-spot-cohort="bonding"]')).toBeHidden();
+  await expect(page.locator('.discover-lifecycle-quickbar [data-spot-cohort="migrated"]')).toBeHidden();
+  await expect(page.locator('#discoverRevivalScan')).toBeHidden();
   await expect(page.locator(".discover-token-row")).toHaveCount(1);
   await expect(page.locator("#discoverSpotResultState")).toHaveText("1 shown · 2 exact tokens");
   await expect(page.locator("#discoverTokenTapeList")).toContainText("2 same-symbol contracts · best shown");

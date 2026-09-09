@@ -35,6 +35,29 @@ export function spotMarketFactFreshness(row = {}, nowMs = Date.now()) {
   };
 }
 
+// Lifecycle evidence follows the token across pools. Provider membership or a
+// young pool alone is not evidence that a token bonded or graduated.
+export function reportedSpotLifecycle(row = {}, nowMs = Date.now()) {
+  const evidence = row.lifecycle_evidence;
+  const chain = String(row.chain_id || row.chain || '').toLowerCase();
+  const namespace = { solana: 'solana:mainnet-beta', robinhood: 'eip155:4663', base: 'eip155:8453', bsc: 'eip155:56', ethereum: 'eip155:1' }[chain];
+  const contracts = {
+    dexch: ['ravenos.token_lifecycle.dexch.v1', 'DEXCH_REPORTED'],
+    jupiter: ['ravenos.token_lifecycle.v1', 'JUPITER_REPORTED'],
+  };
+  const contract = contracts[evidence?.provider];
+  const observed = Date.parse(evidence?.observed_at || '');
+  const sameToken = chain === 'solana' ? evidence?.token_address === row.token_address
+    : String(evidence?.token_address || '').toLowerCase() === String(row.token_address || '').toLowerCase();
+  if (!contract || evidence.schema_version !== contract[0] || evidence.evidence_class !== contract[1]
+    || !row.token_address || !sameToken || !namespace || evidence.chain_id !== namespace
+    || !['BONDING', 'GRADUATED'].includes(evidence.state)
+    || evidence.raven_verified !== false || evidence.execution_authority !== false
+    || !Array.isArray(evidence.quality?.contradictions) || evidence.quality.contradictions.length
+    || !Number.isFinite(nowMs) || !Number.isFinite(observed) || nowMs < observed || nowMs - observed > 120_000) return null;
+  return evidence;
+}
+
 // Discovery route evidence is a short-lived research fact, never permission to
 // sign. Terminal must still acquire and review its own exact quote.
 export function spotRouteIsCurrent(row = {}, nowMs = Date.now()) {
