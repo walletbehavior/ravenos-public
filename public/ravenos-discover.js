@@ -1022,7 +1022,11 @@ function spotTimingLabel(row = {}) {
   return `Raven ${Math.round(seconds)}s earlier`;
 }
 
-function spotMetric(row, metric, timeframe = state.spotTimeframe) {
+function spotDisplayTimeframe() {
+  return state.participationFilter && state.spotSort === 'participation' ? '6h' : state.spotTimeframe;
+}
+
+function spotMetric(row, metric, timeframe = spotDisplayTimeframe()) {
   const suffix = ["price_change", "volume_change", "liquidity_change", "holder_change"].includes(metric) ? "_pct" : "";
   return finite(row?.market?.[`${metric}_${timeframe}${suffix}`]);
 }
@@ -2338,7 +2342,7 @@ function updateSpotTokenRow(anchor, row, index) {
 
   const anatomy = append(anchor, "div", "discover-token-anatomy", "");
   anatomy.textContent = "";
-  renderTokenStat(anatomy, "Vol", !factFreshness.current || finite(spotMetric(row, "volume_usd")) === null ? "" : compact(spotMetric(row, "volume_usd"), { currency: true }));
+  renderTokenStat(anatomy, participationRanking ? "6h Vol" : "Vol", !factFreshness.current || finite(spotMetric(row, "volume_usd")) === null ? "" : compact(spotMetric(row, "volume_usd"), { currency: true }));
   renderTokenStat(anatomy, "Liq", !factFreshness.current || finite(row.market?.liquidity_usd) === null ? "" : compact(row.market.liquidity_usd, { currency: true }));
   const marketCap = factFreshness.current ? spotMarketCapitalization(row.market) : null;
   const fdv = factFreshness.current && finite(row.market?.fdv_usd) > 0 ? finite(row.market.fdv_usd) : null;
@@ -2352,7 +2356,7 @@ function updateSpotTokenRow(anchor, row, index) {
   const transactions = factFreshness.current ? spotWindowFlow(row).transactions : null;
   renderTokenStat(
     anatomy,
-    traders === null ? "Tx" : "Traders",
+    `${participationRanking ? "6h " : ""}${traders === null ? "Tx" : "Traders"}`,
     traders === null ? (transactions === null ? "Unknown" : compact(transactions)) : compact(traders),
   );
   renderTokenStat(anatomy, "Holders", !factFreshness.current || finite(row.market?.holder_count) === null ? "" : compact(row.market.holder_count));
@@ -2392,6 +2396,9 @@ function updateSpotTokenRow(anchor, row, index) {
           buyShare === null ? "" : `${Math.round(buyShare * 100)}% buy-side`,
         ].filter(Boolean).join(" · "));
     if (!firstObservation) append(raven, "strong", "", decisionHeadline);
+  } else if (participationRanking) {
+    append(raven, 'span', '', '6h performance');
+    append(raven, 'strong', '', movement === null ? 'Full-window return unavailable' : movement > 0 ? 'Rising over six hours' : movement < 0 ? 'Falling over six hours' : 'Unchanged over six hours');
   } else {
     const ravenEvidence = discovery.raven_evidence_state;
     const ravenState = {
@@ -2686,7 +2693,7 @@ function renderSpotPulse(rows = state.spotRows, { forceOrder = false } = {}) {
     ["discoverMoveFilterLabel", "move"],
   ]) {
     const label = document.getElementById(id);
-    if (label) label.textContent = `${state.spotTimeframe} ${metric}`;
+    if (label) label.textContent = `${spotDisplayTimeframe()} ${metric}`;
   }
   updateSpotRefineSummary();
   const views = {

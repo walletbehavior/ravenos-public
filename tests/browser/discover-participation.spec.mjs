@@ -14,7 +14,7 @@ for (const chain of ['solana', 'base']) test(`${chain}: green group opens the co
     symbol: index === 1 ? 'TREE' : `COIN${index}`, name: index === 1 ? 'Tree' : `Coin ${index}`, identity_scope: 'exact_pool', venue: 'Fixture',
     observed_at: observed, context_state: 'current', market: { price_usd: 0.1, market_cap_usd: 20000000, liquidity_usd: 500000,
       market_age_seconds: 864000, price_change_6h_pct: change, price_change_5m_pct: 0.2, price_change_1h_pct: 1,
-      volume_usd_6h: index === 0 ? 9999999 : 100000, volume_usd_5m: 20000, buys_5m: 40, sells_5m: 20 },
+      volume_usd_6h: index === 0 ? 9999999 : 100000, volume_usd_5m: 20000, buys_6h: 150, sells_6h: 50, buys_5m: 40, sells_5m: 20 },
   }));
   rows.push({ ...rows[0], instrument_id: `${chain}:pool:stockpool`, pool_address: 'stockpool', token_address: 'stock-address', name: 'Apple xStock', symbol: 'AAPLx' });
   const radar = buildDiscoverRadarProjection(rows, { timeframe: '5m', generatedAt: observed, nowMs: now, sourceState: 'current' });
@@ -42,6 +42,9 @@ for (const chain of ['solana', 'base']) test(`${chain}: green group opens the co
   await expect(coins.first()).toHaveAttribute('data-token-address', 'coin1');
   await expect(coins.first().locator('.discover-token-move > strong')).toContainText('85.00%');
   await expect(coins.first().locator('.discover-token-move-context')).toContainText('6h move');
+  await expect(coins.first().locator('.discover-token-anatomy')).toContainText('6h Vol');
+  await expect(coins.first().locator('.discover-token-anatomy')).toContainText('$100K');
+  await expect(coins.first().locator('.discover-token-anatomy')).toContainText('200');
   const href = new URL(await coins.first().getAttribute('href'), 'https://ravenos.xyz');
   expect(href.searchParams.get('token_address')).toBe('coin1');
   expect(href.searchParams.get('quote_address')).toBe('stock-address');
