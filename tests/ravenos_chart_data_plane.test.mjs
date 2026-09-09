@@ -696,7 +696,9 @@ test("DexPaprika discovery resolves the supplied Robinhood Chain contract when D
       if (url.includes("dexscreener.com")) return new Response(JSON.stringify(url.includes("/tokens/v1/") ? [] : { pairs: [] }), { status: 200 });
       throw new Error(`Unexpected test request: ${url}`);
     };
-    const response = await ravenosWorker.fetch(new Request(`https://ravenos.xyz/api/dexscreener/search?q=${tokenAddress}`), {});
+    const response = await ravenosWorker.fetch(new Request(`https://ravenos.xyz/api/dexscreener/search?q=${tokenAddress}`), {
+      RAVENOS_DEXCH_CHARTS_ENABLED: '1', RAVENOS_DEXCH_DISCOVERY_ENABLED: '1',
+    });
     const body = await response.json();
     assert.equal(response.status, 200);
     assert.equal(body.results.length, 1);
@@ -752,7 +754,9 @@ test("BNB contract lookup preserves a searched quote-side token and exposes exac
       if (url.includes("/tokens/v1/")) return new Response(JSON.stringify([]), { status: 200 });
       throw new Error(`Unexpected test request: ${url}`);
     };
-    const response = await ravenosWorker.fetch(new Request(`https://ravenos.xyz/api/dexscreener/search?q=${tokenAddress}`), {});
+    const response = await ravenosWorker.fetch(new Request(`https://ravenos.xyz/api/dexscreener/search?q=${tokenAddress}`), {
+      RAVENOS_DEXCH_CHARTS_ENABLED: '1', RAVENOS_DEXCH_DISCOVERY_ENABLED: '1',
+    });
     const body = await response.json();
     assert.equal(response.status, 200);
     assert.equal(body.results.length, 1);
@@ -913,7 +917,7 @@ test("one-minute and one-month intervals remain distinct", () => {
   assert.equal(hyperliquidInterval("1M"), "1M");
 });
 
-test("search reports per-provider exact-market coverage without silently switching providers", async () => {
+test("search preserves an explicitly selected provider when reporting chart coverage", async () => {
   const originalFetch = globalThis.fetch;
   const tokenAddress = "0x230442c8133a9efb4c278b3723043444749ca08b";
   const pairAddress = "0x602633428507bbaa848e6d0c3127cda15eeae6a9";
@@ -954,6 +958,35 @@ test("search reports per-provider exact-market coverage without silently switchi
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+test('search recognizes an enabled embedded-chart fallback when its first provider does not serve Solana', async () => {
+  const originalFetch = globalThis.fetch;
+  const pool = 'HMzvsEEmtzHhvZNw9uwbaG85HCTmFnkbhzUx16cy7ca3';
+  try {
+    globalThis.fetch = async input => {
+      const url = String(input?.url || input);
+      if (url.includes('dexscreener.com')) return Response.json({ pairs: [{ chainId: 'solana', dexId: 'pumpswap', pairAddress: pool,
+        baseToken: { address: 'Ai66LHZG9MCzg1WKdawwqduVAXpNDUuV8M3uyq5ppump', symbol: 'EMBEDAUDIT', name: 'Embed audit' },
+        quoteToken: { address: 'So11111111111111111111111111111111111111112', symbol: 'SOL' }, priceUsd: '0.05', liquidity: { usd: 2000000 } }] });
+      if (url.includes('dexpaprika.com')) return Response.json({ pools: [] });
+      throw new Error('Unexpected provider call in search');
+    };
+    const response = await ravenosWorker.fetch(new Request('https://ravenos.xyz/api/dexscreener/search?q=EMBEDAUDIT'), {
+      RAVENOS_ONCHAIN_CHART_PROVIDER_ORDER: 'dexch,dexscreener', RAVENOS_DEXSCREENER_CHARTS_ENABLED: '1',
+      RAVENOS_DEXCH_CHARTS_ENABLED: '1', RAVENOS_DEXCH_DISCOVERY_ENABLED: '1',
+    });
+    const coverage = (await response.json()).results.find(row => row.pairAddress === pool).chart_coverage;
+    assert.equal(coverage.provider_id, 'dexscreener');
+    assert.equal(coverage.request_supported, true);
+    assert.equal(coverage.state, 'probe_required');
+    assert.equal(coverage.chart_surface, 'provider_embed');
+    assert.equal(coverage.exact_market_verified, false, 'search is not a successful chart load');
+    const disabled = await ravenosWorker.fetch(new Request('https://ravenos.xyz/api/dexscreener/search?q=EMBEDAUDIT'), {
+      RAVENOS_ONCHAIN_CHART_PROVIDER_ORDER: 'dexscreener', RAVENOS_DEXSCREENER_CHARTS_ENABLED: '0',
+    });
+    assert.equal((await disabled.json()).results.find(row => row.pairAddress === pool).chart_coverage.state, 'unavailable');
+  } finally { globalThis.fetch = originalFetch; }
 });
 
 test("exact EVM contract search discovers provider-listed chains without substituting another token", async () => {

@@ -6670,9 +6670,16 @@ async function resolveDexInput(input) {
 function onchainSearchChartCoverage(row = {}, env = {}) {
   let providerId = null;
   let runtime = null;
+  let candidates = [];
   try {
-    providerId = onchainChartProvidersForMarket(env, row.chainId)[0] || null;
-    runtime = providerId ? onchainProviderRuntime(providerId, env) : null;
+    candidates = onchainChartProvidersForMarket(env, row.chainId).map(id => {
+      const input = { market: 'crypto_spot', chain: row.chainId, instrumentType: 'spot_pool', pairAddress: row.pairAddress, providerId: id };
+      return { id, runtime: onchainProviderRuntime(id, env), minute: resolveChartCapability({ ...input, timeframe: '1m' }), hour: resolveChartCapability({ ...input, timeframe: '1h' }) };
+    });
+    const selected = candidates.find(candidate => candidate.runtime.runtime_allowed !== false
+      && candidate.minute.chart_request_supported === true && candidate.hour.chart_request_supported === true) || candidates[0];
+    providerId = selected?.id || null;
+    runtime = selected?.runtime || null;
   } catch {
     providerId = null;
   }
@@ -6685,7 +6692,7 @@ function onchainSearchChartCoverage(row = {}, env = {}) {
   };
   const minute = resolveChartCapability({ ...input, timeframe: "1m" });
   const hour = resolveChartCapability({ ...input, timeframe: "1h" });
-  const requestSupported = minute.chart_request_supported === true && hour.chart_request_supported === true;
+  const requestSupported = runtime?.runtime_allowed !== false && minute.chart_request_supported === true && hour.chart_request_supported === true;
   return {
     schema_version: "ravenos.search_chart_coverage.v1",
     state: requestSupported ? "probe_required" : "unavailable",
@@ -6695,8 +6702,9 @@ function onchainSearchChartCoverage(row = {}, env = {}) {
     one_minute_request_supported: minute.chart_request_supported === true,
     one_hour_request_supported: hour.chart_request_supported === true,
     provider_id: providerId,
+    chart_surface: minute.chart_surface || null,
     provider_plan: runtime?.provider_plan || null,
-    provider_runtime_state: runtime?.runtime_allowed ? "configured" : "unavailable",
+    provider_runtime_state: runtime && runtime.runtime_allowed !== false ? "configured" : "unavailable",
     reason: requestSupported
       ? "Exact-pool coverage is verified when this market is opened."
       : minute.unavailable_reason || hour.unavailable_reason || "No selected provider route is available for this exact market.",

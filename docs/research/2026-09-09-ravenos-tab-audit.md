@@ -23,6 +23,7 @@ Initial production release: `ravenos-69840770a598-36e436a3dfe4eced`, worker `774
 9. **Pro research:** Label filter controls accessibly.
 10. **Participation consistency:** Return the map summaries with a group's stored snapshot. Opening a fresh group now updates an older map from that same snapshot without extra provider requests or invented observation times.
 11. **Help / pricing:** Replace stale Activity terminology with Trending and Degen explanations, and remove the incorrect footer saying all checkout and trading are closed. Paid subscriptions remain a separately identified rollout boundary.
+12. **Search chart coverage:** Evaluate the configured provider fallback order, including enabled embedded charts. The old first-provider-only check mislabeled working Solana charts as unavailable and lowered their search rank. Exact chart loading remains verified on open.
 
 No migration, key-handling change, new provider subscription, new production fee, or live execution flag was introduced by these audit fixes.
 
@@ -57,6 +58,7 @@ No migration, key-handling change, new provider subscription, new production fee
 | Account: identity / sessions / wallets / funding/export guidance / Pro | Existing sign-in persisted, both Raven wallets ready, two remembered sessions, Pro trial active. Funding and secure export instructions present. | No export or new wallet was performed. Persisted 0.5% slippage was observed; a stored preference is distinct from the current fresh-user 3% default. |
 | Rewards / Referrals | Zero rewards and referral non-enrollment presented consistently. | No earned-fee receipt, cashback settlement, referral conversion, or paid checkout was created, so full money-flow reconciliation is not certified here. |
 | More / Monitor / recent and saved / Docs / FAQ / Pricing / Legal | Navigation and six current legal documents open. Recent and saved markets populate. | Monitor saved list genuinely empty; alert capability unavailable for the account. Help/pricing inconsistencies corrected. |
+| Global search | CATE search returned 24 exact market choices and closed back to the original chart. | False chart-unavailable labels from the first-provider-only coverage check corrected. |
 
 ## Wallet depth measured
 
