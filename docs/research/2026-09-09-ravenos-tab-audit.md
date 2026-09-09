@@ -8,7 +8,9 @@ This audit used the owner's existing signed-in Chrome session and exercised more
 
 No trades were signed or submitted; no funds moved; no payment, wallet export, public-profile opt-in, live agent, or copy strategy was activated. Existing private research saves were preserved. Raw account snapshots and diagnostic traces are private local artifacts and are not included here.
 
-Initial production release: `ravenos-69840770a598-36e436a3dfe4eced`, worker `7748881c-2645-42a7-8765-80ae334afc68`. Deployment receipts for the audit fixes are recorded by the release tooling.
+Initial production release: `ravenos-69840770a598-36e436a3dfe4eced`, worker `7748881c-2645-42a7-8765-80ae334afc68`.
+
+**Audit fixes deployed:** `ravenos-d8e502468a1e-45726ec7ef6ce9b1`, worker `63d0d744-6561-4d5d-80bc-2761f7ae9b1e`, serving both production domains at 100%. Code commits: `0e77e50ca` and `d8e502468`. The production verifier passed 39 checks, verified 24 assets and seven authenticated workspaces, and submitted zero transactions. Existing cron schedules were preserved.
 
 ## Corrections made in this pass
 
@@ -50,8 +52,9 @@ No migration, key-handling change, new provider subscription, new production fee
 | Copy: Raven Copy / Shadow feed / Positions | All panels open; account has zero watches and positions. | This is research/shadow functionality. Autonomous live Copy is not operating or verified by this audit. |
 | Agents / New agent / Radar | Paper-ready agent form opens and cancels. Existing fleet is empty. | Live agents off; Radar disabled. No basis for claiming a working live agent engine. |
 | Community: five boards / Following / Your profile | All panels open. Owner profile controls remain private/unchecked. | No public profiles meet current evidence thresholds. Do not confuse the private wallet index with opted-in public traders. |
-| Raven Lab: public Behavior | Blank despite underlying cohort data; corrected in projection/scoping. | Public preview is bounded. It is not the requested wallet-family attribution system. |
+| Raven Lab: public Behavior | Originally blank despite underlying cohort data; corrected in projection/scoping. Live recheck showed six slices after Reset, covering the five chains and a cross-chain fresh-pair cohort. | Public preview is bounded. It is not the requested wallet-family attribution system. Duplicate All filter labels and a persistent checking status need cleanup. |
 | Raven Lab: Pro Behavior / Positioning / Pressure / Liquidity / Outcomes | 96 aggregate behavior cohorts; 20 positioning, 20 pressure, 20 liquidity rows; 10 outcome rows in the observed views. | Wallet precursor/cohort families are not yet equivalent to these chain/cap aggregates. Recurring wallet context was stale and excluded. |
+| Raven Lab: Similar History / Replay | The Solana 24h link opens and preserves the requested slice. | Zero matching analogues in the final check. Completed historical coverage and qualification must improve; this is not a populated replay library. |
 | Portfolio / balances | Existing Solana balance displayed; zero EVM and stablecoin balances matched the unfunded accounts. | Helper/Governor unavailable for this account; wallet history is not yet a complete portfolio ledger. |
 | Portfolio: Shielded Reserve Deploy / Return / Send / comparison / planner | Actual read-only NEAR routes and standard-vs-ZEC comparison returned. Planner separates ready capital from ZEC reserve. | No integrated Zcash signer or verified shielded balance, and no live shielding/deployment/return. See economics below. |
 | Atlas: ETFs / Stocks / Indices / Forex / Futures / Rates / Economy / Energy | All eight catalogs loaded. SPY/AAPL charts and AAPL SEC filings work; FRED rates and EIA energy series return observations. | SPX/ES native provider data unavailable; licensed options display unavailable. Catalog presence alone is not a live data feed. |
@@ -105,3 +108,15 @@ No Raven reserve fee is configured. Trading fees remain a separate product actio
 Targeted contract and browser suites passed for candidate retention, worker projections, public/Pro intelligence, context isolation, wallet screening, wallet balances, reserve UI, Agents, Community, Atlas, participation, and public copy. The combined context/public-copy/cross-market run passed 35 unit checks and 104 browser checks; later participation changes passed 22 unit/runtime checks and six focused browser checks. Repeated suite runs are not additive coverage counts.
 
 The release process includes build/security/no-leak checks, immutable package digests, preview verification, promotion, and production asset/workspace verification. A successful release verifier confirms routes and release integrity; it does not certify real-money settlement or every upstream provider.
+
+## Final production recheck
+
+The complete session recorded 161 UI states, including post-release repeats. Final live evidence:
+
+- **Solana lifecycle:** The 240-row all-chain API retained six Bonding and nine Graduated candidates in its 48 Solana slots. The browser's combined discovery feeds subsequently displayed **30 Bonding and 29 Migrated Solana tokens**, with actual market cards. API and UI counts refer to different bounded feed combinations and observation times.
+- **Behavior:** All six public preview slices populated after Reset. Opening the Solana slice showed its own participation coverage. No completed directional comparison was attached to that broad slice, and its linked Similar History page had no qualified analogue.
+- **Search:** CATE/SOL appeared with chart coverage checked on open. The response selected the enabled DexScreener embed fallback and no longer incorrectly marked the market's chart unavailable solely because Dexch was unavailable for Solana.
+- **Participation:** An RH $100K–$500K response returned 90 markets and the matching shared board of 1,309 markets. A later browser snapshot contained 1,326 markets but showed stale/no measured six-hour returns on the visible tiles. The map/group consistency fix is live; dependable source freshness remains unfinished and is explicitly included in the roadmap.
+- **Release integrity:** Build/security/no-leak checks and both preview and production verification passed. The immutable archive SHA256 is `cb8ec7362df52dd619e2938f399567b43dc9387ce2965446a8a7141d9544c667`; 964 source digests were checked before staging.
+
+The next implementation sequence is in the [post-audit roadmap](2026-09-09-ravenos-roadmap.md). It includes the failures found in this audit rather than treating successful navigation as proof of full product readiness.
