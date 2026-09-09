@@ -311,3 +311,75 @@
 @media (max-width: 600px) { .discover-page #discoverTapeToggle { font-size: 10px; line-height: 1.2; min-height: 32px; padding: 5px 9px; white-space: nowrap; } .discover-emerging-focus small { max-width: 100%; } }
 
 .discover-page [hidden] { display: none !important; }
+
+/* Mobile discovery is a scan-friendly market list; deeper reads stay in Inspect. */
+.discover-token-mobile-meta { display: none; }
+@media (max-width: 700px) {
+  .discover-page .discover-token-tape-list { gap: 0; padding: 0; }
+  .discover-page .discover-token-row { min-height: 104px; grid-template-columns: minmax(0, 1fr) 100px 24px; grid-template-areas: 'identity move open' 'anatomy anatomy anatomy'; gap: 7px 8px; padding: 12px; border: 0; border-bottom: 1px solid var(--ws-border); border-radius: 0; background: transparent; box-shadow: none; }
+  .discover-page .discover-token-identity { grid-template-columns: 36px minmax(0, 1fr); gap: 8px; }
+  .discover-page .discover-token-rank { display: none; }
+  .discover-page .discover-token-name strong { font: 650 14px/1.35 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+  .discover-page .discover-token-name small { font-size: 11px; }
+  .discover-page .discover-token-market-id { display: none; }
+  .discover-page .discover-token-mobile-meta { display: block; color: var(--ws-muted); font: 500 12px/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+  .discover-page .discover-token-move > strong { font-size: 14px; }
+  .discover-page .discover-token-move > span { font-size: 12px; }
+  .discover-page .discover-token-anatomy { display: flex; flex-wrap: wrap; gap: 4px 12px; border: 0; border-radius: 0; background: transparent; }
+  .discover-page .discover-token-stat { display: flex; align-items: baseline; gap: 4px; padding: 0; border: 0; background: transparent; }
+  .discover-page .discover-token-stat small { font: 500 11px/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; text-transform: none; }
+  .discover-page .discover-token-stat strong { font-size: 12px; font-weight: 600; }
+  .discover-page .discover-token-raven { display: none; }
+  .discover-page .discover-token-open { width: 24px; }
+  .discover-page .discover-copy-ca { left: auto; right: 11px; top: 38px; min-width: 24px; min-height: 24px; }
+  .discover-page .discover-token-evidence { margin: 0; border-radius: 0; }
+  .discover-page .discover-token-evidence > summary { min-height: 28px; padding: 4px 12px; font-size: 11px; }
+  .discover-page[data-workspace-mode='returning'] .discover-intro-toggle { font-size: 11px; min-height: 34px; }
+  .discover-page[data-workspace-mode='returning'] .discover-token-tape-controls { gap: 6px; }
+  .discover-page[data-workspace-mode='returning'] .discover-token-chains { border: 0; background: transparent; }
+  .discover-page .discover-token-chains { flex-wrap: nowrap; overflow-x: auto; padding: 3px 0; }
+  .discover-page[data-workspace-mode] .discover-token-chains button { min-height: 36px; padding: 7px 12px; flex: none; font-size: 12px; border-radius: 18px; }
+  .discover-page[data-workspace-mode] .discover-token-sort button,
+  .discover-page[data-workspace-mode] .discover-timeframes button { min-height: 34px; padding: 6px 8px; font-size: 12px; }
+  .discover-page .workspace-toolbar button { min-height: 34px; font-size: 12px; }
+  .discover-page .workspace-statusline { display: none; }
+  .discover-page[data-workspace-mode='returning'] .workspace-operator-head h1 { max-width: 170px; font-size: 14px; }
+  .discover-page .discover-lifecycle-quickbar { flex-direction: row; overflow-x: auto; padding: 5px 8px; }
+  .discover-page .discover-lifecycle-quickbar button { min-height: 34px; flex: none; font-size: 12px; }
+  .discover-page .discover-lifecycle-quickbar-status { display: none; }
+  .discover-page .discover-refine-markets > summary { font-size: 12px; }
+}
+.discover-payoff[data-presentation="map"] { padding: 12px 16px; }
+.discover-payoff[data-presentation="map"] header { border: 0; padding: 0; }
+.discover-payoff[data-presentation="map"] h2 { font-size: 16px; }
+.discover-payoff[data-presentation="map"] #discoverPayoffSummary { display: none; }
+.discover-participation-controls { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.discover-participation-controls button, .discover-participation-expanded [data-map-family] { color: #c5dfef; font: inherit; font-size: 12px; min-height: 32px; border: 1px solid #3b5060; border-radius: 6px; background: #111e2a; padding: 5px 10px; cursor: pointer; }
+.discover-payoff[data-presentation="map"] .discover-payoff-strip { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; border: 0; }
+.discover-participation-cell { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 3px; min-width: 0; text-align: left; border: 2px solid #243442; border-radius: 7px; padding: 10px; color: #c3d2df; background: #142331; cursor: pointer; font: inherit; font-variant-numeric: tabular-nums; box-sizing: border-box; }
+.discover-participation-cell strong { font-size: 13px; line-height: 1.2; white-space: nowrap; }
+.discover-participation-cell span { font-size: 17px; font-weight: 700; }
+.discover-participation-cell small { font-size: 11px; white-space: nowrap; }
+.discover-participation-cell[data-payoff-state="rewarding"] { background: #123d31; border-color: #36806a; color: #c3f7de; }
+.discover-participation-cell[data-payoff-state="punishing"] { background: #4a202c; border-color: #964458; color: #ffd6df; }
+.discover-participation-cell[data-payoff-state="fragile"] { background: #453615; border-color: #9b7a35; color: #ffe4a2; }
+.discover-participation-cell:hover { filter: brightness(1.18); }
+.discover-participation-expanded p { color: #aebfcc; font-size: 13px; margin: 8px 0 12px; }
+.discover-participation-expanded details { margin-top: 20px; font-size: 14px; }
+.discover-participation-treemap { position: relative; width: 100%; }
+.discover-participation-treemap .discover-participation-cell { position: absolute; border-radius: 0; overflow: hidden; }
+.discover-participation-buttons { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 8px; margin-top: 10px; }
+@media (max-width: 1000px) {
+  .discover-payoff[data-presentation="map"] .discover-payoff-strip { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 700px) {
+  .discover-payoff[data-presentation="map"] { padding: 10px; }
+  .discover-payoff[data-presentation="map"] header .workspace-label { display: none; }
+  .discover-payoff[data-presentation="map"] header h2 { font-size: 14px; }
+  .discover-payoff[data-presentation="map"] #discoverPayoffWindow { font-size: 11px; }
+  .discover-payoff[data-presentation="map"] .discover-payoff-strip { display: flex; overflow-x: auto; padding-bottom: 4px; }
+  .discover-payoff[data-presentation="map"] .discover-participation-cell { flex: 0 0 150px; }
+  .discover-payoff[data-presentation="map"] .discover-participation-volume { display: none; }
+  .discover-participation-controls button { min-height: 36px; }
+  .discover-participation-buttons { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

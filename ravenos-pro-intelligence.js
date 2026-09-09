@@ -1,3 +1,6 @@
+const embeddedPage = document.querySelector('.pro-intelligence-page');
+let embeddedUrl = embeddedPage?.dataset.embeddedUrl || location.href;
+let embeddedBoot = null;
 const CAPABILITIES = Object.freeze({
   perps: Object.freeze({ key: "intelligence.perps_advanced", route: "/api/v1/intelligence/perps" }),
   participants: Object.freeze({ key: "intelligence.participant_advanced", route: "/api/v1/intelligence/participants" }),
@@ -77,7 +80,7 @@ function exactPerpInstrumentId(value) {
 }
 
 function requestedContext() {
-  const params = new URLSearchParams(window.location.search);
+  const params = new URL(embeddedPage?.dataset.embedded === 'true' ? embeddedUrl : location.href).searchParams;
   const view = ["perps", "participants"].includes(params.get("view")) ? params.get("view") : "perps";
   const instrumentId = exactPerpInstrumentId(params.get("instrument_id"));
   return { view, instrumentId };
@@ -464,7 +467,7 @@ function selectView(view, { focus = false, updateUrl = true } = {}) {
     if (selected && focus) button.focus();
   });
   document.querySelectorAll("[data-pro-panel]").forEach((panel) => { panel.hidden = panel.dataset.proPanel !== state.view; });
-  if (updateUrl) {
+  if (updateUrl && embeddedPage?.dataset.embedded !== 'true') {
     const target = new URL(window.location.pathname, window.location.origin);
     target.searchParams.set("view", state.view);
     if (state.selectedInstrumentId) target.searchParams.set("instrument_id", state.selectedInstrumentId);
@@ -619,4 +622,14 @@ async function boot() {
 }
 
 bindAuthStartForms();
-boot();
+if (embeddedPage?.dataset.embedded !== 'true') embeddedBoot = boot();
+export async function openEmbeddedIntelligence(href) {
+  embeddedUrl = href;
+  if (!embeddedBoot) { embeddedBoot = boot(); await embeddedBoot; return; }
+  await embeddedBoot;
+  const next = requestedContext();
+  state.selectedInstrumentId = next.instrumentId;
+  selectView(next.view, { updateUrl: false });
+  await loadEntitlements();
+}
+export function suspendEmbeddedIntelligence() {}

@@ -12,6 +12,7 @@ import {
 import { customerFacingText } from "./ravenos-intelligence-contract.js";
 import { mountTradingViewChart } from "./ravenos-tradingview-adapter.js";
 import { requestLegalAcceptance } from "./ravenos-legal-client.js";
+import { openIntelligenceLayer, closeIntelligenceLayers, intelligenceLayerOpen } from './ravenos-intelligence-layers.js';
 
 document.body.classList.add("ros-terminal-live-shell");
 
@@ -923,6 +924,14 @@ function terminalPaneSurface(pane) {
 }
 
 function inspectTerminalPane(pane) {
+  if (['holders', 'raven'].includes(pane)) {
+    if (intelligenceLayerOpen(`terminal-${pane}`)) return pane;
+    const nodes = pane === 'holders' ? [document.getElementById('terminalAnatomySection')]
+      : [...document.querySelectorAll('#terminalContextSection:not([hidden]), #terminalAlphaSection:not([hidden]), #terminalPlanSection:not([hidden]), #terminalRavenEmptySection:not([hidden])')];
+    if (pane === 'holders') { document.getElementById('terminalHolderList').open = true; void loadHolderList(); void loadSpotTrades(); }
+    openIntelligenceLayer({ title: pane === 'holders' ? 'Holders · wallet intelligence' : 'Raven market intelligence', kind: `terminal-${pane}`, nodes, parent: document.querySelector('.terminal-desk') || document.body });
+    return pane;
+  }
   const mobile = terminalUsesPaneNavigation();
   const next = setTerminalPane(pane, { restoreScroll: mobile });
   if (mobile) return next;
@@ -1664,6 +1673,7 @@ function renderSpotLiveExecution() {
   }
   setText("terminalSpotLiveState", label);
   setText("terminalSpotLiveMessage", message);
+  host.dataset.idle = String(liveAvailable && !run && !pending && !result && !state.spotQuoteFailure);
   const cashback = document.getElementById("terminalSpotLiveCashback");
   if (cashback) {
     const earned = result?.rewards;
@@ -6915,7 +6925,7 @@ function clearSpotQuoteRefresh() {
 function spotQuoteSurfaceActive() {
   if (document.hidden || !spotTicketQualified()) return false;
   if (!terminalUsesPaneNavigation()) return true;
-  return (document.querySelector(".terminal-live")?.dataset.terminalPane || "chart") === "trade";
+  return ["chart", "trade"].includes(document.querySelector(".terminal-live")?.dataset.terminalPane || "chart");
 }
 
 function scheduleSpotQuoteRefresh() {
@@ -8867,6 +8877,37 @@ async function loadMarkets() {
   select.replaceChildren(...state.markets.map((row) => new Option(row.asset, row.asset)));
 }
 
+const terminalModeMemory = new Map();
+let terminalModeChanging = false;
+async function switchTerminalWorkspace(scope) {
+  const lane = ({ memecoins: 'spot', perps: 'perps', equities: 'equity' })[scope];
+  if (!lane || lane === state.lane || terminalModeChanging) return;
+  if (state.spotSubmitRun || state.spotUnresolvedSubmission) { setText('terminalChartStatus', 'Waiting for the submitted trade to settle before switching markets.'); return; }
+  terminalModeChanging = true;
+  terminalModeMemory.set(state.lane, { selected: state.selected, timeframe: state.timeframe, amount: document.getElementById('terminalSpotAmount')?.value, slippage: document.getElementById('terminalSpotSlippage')?.value });
+  const saved = terminalModeMemory.get(lane);
+  closeIntelligenceLayers();
+  try {
+    ravenOSContext.setContext({ marketScope: scope });
+    if (saved?.timeframe) { state.timeframe = saved.timeframe; document.getElementById('timeframeSelect').value = saved.timeframe; }
+    if (lane === 'perps') {
+      if (!state.markets.length) await loadMarkets();
+      setLane('perps', { selectDefault: false });
+      await selectPerp(saved?.selected?.asset || defaultPerp());
+    } else if (lane === 'spot') {
+      if (saved?.selected) await selectSpot(saved.selected);
+      else setLane('spot', { selectDefault: true });
+      if (saved) {
+        document.getElementById('terminalSpotAmount').value = saved.amount;
+        document.getElementById('terminalSpotSlippage').value = saved.slippage;
+      }
+    } else if (saved?.selected) await selectAtlasInstrument(saved.selected);
+    else setLane('equity', { selectDefault: true });
+    setTerminalPane('chart'); scheduleSpotInputQuote();
+  } catch { setText('terminalChartStatus', 'This mode could not refresh. Select a market to try again.'); }
+  finally { terminalModeChanging = false; }
+}
+
 async function loadPublicPerps() {
   try {
     const { response, payload } = await fetchJson("/api/perps");
@@ -9758,6 +9799,10 @@ async function boot() {
   if (!state.workspace) throw new Error("chart_runtime_unavailable");
   terminalDesk?.attachChart(state.workspace);
   bindControls();
+  document.addEventListener('ravenos:workspace-mode', event => {
+    if (!['memecoins', 'perps', 'equities'].includes(event.detail?.scope)) return;
+    event.preventDefault(); void switchTerminalWorkspace(event.detail.scope);
+  });
   setMarketPreviewSide("long");
   setOrderPlanType("market", { seed: false });
   bindWorkspaceEvents();

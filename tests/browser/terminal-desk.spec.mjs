@@ -17,12 +17,15 @@ test("desk keeps the chart central and persists public market and layout prefere
   await page.screenshot({ path: testInfo.outputPath("desk-desktop.png"), fullPage: true });
   // Keep the chart high in the viewport, allowing the explicit 40px market-section bar.
   expect(await page.locator(".rpw-stage").evaluate(el => el.getBoundingClientRect().top)).toBeLessThan(290);
+  if (await page.locator('.ros-intelligence-layer').count()) await page.locator('.ros-layer-close').click();
   await page.locator('[data-terminal-pane-button="holders"]').click();
   await expect(page.locator("#terminalAnatomySection")).toBeVisible();
   await expect(page.locator(".terminal-chart-panel")).toBeVisible();
-  const chart = await page.locator(".terminal-chart-panel").boundingBox();
   const holders = await page.locator("#terminalAnatomySection").boundingBox();
-  expect(holders.y).toBeGreaterThan(chart.y + chart.height - 1);
+  await expect(page.locator('.ros-intelligence-layer #terminalAnatomySection')).toBeVisible();
+  expect(holders.width).toBeGreaterThan(600);
+  await page.locator('.ros-layer-close').click();
+  await page.locator('[data-terminal-pane-button="activity"]').click();
   await page.getByRole("separator", { name: "Resize market data panel" }).press("ArrowUp");
   await expect(page.getByRole("separator", { name: "Resize market data panel" })).toHaveAttribute("aria-valuenow", "320");
   await page.reload();
@@ -76,8 +79,9 @@ test("desk handles responsive layouts, focus recovery and blocked browser storag
   await page.getByLabel("Workspace layout", { exact: true }).selectOption("focus");
   await expect(page.locator(".terminal-intelligence")).toBeHidden();
   await page.locator('[data-terminal-pane-button="raven"]').click();
-  await expect(page.locator(".terminal-intelligence")).toBeVisible();
-  await expect(page.getByLabel("Workspace layout", { exact: true })).toHaveValue("balanced");
+  await expect(page.locator('.ros-intelligence-layer')).toBeVisible();
+  await page.locator('.ros-layer-close').click();
+  await expect(page.getByLabel("Workspace layout", { exact: true })).toHaveValue("focus");
   expect(errors).toEqual([]);
 });
 

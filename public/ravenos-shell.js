@@ -11,6 +11,7 @@ import { ravenOSContext } from "/ravenos-context-store.js";
 import { setPreference } from "/ravenos-preferences.js";
 import { resolveChartCapability } from "/ravenos-chart-data-plane.js";
 import { resolveTradingViewChart } from "/ravenos-tradingview-adapter.js";
+import { openIntelligenceLayer, closeIntelligenceLayers, intelligenceLayerOpen } from '/ravenos-intelligence-layers.js';
 
 const NAV_ITEMS = Object.freeze([
   {
@@ -258,15 +259,25 @@ function recentSubjectMeta(subject = {}) {
     .join(" · ");
 }
 
+function mobileNavIcon(key) {
+  const paths = {
+    discover: '<circle cx="12" cy="12" r="9"/><path d="m16 8-2 6-6 2 2-6 6-2Z"/>',
+    terminal: '<path d="M4 19V5m0 14h16M7 14l4-5 4 3 5-7"/>',
+    portfolio: '<rect x="3" y="6" width="18" height="15" rx="3"/><path d="M7 6V4a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v2M3 12h18m-11 0v3h4v-3"/>',
+    more: '<path d="M4 6h16M4 12h16M4 18h16"/>',
+  };
+  return `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[key] || paths.more}</svg>`;
+}
+
 function navMarkup(slug, { mobile = false } = {}) {
   const items = NAV_ITEMS.filter((item) => !mobile || item.mobile !== false).map((item) => {
     const active = item.match.includes(slug) ? " active" : "";
     const className = mobile ? "ros-mobile-nav-item" : "ros-workspace-nav-item";
-    return `<a class="${className}${active}" href="${ravenOSContext.decorateHref(item.href)}" data-ros-context-link data-ros-base-href="${item.href}" data-ros-nav="${item.key}"><span class="ros-nav-glyph" aria-hidden="true">${item.glyph}</span><span>${item.label}</span></a>`;
+    return `<a class="${className}${active}" href="${ravenOSContext.decorateHref(item.href)}" data-ros-context-link data-ros-base-href="${item.href}" data-ros-nav="${item.key}"><span class="ros-nav-glyph" aria-hidden="true">${mobile ? mobileNavIcon(item.key) : item.glyph}</span><span>${item.label}</span></a>`;
   }).join("");
   if (!mobile) return items;
   const moreActive = NAV_ITEMS.some((item) => item.mobile === false && item.match.includes(slug)) ? " active" : "";
-  return `${items}<button class="ros-mobile-nav-item${moreActive}" type="button" data-ros-utility="more" aria-label="More RavenOS destinations"><span class="ros-nav-glyph" aria-hidden="true">M</span><span>More</span></button>`;
+  return `${items}<button class="ros-mobile-nav-item${moreActive}" type="button" data-ros-utility="more" aria-label="More RavenOS destinations"><span class="ros-nav-glyph" aria-hidden="true">${mobileNavIcon("more")}</span><span>More</span></button>`;
 }
 
 function providerCreditMarkup() {
@@ -288,7 +299,8 @@ function providerCreditMarkup() {
 
 function marketSectionMarkup() {
   const scope = ravenOSContext.getState().marketScope;
-  return `<nav class="ros-market-sections" aria-label="Market section">${Object.entries(MARKET_SCOPES).map(([key, label]) => `<a href="/discover/?market_scope=${key}" data-market-section="${key}" aria-current="${key === scope ? "page" : "false"}">${label}</a>`).join("")}<a class="ros-section-reads" data-section-reads href="/discover/?market_scope=${scope}&view=reads">Raven Reads <span>→</span></a></nav>`;
+  const workspace = location.pathname.startsWith('/terminal') ? '/terminal/' : '/discover/';
+  return `<nav class="ros-market-sections" aria-label="Market section">${Object.entries(MARKET_SCOPES).map(([key, label]) => `<a href="${workspace}?market_scope=${key}" data-market-section="${key}" aria-current="${key === scope ? "page" : "false"}">${label}</a>`).join("")}<a class="ros-section-reads" data-section-reads href="/discover/?market_scope=${scope}&view=reads">Raven Reads <span>→</span></a></nav>`;
 }
 
 function createShellMarkup(slug) {
@@ -788,14 +800,16 @@ export function mountRavenOSShell(options = {}) {
   }
 
   function closeDrawers() {
+    if (intelligenceLayerOpen('raven-read')) closeIntelligenceLayers();
     document.body.classList.remove("ros-context-open", "ros-utility-open");
     document.getElementById("rosContextTrigger").setAttribute("aria-expanded", "false");
   }
 
   function openContext() {
+    if (intelligenceLayerOpen('raven-read')) return;
     document.body.classList.remove("ros-utility-open");
-    document.body.classList.add("ros-context-open");
     document.getElementById("rosContextTrigger").setAttribute("aria-expanded", "true");
+    openIntelligenceLayer({ title: `${MARKET_SCOPES[ravenOSContext.getState().marketScope]} · Raven Read`, kind: 'raven-read', nodes: [document.getElementById('rosContextRail')], onClose: () => document.getElementById('rosContextTrigger').setAttribute('aria-expanded', 'false') });
   }
 
   function openUtility(kind = "more") {
@@ -870,7 +884,9 @@ export function mountRavenOSShell(options = {}) {
     button.addEventListener("click", () => {
       palette.close();
       if (item.href) {
-        ravenOSContext.navigate(item.href);
+        if (item.commandType === 'wallet' && /^\/(discover|terminal)\//.test(location.pathname)) {
+          import('/ravenos-workspace-wallet-layer.js').then(module => module.openWorkspaceWallet(item.href));
+        } else ravenOSContext.navigate(item.href);
         return;
       }
       const subject = item.subject || instrumentSubject(item);
@@ -1237,6 +1253,23 @@ export function mountRavenOSShell(options = {}) {
   }
 
   document.getElementById("rosCommandTrigger").addEventListener("click", () => openPalette());
+  document.addEventListener('click', event => {
+    if (event.defaultPrevented || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+    const mode = event.target.closest('[data-market-section]');
+    if (mode) {
+      const change = new CustomEvent('ravenos:workspace-mode', { cancelable: true, detail: { scope: mode.dataset.marketSection } });
+      if (!document.dispatchEvent(change)) event.preventDefault();
+      return;
+    }
+    if (!/^\/(discover|terminal)\//.test(location.pathname)) return;
+    const anchor = event.target.closest('a[href]');
+    if (!anchor || anchor.target === '_blank') return;
+    const url = new URL(anchor.href, location.href);
+    if (![location.origin, 'https://app.ravenos.xyz', 'https://ravenos.xyz'].includes(url.origin) || !['/account/copy/', '/account/intelligence/'].includes(url.pathname)) return;
+    event.preventDefault();
+    document.body.classList.remove('ros-utility-open');
+    import('/ravenos-workspace-wallet-layer.js').then(module => module.openWorkspaceWallet(url.href));
+  });
   document.getElementById("rosCommandClose").addEventListener("click", () => palette.close());
   commandInput.addEventListener("input", () => {
     scheduleSpotSearch(commandInput.value);

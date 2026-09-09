@@ -1,6 +1,6 @@
 // Market sections are presentation boundaries, never execution permissions.
 // Exact instrument identity takes precedence over symbols (a meme can also have a perp).
-export const MARKET_SCOPES = Object.freeze({ memecoins: "Memecoins", perps: "Perps", equities: "Stocks & ETFs" });
+export const MARKET_SCOPES = Object.freeze({ memecoins: "Onchain", perps: "Perps", equities: "Atlas" });
 export function normalizeMarketScope(value, fallback = "memecoins") {
   return Object.hasOwn(MARKET_SCOPES, value || "") ? value : fallback;
 }

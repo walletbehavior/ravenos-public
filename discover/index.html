@@ -97,6 +97,11 @@
         <strong id="discoverPayoffWindow">Current read</strong>
       </header>
       <p id="discoverPayoffSummary"></p>
+      <div id="discoverParticipationControls" class="discover-participation-controls" hidden>
+        <button type="button" id="discoverParticipationMap">Open map</button>
+        <button type="button" id="discoverParticipationFamily">New pairs</button>
+        <button type="button" id="discoverParticipationClear" hidden>Clear group</button>
+      </div>
       <div class="discover-payoff-strip" id="discoverPayoffStrip"></div>
       <small id="discoverPayoffDetail"></small>
     </section>
@@ -150,7 +155,6 @@
           <button id="discoverRevivalScan" type="button" data-spot-revival aria-pressed="false">Trading again</button>
         </div>
         <span class="discover-lifecycle-quickbar-status">
-          <button id="discoverSameSymbolToggle" type="button" aria-label="Show all same-symbol contracts" aria-pressed="false">All contracts</button>
           <output id="discoverSpotResultState" aria-live="polite">Finding exact markets</output>
         </span>
       </div>
@@ -167,6 +171,7 @@
           </summary>
 <div class="discover-emerging-focus"><button id="discoverEmergingFocus" type="button" aria-pressed="true" aria-describedby="discoverEmergingDetail">Emerging first</button><small id="discoverEmergingDetail">&lt;$250M cap · $50K+ liquidity · active</small></div>
           <div class="discover-refine-body">
+            <button id="discoverSameSymbolToggle" type="button" aria-label="Show all same-symbol contracts" aria-pressed="false">Show all same-symbol contracts</button>
             <span class="discover-refine-label">Opportunity type</span>
             <div class="discover-opportunity-lanes" role="group" aria-label="Opportunity type">
               <button type="button" data-spot-lane="opportunities" aria-pressed="false">Opportunities</button>

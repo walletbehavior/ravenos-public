@@ -1,19 +1,19 @@
 # RavenOS Dexch discovery provider v1
 
-Date: 2026-09-03
+Updated: 2026-09-09
 
-Status: implemented, tested, and approved for production discovery and lifecycle enrichment on 2026-09-03. Dexch remains a replaceable, non-authoritative provider.
+Status: production discovery and lifecycle enrichment were approved on 2026-09-03. The September 9 extension adds chart sourcing and holder/trader candidate ingestion. See the [provider replacement evaluation](research/2026-09-09-market-provider-replacement.md) for deployment status and measured coverage.
 
 ## Role
 
-Dexch is a replaceable discovery and lifecycle-enrichment provider. It does not provide Raven price authority, holder authority, wallet P&L authority, route authority, or execution authority.
+Dexch is a market-data provider for discovery, lifecycle context and supported chart history. Raven validates identity and freshness at the adapter boundary. Wallet performance is reconstructed separately from transaction history; provider ranks and labels do not become Raven performance or safety claims. Execution still uses the existing execution providers.
 
 The working data flow is:
 
 1. Dexch finds or enriches a token.
 2. Raven binds the result to an exact chain and contract or mint.
 3. Raven resolves an exact pool through its existing market providers.
-4. Existing qualified candle sources render the chart.
+4. Dexch or another configured provider supplies the matching candle series.
 5. Raven exact-market observations add proprietary events and overlays.
 6. Jupiter or the provider-neutral EVM router independently proves an executable route.
 
@@ -21,11 +21,11 @@ Dexch failure cannot disable the Terminal.
 
 ## Current public API evidence
 
-The public documentation at `https://dexch.art/api-docs` was checked on 2026-09-03.
+The [public documentation](https://dexch.art/api-docs) and live capability endpoint were checked again on 2026-09-09.
 
 Documented provider surface used or normalized by this implementation:
 
-- Chains: Solana, Robinhood Chain, and BNB Chain.
+- Current live chains: Robinhood Chain and BNB Chain. Solana is no longer returned by the capability endpoint; an unsupported chain is isolated from supported results.
 - Token search and filters, including new, almost graduated, and graduated presets.
 - Token feeds.
 - Token detail.
@@ -75,6 +75,10 @@ Results are deduplicated globally by exact chain plus address before Raven resol
 
 ### Terminal and charts
 
+`RAVENOS_DEXCH_CHARTS_ENABLED=1` places Dexch first for its supported chains. The normal chart source label is “Dexch market prices.” There is no provider-quality warning or “fallback” badge.
+
+Its token-scoped candles are accepted only when the token detail and a DexScreener pool snapshot agree on the requested chain, token, pool and quote asset. History before the known pool-creation/migration boundary is excluded. Sparse bars remain sparse, with no fabricated candles. Older-page support is not advertised because Dexch documents no candle pagination parameter. A failed identity check proceeds to the next configured provider internally.
+
 Dexch lifecycle evidence can add:
 
 - token creation time and token age;
@@ -91,6 +95,8 @@ Raven continues to own exact-market annotations and overlays, including qualifie
 
 ### Wallet intelligence
 
+The existing wallet universe job can consume up to 100 holder/trader candidates per market using its existing two-request reservation. It retains candidate provenance and top-holder rank, then lets the existing history/profile queues do reconstruction. No provider token-wide trade sample is written as an exact-pool trade ledger or P&L.
+
 The provider exposes a contemporaneous wallet-entry context. It can record provider-reported token age, market cap, liquidity, launch state, and bonding progress only when the provider observation falls within a bounded window of the wallet entry observation. Current Dexch values are never substituted for historical entry conditions.
 
 ### Streams
@@ -103,7 +109,7 @@ Global channels are labeled sampled and are suitable for discovery, not complete
 
 Dexch runtime and provider health appear as non-blocking discovery-enrichment health. A Dexch outage may degrade discovery enrichment but cannot mark the core Terminal unhealthy.
 
-## Empirical evaluation
+## September 3 evaluation (historical)
 
 Command: `pnpm evaluate:dexch`
 
@@ -136,7 +142,7 @@ A release-enforced runtime also requires:
 
 - `RAVENOS_DEXCH_COMMERCIAL_USE_ACKNOWLEDGED=1`
 
-Release packaging enables both values only when the release contract marks the provider eligible. The owner authorized production activation on 2026-09-03 after the current public Dexch documentation described API access for developers and other platforms. Dexch remains excluded from price, holder, execution, and safety authority.
+Release packaging enables both values only when the release contract marks the provider eligible. The owner authorized production activation on 2026-09-03 after the current public Dexch documentation described API access for developers and other platforms. Chart activation also requires `RAVENOS_DEXCH_CHARTS_ENABLED=1`; wallet candidate intake requires `RAVENOS_MARKET_PROVIDER_FALLBACKS_ENABLED=1`. No execution or billing permission follows from these flags.
 
 ## Resource bounds
 

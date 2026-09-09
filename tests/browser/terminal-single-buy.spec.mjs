@@ -1,16 +1,35 @@
 import {test,expect} from "@playwright/test";
 import {mockTerminalLiveApis,waitForTerminalLive} from "./terminal-live-fixtures.mjs";
+test.afterEach(async({page})=>{await page.unrouteAll({behavior:"wait"});});
+test('Terminal mode changes and intelligence overlays preserve the original spot draft', async ({ page, baseURL }) => {
+  await setup(page, baseURL, { panel: 'chart' });
+  await page.locator('#terminalSpotAmount').fill('37');
+  const url = page.url();
+  await page.locator('[data-terminal-pane-button="holders"]').click();
+  await expect(page.locator('.ros-intelligence-layer')).toBeVisible();
+  await expect(page).toHaveURL(url);
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.ros-intelligence-layer')).toHaveCount(0);
+  await expect(page.locator('#terminalSpotAmount')).toHaveValue('37');
+  await page.locator('[data-market-section="perps"]').click();
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_TERMINAL__.getState().lane)).toBe('perps');
+  await page.locator('[data-market-section="memecoins"]').click();
+  await expect.poll(() => page.evaluate(() => window.__RAVENOS_TERMINAL__.getState().lane)).toBe('spot');
+  await expect(page.locator('#terminalSpotAmount')).toHaveValue('37');
+  expect((await page.evaluate(() => window.__RAVENOS_TERMINAL__.getState())).instrument).toBe('JUP/USDC');
+});
 const WALLET="11111111111111111111111111111111";
 const USDC="EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 const SOL="So11111111111111111111111111111111111111112";
 const URL="https://app.ravenos.xyz/terminal/?instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&token_address=fixture-token-address&quote_address=fixture-quote-address&panel=trade";
-async function setup(page,baseURL,{delay=0,reject=false,pending=false,statusResult=null,minimum="8323920000",embedded=false,stalledWallet=false}={}) {
+async function setup(page,baseURL,{delay=0,reject=false,pending=false,statusResult=null,minimum="8323920000",embedded=false,stalledWallet=false,panel="trade"}={}) {
   await page.route("https://app.ravenos.xyz/**", async route=>{
     const u=new globalThis.URL(route.request().url());
     await route.fulfill({response:await page.request.fetch(`${baseURL}${u.pathname}${u.search}`)});
   });
   const fixtures=await mockTerminalLiveApis(page,{spotQuotePreview:true});
   await page.route("**/api/v1/auth/session",route=>route.fulfill({json:{ok:true,authenticated:true,csrf_token:"fixturecsrf"}}));
+  await page.route("**/api/v1/wallets/balances?**",route=>route.fulfill({status:401,json:{ok:false}}));
   await page.route("**/api/trade/live/session",route=>route.fulfill({json:{ok:true,gate:{configured:true,chains:{solana:{available_to_principal:true}}}}}));
   await page.route("**/api/v1/wallets/privy",route=>route.fulfill({json:embedded ? {ok:true,available:true,app_id:"cmfixtureabcdefghijkl",client_id:"fixture",capabilities:{solana:true,evm:false,manual_signing:true},wallets:[{ecosystem:"solana",address:WALLET}]} : {ok:true,available:false}}));
   await page.route("**/api/v1/wallets/privy/session",route=>route.fulfill({json:{ok:true,token:"fixture.auth.token"}}));
@@ -37,11 +56,36 @@ async function setup(page,baseURL,{delay=0,reject=false,pending=false,statusResu
     const input=route.request().postDataJSON();statuses.push(input);
     return route.fulfill({status:statusResult==="provider_rejected"?409:200,json:{ok:statusResult!=="provider_rejected",ticket_id:input.ticket_id,reconciliation:{state:statusResult||"indeterminate"}}});
   });
-  await page.goto(URL);
+  await page.goto(URL.replace("&panel=trade", panel === "chart" ? "" : `&panel=${panel}`));
   await waitForTerminalLive(page,{lane:"spot",instrument:"JUP/USDC",timeframe:"1h"});
   if(!embedded){await page.locator("#terminalWalletConnect").click();await page.locator("#terminalWalletChooser").getByRole("button",{name:/Phantom/}).click();}
   return {fixtures,prepare,execute,statuses};
 }
+
+for (const viewport of [{width:390,height:844},{width:375,height:740},{width:430,height:932}]) test(`mobile chart opens with amount, balance and one Buy at ${viewport.width}px`,async({page,baseURL},testInfo)=>{
+  await page.setViewportSize(viewport);
+  const h=await setup(page,baseURL,{embedded:true,panel:"chart"});
+  await expect(page.locator("#terminalSpotAmount")).toBeVisible();
+  await expect(page.locator("#terminalSpotBalance")).toBeVisible();
+  await page.locator("#terminalSpotAmount").fill("25");
+  await expect(page.locator("#terminalSpotEstimateOutput")).toContainText("8365.7475");
+  await expect(page.locator("#terminalSpotQuoteAction")).toHaveText("Buy JUP");
+  expect(h.prepare).toHaveLength(0);
+  await page.evaluate(()=>window.scrollTo(0,0));
+  await page.screenshot({path:testInfo.outputPath("mobile-chart-buy.png"),fullPage:true});
+  const chart=await page.locator(".terminal-chart-panel").boundingBox();
+  const ticket=await page.locator("#terminalSpotTicketSection").boundingBox();
+  expect(ticket.y).toBeGreaterThanOrEqual(chart.y+chart.height);
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.locator("#terminalSpotQuoteAction").scrollIntoViewIfNeeded();
+  const buy=await page.locator("#terminalSpotQuoteAction").boundingBox();
+  const navigation=await page.locator(".ros-mobile-nav").boundingBox();
+  expect(buy.y+buy.height).toBeLessThanOrEqual(navigation.y+2);
+  await page.locator("#terminalSpotQuoteAction").click();
+  await expect(page.locator("#terminalSpotLiveState")).toHaveText("Trade confirmed");
+  await expect(page.locator("#terminalSpotLiveExecution")).toBeVisible();
+  expect(h.prepare).toHaveLength(1);expect(h.execute).toHaveLength(1);
+});
 
 test("typing updates tokens, slippage and impact without preparing or signing",async({page,baseURL})=>{
   const h=await setup(page,baseURL);

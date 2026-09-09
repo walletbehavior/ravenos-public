@@ -179,6 +179,7 @@ test("current exact-pool rows receive token-creation and migration evidence with
   globalThis.fetch = async (input) => {
     const url = new URL(String(input));
     if (url.origin === "https://api.dexch.art") {
+      if (url.pathname === '/api/v1/filter-options') return json({ data: { chains: [{ key: 'robinhood' }, { key: 'bsc' }] } });
       dexchRequests.push(url);
       return json({ data: [tokenFixture()] });
     }
@@ -248,8 +249,8 @@ test("current exact-pool rows receive token-creation and migration evidence with
     assert.equal(body.discovery_lanes.dexch_lifecycle_enriched, 1);
     assert.equal(body.provenance.sources.dexch.current_price_authority, false);
     assert.equal(body.provenance.sources.dexch.execution_authority, false);
-    assert.equal(dexchRequests.length, 4);
-    assert.deepEqual(dexchRequests.map((url) => url.searchParams.get("preset")), [null, "new", "almost", "graduated"]);
+    assert.equal(dexchRequests.length, 5);
+    assert.deepEqual(dexchRequests.map((url) => url.searchParams.get("preset")), [null, null, "new", "almost", "graduated"]);
     assert.equal(body.provenance.sources.dexch.token_rows, 1);
   } finally {
     globalThis.fetch = previousFetch;

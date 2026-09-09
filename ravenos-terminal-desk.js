@@ -61,6 +61,19 @@ export function createTerminalDesk({ openMarket, inspectPane, resizeChart }) {
   toolbar.innerHTML = `<button type="button" id="deskMarketsToggle" aria-controls="deskMarkets" aria-expanded="true">☷ <span>Markets</span></button><span class="desk-title">Trading desk</span><div class="desk-toolbar-end"><label class="desk-layout-label"><span class="sr-only">Workspace layout</span><select id="deskLayout" aria-label="Workspace layout"><option value="balanced">Balanced</option><option value="analysis">Analysis</option><option value="focus">Chart focus</option></select></label><details id="deskMarketInfo" class="desk-info"><summary>Market info</summary><div class="desk-info-body"></div></details></div>`;
   root.prepend(toolbar);
   const info = toolbar.querySelector(".desk-info-body");
+  const extraFacts = document.createElement('dl'); extraFacts.className = 'desk-mobile-extra-facts';
+  info.append(extraFacts);
+  toolbar.querySelector('#deskMarketInfo').addEventListener('toggle', event => {
+    if (!event.currentTarget.open) return;
+    extraFacts.replaceChildren();
+    for (const id of ['terminalMetric5Cell', 'terminalMetric6Cell']) {
+      const source = document.getElementById(id); if (!source || source.hidden) continue;
+      const label = document.createElement('dt'), value = document.createElement('dd');
+      label.textContent = source.querySelector('span')?.textContent || '';
+      value.textContent = source.querySelector('strong')?.textContent || '';
+      extraFacts.append(label, value);
+    }
+  });
   const controls = root.querySelector(".terminal-controls");
   const instrument = root.querySelector(".terminal-instrument");
   instrument.prepend(document.getElementById("terminalInstrumentTrigger"));

@@ -12,6 +12,8 @@ import {
 } from "/ravenos-discover-intelligence.js";
 import { mountTradingViewListedTape } from "/ravenos-tradingview-adapter.js";
 import { getPreference, setPreference } from "/ravenos-preferences.js";
+import { buildParticipationMap, buildPerpParticipationMap, matchesParticipationCell, matchesPerpParticipationCell, layoutParticipationTiles } from "/ravenos-participation-map.js";
+import { openIntelligenceLayer, intelligenceLayerOpen } from "/ravenos-intelligence-layers.js";
 
 const REFRESH_MS = 45 * 1_000;
 const MARKET_TAPE_REFRESH_MS = 20 * 1_000;
@@ -77,6 +79,12 @@ const NUMERIC_FILTERS = Object.freeze({
 const state = {
   marketScope: ravenOSContext.getState().marketScope,
   rawPayoff: null,
+  participationFamily: "capitalization",
+  participationFilter: null,
+  perpParticipationFilter: null,
+  perpParticipationFamily: 'open_interest',
+  perpObservedAt: null,
+  participationBoard: null,
   deskInputs: null,
   rows: new Map(),
   order: [],
@@ -192,7 +200,8 @@ function syncWorkspacePresentation() {
   const toolbar = document.querySelector(".discover-page .workspace-toolbar");
   const payoff = document.getElementById("discoverPayoff");
   if (tokenTape && toolbar && payoff) {
-    if (state.workspaceCompact && toolbar.nextElementSibling !== tokenTape) toolbar.after(tokenTape);
+    if (state.workspaceCompact && toolbar.nextElementSibling !== payoff) toolbar.after(payoff);
+    if (state.workspaceCompact && payoff.nextElementSibling !== tokenTape) payoff.after(tokenTape);
     if (!state.workspaceCompact && payoff.nextElementSibling !== tokenTape) payoff.after(tokenTape);
   }
 }
@@ -203,8 +212,11 @@ function initializeWorkspacePresentation() {
     seen = window.localStorage.getItem(DISCOVER_VISIT_STORAGE_KEY) === "1";
     window.localStorage.setItem(DISCOVER_VISIT_STORAGE_KEY, "1");
   } catch { /* local storage can be unavailable */ }
-  state.workspaceCompact = seen;
-  state.tapeExpanded = !seen;
+  // Put the market list first on a phone, including the first visit. The
+  // introduction and ticker remain available through their existing controls.
+  const mobile = window.matchMedia?.("(max-width: 700px)")?.matches === true;
+  state.workspaceCompact = seen || mobile;
+  state.tapeExpanded = !state.workspaceCompact;
   syncWorkspacePresentation();
 }
 
@@ -1770,9 +1782,10 @@ function spotRankedRows() {
       && revivalScanMatches(row)
       && cohortMatches(row)
       && advancedFiltersMatch(row)
+      && (!state.participationFilter || matchesParticipationCell(row, state.participationFilter))
       && (state.spotLane !== "opportunities" || currentFacts)
       && (state.spotSort !== "raven" || currentFacts)
-      && (retained || (
+      && (retained || (state.participationFilter && currentFacts) || (
         survivesCurrentSpotMarket(row, { allowQuietLifecycle: lifecycleBrowseActive() })
         && ((lifecycleBrowseActive() && reportedLaunchpadLifecycle(row))
           || (broadDegenScan ? hasDegenRelevantSpotActivity(row) : hasDecisionUsefulSpotActivity(row)))
@@ -2081,11 +2094,13 @@ function renderSpotEvidence(shell, row) {
   }
   const wasOpen = details.open;
   const summary = details.querySelector("summary");
-  details.replaceChildren(summary);
+  const pinnedBody = details.ravenEvidenceBody?.closest('.ros-intelligence-layer') ? details.ravenEvidenceBody : null;
+  if (!pinnedBody) details.replaceChildren(summary);
   details.open = wasOpen;
   const discovery = row.discovery;
   const factFreshness = spotMarketFactFreshness(row);
-  const body = append(details, "div", "discover-token-evidence-body", "");
+  const body = pinnedBody || append(details, "div", "discover-token-evidence-body", "");
+  details.ravenEvidenceBody = body;
   body.textContent = "";
   if (!factFreshness.current) {
     const notice = append(body, "section", "discover-token-evidence-narrative", "");
@@ -2282,6 +2297,10 @@ function updateSpotTokenRow(anchor, row, index) {
   if (marketIdentity) marketId.append(document.createTextNode(`${marketIdentity} · `));
   const marketAge = append(marketId, "time", "discover-token-quote-age", "");
   setSpotAgeNode(marketAge, row, factFreshness.current ? "Quote" : "Last exact update", " ");
+  append(copy, "span", "discover-token-mobile-meta", [
+    spotChainLabel(row.chain_id || row.chain),
+    spotMarketAge(row.market?.token_age_seconds),
+  ].filter(Boolean).join(" · "));
 
   const move = append(anchor, "div", "discover-token-move", "");
   move.textContent = "";
@@ -2470,7 +2489,7 @@ function renderSpotTokenTape({ forceOrder = false } = {}) {
   const ranked = state.spotShowSameSymbolContracts ? exactTokens : groupSpotRowsBySymbol(exactTokens);
   updateSpotResultState(ranked.length, exactTokens.length, exactRanked.length);
   const rankedIds = ranked.map(spotRowId);
-  if (discoverInteractionActive() && !forceOrder && host.childElementCount) {
+  if ((intelligenceLayerOpen('market-evidence') || (discoverInteractionActive() && !forceOrder)) && host.childElementCount) {
     const byId = new Map(ranked.map((row) => [spotRowId(row), row]));
     [...host.querySelectorAll(".discover-token-row")].forEach((node, index) => {
       const row = byId.get(node.dataset.tokenRowId);
@@ -2688,7 +2707,111 @@ function renderSpotPulse(rows = state.spotRows, { forceOrder = false } = {}) {
     : state.spotEmergingFirst && state.spotSort !== "raven" ? `Emerging markets first · ${view.summary}` : view.summary;
   document.getElementById("discoverSpotWhyColumn").textContent = view.column;
   renderSpotTokenTape({ forceOrder });
+  renderParticipationPayoff(state.rawPayoff);
   void hydrateSpotMetadata(state.spotRows);
+}
+
+let participationOverlay = null;
+let participationResize = null;
+let participationPriorFilters = null;
+const participationFilterKeys = Object.keys(state).filter(key => /^spot.*Filter$/.test(key)).concat(['spotChain', 'spotLane', 'spotCohort', 'spotRevivalOnly', 'spotChangedOnly', 'spotSort', 'spotEmergingFirst']);
+function clearParticipationFilter({ restore = true } = {}) {
+  if (restore && participationPriorFilters) Object.assign(state, participationPriorFilters);
+  participationPriorFilters = null;
+  state.participationFilter = null;
+}
+function selectParticipationCell(cell) {
+  if (cell.filter.scope === 'perps') {
+    state.perpParticipationFilter = cell.filter;
+    document.querySelector('[data-discover-filter="perpetual"]').click();
+    participationOverlay?.close();
+    renderMarkets([...state.markets.values()], { observedAt: state.perpObservedAt });
+    applyFilter();
+    return;
+  }
+  if (!participationPriorFilters) participationPriorFilters = Object.fromEntries(participationFilterKeys.map(key => [key, state[key]]));
+  for (const key of participationFilterKeys) if (key.endsWith('Filter')) state[key] = 'all';
+  Object.assign(state, { spotChain: cell.filter.chain, spotLane: 'all', spotCohort: 'all', spotRevivalOnly: false, spotChangedOnly: false, spotSort: 'activity', spotEmergingFirst: false, participationFilter: cell.filter });
+  document.querySelector('[data-discover-filter="spot"]').click();
+  participationOverlay?.close();
+  renderSpotPulse(state.spotRows, { forceOrder: true });
+}
+function participationButton(cell, host) {
+  const button = host.querySelector(`[data-participation-cell="${cell.id}"]`) || document.createElement('button');
+  button.type = 'button'; button.className = 'discover-participation-cell'; button.dataset.participationCell = cell.id; button.dataset.payoffState = cell.state;
+  const label = { rewarding: 'Rewarding', punishing: 'Punishing', fragile: 'Mixed', developing: 'Thin sample', stale: 'Stale' }[cell.state];
+  const window = state.participationBoard.returnWindow, unit = state.marketScope === 'perps' ? 'contracts' : 'tokens';
+  const move = cell.medianReturnPct === null ? `${window} —` : `${window} ${cell.medianReturnPct >= 0 ? '+' : ''}${cell.medianReturnPct.toFixed(1)}%`;
+  const volume = cell.observedVolumeUsd === null ? 'Volume unreported' : `$${compact(cell.observedVolumeUsd)} vol`;
+  const observed = cell.observedAt ? new Date(cell.observedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'No current snapshot';
+  button.setAttribute('aria-label', `${cell.label}: ${label}, ${move}, ${cell.sample} of ${cell.tracked} ${unit} measured. Show matching markets.`);
+  button.title = `${cell.label} · ${label}\n${move} median · ${cell.sample}/${cell.tracked} ${unit} measured\n${volume} · reported ${window} volume for ${cell.volumeSample}/${cell.tracked} markets\nOldest current observation: ${observed}`;
+  // Keep the button/focus stable while the underlying feed refreshes.
+  button.replaceChildren();
+  append(button, 'strong', '', cell.label);
+  append(button, 'span', 'discover-participation-move', move);
+  append(button, 'small', '', `${label} · ${cell.sample}/${cell.tracked}`);
+  append(button, 'small', 'discover-participation-volume', volume);
+  button.onclick = () => selectParticipationCell(cell);
+  return button;
+}
+function renderParticipationBoard() {
+  const section = document.getElementById('discoverPayoff'), strip = document.getElementById('discoverPayoffStrip');
+  const perps = state.marketScope === 'perps';
+  const board = perps ? buildPerpParticipationMap([...state.markets.values()], { family: state.perpParticipationFamily, observedAt: state.perpObservedAt }) : buildParticipationMap(state.spotRows, { family: state.participationFamily });
+  state.participationBoard = board;
+  section.hidden = !['spot', 'perpetual', 'signals'].includes(activeDiscoverView());
+  section.dataset.presentation = 'map';
+  document.getElementById('discoverParticipationControls').hidden = false;
+  document.getElementById('discoverPayoffTitle').textContent = 'Where participation is paying';
+  document.getElementById('discoverPayoffWindow').textContent = `${state.paused ? 'Paused · ' : 'Rolling '}${board.returnWindow}`;
+  document.getElementById('discoverPayoffSummary').textContent = '';
+  document.getElementById('discoverPayoffDetail').textContent = board.cells.length ? `${board.returnWindow} median price change · ${perps ? 'venue contracts' : 'sampled markets'} · tap to filter` : 'Waiting for current market samples. The map fills from the same feed as Discovery.';
+  document.getElementById('discoverParticipationFamily').textContent = perps ? state.perpParticipationFamily === 'open_interest' ? 'By funding' : 'By open interest' : state.participationFamily === 'capitalization' ? 'New pairs' : 'Market caps';
+  const clear = document.getElementById('discoverParticipationClear');
+  const activeFilter = perps ? state.perpParticipationFilter : state.participationFilter;
+  clear.hidden = !activeFilter;
+  clear.textContent = activeFilter ? `${board.cells.find(cell => cell.filter.chain === activeFilter.chain && cell.filter.band === activeFilter.band)?.label || 'Selected group'} ×` : 'Clear group';
+  const shown = board.cells.slice(0, 6), ids = new Set(shown.map(cell => cell.id));
+  for (const child of [...strip.children]) if (!ids.has(child.dataset.participationCell)) child.remove();
+  shown.forEach(cell => { const button = participationButton(cell, strip); if (button.parentElement !== strip) strip.append(button); });
+  if (participationOverlay) renderParticipationOverlay();
+}
+function renderParticipationOverlay() {
+  if (!participationOverlay) return;
+  const body = participationOverlay.body, board = state.participationBoard;
+  const chart = body.querySelector('.discover-participation-treemap'), buttons = body.querySelector('.discover-participation-buttons');
+  const dates = board.cells.map(cell => cell.observedAt).filter(Boolean).sort();
+  body.querySelector('[data-map-freshness]').textContent = `${state.paused ? 'Paused' : `Refreshes with Discovery every ${board.scope === 'perps' ? 20 : 45}s`} · ${dates.length ? `oldest current sample ${new Date(dates[0]).toLocaleTimeString()}` : 'no current samples'}`;
+  body.querySelector('[data-map-family]').textContent = document.getElementById('discoverParticipationFamily').textContent;
+  const width = body.clientWidth - 32, heatmap = width >= 640;
+  const layout = heatmap ? layoutParticipationTiles(board.cells, width, 420) : { tiles: [], overflow: board.cells };
+  chart.hidden = !layout.tiles.length; chart.style.height = '420px';
+  const keepChart = new Set(layout.tiles.map(tile => tile.cell.id)), keepButtons = new Set(layout.overflow.map(cell => cell.id));
+  for (const child of [...chart.children]) if (!keepChart.has(child.dataset.participationCell)) child.remove();
+  for (const child of [...buttons.children]) if (!keepButtons.has(child.dataset.participationCell)) child.remove();
+  for (const tile of layout.tiles) {
+    const button = participationButton(tile.cell, chart);
+    Object.assign(button.style, { left: `${tile.x / width * 100}%`, top: `${tile.y}px`, width: `${tile.width / width * 100}%`, height: `${tile.height}px` });
+    if (button.parentElement !== chart) chart.append(button);
+  }
+  for (const cell of layout.overflow) { const button = participationButton(cell, buttons); if (button.parentElement !== buttons) buttons.append(button); }
+  body.querySelector('[data-map-layout]').textContent = layout.tiles.length ? `Tile area = reported ${board.volumeWindow} volume. Smaller or unreported groups are buttons below.` : `Equal-size buttons keep labels readable. Each shows reported ${board.volumeWindow} volume.`;
+}
+function openParticipationMap() {
+  if (participationOverlay) return;
+  const content = document.createElement('section'); content.className = 'discover-participation-expanded';
+  content.innerHTML = '<p>Green: rewarding · Orange: mixed · Red: punishing · Gray: thin or stale</p><p data-map-freshness></p><button type="button" data-map-family></button><p data-map-layout></p><div class="discover-participation-treemap"></div><div class="discover-participation-buttons"></div><details><summary>What this measures</summary><p>Median token-price change over the last six hours, grouped by chain and current market cap or pair age. This is market performance, not realized wallet P&amp;L. Each token contributes one observed pool. Market cap is never replaced with FDV.</p><p>Directional colors require at least 5 full-window samples and 60% coverage of tracked tokens in the group. Green requires a median of at least +1% and 60% rising; red requires at most −1% and 60% falling. Other qualified groups are mixed. Quotes over two minutes old and pairs younger than six hours do not contribute a six-hour return.</p><p>Volume is the sum reported for the observed pools, not all volume on the chain. Hover or focus a cell for coverage and observation time. Newly discovered markets enter the sample; the sample is not a comprehensive chain census.</p></details>';
+  if (state.marketScope === 'perps') content.querySelector('details').innerHTML = '<summary>What this measures</summary><p>Median 24-hour contract-price change and reported 24-hour notional trading volume from Hyperliquid. Six-hour returns are not supplied by this shared venue snapshot, so they are not estimated from 24-hour data. This is contract-price performance, not leveraged trader P&amp;L.</p><p>Groups use current open interest or funding sign. Positive funding means longs pay shorts; it is not a directional forecast. Directional colors require at least 5 current contracts and 60% coverage, a median move beyond ±1%, and 60% agreeing direction. Mixed groups are orange. Missing or stale data is neutral.</p>';
+  content.querySelector('[data-map-family]').onclick = toggleParticipationFamily;
+  participationOverlay = openIntelligenceLayer({ title: `Participation · rolling ${state.participationBoard.returnWindow}`, kind: 'participation', content, onClose: () => { participationResize?.disconnect(); participationOverlay = null; } });
+  participationResize = new ResizeObserver(renderParticipationOverlay); participationResize.observe(participationOverlay.body);
+  renderParticipationOverlay();
+}
+function toggleParticipationFamily() {
+  if (state.marketScope === 'perps') state.perpParticipationFamily = state.perpParticipationFamily === 'open_interest' ? 'funding' : 'open_interest';
+  else state.participationFamily = state.participationFamily === 'capitalization' ? 'new_pairs' : 'capitalization';
+  renderParticipationBoard();
 }
 
 function currentParticipationPayoff(value) {
@@ -2711,6 +2834,10 @@ function currentParticipationPayoff(value) {
 }
 
 function renderParticipationPayoff(value) {
+  state.rawPayoff = value;
+  if (["memecoins", "perps"].includes(state.marketScope)) { renderParticipationBoard(); return; }
+  document.getElementById("discoverParticipationControls").hidden = true;
+  document.getElementById("discoverPayoff").dataset.presentation = 'insights';
   const section = document.getElementById("discoverPayoff");
   const strip = document.getElementById("discoverPayoffStrip");
   state.rawPayoff = value;
@@ -2798,6 +2925,7 @@ function createOpportunityRow(row) {
   anchor.className = "discover-row";
   anchor.dataset.opportunityId = text(row.public_opportunity_id || row.public_attention_id, row.instrument_id);
   anchor.dataset.marketType = atlas ? "equity" : spot ? "spot" : text(row.market_type, "unknown").toLowerCase();
+  anchor.dataset.instrumentId = row.instrument_id || '';
   anchor.dataset.sourceType = atlas ? "atlas" : spot ? "raven-spot" : "raven";
   anchor.dataset.freshness = text(row.context_state, "unavailable").toLowerCase();
   if (lifecycle) {
@@ -2960,7 +3088,7 @@ function applyFilter() {
   document.getElementById("discoverDesk").hidden = !state.deskFrame || active !== "signals";
   document.getElementById("discoverSpotPulse").hidden = state.marketScope !== "memecoins" || !["spot", "signals"].includes(active);
   document.getElementById("discoverListedUniverse").hidden = !state.featuredRows.length || active !== "equity";
-  document.getElementById("discoverPayoff").hidden = !state.payoff || active !== "signals";
+  document.getElementById("discoverPayoff").hidden = ['memecoins', 'perps'].includes(state.marketScope) ? !["spot", "perpetual", "signals"].includes(active) : !state.payoff || active !== "signals";
   const opportunityLayout = document.getElementById("discoverOpportunityLayout");
   const perpPulse = document.getElementById("discoverPerpPulse");
   const spotOwnsView = state.marketScope === "memecoins" && ["spot", "signals"].includes(active);
@@ -2982,7 +3110,8 @@ function applyFilter() {
   });
   document.querySelector(".discover-filter-empty")?.remove();
   const rows = [...document.querySelectorAll(".discover-row")];
-  const matching = rows.filter((row) => matchesMarketScope({ market_type: row.dataset.marketType }, state.marketScope) && (active === "signals" || row.dataset.marketType === active));
+  const matching = rows.filter((row) => matchesMarketScope({ market_type: row.dataset.marketType }, state.marketScope) && (active === "signals" || row.dataset.marketType === active)
+    && (state.marketScope !== 'perps' || !state.perpParticipationFilter || matchesPerpParticipationCell(state.markets.get(row.dataset.instrumentId) || {}, state.perpParticipationFilter)));
   const collapsedEligible = matching.filter((row) => {
     if (!row.dataset.lifecycle) return true;
     if (["watch", "invalidated"].includes(row.dataset.lifecycle)) return false;
@@ -3107,10 +3236,12 @@ function createPulseRow(row) {
 }
 
 function renderMarkets(rows, { observedAt = null } = {}) {
+  state.perpObservedAt = observedAt || rows.find(row => row.observed_at)?.observed_at || null;
   const host = document.getElementById("discoverPulse");
   host.replaceChildren();
-  const ranked = [...rows].sort((left, right) => (finite(right.day_notional_volume_usd) || 0) - (finite(left.day_notional_volume_usd) || 0)).slice(0, 10);
+  const ranked = rows.filter(row => !state.perpParticipationFilter || matchesPerpParticipationCell(row, state.perpParticipationFilter)).sort((left, right) => (finite(right.day_notional_volume_usd) || 0) - (finite(left.day_notional_volume_usd) || 0)).slice(0, state.perpParticipationFilter ? 1000 : 10);
   renderMarketTape(rows, observedAt);
+  if (state.marketScope === 'perps') renderParticipationBoard();
   if (!ranked.length) {
     const container = append(host, "div", "workspace-state", "");
     container.textContent = "Current venue markets unavailable.";
@@ -3659,6 +3790,8 @@ function tickDiscoverMotion() {
   if (document.hidden) return;
   updateMarketTapeFreshness();
   updateSpotAgeLabels();
+  // Expire colors even when a provider refresh has failed.
+  if (['memecoins', 'perps'].includes(state.marketScope) && Date.now() % 10_000 < 1_100) renderParticipationBoard();
   if (state.spotPendingOrder && !state.paused && !state.reorderTimer) schedulePendingSpotOrder(500);
 }
 
@@ -3671,6 +3804,35 @@ function bind() {
   document.addEventListener("wheel", noteInteraction, { passive: true });
   document.addEventListener("keydown", noteInteraction);
   document.getElementById("discoverSearchTrigger").addEventListener("click", () => window.RavenOSShell?.openCommandPalette?.());
+  document.getElementById('discoverTokenTapeList').addEventListener('click', event => {
+    const summary = event.target.closest('.discover-token-evidence > summary');
+    if (!summary) return;
+    event.preventDefault();
+    const body = summary.parentElement.querySelector('.discover-token-evidence-body');
+    if (!body) return;
+    openIntelligenceLayer({ title: 'Market intelligence', kind: 'market-evidence', nodes: [body] });
+  });
+  document.addEventListener('ravenos:workspace-mode', event => {
+    const scope = event.detail?.scope;
+    if (!Object.hasOwn(MARKET_SCOPES, scope)) return;
+    event.preventDefault();
+    if (scope === state.marketScope) return;
+    participationOverlay?.close();
+    state.marketScope = scope;
+    ravenOSContext.setContext({ marketScope: scope });
+    document.querySelector(`[data-discover-filter="${({ memecoins: 'spot', perps: 'perpetual', equities: 'equity' })[scope]}"]`).click();
+    applyFilter();
+  });
+  document.getElementById('discoverParticipationMap').addEventListener('click', openParticipationMap);
+  document.getElementById('discoverParticipationFamily').addEventListener('click', toggleParticipationFamily);
+  document.getElementById('discoverParticipationClear').addEventListener('click', () => {
+    if (state.marketScope === 'perps') { state.perpParticipationFilter = null; renderMarkets([...state.markets.values()], { observedAt: state.perpObservedAt }); applyFilter(); }
+    else { clearParticipationFilter(); renderSpotPulse(state.spotRows, { forceOrder: true }); }
+  });
+  document.getElementById('discoverSpotPulse').addEventListener('change', () => { if (state.participationFilter) clearParticipationFilter({ restore: false }); }, true);
+  document.getElementById('discoverSpotPulse').addEventListener('click', event => {
+    if (event.target.closest('[data-spot-chain], [data-spot-cohort], [data-spot-market-cap], [data-spot-lane], [data-spot-revival]')) clearParticipationFilter({ restore: false });
+  }, true);
   document.getElementById("discoverIntroToggle")?.addEventListener("click", () => {
     state.workspaceCompact = !state.workspaceCompact;
     syncWorkspacePresentation();

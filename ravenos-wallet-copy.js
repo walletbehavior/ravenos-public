@@ -2,6 +2,10 @@ const API = "/api/v1/wallet-copy";
 import { getPreference, setPreference } from "./ravenos-preferences.js";
 
 const page = document.querySelector(".copy-page");
+let embeddedActive = page?.dataset.embedded !== 'true';
+let embeddedUrl = page?.dataset.embeddedUrl || location.href;
+const walletLocationHref = () => page?.dataset.embedded === 'true' ? embeddedUrl : location.href;
+let walletBootPromise = null;
 const signIn = document.getElementById("copySignIn");
 const unavailable = document.getElementById("copyUnavailable");
 const workspace = document.getElementById("copyWorkspace");
@@ -85,7 +89,7 @@ function walletAddress(value) { return text(value, "Wallet"); }
 
 function shortAddress(value) {
   const address = text(value, "Wallet");
-  return address.length > 14 ? `${address.slice(0, 6)}…${address.slice(-6)}` : address;
+  return address;
 }
 
 function chainLabel(chain) {
@@ -251,7 +255,7 @@ async function api(url, init = {}) {
 }
 
 function walletReturnTo() {
-  const url = new URL(location.href);
+  const url = new URL(walletLocationHref());
   const address = state.address || document.getElementById("copyWalletAddress").value.trim();
   if (address) {
     url.searchParams.set("wallet", address.slice(0, 44));
@@ -813,11 +817,11 @@ function deepHistoryPending(history) {
 }
 
 function scheduleDeepHistoryPoll(token) {
-  if (!state.activation.wallet_screener || !deepHistoryPending(state.deep_history) || !state.source_wallet_id || state.deep_poll_attempts >= 12) return;
+  if (!embeddedActive || !state.activation.wallet_screener || !deepHistoryPending(state.deep_history) || !state.source_wallet_id || state.deep_poll_attempts >= 12) return;
   clearTimeout(state.deep_poll_timer);
   const delay = [15_000, 30_000, 60_000][state.deep_poll_attempts] || 120_000;
   state.deep_poll_timer = window.setTimeout(async () => {
-    if (token !== state.deep_poll_token || !state.source_wallet_id) return;
+    if (!embeddedActive || token !== state.deep_poll_token || !state.source_wallet_id) return;
     if (document.hidden) { scheduleDeepHistoryPoll(token); return; }
     state.deep_poll_attempts += 1;
     const result = await api(`${API}/wallets/${encodeURIComponent(state.source_wallet_id)}`);
@@ -1495,7 +1499,7 @@ function screenerRequest() {
 }
 
 function syncScreenerUrl() {
-  const url = new URL(location.href);
+  const url = new URL(walletLocationHref());
   const fields = {
     chain: state.screener.chain === "all" ? null : state.screener.chain,
     wallets: state.screener.view,
@@ -1539,11 +1543,12 @@ function syncScreenerUrl() {
     if (value === null || value === undefined || value === "" || (key.startsWith("obs_") && ["any", "recent"].includes(value)) || (key === "evidence" && value === "any") || (key === "sort" && value === "last_trade_desc")) url.searchParams.delete(key);
     else url.searchParams.set(key, String(value).slice(0, 64));
   }
-  history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+  if (page.dataset.embedded === 'true') embeddedUrl = url.href;
+  else history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
 }
 
 function hydrateScreenerFromUrl() {
-  const params = new URL(location.href).searchParams;
+  const params = new URL(walletLocationHref()).searchParams;
   const view = params.get("wallets");
   if (["observed", "analyzed"].includes(view)) state.screener.view = view;
   else if (params.has("screen") || params.has("sort") || [...params.keys()].some(key => key.startsWith("df_"))) state.screener.view = "analyzed";
@@ -2212,7 +2217,7 @@ async function savePolicy(event) {
 }
 
 async function boot() {
-  const requestedUrl = new URL(location.href);
+  const requestedUrl = new URL(walletLocationHref());
   const requestedWallet = requestedUrl.searchParams.get("wallet") || "";
   const requestedChain = requestedUrl.searchParams.get("inspect_chain") || requestedUrl.searchParams.get("chain") || "solana";
   const safeRequestedChain = new Set(["solana", "robinhood", "bsc", "base", "ethereum"]).has(requestedChain) ? requestedChain : "solana";
@@ -2379,12 +2384,34 @@ document.getElementById("copyScreenNext").addEventListener("click", async () => 
 document.getElementById("copyActivityFilter").addEventListener("change", () => loadWalletActivity({ append: false }));
 document.getElementById("copyActivityMore").addEventListener("click", () => loadWalletActivity({ append: true }));
 
-boot().catch(() => {
+function startWalletWorkspace() { return boot().catch(() => {
   page.dataset.copyState = "unavailable";
   unavailable.hidden = false;
   setText("copyWorkspaceState", "Unavailable");
   setText("copyUnavailableReason", "Raven Copy could not verify this session. No wallet data was loaded.");
-});
+}); }
+if (page.dataset.embedded !== 'true') walletBootPromise = startWalletWorkspace();
+export async function openEmbeddedIntelligence(href) {
+  embeddedActive = true; embeddedUrl = href;
+  if (!walletBootPromise) { walletBootPromise = startWalletWorkspace(); await walletBootPromise; return; }
+  await walletBootPromise;
+  const session = await api('/api/v1/auth/session');
+  if (!session.response.ok || session.payload?.authenticated !== true) { recoverWalletSession(); return; }
+  if (state.session_expired || !state.csrf || state.csrf !== session.payload.csrf_token) {
+    state.session_expired = false; signIn.hidden = true; unavailable.hidden = true;
+    walletBootPromise = startWalletWorkspace(); await walletBootPromise; return;
+  }
+  const request = new URL(href), wallet = request.searchParams.get('wallet');
+  const chain = request.searchParams.get('inspect_chain') || request.searchParams.get('chain') || 'solana';
+  if (wallet && new Set(['solana','robinhood','bsc','base','ethereum']).has(chain)) {
+    document.getElementById('copyWalletChain').value = chain; setInspectChain(chain);
+    document.getElementById('copyWalletAddress').value = wallet.slice(0, 44);
+    await inspectWalletAddress(wallet.slice(0, 44), document.querySelector('#copyWalletSearch button[type="submit"]'));
+  } else scheduleDeepHistoryPoll(state.deep_poll_token);
+}
+export function suspendEmbeddedIntelligence() {
+  embeddedActive = false; clearTimeout(state.deep_poll_timer); state.deep_poll_token += 1;
+}
 
 window.RavenOSWalletCopy = Object.freeze({
   schemaVersion: "ravenos.wallet_copy_surface.v1",

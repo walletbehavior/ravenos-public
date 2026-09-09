@@ -1,0 +1,355 @@
+{
+  "schema_version": "ravenos.participation_probe.v1",
+  "observed_at": "2026-09-09T14:02:04.705Z",
+  "mode": "local_worker_live_public_reads",
+  "production_deployed": false,
+  "credentials_used": false,
+  "persistent_cache_bound": false,
+  "elapsed_ms": 3001,
+  "status": 200,
+  "rows": 150,
+  "chains": {
+    "solana": {
+      "rows": 7,
+      "with_6h_return": 7,
+      "with_6h_volume": 7
+    },
+    "base": {
+      "rows": 1,
+      "with_6h_return": 1,
+      "with_6h_volume": 1
+    },
+    "bsc": {
+      "rows": 89,
+      "with_6h_return": 89,
+      "with_6h_volume": 89
+    },
+    "ethereum": {
+      "rows": 1,
+      "with_6h_return": 1,
+      "with_6h_volume": 1
+    },
+    "robinhood": {
+      "rows": 52,
+      "with_6h_return": 51,
+      "with_6h_volume": 52
+    }
+  },
+  "board": {
+    "family": "capitalization",
+    "cells": [
+      {
+        "id": "bsc:under_100k",
+        "label": "BNB <$100K",
+        "filter": {
+          "chain": "bsc",
+          "kind": "capitalization",
+          "band": "under_100k"
+        },
+        "state": "developing",
+        "medianReturnPct": 0,
+        "positiveShare": 0.06896551724137931,
+        "downsideShare": 0,
+        "sample": 29,
+        "tracked": 73,
+        "current": 73,
+        "observedVolumeUsd": 393997431613.4326,
+        "volumeSample": 73,
+        "observedAt": "2026-09-09T14:02:01.713Z",
+        "coverage": 0.3972602739726027
+      },
+      {
+        "id": "robinhood:10m_plus",
+        "label": "RH $10M+",
+        "filter": {
+          "chain": "robinhood",
+          "kind": "capitalization",
+          "band": "10m_plus"
+        },
+        "state": "developing",
+        "medianReturnPct": -6.8009768862666675,
+        "positiveShare": 0.25,
+        "downsideShare": 0.5,
+        "sample": 4,
+        "tracked": 5,
+        "current": 5,
+        "observedVolumeUsd": 130166394.59365173,
+        "volumeSample": 5,
+        "observedAt": "2026-09-09T14:02:01.713Z",
+        "coverage": 0.8
+      },
+      {
+        "id": "bsc:10m_plus",
+        "label": "BNB $10M+",
+        "filter": {
+          "chain": "bsc",
+          "kind": "capitalization",
+          "band": "10m_plus"
+        },
+        "state": "developing",
+        "medianReturnPct": -1.39,
+        "positiveShare": 0,
+        "downsideShare": 0,
+        "sample": 1,
+        "tracked": 3,
+        "current": 3,
+        "observedVolumeUsd": 57300682.33814897,
+        "volumeSample": 3,
+        "observedAt": "2026-09-09T14:02:01.713Z",
+        "coverage": 0.3333333333333333
+      },
+      {
+        "id": "base:10m_plus",
+        "label": "BASE $10M+",
+        "filter": {
+          "chain": "base",
+          "kind": "capitalization",
+          "band": "10m_plus"
+        },
+        "state": "developing",
+        "medianReturnPct": -0.6,
+        "positiveShare": 0,
+        "downsideShare": 0,
+        "sample": 1,
+        "tracked": 1,
+        "current": 1,
+        "observedVolumeUsd": 17818349.67,
+        "volumeSample": 1,
+        "observedAt": "2026-09-09T14:02:02.138Z",
+        "coverage": 1
+      },
+      {
+        "id": "ethereum:10m_plus",
+        "label": "ETH $10M+",
+        "filter": {
+          "chain": "ethereum",
+          "kind": "capitalization",
+          "band": "10m_plus"
+        },
+        "state": "developing",
+        "medianReturnPct": -0.62,
+        "positiveShare": 0,
+        "downsideShare": 0,
+        "sample": 1,
+        "tracked": 1,
+        "current": 1,
+        "observedVolumeUsd": 10955683.74,
+        "volumeSample": 1,
+        "observedAt": "2026-09-09T14:02:02.110Z",
+        "coverage": 1
+      },
+      {
+        "id": "bsc:100k_500k",
+        "label": "BNB $100K–$500K",
+        "filter": {
+          "chain": "bsc",
+          "kind": "capitalization",
+          "band": "100k_500k"
+        },
+        "state": "developing",
+        "medianReturnPct": 4.86,
+        "positiveShare": 0.6666666666666666,
+        "downsideShare": 0.3333333333333333,
+        "sample": 3,
+        "tracked": 7,
+        "current": 7,
+        "observedVolumeUsd": 4364079.82949795,
+        "volumeSample": 7,
+        "observedAt": "2026-09-09T14:02:01.713Z",
+        "coverage": 0.42857142857142855
+      },
+      {
+        "id": "solana:500k_2m",
+        "label": "SOL $500K–$2M",
+        "filter": {
+          "chain": "solana",
+          "kind": "capitalization",
+          "band": "500k_2m"
+        },
+        "state": "developing",
+        "medianReturnPct": null,
+        "positiveShare": null,
+        "downsideShare": null,
+        "sample": 0,
+        "tracked": 1,
+        "current": 1,
+        "observedVolumeUsd": 3914505.7,
+        "volumeSample": 1,
+        "observedAt": "2026-09-09T14:02:02.072Z",
+        "coverage": 0
+      },
+      {
+        "id": "robinhood:under_100k",
+        "label": "RH <$100K",
+        "filter": {
+          "chain": "robinhood",
+          "kind": "capitalization",
+          "band": "under_100k"
+        },
+        "state": "developing",
+        "medianReturnPct": -0.9340567955246946,
+        "positiveShare": 0.5,
+        "downsideShare": 0.1,
+        "sample": 10,
+        "tracked": 37,
+        "current": 37,
+        "observedVolumeUsd": 2670535.8979184474,
+        "volumeSample": 37,
+        "observedAt": "2026-09-09T14:02:01.713Z",
+        "coverage": 0.2702702702702703
+      },
+      {
+        "id": "bsc:500k_2m",
+        "label": "BNB $500K–$2M",
+        "filter": {
+          "chain": "bsc",
+          "kind": "capitalization",
+          "band": "500k_2m"
+        },
+        "state": "developing",
+        "medianReturnPct": null,
+        "positiveShare": null,
+        "downsideShare": null,
+        "sample": 0,
+        "tracked": 2,
+        "current": 2,
+        "observedVolumeUsd": 2273839.6746857134,
+        "volumeSample": 2,
+        "observedAt": "2026-09-09T14:02:01.713Z",
+        "coverage": 0
+      },
+      {
+        "id": "bsc:2m_10m",
+        "label": "BNB $2M–$10M",
+        "filter": {
+          "chain": "bsc",
+          "kind": "capitalization",
+          "band": "2m_10m"
+        },
+        "state": "developing",
+        "medianReturnPct": 51.14033664981279,
+        "positiveShare": 1,
+        "downsideShare": 0,
+        "sample": 1,
+        "tracked": 1,
+        "current": 1,
+        "observedVolumeUsd": 2176125.908917368,
+        "volumeSample": 1,
+        "observedAt": "2026-09-09T14:02:01.713Z",
+        "coverage": 1
+      },
+      {
+        "id": "robinhood:500k_2m",
+        "label": "RH $500K–$2M",
+        "filter": {
+          "chain": "robinhood",
+          "kind": "capitalization",
+          "band": "500k_2m"
+        },
+        "state": "developing",
+        "medianReturnPct": null,
+        "positiveShare": null,
+        "downsideShare": null,
+        "sample": 0,
+        "tracked": 3,
+        "current": 3,
+        "observedVolumeUsd": 1287990.1390250428,
+        "volumeSample": 3,
+        "observedAt": "2026-09-09T14:02:01.713Z",
+        "coverage": 0
+      },
+      {
+        "id": "robinhood:100k_500k",
+        "label": "RH $100K–$500K",
+        "filter": {
+          "chain": "robinhood",
+          "kind": "capitalization",
+          "band": "100k_500k"
+        },
+        "state": "fragile",
+        "medianReturnPct": 0,
+        "positiveShare": 0.4,
+        "downsideShare": 0.4,
+        "sample": 5,
+        "tracked": 6,
+        "current": 6,
+        "observedVolumeUsd": 604507.2326068515,
+        "volumeSample": 6,
+        "observedAt": "2026-09-09T14:02:01.713Z",
+        "coverage": 0.8333333333333334
+      },
+      {
+        "id": "solana:100k_500k",
+        "label": "SOL $100K–$500K",
+        "filter": {
+          "chain": "solana",
+          "kind": "capitalization",
+          "band": "100k_500k"
+        },
+        "state": "developing",
+        "medianReturnPct": null,
+        "positiveShare": null,
+        "downsideShare": null,
+        "sample": 0,
+        "tracked": 1,
+        "current": 1,
+        "observedVolumeUsd": 559433.99,
+        "volumeSample": 1,
+        "observedAt": "2026-09-09T14:02:02.072Z",
+        "coverage": 0
+      },
+      {
+        "id": "robinhood:2m_10m",
+        "label": "RH $2M–$10M",
+        "filter": {
+          "chain": "robinhood",
+          "kind": "capitalization",
+          "band": "2m_10m"
+        },
+        "state": "developing",
+        "medianReturnPct": 0,
+        "positiveShare": 0,
+        "downsideShare": 0,
+        "sample": 1,
+        "tracked": 1,
+        "current": 1,
+        "observedVolumeUsd": 321636.50956614857,
+        "volumeSample": 1,
+        "observedAt": "2026-09-09T14:02:01.713Z",
+        "coverage": 1
+      },
+      {
+        "id": "solana:under_100k",
+        "label": "SOL <$100K",
+        "filter": {
+          "chain": "solana",
+          "kind": "capitalization",
+          "band": "under_100k"
+        },
+        "state": "developing",
+        "medianReturnPct": null,
+        "positiveShare": null,
+        "downsideShare": null,
+        "sample": 0,
+        "tracked": 5,
+        "current": 5,
+        "observedVolumeUsd": 304755.87,
+        "volumeSample": 5,
+        "observedAt": "2026-09-09T14:02:02.072Z",
+        "coverage": 0
+      }
+    ],
+    "scope": "memecoins",
+    "returnWindow": "6h",
+    "tracked": 150,
+    "measured": 56,
+    "measurement": "Median 6h token-price change · one observed pool per token",
+    "volumeWindow": "6h",
+    "generatedAt": "2026-09-09T14:02:04.705Z"
+  },
+  "limitations": [
+    "Public discovery sample, not chain-wide coverage or wallet P&L.",
+    "Local probe has no production retained-market cache; production coverage must be checked separately.",
+    "No 6h return is inferred for pairs younger than six hours."
+  ]
+}

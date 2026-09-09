@@ -117,3 +117,21 @@ test('bulk import is deterministic, idempotent and validates public wallet prove
  assert.throws(()=>prepareWalletUniverseImport([{...packet,wallets:[{...wallet,observed_at:NOW+120}]}],{now:NOW}),/invalid/);
  assert.equal(prepareWalletUniverseImport([{...packet,wallets:[{...wallet,observed_at:NOW-86401}]}],{now:NOW}).wallets.length,0);
 });
+
+test('candidate providers reuse the universe reservation and retain provenance without creating a trade ledger',async()=>{
+ const {dexchWalletCandidates}=await import('../lib/market_provider_fallbacks.mjs');
+ const db=sqliteStore(),marketStore=createWalletUniverseStore(db),walletStore=createD1CustomerWalletCopyStore(db);
+ await marketStore.rememberMarkets([market('bsc')],NOW);
+ let calls=0;
+ const config={...env(db),RAVENOS_WALLET_UNIVERSE_REQUESTS_PER_HOUR:'2'};
+ const result=await runWalletUniverse(config,{marketStore,walletStore,now:NOW,clock:()=>NOW,
+  loadTrades:async()=>{throw Error('candidate intake must not fetch or fabricate exact-pool trades');},
+  loadCandidates:async identity=>{calls++;return dexchWalletCandidates({ok:true,chain:'bsc',token_address:identity.token_address,
+   schema_version:'ravenos.provider_holders.dexch.v1',rows:[{address:'0x'+'aa'.repeat(20),rank:1}],
+   provenance:{retrieved_at:new Date(NOW*1000).toISOString()}},identity,{now:NOW});}});
+ assert.equal(result.succeeded,1);assert.equal(result.wallets_observed,1);assert.equal(result.maximum_provider_requests,2);assert.equal(calls,1);
+ assert.equal(db.raw.prepare('SELECT used_requests FROM ravenos_wallet_universe_budget').get().used_requests,2);
+ const source=db.raw.prepare('SELECT source_kind,provider FROM ravenos_wallet_discovery_sources').get();
+ assert.equal(source.source_kind,'top_holder');assert.equal(source.provider,'dexch');
+ for(const table of ['ravenos_source_wallet_events','ravenos_source_wallet_profiles','ravenos_source_wallet_backfill_jobs','ravenos_customer_wallet_copy_watches'])assert.equal(db.raw.prepare('SELECT count(*) n FROM '+table).get().n,0);
+});

@@ -1,6 +1,39 @@
 import { expect, test } from "@playwright/test";
 import { join } from "node:path";
 import { normalizeSourceWalletChainIdentity } from "../../lib/customer_trade/source_wallet_chain_identity.mjs";
+import { mockTerminalLiveApis, waitForTerminalLive } from './terminal-live-fixtures.mjs';
+
+test('Wallet profile opens over a mobile Terminal and closes back to the same draft', async ({ page }, info) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockTerminalLiveApis(page, { spotQuotePreview: true });
+  const shared = { watch: null, decision: null, position: null, requests: [] };
+  await install(page, shared);
+  await page.goto('/terminal/?instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&token_address=fixture-token-address&quote_address=fixture-quote-address&panel=chart');
+  await waitForTerminalLive(page, { lane: 'spot' });
+  await page.locator('#terminalSpotAmount').fill('42');
+  const url = page.url();
+  await page.locator('#rosCommandTrigger').click();
+  await page.locator('#rosCommandInput').fill(WALLET);
+  await page.locator('.ros-command-result.wallet').click();
+  await expect(page.locator('.ros-intelligence-layer #copyProfile')).toBeVisible();
+  await expect(page).toHaveURL(url);
+  await expect(page.locator('#copyWalletAddress')).toHaveValue(WALLET);
+  await page.screenshot({ path: info.outputPath('wallet-overlay-mobile.png') });
+  await page.locator('.ros-layer-close').click();
+  await expect(page.locator('.ros-intelligence-layer')).toHaveCount(0);
+  await expect(page.locator('#terminalSpotAmount')).toHaveValue('42');
+  await expect(page).toHaveURL(url);
+  expect(shared.requests.filter(row => /sign|execute|broadcast/.test(row.path))).toHaveLength(0);
+  // A cached overlay must recheck auth before showing the prior profile.
+  await page.route('**/api/v1/auth/session', route => route.fulfill({ json: session(false) }));
+  await page.locator('#rosCommandTrigger').click();
+  await page.locator('#rosCommandInput').fill(WALLET);
+  await page.locator('.ros-command-result.wallet').click();
+  await expect(page.locator('.ros-intelligence-layer #copyProfile')).toBeHidden();
+  await expect(page.locator('.ros-intelligence-layer #copyAuthStatus')).toContainText('Sign in again');
+  await page.locator('.ros-layer-close').click();
+  await expect(page.locator('#terminalSpotAmount')).toHaveValue('42');
+});
 
 const WALLET = "7KxQmTi5W4rP8Y2hD9cV6nF3aS1uEoLzJbGkNqMpfHrt";
 const TOKEN = "4M7YQqGfRWfBpcA7mN5uY3z8Jj6Hk2VtD9sLxEePoaBn";
@@ -1005,12 +1038,12 @@ test("mobile shadow feed keeps refusals visible, separates positions, and never 
   await expect(page.getByText("$0.00", { exact: true })).toHaveCount(0);
   await expect(page.getByText("Source sell · Shadow Exit Executable", { exact: true })).toBeVisible();
   await expect(page.getByText("40.00%", { exact: true })).toBeVisible();
-  await expect(page.getByText("32500 4M7YQq…ePoaBn", { exact: true })).toBeVisible();
+  await expect(page.getByText(`32500 ${TOKEN}`, { exact: true })).toBeVisible();
   await expect(page.getByText("1 Raven lot mapped · no funds moved", { exact: true })).toBeVisible();
   await captureVisual(page, "wallet-copy-mobile-shadow-390");
   await page.getByRole("tab", { name: /Positions/ }).click();
   await expect(page.getByText("Shadow Partial Exit")).toBeVisible();
-  await expect(page.getByText("48750 4M7YQq…ePoaBn", { exact: true })).toBeVisible();
+  await expect(page.getByText(`48750 ${TOKEN}`, { exact: true })).toBeVisible();
   await expect(page.locator("#copyPositions").getByText("$41", { exact: true })).toBeVisible();
   await expect(page.getByText("No funds moved", { exact: true })).toBeVisible();
   const overflow = await page.evaluate(() => [...document.querySelectorAll("body *")]

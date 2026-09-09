@@ -51,6 +51,15 @@ export const RAVENOS_CHART_CAPABILITY_REGISTRY = deepFreeze({
     hyperliquid: "hyperliquid",
   },
   providers: {
+    dexch: {
+      responsibilities: ['token_ohlcv', 'active_view_ohlcv_updates', 'volume'],
+      base_candles: true, provider_networks: ['bsc', 'robinhood'],
+      intervals: ['1m', '5m', '15m', '1h', '4h', '1d'],
+      maximum_bars_per_request: 1000, older_bar_backfill: false,
+      live_mechanism: 'bounded_server_poll',
+      identity_policy: 'current_pool_cross_check_and_post_migration_history',
+      attribution_required: true, attribution_label: 'Market data: Dexch',
+    },
     dexscreener: {
       responsibilities: ["discovery", "exact_market_identity", "current_pair_state"],
       base_candles: false,
@@ -137,7 +146,7 @@ export const RAVENOS_CHART_CAPABILITY_REGISTRY = deepFreeze({
       trading_state: "adapter_not_activated",
     },
     bsc: {
-      provider_networks: { dexpaprika: "bsc", coingecko_onchain: "bsc" },
+      provider_networks: { dexch: 'bsc', dexpaprika: "bsc", coingecko_onchain: "bsc" },
       provider_order: ["dexpaprika", "coingecko_onchain"],
       discovery_supported: true,
       historical_candles_supported: true,
@@ -169,7 +178,7 @@ export const RAVENOS_CHART_CAPABILITY_REGISTRY = deepFreeze({
       trading_state: "adapter_not_activated",
     },
     robinhood: {
-      provider_networks: { dexpaprika: "robinhood", coingecko_onchain: "robinhood" },
+      provider_networks: { dexch: 'robinhood', dexpaprika: "robinhood", coingecko_onchain: "robinhood" },
       provider_order: ["coingecko_onchain", "dexpaprika"],
       discovery_supported: true,
       historical_candles_supported: true,

@@ -1,6 +1,59 @@
 import { test, expect } from "@playwright/test";
 import { buildDiscoverRadarProjection } from "../../lib/discover_radar.mjs";
 
+for (const width of [1440, 390]) test(`Participation map filters real groups and preserves Discovery at ${width}px`, async ({ page }, info) => {
+  await page.setViewportSize({ width, height: 900 });
+  await page.clock.install();
+  const rows = Array.from({ length: 18 }, (_, index) => ({ ...structuredClone(evmPulseRows[0]),
+    chain: 'robinhood', chain_id: 'robinhood', symbol: `MAP${index}`, identity_scope: 'exact_pool',
+    token_address: `0x${(100 + index).toString(16).padStart(40, '0')}`, pool_address: `0x${(200 + index).toString(16).padStart(40, '0')}`,
+    quote_token_address: `0x${'f'.repeat(40)}`,
+    market: { ...evmPulseRows[0].market, price_usd: 1, market_cap_usd: index < 6 ? 800_000 : index < 12 ? 5_000_000 : 50_000,
+      market_age_seconds: 30_000, price_change_6h_pct: index < 12 ? 8 : -7, volume_usd_6h: index < 6 ? 10_000 : 20_000, liquidity_usd: 100_000,
+      volume_usd_5m: 5_000, buys_5m: 20, sells_5m: 10 } }));
+  await mockWorkspaceApis(page, { pulseRowsOverride: rows });
+  await page.goto('/discover/');
+  const cell = page.locator('#discoverPayoffStrip [data-participation-cell="robinhood:500k_2m"]');
+  await expect(cell).toHaveAttribute('data-payoff-state', 'rewarding');
+  await expect(cell).toContainText('6h +8.0%');
+  await page.locator('#discoverParticipationMap').click();
+  const layer = page.locator('.ros-intelligence-layer');
+  await expect(layer).toBeVisible();
+  if (width === 390) await expect(layer.locator('.discover-participation-treemap')).toBeHidden();
+  else await expect(layer.locator('.discover-participation-treemap')).toBeVisible();
+  expect(await layer.evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true);
+  await page.screenshot({ path: info.outputPath(`participation-${width}.png`) });
+  // A rolling update changes the existing button without losing keyboard focus.
+  const expanded = layer.locator('[data-participation-cell="robinhood:500k_2m"]');
+  await expanded.focus();
+  rows.slice(0, 6).forEach(row => { row.market.price_change_6h_pct = -8; });
+  await page.clock.fastForward(46_000);
+  await expect(expanded).toHaveAttribute('data-payoff-state', 'punishing');
+  await expect(expanded).toBeFocused();
+  await expanded.click();
+  await expect(layer).toHaveCount(0);
+  await expect(page.locator('.discover-token-row')).toHaveCount(6);
+  await expect(page.locator('#discoverParticipationClear')).toContainText('RH $500K–$2M');
+  await page.locator('#discoverParticipationClear').click();
+  await expect(page.locator('.discover-token-row')).toHaveCount(18);
+});
+
+test('Mode buttons keep the same Discovery document and scoped participation groups', async ({ page }) => {
+  await mockWorkspaceApis(page, { withEvmPulse: true });
+  await page.goto('/discover/');
+  await page.locator('[data-spot-chain="robinhood"]').click();
+  await page.evaluate(() => { window.retainedDiscover = document.querySelector('.discover-page'); });
+  await page.locator('[data-market-section="perps"]').click();
+  await expect(page.locator('#discoverPayoffWindow')).toContainText('24h');
+  await expect(page.locator('#discoverPayoffStrip')).toContainText('OI');
+  await expect(page.locator('#discoverSpotPulse')).toBeHidden();
+  await page.locator('[data-market-section="equities"]').click();
+  await expect(page.locator('#discoverPayoff')).toBeHidden();
+  await page.locator('[data-market-section="memecoins"]').click();
+  await expect(page.locator('[data-spot-chain="robinhood"]')).toHaveAttribute('aria-pressed', 'true');
+  expect(await page.evaluate(() => window.retainedDiscover === document.querySelector('.discover-page'))).toBe(true);
+});
+
 import {
   BNB_MEMESTOCK_CONTRACT,
   BNB_MEMESTOCK_POOL,
@@ -143,8 +196,8 @@ test("Discover runs a rights-safe live tape for perps, major stocks, and ETFs", 
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().paused)).toBe(true);
 });
 
-test("Discover explains the board once, then returns to a compact actionable workspace", async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
+test("Discover explains the desktop board once, then returns to a compact actionable workspace", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
   await mockWorkspaceApis(page, { withSpot: true });
   await page.goto("/discover/");
 
@@ -159,6 +212,7 @@ test("Discover explains the board once, then returns to a compact actionable wor
   await expect(page.locator("#discoverFirstVisitGuide")).toBeHidden();
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().workspaceCompact)).toBe(true);
 
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.reload();
   await expect(discover).toHaveAttribute("data-workspace-mode", "returning");
   await expect(discover).toHaveAttribute("data-tape-expanded", "false");
@@ -169,7 +223,8 @@ test("Discover explains the board once, then returns to a compact actionable wor
     const row = document.querySelector(".discover-token-row")?.getBoundingClientRect();
     return toolbar && row ? row.top - toolbar.bottom : Number.POSITIVE_INFINITY;
   });
-  expect(boardOffset).toBeLessThanOrEqual(190);
+  const participationHeight = await page.locator('#discoverPayoff').evaluate(node => node.getBoundingClientRect().height);
+  expect(boardOffset - participationHeight).toBeLessThanOrEqual(190);
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(2);
 
   await page.locator("#discoverTapeToggle").click();
@@ -179,6 +234,27 @@ test("Discover explains the board once, then returns to a compact actionable wor
   const compactIntroHeight = await page.locator("#discoverWorkspaceIntro").evaluate((node) => node.getBoundingClientRect().height);
   expect(compactIntroHeight).toBeLessThanOrEqual(70);
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(2);
+});
+
+test("mobile Discover starts with readable markets and keeps research in Inspect", async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockWorkspaceApis(page, { withEvmPulse: true, withSpot: true });
+  await page.goto("/discover/");
+  await expect(page.locator(".discover-page")).toHaveAttribute("data-workspace-mode", "returning");
+  await expect(page.locator("#discoverFirstVisitGuide")).toBeHidden();
+  const row = page.locator(".discover-token-row").first();
+  await expect(row).toBeVisible();
+  await page.screenshot({path:testInfo.outputPath("mobile-discover.png"),fullPage:true});
+  expect(await row.locator(".discover-token-name strong").evaluate(node=>parseFloat(getComputedStyle(node).fontSize))).toBeGreaterThanOrEqual(14);
+  expect(await row.evaluate(node=>node.getBoundingClientRect().height)).toBeLessThanOrEqual(130);
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  const evidence = page.locator(".discover-token-evidence").first();
+  await evidence.locator("summary").click();
+  await expect(page.locator('.ros-intelligence-layer .discover-token-evidence-body')).toBeVisible();
+  await expect(page.locator('.ros-intelligence-layer')).toContainText('market evidence');
+  await page.locator('.ros-layer-close').click();
+  await page.locator("#discoverIntroToggle").click();
+  await expect(page.locator("#discoverFirstVisitGuide")).toBeVisible();
 });
 
 test("Discover rows lead with why-now and attach only available route, risk, and freshness evidence", async ({ page }) => {
@@ -908,7 +984,8 @@ test("desktop adds Raven Lab without crowding the four mobile workspaces", async
 
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.locator(".ros-mobile-nav")).toBeVisible();
-  await expect(page.locator(".ros-mobile-nav > *")).toHaveText(["DDiscover", "TTerminal", "PPortfolio", "MMore"]);
+  await expect(page.locator(".ros-mobile-nav > *")).toHaveText(["Discover", "Terminal", "Portfolio", "More"]);
+  await expect(page.locator(".ros-mobile-nav .ros-nav-glyph svg")).toHaveCount(4);
   await page.getByRole("button", { name: "More RavenOS destinations" }).click();
   await expect(page.locator("#rosUtilityDrawer")).toBeVisible();
   await expect(page.locator("#rosUtilityContent")).toContainText("Research workspaces");
@@ -1049,7 +1126,8 @@ test("Discover joins only current Census rows to exact live venue identities", a
   await expect(row).toHaveAttribute("href", /instrument_id=hyperliquid%3Aperp%3ASOL/);
   await expect(page.locator("#discoverCensusState")).toHaveText("Current");
   await expect(page.locator("#discoverMarketState")).toHaveText("Current");
-  await expect(page.locator("#discoverPayoff")).toBeHidden();
+  await expect(page.locator("#discoverPayoff")).toBeVisible();
+  await expect(page.locator('#discoverPayoff')).toContainText('median price change');
   await expect(page.locator("#discoverDesk")).toBeVisible();
   await expect(page.locator("#discoverDesk")).not.toContainText("Solana is leading");
   await expect(page.locator("#discoverDeskGrid")).toContainText("Setup lifecycle");
@@ -1194,7 +1272,7 @@ test("Discover preserves exact-pool identity from radar to the chartable Termina
   await retireShell.locator(".discover-token-evidence > summary").click();
   await expect(retireShell.locator(".discover-token-evidence > summary")).toContainText("Inspect");
   for (const [name, panel] of [["chart", "chart"], ["txns", "activity"], ["holders", "holders"], ["Raven read", "raven"]]) {
-    const action = retireShell.getByRole("link", { name: new RegExp(`Open RETIRE ${name}`, "i") });
+    const action = page.locator(".ros-intelligence-layer").getByRole("link", { name: new RegExp(`Open RETIRE ${name}`, "i") });
     const href = await action.getAttribute("href");
     const url = new URL(href, "https://ravenos.xyz");
     expect(url.pathname).toBe("/terminal/");
@@ -1202,14 +1280,15 @@ test("Discover preserves exact-pool identity from radar to the chartable Termina
     expect(url.searchParams.get("token_address")).toBe(spotTokenAddress);
     expect(url.searchParams.get("panel")).toBe(panel);
   }
-  await expect(retireShell.locator(".discover-token-evidence-body")).toContainText("Rank, not probability");
-  await expect(retireShell.locator(".discover-token-evidence-body")).toContainText(/Grade [A-D]/);
-  await expect(retireShell).toContainText("Check the next 5m update");
-  await expect(retireShell.locator(".discover-token-evidence-body")).toContainText("Material Price Move");
+  await expect(page.locator(".ros-intelligence-layer .discover-token-evidence-body")).toContainText("Rank, not probability");
+  await expect(page.locator(".ros-intelligence-layer .discover-token-evidence-body")).toContainText(/Grade [A-D]/);
+  await expect(page.locator(".ros-intelligence-layer")).toContainText("Check the next 5m update");
+  await expect(page.locator(".ros-intelligence-layer .discover-token-evidence-body")).toContainText("Material Price Move");
   await expect(retireShell).not.toContainText(/qualified provider|provider input|exact-market registry|configured short-window|qualified observation|next real observation|cohort forming|Exact chart required/i);
   await page.evaluate(() => {
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async (value) => { window.__copiedTokenCa = value; } } });
   });
+  await page.locator('.ros-layer-close').click();
   await retireShell.locator(".discover-copy-ca").click();
   await expect.poll(() => page.evaluate(() => window.__copiedTokenCa)).toBe(spotTokenAddress);
   await expect(page.locator("#discoverCopyStatus")).toHaveText("RETIRE token contract address copied.");
@@ -1242,7 +1321,11 @@ test("Discover preserves exact-pool identity from radar to the chartable Termina
   await page.locator("[data-spot-timeframe='5m']").click();
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_DISCOVER__?.getState().spotTimeframe)).toBe("5m");
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect(spotRows.filter({ hasText: "RETIRE" }).locator(".discover-token-raven")).toBeVisible();
+  await expect(spotRows.filter({ hasText: "RETIRE" }).locator(".discover-token-raven")).toBeHidden();
+  const mobileEvidence = spotRows.filter({ hasText: "RETIRE" }).locator("..").locator(".discover-token-evidence");
+  await mobileEvidence.locator("summary").click();
+  await expect(page.locator('.ros-intelligence-layer .discover-token-evidence-body')).toBeVisible();
+  await page.locator('.ros-layer-close').click();
   await expect(spotRows.filter({ hasText: "RETIRE" }).locator(".discover-token-raven")).toContainText(/Velocity \d+\/99/);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(2);
@@ -1282,9 +1365,10 @@ test("Discover defaults to Velocity, keeps sourcing internal, and opens Raven's 
   await expect(row).toHaveAttribute("href", /raven_overlays=auto/);
   const inspect = row.locator("xpath=ancestor::div[contains(@class, 'discover-token-row-shell')]").locator(".discover-token-evidence");
   await inspect.locator("summary").click();
-  await expect(inspect.locator(".discover-token-inspect-actions a")).toHaveCount(3);
-  await expect(inspect.locator(".discover-token-inspect-actions")).toContainText("No current Raven read");
-  await expect(inspect.locator("[data-discover-terminal-panel='raven']")).toHaveCount(0);
+  await expect(page.locator(".ros-intelligence-layer .discover-token-inspect-actions a")).toHaveCount(3);
+  await expect(page.locator(".ros-intelligence-layer .discover-token-inspect-actions")).toContainText("No current Raven read");
+  await expect(page.locator(".ros-intelligence-layer [data-discover-terminal-panel='raven']")).toHaveCount(0);
+  await page.locator('.ros-layer-close').click();
   await page.locator("[data-spot-sort='raven']").click();
   await expect(page.locator(".discover-token-row")).toHaveCount(0);
   await expect(page.locator(".discover-token-empty")).toContainText("No current Raven reads");
@@ -1362,6 +1446,7 @@ test("Discover groups same-symbol contracts for clarity and reveals every exact 
   await expect(page.locator("#discoverSpotResultState")).toHaveText("1 shown · 2 exact tokens");
   await expect(page.locator("#discoverTokenTapeList")).toContainText("2 same-symbol contracts · best shown");
   await expect(page.locator("#discoverSameSymbolToggle")).toHaveAttribute("aria-pressed", "false");
+  await page.locator("#discoverRefineMarkets > summary").click();
   await page.locator("#discoverSameSymbolToggle").click();
   await expect(page.locator("#discoverSameSymbolToggle")).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator("#discoverSpotResultState")).toHaveText("2 tokens");
@@ -1679,8 +1764,8 @@ test("Discover never presents a retained exact-market snapshot as a live opportu
 
   const shell = row.locator("xpath=ancestor::div[contains(@class, 'discover-token-row-shell')]");
   await shell.locator(".discover-token-evidence > summary").click();
-  await expect(shell.locator(".discover-token-evidence-body")).toContainText("Live quote refreshing");
-  await expect(shell.locator(".discover-token-evidence-body")).toContainText("Current quote required.");
+  await expect(page.locator(".ros-intelligence-layer .discover-token-evidence-body")).toContainText("Live quote refreshing");
+  await expect(page.locator(".ros-intelligence-layer .discover-token-evidence-body")).toContainText("Current quote required.");
   await expect(shell.locator("[data-discover-terminal-panel='raven']")).toHaveCount(0);
 
   await page.setViewportSize({ width: 390, height: 844 });
@@ -1851,7 +1936,8 @@ test("Discover restores live Solana pools when Raven's private attention feed ha
   await page.locator("[data-discover-filter='spot']").click();
   expect(await page.evaluate(() => window.scrollY)).toBeLessThanOrEqual(2);
   await expect(page.locator("#discoverDesk")).toBeHidden();
-  await expect(page.locator("#discoverPayoff")).toBeHidden();
+  await expect(page.locator("#discoverPayoff")).toBeVisible();
+  await expect(page.locator('#discoverPayoff')).toContainText('median price change');
   await expect(page.locator("#discoverOpportunityLayout")).toBeHidden();
   await expect(page.locator("#discoverSpotPulse")).toBeVisible();
   await page.locator("[data-spot-chain='solana']").click();
@@ -2621,7 +2707,9 @@ test("universal search offers explicit wallet analysis without replacing an exac
   await expect(page.locator("#rosSearchStatus")).toContainText("public-wallet analysis available");
 
   await wallet.click();
-  await expect(page).toHaveURL(`https://app.ravenos.xyz/account/copy/?wallet=${bitcatPoolAddress}&chain=solana`);
+  await expect(page).toHaveURL(/\/discover\/$/);
+  await expect(page.locator('.ros-intelligence-layer')).toBeVisible();
+  await expect(page.locator('.ros-layer-header')).toContainText('Wallet intelligence');
 });
 
 test("universal search does not classify malformed or non-32-byte base58 input as a wallet", async ({ page }) => {
@@ -2948,8 +3036,8 @@ test("Discover expires route capacity independently of market facts while paused
   await expect(visible).not.toContainText("bps slip");
   await page.locator(".discover-token-evidence summary").first().click();
   const overview = page.locator(".discover-token-evidence").first();
-  await expect(overview).toContainText("Routeable size");
-  await expect(overview).not.toContainText("$2.5K");
+  await expect(page.locator(".ros-intelligence-layer")).toContainText("Routeable size");
+  await expect(page.locator(".ros-intelligence-layer")).not.toContainText("$2.5K");
 });
 
 test("wallet search requires an explicit EVM chain and ticker has a distinct mobile action", async ({ page }) => {
@@ -2958,7 +3046,7 @@ test("wallet search requires an explicit EVM chain and ticker has a distinct mob
   await page.goto("/discover/");
   await page.locator("#discoverIntroToggle").click();
   await page.reload();
-  await expect(page.getByRole("link", { name: "Stocks & ETFs", exact: true })).toHaveCount(1);
+  await expect(page.locator("[data-market-section=equities]")).toHaveCount(1);
   await expect(page.locator("#discoverTapeToggle")).toHaveText("Show ticker");
   expect(await page.locator("#discoverTapeToggle").evaluate((node) => parseFloat(getComputedStyle(node).fontSize))).toBeLessThanOrEqual(12);
   await expect(page.locator(".discover-token-row").first()).toBeVisible();
@@ -2989,7 +3077,7 @@ for (const width of [1440, 390]) test(`Market sections keep memecoin and perp Re
   await page.locator('#rosContextTrigger').click();
   await expect(page.locator('#rosContextRail')).not.toContainText('SOL-PERP');
   await expect(page.locator('#rosContextRail')).not.toContainText('BTC-PERP');
-  await page.locator('#rosContextClose').click();
+  await page.locator('.ros-layer-close').click();
   await page.locator('[data-market-section="perps"]').click();
   await page.locator('[data-discover-filter="signals"]').click();
   await expect(page.locator('#discoverSpotPulse')).toBeHidden();
@@ -3037,7 +3125,7 @@ for (const path of ['/opportunity/']) test(`Legacy Reads route ${path} follows m
   payload.census.generated_at = new Date().toISOString();
   await page.route('**/api/opportunity**', route => route.fulfill({ json: payload }));
   await page.goto(`${path}?market_scope=memecoins`);
-  await expect(page.locator('#routeHeadline')).toHaveText('Memecoins Raven Reads');
+  await expect(page.locator('#routeHeadline')).toHaveText('Onchain Raven Reads');
   await expect(page.locator('[data-read-market-scope="memecoins"]').first()).toBeVisible();
   await expect(page.locator('#routePrimaryPanel')).not.toContainText('SOL-PERP');
   await page.goto(`${path}?market_scope=perps`);

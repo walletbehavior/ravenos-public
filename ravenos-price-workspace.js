@@ -1457,7 +1457,8 @@ export class PriceWorkspace {
       return null;
     }
     const mobile = window.matchMedia?.("(max-width: 820px)")?.matches;
-    const height = Math.max(mobile ? 300 : 420, this.chartHost.clientHeight || this.root.getBoundingClientRect().height - (mobile ? 116 : 42));
+    const compactSpot = mobile && this.root.closest(".terminal-desk[data-terminal-lane='spot']") && !this.root.classList.contains("rpw-focus-mode");
+    const height = Math.max(compactSpot ? 140 : mobile ? 300 : 420, this.chartHost.clientHeight || this.root.getBoundingClientRect().height - (mobile ? 116 : 42));
     const onOverlayTypesChange = this.renderInput.onOverlayTypesChange;
     this.chartHandle = window.RavenPriceChart(this.chartHost, {
       ...this.renderInput,

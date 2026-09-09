@@ -1,0 +1,74 @@
+{
+  "schema_version": "ravenos.market_provider_replacement_evaluation.v1",
+  "observed_at": "2026-09-09T12:32:38.278Z",
+  "mode": "local_worker_live_public_gets",
+  "credentials_used": false,
+  "production_deployed": false,
+  "money_movement": false,
+  "discovery": {
+    "status": 200,
+    "elapsed_ms": 2493,
+    "ok": true,
+    "state": "current",
+    "providers": "dexch + dexscreener",
+    "chains": {
+      "solana": 6,
+      "base": 4,
+      "bsc": 32,
+      "ethereum": 1,
+      "robinhood": 34
+    },
+    "unavailable": []
+  },
+  "charts": [
+    {
+      "chain": "bsc",
+      "asset": "BREW/WBNB",
+      "pair_address": "0x3ea3f9a7b7edbfe0ba3568bfc0f30ba870b7553d",
+      "token_address": "0xfa6d9b504848606eb9aec04ccc161d169b3f2159",
+      "quote_address": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
+      "status": 200,
+      "elapsed_ms": 639,
+      "ok": true,
+      "provider": "dexch",
+      "returned_bars": 240,
+      "latest_candle": "2026-09-09T12:32:00.000Z",
+      "continuity": "verified",
+      "attempts": [
+        {
+          "provider": "dexch",
+          "state": "selected"
+        }
+      ]
+    },
+    {
+      "chain": "robinhood",
+      "asset": "CHART/ETH",
+      "pair_address": "0x1a3b0b30dd0ddba010d2b4e269fbd68d76d78dcbbcdc78a084a8ab4613b8db96",
+      "token_address": "0x2112a316a2e56d7300092e5a41d2a84dd11d3bd6",
+      "quote_address": "0x0000000000000000000000000000000000000000",
+      "status": 200,
+      "elapsed_ms": 277,
+      "ok": false,
+      "provider": null,
+      "returned_bars": 0,
+      "latest_candle": null,
+      "continuity": null,
+      "attempts": [
+        {
+          "provider": "dexch",
+          "state": "unavailable"
+        },
+        {
+          "provider": "coingecko_onchain",
+          "state": "provider_configuration_unavailable"
+        }
+      ]
+    }
+  ],
+  "limitations": [
+    "Snapshot coverage is not an SLA or a complete token census.",
+    "Dexch token-scoped candles require matching pool identity and a known history boundary.",
+    "CoinGecko was not given a key; this verifies independence for successful routes, not its current account quota."
+  ]
+}

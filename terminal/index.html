@@ -627,7 +627,6 @@
             <button type="button" id="terminalSpotSell" data-spot-side="sell" aria-pressed="false">Sell</button>
           </div>
 
-          <div id="terminalWalletFunds"></div>
           <div class="terminal-spot-asset-choice">
             <span id="terminalSpotAssetPreferenceLabel">Pay</span>
             <div role="group" aria-label="Funding or settlement asset">
@@ -657,19 +656,6 @@
             <button type="button" data-spot-sell-pct="100" disabled>100%</button>
           </div>
 
-          <div class="terminal-spot-decision-strip" id="terminalSpotDecisionStrip" aria-label="Current route review status">
-            <button type="button" id="terminalSpotRiskSummary" data-state="forming">
-              <span>Market risk</span>
-              <strong id="terminalSpotRiskCompact">Checking</strong>
-              <small id="terminalSpotRiskCompactNote">Holder + control checks</small>
-            </button>
-            <div id="terminalSpotExitSummary" data-state="idle">
-              <span>Exit check</span>
-              <strong id="terminalSpotExitCompact">Not reviewed</strong>
-              <small id="terminalSpotExitCompactNote">Request route</small>
-            </div>
-          </div>
-
           <div class="terminal-spot-fee-compact" id="terminalSpotFeeSummary">
             <span>Raven fee</span>
             <strong id="terminalSpotFeeCompact">1.00%</strong>
@@ -684,6 +670,19 @@
           <button class="terminal-preview-action" id="terminalSpotQuoteAction" type="button">Buy</button>
           <details class="terminal-spot-route-details" id="terminalSpotRouteDetails">
             <summary>Route details</summary>
+          <div class="terminal-spot-decision-strip" id="terminalSpotDecisionStrip" aria-label="Current route review status">
+            <button type="button" id="terminalSpotRiskSummary" data-state="forming">
+              <span>Market risk</span>
+              <strong id="terminalSpotRiskCompact">Checking</strong>
+              <small id="terminalSpotRiskCompactNote">Holder + control checks</small>
+            </button>
+            <div id="terminalSpotExitSummary" data-state="idle">
+              <span>Exit check</span>
+              <strong id="terminalSpotExitCompact">Not reviewed</strong>
+              <small id="terminalSpotExitCompactNote">Request route</small>
+            </div>
+          </div>
+
             <button id="terminalSpotPreviewAction" type="button">Refresh estimate</button>
           <label class="terminal-quote-follow">
             <input id="terminalSpotQuoteFollow" type="checkbox" />
@@ -730,8 +729,9 @@
           <p class="terminal-preview-message" id="terminalSpotQuoteMessage" hidden></p>
 
           <details class="terminal-bracket terminal-spot-advanced" id="terminalSpotAdvanced">
-            <summary><span>Plans, wallet &amp; routing</span><strong id="terminalSpotAdvancedState">Preset · 0.50% slippage</strong></summary>
+            <summary><span>Trading settings</span><strong id="terminalSpotAdvancedState">Preset · 0.50% slippage</strong></summary>
             <div class="terminal-spot-advanced-body">
+              <div id="terminalWalletFunds"></div>
               <div class="terminal-spot-wallet" id="terminalSpotWallet">
                 <div><span>Read-only wallet</span><strong id="terminalSpotWalletState">Not connected</strong><small id="terminalSpotWalletNote">Balance check only. No signature.</small></div>
                 <button type="button" id="terminalSpotWalletConnect">Connect</button>

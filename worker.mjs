@@ -134,6 +134,7 @@ import {
   RAVENOS_ONCHAIN_CHART_PROVIDER_REGISTRY_SCHEMA,
   normalizeProviderPoolAddress,
   onchainChartProviderOrder,
+  onchainChartProvidersForMarket,
   onchainProviderNetwork,
   onchainProviderRuntime,
 } from "./lib/onchain_chart_providers.mjs";
@@ -151,6 +152,9 @@ import {
   resolveDexchDiscoveryRuntime,
 } from "./lib/dexch_discovery_provider.mjs";
 import { buildParticipationPayoffProjection } from "./lib/participation_payoff.mjs";
+import { MarketProviderReader, MarketProviderPolicy, normalizeDexScreenerActivity, dexchWalletCandidates } from "./lib/market_provider_fallbacks.mjs";
+import { buildDexchChart } from './lib/dexch_chart.mjs';
+import { EVM_CHAIN_PROFILES } from './lib/customer_trade/evm_chain_profiles.mjs';
 import {
   ONCHAIN_HOLDER_SCHEMA,
   PUBLIC_SOLANA_HOLDER_ROUTE,
@@ -556,11 +560,11 @@ function authenticatedAppBoundary(request) {
   }) };
 }
 
-const dexCache = new Map();
 const dexPaprikaCache = new Map();
 const geckoIdentityCache = new Map();
 const geckoMarketProfileCache = new Map();
 const geckoTradeCache = new Map();
+const marketProviderReader = new MarketProviderReader();
 const dexchDiscoveryProvider = new DexchDiscoveryProvider({
   // Resolve fetch at request time so Worker tests and local harnesses can install
   // an isolated transport without rebuilding the module singleton.
@@ -591,7 +595,7 @@ const ONCHAIN_PULSE_SUPPLEMENT_TTL_MS = 90_000;
 const ONCHAIN_PULSE_MAX_ROWS = 240;
 const JUPITER_DISCOVERY_LIMIT = 50;
 const DEXSCREENER_TOKEN_BATCH_LIMIT = 30;
-const DEXCH_PULSE_TOKENS_PER_CHAIN = 30;
+const DEXCH_PULSE_TOKENS_PER_CHAIN = MarketProviderPolicy.seed_pools_per_chain;
 const EVM_CHAINS = ["base", "ethereum", "robinhood", "arbitrum", "optimism", "bsc", "polygon", "avalanche"];
 const QUOTE_RANK = { USDC: 90, USDT: 85, USDG: 84, SOL: 80, WETH: 80, ETH: 75, WSOL: 75 };
 const CHAIN_ROUTE_MAP = {
@@ -1133,17 +1137,8 @@ function chainMatches(value, aliases = []) {
 }
 
 async function cachedDex(path) {
-  const now = Date.now();
-  const hit = dexCache.get(path);
-  if (hit && hit.expires > now) return hit.payload;
-  const response = await fetch(`${DEXSCREENER_BASE_URL}${path}`, {
-    headers: { accept: "application/json" },
-  });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(`dexscreener_http_${response.status}`);
+  const payload = await marketProviderReader.read(`${DEXSCREENER_BASE_URL}${path}`, { ttlMs: 30_000 });
   rememberSeenWalletTokenMarks(Array.isArray(payload)?payload:payload.pairs);
-  dexCache.set(path, { payload, expires: now + 30_000 });
-  if (dexCache.size > 200) dexCache.delete(dexCache.keys().next().value);
   return payload;
 }
 
@@ -1816,12 +1811,14 @@ function sanitizeSpotAttentionRow(row, {
     holder_change_24h_pct: boundedPublicNumber(market.holder_change_24h_pct),
     price_change_5m_pct: boundedPublicNumber(market.price_change_5m_pct),
     price_change_1h_pct: boundedPublicNumber(market.price_change_1h_pct),
+    price_change_6h_pct: boundedPublicNumber(market.price_change_6h_pct),
     price_change_24h_pct: boundedPublicNumber(market.price_change_24h_pct),
     liquidity_change_5m_pct: boundedPublicNumber(market.liquidity_change_5m_pct),
     liquidity_change_1h_pct: boundedPublicNumber(market.liquidity_change_1h_pct),
     liquidity_change_24h_pct: boundedPublicNumber(market.liquidity_change_24h_pct),
     volume_usd_5m: boundedPublicNumber(market.volume_usd_5m, { minimum: 0 }),
     volume_usd_1h: boundedPublicNumber(market.volume_usd_1h, { minimum: 0 }),
+    volume_usd_6h: boundedPublicNumber(market.volume_usd_6h, { minimum: 0 }),
     volume_usd_24h: boundedPublicNumber(market.volume_usd_24h, { minimum: 0 }),
     buys_5m: boundedPublicNumber(market.buys_5m, { minimum: 0 }),
     sells_5m: boundedPublicNumber(market.sells_5m, { minimum: 0 }),
@@ -3213,7 +3210,7 @@ function normalizeGeckoTrendingPool(payload, row, {
   const dex = geckoIncludedResource(payload, dexRelationship, "dex");
   const venue = boundedPublicLabel(dex?.attributes?.name, boundedPublicLabel(dexRelationship, "On-chain pool", 60), 60);
   const windowMetrics = {};
-  for (const [publicWindow, sourceWindow] of Object.entries(ONCHAIN_PULSE_DURATIONS)) {
+  for (const [publicWindow, sourceWindow] of Object.entries({ ...ONCHAIN_PULSE_DURATIONS, '6h': 'h6' })) {
     const tx = pulseTransactionMetrics(attributes, sourceWindow);
     windowMetrics[`price_change_${publicWindow}_pct`] = optionalFiniteNumber(
       attributes?.price_change_percentage?.[sourceWindow],
@@ -3313,10 +3310,11 @@ async function fetchGeckoTrendingPage({
   const payload = await runProviderOperation({
     component: "onchain_market_pulse",
     operation_key: `trending:${runtime.provider_tier}:${network.provider_network}:${duration}:page-${page}`,
-    fn: () => boundedProviderJson(
+    fn: () => (env.RAVENOS_MARKET_PROVIDER_FALLBACKS_ENABLED === '1' ? marketProviderReader.read.bind(marketProviderReader) : boundedProviderJson)(
       `${runtime.base_url}/networks/${encodeURIComponent(network.provider_network)}/trending_pools?include=base_token%2Cquote_token%2Cdex&duration=${encodeURIComponent(duration)}&page=${page}`,
       {
         headers: runtime.request_headers,
+        ttlMs: 90_000,
         maxBytes: 384 * 1024,
         timeoutMs: 5_000,
         errorPrefix: "coingecko_trending",
@@ -3520,9 +3518,11 @@ function normalizeDexchExactPoolRow(token, pair, { duration = "5m", providerRank
       holder_count: providerMarket.holder_count ?? null,
       price_change_5m_pct: providerMarket.price_change_5m_pct ?? null,
       price_change_1h_pct: providerMarket.price_change_1h_pct ?? null,
+      price_change_6h_pct: providerMarket.price_change_6h_pct ?? null,
       price_change_24h_pct: providerMarket.price_change_24h_pct ?? pair.priceChange24h ?? null,
       volume_usd_5m: providerMarket.volume_5m_usd ?? null,
       volume_usd_1h: providerMarket.volume_1h_usd ?? null,
+      volume_usd_6h: providerMarket.volume_6h_usd ?? null,
       volume_usd_24h: optionalFiniteNumber(pair.volume24h) ?? providerMarket.volume_24h_usd ?? null,
       buys_24h: optionalFiniteNumber(pair.buys24h) ?? providerMarket.buys_24h ?? null,
       sells_24h: optionalFiniteNumber(pair.sells24h) ?? providerMarket.sells_24h ?? null,
@@ -3572,11 +3572,12 @@ async function dexchPulseDiscovery({ env = {}, chains = [], duration = "5m", fet
   }
   const discoveryRequests = [
     { lane: "trending", sort: "trending", limit: 50 },
+    { lane: "volume", sort: "volume24h", limit: 100 },
     { lane: "new", preset: "new", sort: "new", limit: 30 },
     { lane: "almost", preset: "almost", sort: "progress", limit: 30 },
     { lane: "graduated", preset: "graduated", sort: "migratedAt", limit: 30 },
   ];
-  const tokenSettled = await Promise.allSettled(discoveryRequests.map((request) => dexchDiscoveryProvider.tokens({
+  const tokenSettled = await Promise.allSettled(discoveryRequests.map((request) => dexchDiscoveryProvider.discovery({
     chains: supportedChains,
     preset: request.preset,
     sort: request.sort,
@@ -3586,26 +3587,38 @@ async function dexchPulseDiscovery({ env = {}, chains = [], duration = "5m", fet
   const tokens = [];
   const failures = [];
   const seenTokens = new Set();
+  const laneTokens = [];
   tokenSettled.forEach((result, index) => {
     if (result.status === "fulfilled") {
-      for (const token of result.value.rows) {
+      if (result.value.failed_chains?.length) failures.push({ lane: discoveryRequests[index].lane, state: "temporarily_unavailable", chains: result.value.failed_chains });
+      laneTokens.push(result.value.rows);
+    } else failures.push({ lane: discoveryRequests[index].lane, state: "temporarily_unavailable" });
+  });
+  // Interleave mature-volume and lifecycle lanes so neither starves the other.
+  for (let rank = 0; rank < Math.max(0, ...laneTokens.map(rows => rows.length)); rank += 1) {
+    for (const rows of laneTokens) {
+      const token = rows[rank];
+      if (!token) continue;
         const key = dexchDiscoveryTokenKey(token.chain, token.address);
         if (seenTokens.has(key)) continue;
         seenTokens.add(key);
         tokens.push(token);
-      }
-    } else failures.push({ lane: discoveryRequests[index].lane, state: "temporarily_unavailable" });
-  });
+    }
+  }
   const tokensByChain = new Map();
   for (const token of tokens) {
     if (!tokensByChain.has(token.chain)) tokensByChain.set(token.chain, []);
     if (tokensByChain.get(token.chain).length < DEXCH_PULSE_TOKENS_PER_CHAIN) tokensByChain.get(token.chain).push(token);
   }
-  const pairSettled = await Promise.allSettled([...tokensByChain].map(async ([chain, chainTokens]) => ({
-    chain,
-    tokens: chainTokens,
-    pairs: await tokensDex(chain, chainTokens.slice(0, DEXSCREENER_TOKEN_BATCH_LIMIT).map((token) => token.address).join(",")),
-  })));
+  const pairJobs = [...tokensByChain].flatMap(([chain, chainTokens]) => {
+    const jobs = [];
+    for (let offset = 0; offset < chainTokens.length; offset += DEXSCREENER_TOKEN_BATCH_LIMIT) {
+      const batch = chainTokens.slice(offset, offset + DEXSCREENER_TOKEN_BATCH_LIMIT);
+      jobs.push({ chain, tokens: batch });
+    }
+    return jobs;
+  });
+  const pairSettled = await Promise.allSettled(pairJobs.map(async job => ({ ...job, pairs: await tokensDex(job.chain, job.tokens.map(token => token.address).join(',')) })));
   const rows = [];
   for (const result of pairSettled) {
     if (result.status !== "fulfilled") continue;
@@ -3624,6 +3637,57 @@ async function dexchPulseDiscovery({ env = {}, chains = [], duration = "5m", fet
     failures,
     health: dexchDiscoveryProvider.healthSnapshot(),
   };
+}
+
+async function existingProviderDiscovery({ env, chains, retained = [], duration, fetchedAt }) {
+  if (env.RAVENOS_MARKET_PROVIDER_FALLBACKS_ENABLED !== '1') return [];
+  const seeds = new Map(chains.map(chain => [chain, new Set()]));
+  // Known Raven markets are the first candidates, across every requested chain.
+  for (const row of retained) {
+    const chain = row.chain_id || row.chain;
+    const bucket = seeds.get(chain);
+    if (bucket && bucket.size < MarketProviderPolicy.seed_pools_per_chain - 1 && row.token_address) bucket.add(row.token_address);
+  }
+  for (const [chain, bucket] of seeds) {
+    const native = EVM_CHAIN_PROFILES[chain]?.wrapped_native_token_address;
+    if (native) bucket.add(native);
+  }
+  const read = (path, ttlMs) => marketProviderReader.read(`${DEXSCREENER_BASE_URL}${path}`, { ttlMs });
+  // Profiles are discovery seeds, never a paid-promotion or quality ranking.
+  // Seed searches run only for thin chains and are shared for five minutes.
+  const profiles = await read('/token-profiles/latest/v1', MarketProviderPolicy.discovery_cache_ms).catch(() => []);
+  for (const row of Array.isArray(profiles) ? profiles.slice(0, 100) : []) {
+    const bucket = seeds.get(row.chainId);
+    if (bucket && bucket.size < MarketProviderPolicy.seed_pools_per_chain && row.tokenAddress) bucket.add(row.tokenAddress);
+  }
+  const candidatePairs = [];
+  const missing = chains.filter(chain => seeds.get(chain).size < 4);
+  if (missing.length) {
+    const searches = [...new Set(missing.map(chain => chain === 'solana' ? 'SOL' : chain === 'bsc' ? 'WBNB' : 'WETH'))];
+    const found = await Promise.allSettled(searches.map(query => read(`/latest/dex/search?q=${query}`, MarketProviderPolicy.discovery_cache_ms)));
+    for (const result of found) if (result.status === 'fulfilled') {
+      for (const pair of result.value.pairs || []) {
+        const bucket = seeds.get(pair.chainId);
+        if (missing.includes(pair.chainId) && bucket?.size < DEXSCREENER_TOKEN_BATCH_LIMIT && pair.baseToken?.address) bucket.add(pair.baseToken.address);
+      }
+    }
+  }
+  const jobs = [...seeds].flatMap(([chain, addresses]) => {
+    const tokens = [...addresses].sort(), result = [];
+    for (let offset = 0; offset < tokens.length; offset += DEXSCREENER_TOKEN_BATCH_LIMIT) result.push({ chain, tokens: tokens.slice(offset, offset + DEXSCREENER_TOKEN_BATCH_LIMIT) });
+    return result;
+  });
+  const batches = await Promise.allSettled(jobs.map(async ({ chain, tokens }) => {
+    const snapshot = await marketProviderReader.snapshot(`${DEXSCREENER_BASE_URL}/tokens/v1/${chain}/${tokens.join(',')}`, { ttlMs: MarketProviderPolicy.pair_cache_ms });
+    return (Array.isArray(snapshot.value) ? snapshot.value : []).filter(pair => pair.chainId === chain).map(pair => ({ pair, observedAt: snapshot.observed_at }));
+  }));
+  for (const result of batches) if (result.status === 'fulfilled') candidatePairs.push(...result.value);
+  const unique = new Map();
+  for (const chain of chains) for (const { pair, observedAt } of candidatePairs) {
+    const row = normalizeDexScreenerActivity(pair, { chain, duration, observedAt });
+    if (row) unique.set(row.instrument_id, row);
+  }
+  return [...unique.values()];
 }
 
 function jupiterVelocityStats(token = {}, duration = "5m") {
@@ -4017,26 +4081,31 @@ async function refreshRetainedDiscoverHotWatch({
     const network = ONCHAIN_PULSE_NETWORKS[chain];
     const poolAddress = normalizeMarketPulseAddress(chain, retained?.pool_address);
     if (!network || !poolAddress) throw new Error("discover_hot_watch_identity_invalid");
-    const payload = await runProviderOperation({
+    const snapshot = await runProviderOperation({
       component: "onchain_market_pulse_hot_watch",
       operation_key: `pool:${runtime.provider_tier}:${network.provider_network}:${poolAddress}:${duration}`,
-      fn: () => boundedProviderJson(
-        `${runtime.base_url}/networks/${encodeURIComponent(network.provider_network)}/pools/${encodeURIComponent(poolAddress)}?include=base_token%2Cquote_token%2Cdex`,
-        {
+      fn: async () => {
+        const endpoint = `${runtime.base_url}/networks/${encodeURIComponent(network.provider_network)}/pools/${encodeURIComponent(poolAddress)}?include=base_token%2Cquote_token%2Cdex`;
+        const settings = {
           headers: runtime.request_headers,
           maxBytes: 256 * 1024,
           timeoutMs: 4_000,
           errorPrefix: "coingecko_hot_watch",
-        },
-      ),
+          ttlMs: 90_000,
+        };
+        return env.RAVENOS_MARKET_PROVIDER_FALLBACKS_ENABLED === '1'
+          ? marketProviderReader.snapshot(endpoint, settings)
+          : { value: await boundedProviderJson(endpoint, settings), observed_at: fetchedAt };
+      },
     });
+    const payload = snapshot.value;
     const current = normalizeGeckoTrendingPool(payload, payload?.data, {
       chain,
       chainLabel: network.label,
       duration,
       providerWindow,
       providerRank: null,
-      fetchedAt,
+      fetchedAt: snapshot.observed_at,
     });
     if (
       !current
@@ -4133,14 +4202,16 @@ async function onchainMarketPulse({ env = {}, request = null, chains = [], durat
   const providerAvailable = runtime.runtime_allowed && runtime.credential_present;
   const jupiterConfigured = chains.includes("solana") && Boolean(String(env.JUPITER_API_KEY || "").trim());
   const dexchRuntime = resolveDexchDiscoveryRuntime(env);
-  const cacheKey = `${runtime.provider_tier}:${chains.join(",")}:${duration}:jupiter-${jupiterConfigured ? "on" : "off"}:dexch-${dexchRuntime.state}`;
+  const cacheKey = `${runtime.provider_tier}:${chains.join(",")}:${duration}:jupiter-${jupiterConfigured ? "on" : "off"}:dexch-${dexchRuntime.state}:fallback-${env.RAVENOS_MARKET_PROVIDER_FALLBACKS_ENABLED || '0'}`;
   const cached = cacheGet(onchainPulseCache, cacheKey);
   if (cached) return cached;
   const registryHistoryPromise = request ? discoverRegistryHistory(env, request) : Promise.resolve(new Map());
   const fetchedAt = new Date().toISOString();
-  const geckoSettledPromise = providerAvailable ? Promise.allSettled(chains.map(async (chain) => {
+  const loadGecko = (covered = new Set()) => providerAvailable ? Promise.allSettled(chains.map(async (chain) => {
+    if (covered.has(chain)) return { chain, rows: [], pages_loaded: [], supplemental_page_failures: [] };
     const network = ONCHAIN_PULSE_NETWORKS[chain];
-    const pageResults = await Promise.allSettled(ONCHAIN_PULSE_PROVIDER_PAGES.map((page) => fetchGeckoTrendingPage({
+    const pages = env.RAVENOS_MARKET_PROVIDER_FALLBACKS_ENABLED === '1' ? [1] : ONCHAIN_PULSE_PROVIDER_PAGES;
+    const pageResults = await Promise.allSettled(pages.map((page) => fetchGeckoTrendingPage({
       env,
       runtime,
       network,
@@ -4195,7 +4266,12 @@ async function onchainMarketPulse({ env = {}, request = null, chains = [], durat
     failures: [],
     health: dexchDiscoveryProvider.healthSnapshot(),
   }));
-  const [settled, jupiterRows, dexchDiscovery] = await Promise.all([geckoSettledPromise, jupiterPromise, dexchPromise]);
+  const registryHistory = await registryHistoryPromise;
+  const existingPromise = existingProviderDiscovery({ env, chains, retained: [...registryHistory.values()], duration, fetchedAt }).catch(() => []);
+  const [jupiterRows, dexchDiscovery, existingRows] = await Promise.all([jupiterPromise, dexchPromise, existingPromise]);
+  const covered = env.RAVENOS_MARKET_PROVIDER_FALLBACKS_ENABLED === '1'
+    ? new Set([...jupiterRows, ...(dexchDiscovery.rows || []), ...existingRows].map(row => row.chain_id)) : new Set();
+  const settled = await loadGecko(covered);
   const providerRows = [];
   const providerCoverage = [];
   const failures = [];
@@ -4209,7 +4285,7 @@ async function onchainMarketPulse({ env = {}, request = null, chains = [], durat
         supplemental_page_failures: result.value.supplemental_page_failures,
       });
     }
-    else failures.push({
+    else if (!covered.has(chains[index])) failures.push({
       chain: chains[index],
       state: "temporarily_unavailable",
     });
@@ -4218,11 +4294,10 @@ async function onchainMarketPulse({ env = {}, request = null, chains = [], durat
     dexchDiscoveryTokenKey(token.chain, token.address),
     token,
   ]));
-  const currentRows = [...jupiterRows, ...providerRows].map((row) => {
+  const currentRows = [...jupiterRows, ...providerRows, ...existingRows].map((row) => {
     const token = dexchByToken.get(dexchDiscoveryTokenKey(row.chain_id || row.chain, row.token_address));
     return token ? attachDexchLifecycle(row, token, fetchedAt) : row;
   });
-  const registryHistory = await registryHistoryPromise;
   const rowsByMarket = new Map();
   for (const row of [...currentRows, ...(dexchDiscovery.rows || [])]) {
     const marketKey = String(row.instrument_id || "");
@@ -4281,7 +4356,7 @@ async function onchainMarketPulse({ env = {}, request = null, chains = [], durat
     provenance: {
       provider: registryOnly
         ? "retained_exact_pool_registry"
-        : [jupiterRows.length ? "jupiter_tokens_v2" : null, providerRows.length ? "coingecko_onchain" : null, dexchDiscovery.tokens?.length ? "dexch" : null]
+        : [jupiterRows.length ? "jupiter_tokens_v2" : null, providerRows.length ? "coingecko_onchain" : null, dexchDiscovery.tokens?.length ? "dexch" : null, existingRows.length ? 'dexscreener' : null]
           .filter(Boolean)
           .join(" + ") || "current_market_providers",
       role: registryOnly
@@ -4315,6 +4390,7 @@ async function onchainMarketPulse({ env = {}, request = null, chains = [], durat
       meteora_exact_pools: rows.some((row) => /meteora/i.test(String(row.venue || ""))),
       robinhood_velocity: rows.some((row) => String(row.chain_id || "").toLowerCase() === "robinhood"),
       dexch_launchpads: dexchDiscovery.rows?.length || 0,
+      existing_provider_exact_pools: existingRows.length,
       dexch_lifecycle_enriched: currentRows.filter((row) => row.lifecycle_evidence?.provider === "dexch").length,
       retained_exact_markets: retainedRows.length,
       hot_watch_attempted: hotWatch.attempted,
@@ -4704,15 +4780,40 @@ function publicProviderFailure(error) {
   if (message.includes("404") || message.includes("coverage_unavailable")) return "coverage_unavailable";
   if (message.includes("timeout")) return "timed_out";
   if (message.includes("identity")) return "identity_rejected";
-  if (message.includes("ohlcv_continuity_rejected")) return "candle_continuity_rejected";
+  if (message.includes("ohlcv_continuity_rejected") || message.includes('dexch_chart_continuity_rejected')) return "candle_continuity_rejected";
   if (message.includes("keyless_geckoterminal_forbidden")) return "production_capacity_forbidden";
   if (message.includes("keyless_geckoterminal_application_fallback_forbidden") || message.includes("provider_secret_missing")) return "provider_configuration_unavailable";
   if (message.includes("malformed") || message.includes("invalid")) return "invalid_provider_response";
   return "unavailable";
 }
 
+async function fetchDexchPoolCandles(options = {}) {
+  const { chain, pairAddress, tokenAddress, quoteAddress, timeframe = '1h', limit = 240, before } = options;
+  if (before) throw new Error('dexch_older_history_unavailable');
+  const cacheKey = `dexch-chart:v1:${chain}:${pairAddress}:${tokenAddress}:${quoteAddress}:${timeframe}:${limit}`;
+  const cached = cacheGet(terminalChartCache, cacheKey) || await chartEdgeCacheRead(cacheKey, 'fresh');
+  if (cached?.ok) return { ...cached, from_cache: true, provider_usage: { ...cached.provider_usage, cache_hit: true, provider_request_count: 0 } };
+  return runProviderOperation({ component: 'market_chart_data', operation_key: cacheKey, fn: async () => {
+    const [detail, pairs] = await Promise.all([
+      dexchDiscoveryProvider.token(chain, tokenAddress),
+      cachedDex(`/latest/dex/pairs/${encodeURIComponent(chain)}/${encodeURIComponent(pairAddress)}`),
+    ]);
+    const pair = (pairs.pairs || []).find(row => row.chainId === chain && sameOnchainAddress(chain,row.pairAddress,pairAddress));
+    const token = detail.rows[0];
+    if (!token || !sameOnchainAddress(chain,token.venue?.pool_address,pairAddress)) throw new Error('dexch_selected_pool_unavailable');
+    const envelope = await dexchDiscoveryProvider.candles(chain,tokenAddress,{timeframe,limit:Math.max(1,Math.min(1000,Number(limit)||240))});
+    const result = buildDexchChart({ ...options, timeframe, token, pair, envelope });
+    result.candle_series = candleSeriesContract({ instrument: result.instrument, provider: 'dexch', providerMarketId: `${chain}:${pairAddress}`,
+      timeframe, priceCurrency: 'USD', tokenOrientation: 'selected_token_usd', sourceInterval: timeframe, derivation: result.derivation,
+      continuity: result.continuity.candles, freshnessState: result.freshness_state, candles: result.candles });
+    cacheSet(terminalChartCache,cacheKey,result,30_000);
+    await chartEdgeCacheWrite(cacheKey,result,{freshTtlSeconds:30,rescueTtlSeconds:300});
+    return result;
+  }});
+}
+
 async function fetchOnchainPoolCandles(options = {}) {
-  const providerOrder = onchainChartProviderOrder(options.env || {});
+  const providerOrder = onchainChartProvidersForMarket(options.env || {}, options.chain);
   const attempts = [];
   let priorProviderIdentity = null;
   for (const providerId of providerOrder) {
@@ -4721,7 +4822,8 @@ async function fetchOnchainPoolCandles(options = {}) {
       continue;
     }
     try {
-      const payload = providerId === "dexpaprika"
+      if (providerId === 'dexch' && !onchainProviderRuntime(providerId, options.env || {}).runtime_allowed) throw new Error('dexch_charts_disabled');
+      const payload = providerId === 'dexch' ? await fetchDexchPoolCandles(options) : providerId === "dexpaprika"
         ? await fetchDexPaprikaPoolCandles(options)
         : await fetchGeckoPoolCandles(options);
       if (!payload?.ok) {
@@ -4800,7 +4902,7 @@ async function fetchOnchainPoolCandles(options = {}) {
       const reason = publicProviderFailure(error);
       attempts.push({ provider: providerId, state: reason });
       if (error?.providerIdentity) priorProviderIdentity = error.providerIdentity;
-      if (reason === "identity_rejected") {
+      if (reason === "identity_rejected" && providerId !== 'dexch') {
         error.providerAttempts = attempts;
         throw error;
       }
@@ -6410,7 +6512,7 @@ function onchainSearchChartCoverage(row = {}, env = {}) {
   let providerId = null;
   let runtime = null;
   try {
-    providerId = onchainChartProviderOrder(env)[0] || null;
+    providerId = onchainChartProvidersForMarket(env, row.chainId)[0] || null;
     runtime = providerId ? onchainProviderRuntime(providerId, env) : null;
   } catch {
     providerId = null;
@@ -11404,7 +11506,7 @@ async function routeApi(request, env, executionContext = null) {
       }, { status: 503, headers: routeCacheHeaders(url.pathname) });
     }
     try {
-      const result = await dexchDiscoveryProvider.tokens(dexchDiscoveryFilters(url));
+      const result = await dexchDiscoveryProvider.discovery(dexchDiscoveryFilters(url));
       return json({
         ...result,
         provider_health: dexchDiscoveryProvider.healthSnapshot(),
@@ -11808,6 +11910,14 @@ export default {
         const retainedMarkets = await discoverRegistryHistory(env, new Request("https://ravenos.xyz/ravenos/opportunities.json"));
         await marketStore.rememberMarkets([...retainedMarkets.values()]);
         return runWalletUniverse(env, { marketStore, walletStore: createD1CustomerWalletCopyStore(env.RAVENOS_CUSTOMER_DB),
+          loadCandidates:async id => {
+            if(env.RAVENOS_MARKET_PROVIDER_FALLBACKS_ENABLED!=='1' || !['robinhood','bsc'].includes(id.chain) || !resolveDexchDiscoveryRuntime(env).runtime_allowed)return null;
+            const results=await Promise.allSettled([
+              dexchDiscoveryProvider.holders(id.chain,id.token_address,{limit:100}),
+              dexchDiscoveryProvider.trades(id.chain,id.token_address,{limit:100}),
+            ]);
+            return results.flatMap(result=>result.status==='fulfilled'?dexchWalletCandidates(result.value,id):[]);
+          },
           loadRetainedHolders:(id)=>holderEdgeCacheRead([id.chain,id.pool_address,id.token_address,id.quote_token_address].join(':')),
           loadTrades: (id) => fetchGeckoPoolTrades({env,chain:id.chain,pairAddress:id.pool_address,tokenAddress:id.token_address,quoteAddress:id.quote_token_address}) });
       })().catch(() => console.error(JSON.stringify({event:"wallet_universe_cycle",state:"unavailable"})));
