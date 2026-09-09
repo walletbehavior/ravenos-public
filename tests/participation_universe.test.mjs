@@ -102,6 +102,24 @@ test('large public snapshots retain all markets with bounded compressed storage'
   db.raw.close();
 });
 
+test('collection and compressed storage work without a Node Buffer global in Workers', async () => {
+  const originalBuffer = globalThis.Buffer, db = database(), store = createParticipationSnapshotStore(db);
+  try {
+    delete globalThis.Buffer;
+    const result = await collectParticipationUniverse({ dexchEnabled: false, now: () => NOW, readPairs,
+      readKnownMarkets: async () => [{ chain: 'base', token_address: addr(1) }],
+    });
+    assert.equal(result.rows.length, 1);
+    const rows = Array.from({ length: 1000 }, () => result.rows[0]);
+    await store.claim('worker', 100);
+    await store.finish('worker', { ok: true, rows }, 101);
+    assert.deepEqual((await store.read()).payload.rows, rows);
+  } finally {
+    globalThis.Buffer = originalBuffer;
+    db.raw.close();
+  }
+});
+
 test('public board and group endpoints read the shared snapshot without refreshing providers', async () => {
   const db = database(), store = createParticipationSnapshotStore(db), now = Math.floor(Date.now() / 1000);
   const data = await collectParticipationUniverse({ dexchEnabled: false, readPairs: async (chain, addresses) => ({ value: addresses.map(address => pair(chain, address)), observed_at: new Date().toISOString() }),

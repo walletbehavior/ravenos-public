@@ -34,7 +34,7 @@ The provider replacement work also adds identity-checked Dexch candles. Its curr
 
 ## Verification and release boundary
 
-The complete change passed 1,047 contract tests, including snapshot lease, compressed-storage, identity, pagination and host-boundary tests. All 176 relevant browser checks passed. Browser checks cover 375/390/430-pixel spot tickets, simulated single Buy, EVM flows, modes, overlay close/focus/draft preservation, cached wallet access, Discovery filters and desktop layouts. Fixture trades are not evidence of a completed production trade.
+The complete change passed 1,048 contract tests, including snapshot lease, compressed-storage, identity, pagination and host-boundary tests. The snapshot collector and compressed D1 round trip also pass in the native Cloudflare workerd runtime; a regression test covers the absence of a Node Buffer global. All 176 relevant browser checks passed. Browser checks cover 375/390/430-pixel spot tickets, simulated single Buy, EVM flows, modes, overlay close/focus/draft preservation, cached wallet access, Discovery filters and desktop layouts. Fixture trades are not evidence of a completed production trade.
 
 This source document records implementation, not deployment. Exact release and verification receipts establish production status. Existing chart-provider release checks remain required; no failed gate or unavailable provider is converted into a successful receipt.
 
