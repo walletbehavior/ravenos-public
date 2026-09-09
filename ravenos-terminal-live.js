@@ -9445,13 +9445,31 @@ async function loadExactPool(instrumentId, { updateUrl = false, tokenAddress = "
       pairAddress: identity.pairAddress,
     });
     if (tokenAddress) pairParams.set("tokenAddress", tokenAddress);
-    const { response, payload } = await fetchJson(`/api/dexscreener/pair?${pairParams.toString()}`);
+    let lookup;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        lookup = await fetchJson(`/api/dexscreener/pair?${pairParams.toString()}`);
+      } catch (error) {
+        if (attempt) throw error;
+        lookup = null;
+      }
+      if (!lookupCurrent()) return;
+      const transient = !lookup || lookup.response.status === 429 || lookup.response.status >= 500;
+      if (!transient || attempt) break;
+      setText("terminalChartStatus", "Market data is temporarily busy. Retrying automatically…");
+      const delay = Number(lookup?.payload?.retry_after_ms) || Number(lookup?.response.headers.get("retry-after")) * 1000 || 1000;
+      await new Promise((resolve) => setTimeout(resolve, Math.min(60_000, Math.max(1000, delay))));
+      if (!lookupCurrent()) return;
+    }
+    const { response, payload } = lookup;
     if (!lookupCurrent()) return;
     const rows = response.ok && Array.isArray(payload?.results) ? payload.results : [];
-    const row = rows.find((item) => String(item.pairAddress || "").toLowerCase() === identity.pairAddress.toLowerCase()
+    const row = rows.find((item) => sameSelectedAddress(identity.chainId, item.pairAddress, identity.pairAddress)
       && String(item.chainId || "").toLowerCase() === identity.chainId.toLowerCase());
     if (!row) {
-      await renderExplicitSelectionUnavailable({ instrumentId, lane: "spot", reason: "The exact requested pool is not available from the current market-data sources." });
+      await renderExplicitSelectionUnavailable({ instrumentId, lane: "spot", reason: response.ok
+        ? "The exact requested pool is not available from the current market-data sources."
+        : "Market data is temporarily unavailable for this pool. Your wallet connection is unchanged." });
       return;
     }
     if (

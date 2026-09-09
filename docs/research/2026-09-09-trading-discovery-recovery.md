@@ -6,6 +6,7 @@
 - Existing embedded wallets were not restored at terminal startup. The first Buy opened the signer, adding avoidable latency and a misleading connecting state.
 - Production verification exposed an additional host handoff: authenticated Discover redirected to the public host, whose terminal could not use the host-only app session. Discover, Terminal, Perps and Atlas now stay on the app host; public workspace bookmarks redirect there with the full instrument/filter query preserved. Cookie scope is unchanged.
 - Older browsers can retain those permanent redirects. Workspace links use a stable `raven_app=1` migration marker and public redirects are `no-store`, preventing a cached redirect loop without clearing login cookies.
+- A failed exact-pool provider request returned HTTP 200 with an empty result whenever a token was selected. Terminal treated temporary upstream failure as a missing market. Failed reads now remain retryable, retain exact chain/pool/token matching, and trigger one bounded automatic retry that respects provider backoff. A newer selection cancels the old handoff.
 - The slippage setting defaulted to 3% in one panel while empty and pending estimates still displayed an older 0.5% fallback.
 - Participation measured six-hour returns, but its click-through showed activity/velocity ranking and five-minute changes. The group API also truncated before ranking.
 - Stock tokens appeared as primary Onchain assets. Some provider names already classified as reference assets; Backpack Securities names remained unclassified. A stock used as the quote asset must not replace or exclude the coin being traded.
@@ -37,6 +38,8 @@ The captured Solana $10M+ group contained 89 rows, including 11 primary xStock a
 No user funds were spent, no private keys were exported, and no production trade was submitted in verification. Fixture trade completion validates orchestration, not actual provider settlement. No schema migration is required. Existing wallet-parity work was preserved outside this release.
 
 The signed-in production account retained its session across reload, renewed its remembered expiry to September 9, 2027, and restored its Raven wallet on chart load. Entering 0.001 SOL produced an actual live token estimate and the existing 0.004386722 SOL balance without Connect, Prepare or Buy. Additional navigation, stale-group and issuer-classification checks pass (48 unit checks and two WebKit cases). `scripts/verify-trading-workspaces.mjs` verifies the production host handoffs and immutable asset hashes without authentication or order submission. Legacy whole-site verification still lists retired chain-page routes; the preview verifier is specifically for an off-account preview host.
+
+Base also restored the existing Raven EVM wallet and displayed Buy DINO / Ready without Connect. Its $10 read-only estimate returned insufficient funds; this was not an account-disabled or disconnected-wallet response. Solana ZEC/USDC likewise recovered its exact pool and displayed Buy ZEC / Ready. These observations do not establish a completed on-chain trade. Additional provider regression tests cover retryable failure and recovery on Solana, Base, Ethereum, BNB and Robinhood, successful empty responses, and rejection of substitute pools.
 
 ## Sources
 

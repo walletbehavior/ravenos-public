@@ -5898,10 +5898,13 @@ async function pairDex(chainId, pairAddress, selectedTokenAddress = "") {
   const paprikaRows = paprikaResult.status === "fulfilled"
     ? paprikaResult.value.filter((row) => same(row?.chainId, chainId) && same(row?.pairAddress, pairAddress))
     : [];
-  const merged = mergeOnchainSearchRows([...dexRows, ...paprikaRows]);
-  if (selectedTokenAddress) return exactTokenDexResults(merged, selectedTokenAddress, { caseSensitive });
-  if (!merged.length && dexResult.status === "rejected" && paprikaResult.status === "rejected") throw dexResult.reason;
-  return merged;
+  const merged = mergeOnchainSearchRows([...dexRows, ...paprikaRows])
+    .filter((row) => same(row.chainId, chainId) && same(row.pairAddress, pairAddress));
+  const results = selectedTokenAddress ? exactTokenDexResults(merged, selectedTokenAddress, { caseSensitive }) : merged;
+  // A failed primary read with no exact alternative is not evidence that the
+  // selected pool does not exist. Preserve the transient failure for recovery.
+  if (!results.length && dexResult.status === "rejected") throw dexResult.reason;
+  return results;
 }
 
 function publicSolanaTradeRpcUrl(env = {}) {
@@ -11926,7 +11929,10 @@ async function routeApi(request, env, executionContext = null) {
         ),
       });
     } catch (error) {
-      return json({ ok: false, error: error instanceof Error ? error.message : "dexscreener_pair_failed", results: [] }, { status: 502 });
+      const backoff = /market_provider_(backoff|http_429|http_503)/.test(String(error?.message || ""));
+      return json({ ok: false, error: "dexscreener_pair_temporarily_unavailable", retry_after_ms: backoff ? 60_000 : 1_000, results: [] }, {
+        status: 503, headers: { "retry-after": backoff ? "60" : "1", "cache-control": "no-store" },
+      });
     }
   }
   if (url.pathname === "/api/hyperliquid/perps" && request.method === "GET") {

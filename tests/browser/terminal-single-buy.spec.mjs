@@ -22,12 +22,16 @@ const WALLET="11111111111111111111111111111111";
 const USDC="EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 const SOL="So11111111111111111111111111111111111111112";
 const URL="https://app.ravenos.xyz/terminal/?instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&token_address=fixture-token-address&quote_address=fixture-quote-address&panel=trade";
-async function setup(page,baseURL,{delay=0,reject=false,pending=false,statusResult=null,minimum="8323920000",embedded=false,stalledWallet=false,panel="trade",sessionFailure=false,staleSession=false,quoteImpact=18}={}) {
+async function setup(page,baseURL,{delay=0,reject=false,pending=false,statusResult=null,minimum="8323920000",embedded=false,stalledWallet=false,panel="trade",sessionFailure=false,staleSession=false,quoteImpact=18,pairFailure=false}={}) {
   await page.route("https://app.ravenos.xyz/**", async route=>{
     const u=new globalThis.URL(route.request().url());
     await route.fulfill({response:await page.request.fetch(`${baseURL}${u.pathname}${u.search}`)});
   });
   const fixtures=await mockTerminalLiveApis(page,{spotQuotePreview:true, spotQuoteImpactBps:quoteImpact});
+  let pairCalls=0;
+  if(pairFailure) await page.route("**/api/dexscreener/pair?**", route=>++pairCalls===1
+    ? route.fulfill({status:503,json:{ok:false,error:"dexscreener_pair_temporarily_unavailable",retry_after_ms:1000,results:[]}})
+    : route.fallback());
   await page.route("**/api/v1/auth/session",route=>route.fulfill({json:{ok:true,authenticated:true,csrf_token:"fixturecsrf"}}));
   await page.route("**/api/v1/wallets/balances?**",route=>route.fulfill({status:401,json:{ok:false}}));
   let sessionCalls=0;
@@ -64,8 +68,17 @@ async function setup(page,baseURL,{delay=0,reject=false,pending=false,statusResu
   await page.goto(URL.replace("&panel=trade", panel === "chart" ? "" : `&panel=${panel}`));
   await waitForTerminalLive(page,{lane:"spot",instrument:"JUP/USDC",timeframe:"1h"});
   if(!embedded){await page.locator("#terminalWalletConnect").click();await page.locator("#terminalWalletChooser").getByRole("button",{name:/Phantom/}).click();}
-  return {fixtures,prepare,execute,statuses};
+  return {fixtures,prepare,execute,statuses,getPairCalls:()=>pairCalls};
 }
+
+test("a temporary pool lookup failure recovers into the ready Buy flow without another click",async({page,baseURL})=>{
+  const h=await setup(page,baseURL,{embedded:true,pairFailure:true});
+  await expect(page.locator("#terminalSpotQuoteAction")).toHaveText("Buy JUP");
+  await expect(page.locator("#terminalWalletChooser")).not.toBeVisible();
+  expect(h.getPairCalls()).toBe(2);
+  expect(h.prepare).toHaveLength(0);expect(h.execute).toHaveLength(0);
+  expect(await page.evaluate(()=>window.buyCalls.sign)).toBe(0);
+});
 
 for (const viewport of [{width:390,height:844},{width:375,height:740},{width:430,height:932}]) test(`mobile chart opens with amount, balance and one Buy at ${viewport.width}px`,async({page,baseURL},testInfo)=>{
   await page.setViewportSize(viewport);
