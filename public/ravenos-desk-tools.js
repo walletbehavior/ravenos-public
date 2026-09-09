@@ -240,7 +240,7 @@ export function enhanceDesk({
   toolbar.querySelector(".desk-toolbar-end").prepend(controls);
   const listControls = document.createElement("div");
   listControls.className = "desk-list-controls";
-  listControls.innerHTML = `<label class="sr-only" for="deskList">Watchlist</label><select id="deskList"><option value="">All markets</option></select><label class="sr-only" for="deskSort">Sort markets</label><select id="deskSort"><option value="recent">Recent</option><option value="name">Name</option><option value="change">Window change</option><option value="volume">Window volume</option></select><details><summary>Manage lists</summary><label>List name<input id="deskListName" maxlength="32" placeholder="e.g. Majors"></label><button id="deskCreateList" type="button">Create list</button><button id="deskAddToList" type="button">Add selected market</button><button id="deskRemoveFromList" type="button">Remove selected market</button><button id="deskDeleteList" type="button">Delete list</button><div id="deskListStatus" role="status"></div></details>`;
+  listControls.innerHTML = `<div class="desk-list-choices" id="deskList" role="group" aria-label="Market lists"></div><span class="desk-controls-label">Sort markets</span><div class="desk-sort-choices" id="deskSort" role="group" aria-label="Sort markets"><button type="button" data-desk-sort="recent">Recent</button><button type="button" data-desk-sort="name">Name</button><button type="button" data-desk-sort="change" title="Price change over the last 25 chart candles">Change</button><button type="button" data-desk-sort="volume" title="Volume over the last 25 chart candles">Volume</button></div><details><summary>Manage lists</summary><label>List name<input id="deskListName" maxlength="32" placeholder="e.g. Majors"></label><button id="deskCreateList" type="button">Create list</button><button id="deskAddToList" type="button">Add selected market</button><button id="deskRemoveFromList" type="button">Remove selected market</button><button id="deskDeleteList" type="button">Delete list</button><div id="deskListStatus" role="status"></div></details>`;
   rail.querySelector("header").after(listControls);
   const brief = document.createElement("section");
   brief.className = "desk-research-brief";
@@ -265,17 +265,31 @@ export function enhanceDesk({
     if (secondary?.lastRequest)
       secondary.load({ ...secondary.lastRequest, preserveChart: true });
   });
+  function syncSortControls() {
+    for (const button of get("deskSort").querySelectorAll("[data-desk-sort]")) {
+      const key = button.dataset.deskSort;
+      button.setAttribute("aria-pressed", String(tools.sort === key));
+      // Snapshot-only markets have no chart-window change or volume. Offer
+      // these sorts when we actually have the matching candle observations.
+      button.hidden = ["change", "volume"].includes(key) && tools.sort !== key
+        && ![...quotes.values()].some((quote) => Number.isFinite(quote[key]));
+    }
+  }
   function syncControls() {
     get("deskSplit").checked = tools.split;
     get("deskLinked").checked = tools.linked;
     get("deskFrame").value = tools.frame;
     get("deskComparisonMarket").disabled = tools.linked;
-    get("deskList").replaceChildren(
-      new Option("All markets", ""),
-      ...tools.lists.map((x) => new Option(x.name, x.name)),
-    );
-    get("deskList").value = tools.list;
-    get("deskSort").value = tools.sort;
+    const choices = tools.lists.length ? [{ name: "All markets", value: "" }, ...tools.lists.map((x) => ({ name: x.name, value: x.name }))] : [];
+    get("deskList").replaceChildren(...choices.map(({ name, value }) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.dataset.deskList = value;
+      button.textContent = name;
+      button.setAttribute("aria-pressed", String(tools.list === value));
+      return button;
+    }));
+    syncSortControls();
     get("deskSavedWorkspace").replaceChildren(
       new Option("Choose workspace", ""),
       ...tools.workspaces.map((x, i) => new Option(x.name, String(i))),
@@ -350,12 +364,17 @@ export function enhanceDesk({
     persist();
     syncComparison();
   });
-  get("deskList").addEventListener("change", (e) => {
-    tools.list = e.target.value;
+  get("deskList").addEventListener("click", (e) => {
+    const choice = e.target.closest("[data-desk-list]");
+    if (!choice) return;
+    tools.list = choice.dataset.deskList;
     change();
+    [...get("deskList").children].find((button) => button.dataset.deskList === tools.list)?.focus();
   });
-  get("deskSort").addEventListener("change", (e) => {
-    tools.sort = e.target.value;
+  get("deskSort").addEventListener("click", (e) => {
+    const choice = e.target.closest("[data-desk-sort]");
+    if (!choice) return;
+    tools.sort = choice.dataset.deskSort;
     change();
   });
   get("deskCreateList").addEventListener("click", () => {
@@ -662,6 +681,7 @@ export function enhanceDesk({
       refreshBrief();
     },
     ordered(markets) {
+      syncSortControls();
       const list = tools.lists.find((x) => x.name === tools.list);
       const rows = markets.filter((x) => !list || list.keys.includes(x.key));
       return tools.sort === "recent"

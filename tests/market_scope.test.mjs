@@ -71,3 +71,11 @@ test("a memecoin desk never uses perp breadth or unscoped aggregate prose as fal
   assert.equal(frame.summary, "");
   assert.deepEqual(frame.signals, []);
 });
+
+for (const chain of ['solana', 'robinhood', 'base', 'bsc', 'ethereum']) test(`${chain}: a paired stock never replaces the primary coin's market scope`, () => {
+  const coin = { instrument_id: `${chain}:pool:pair`, market_type: 'spot', chain_id: chain, name: 'Tree', symbol: 'TREE', token_address: 'coin', quote_symbol: 'AAPLx', quote_token_address: 'stock', quote_name: 'Apple xStock' };
+  assert.equal(instrumentMarketScope(coin), 'memecoins');
+  assert.equal(instrumentMarketScope({ ...coin, symbol: 'AAPLx', name: 'Apple xStock', token_address: 'stock' }), 'equities');
+  assert.equal(instrumentMarketScope({ ...coin, symbol: 'RBLX', name: 'Roblox - Backpack Securities' }), 'equities');
+  for (const name of ['Stockland', 'XStock', 'Tree receives Apple stock', 'Not Apple']) assert.equal(instrumentMarketScope({ ...coin, name, symbol: 'AAPL' }), 'memecoins');
+});

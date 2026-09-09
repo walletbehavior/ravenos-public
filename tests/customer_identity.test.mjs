@@ -143,11 +143,12 @@ class MemoryIdentityStore {
     return row ? { ...row } : null;
   }
 
-  async touchSession(publicId, now, idleExpiresAt, csrfVerifier = null) {
+  async touchSession(publicId, now, idleExpiresAt, csrfVerifier = null, absoluteExpiresAt = null) {
     const row = [...this.sessions.values()].find((candidate) => candidate.session_public_id === publicId);
     if (!row) return;
     row.last_seen_at = now;
     row.idle_expires_at = idleExpiresAt;
+    if (absoluteExpiresAt !== null) row.absolute_expires_at = absoluteExpiresAt;
     if (csrfVerifier) row.csrf_verifier = csrfVerifier;
   }
 
@@ -292,11 +293,11 @@ test("remembering a device is explicit, bounded and independent of account assen
   const missing = await startJsonFlow(new MemoryIdentityStore(), { env, documents: EFFECTIVE_LEGAL_DOCUMENTS, rememberDevice: true });
   assert.equal(missing.status, 428);
   const config = publicCustomerIdentityConfig(env, ORIGIN);
-  assert.equal(config.session_policy.remember_device_default, false);
-  assert.equal(config.session_policy.remembered_device_days, 30);
+  assert.equal(config.session_policy.remember_device_default, true);
+  assert.equal(config.session_policy.remembered_device_days, 365);
 });
 
-test("remembered session survives idle visits, has fixed expiry and cannot refresh recent-auth evidence", async () => {
+test("remembered session renews on active visits without refreshing recent-auth evidence", async () => {
   const store = new MemoryIdentityStore();
   const start = await startJsonFlow(store, { rememberDevice: true, returnTo: "/portfolio/?tab=capital#shielded-reserve" });
   const callback = await finishFlow(store, start);
@@ -304,12 +305,12 @@ test("remembered session survives idle visits, has fixed expiry and cannot refre
   assert.equal(target.pathname, "/portfolio/"); assert.equal(target.hash, "#shielded-reserve"); assert.equal(target.searchParams.get("auth"), "success");
   const cookies = sessionCookies(callback), headers = { cookie: `__Host-ravenos_session=${cookies.session}; __Host-ravenos_csrf=${cookies.csrf}` };
   const seconds = CustomerIdentityContract.remembered_session_seconds;
-  assert.equal(seconds, 30 * 86400);
-  assert.match(cookies.header, /Max-Age=2592000/); assert.match(cookies.header, /Secure; HttpOnly; SameSite=Lax/);
+  assert.equal(seconds, 365 * 86400);
+  assert.match(cookies.header, /Max-Age=31536000/); assert.match(cookies.header, /Secure; HttpOnly; SameSite=Lax/);
   assert(!cookies.header.includes("Domain="));
   const original = [...store.sessions.values()][0];
   assert.equal(original.remember_device, 1);
-  for (const days of [1, 7, 29]) {
+  for (const days of [1, 7, 29, 360, 700]) {
     const nowMs = NOW_MS + days * 86400000;
     const response = await routeCustomerIdentity(request("/api/v1/auth/session", { headers }), configuredEnv(), { store, nowMs });
     const payload = await response.json();
@@ -317,11 +318,16 @@ test("remembered session survives idle visits, has fixed expiry and cannot refre
     assert.equal(Date.parse(payload.session.absolute_expires_at) / 1000, original.absolute_expires_at);
     const authorized = await authorizeCustomerApiRequest(request("/api/v1/account", { headers }), configuredEnv(), {store,nowMs});
     assert.equal(authorized.principal.authenticated_at, NOW_MS / 1000 + 1);
+    assert.equal(authorized.principal.session_expires_at, original.absolute_expires_at);
+    const signedRequest = await authorizeCustomerApiRequest(request("/api/trade/live/solana/prepare", {
+      method: "POST", headers: { ...headers, origin: ORIGIN, "content-type": "application/json", "x-ravenos-csrf": cookies.csrf }, body: "{}",
+    }), configuredEnv(), {store,nowMs}, { require_csrf: true });
+    assert.equal(signedRequest.principal.session_expires_at, original.absolute_expires_at);
   }
-  // A new CSRF cookie is bounded to the existing session, not another 30 days.
-  const rotated = await routeCustomerIdentity(request("/api/v1/auth/session", { headers: { cookie: `__Host-ravenos_session=${cookies.session}` } }), configuredEnv(), {store,nowMs:NOW_MS+29*86400000});
-  assert.match(rotated.headers.get("set-cookie"), /Max-Age=86401;/);
-  const expired = await routeCustomerIdentity(request("/api/v1/auth/session", {headers}), configuredEnv(), {store,nowMs:NOW_MS+seconds*1000+1000});
+  // A newly issued CSRF cookie and the remembered cookie share the renewed lifetime.
+  const rotated = await routeCustomerIdentity(request("/api/v1/auth/session", { headers: { cookie: `__Host-ravenos_session=${cookies.session}` } }), configuredEnv(), {store,nowMs:NOW_MS+700*86400000});
+  assert.match(rotated.headers.get("set-cookie"), /Max-Age=31536000;/);
+  const expired = await routeCustomerIdentity(request("/api/v1/auth/session", {headers}), configuredEnv(), {store,nowMs:NOW_MS+(700*86400+seconds)*1000+1000});
   assert.equal((await expired.json()).authenticated, false);
   assert.equal(original.revocation_reason, "expired");
 });
@@ -371,8 +377,15 @@ test("D1 remembered-device migration and auth-state/session round trip use persi
   assert.equal(new URL(callback.headers.get("location")).searchParams.get("auth"),"success");
   const cookies=sessionCookies(callback);
   const row=await store.findSession(await sha256(cookies.session));
-  assert.equal(row.remember_device,1); assert.equal(row.absolute_expires_at-row.authenticated_at,2592000);
+  assert.equal(row.remember_device,1); assert.equal(row.absolute_expires_at-row.authenticated_at,31536000);
   assert.equal((await store.listSessions(row.user_id,row.authenticated_at))[0].remember_device,1);
+  const renewed = await routeCustomerIdentity(request('/api/v1/auth/session', { headers: { cookie: `__Host-ravenos_session=${cookies.session}; __Host-ravenos_csrf=${cookies.csrf}` } }), configuredEnv(), {store,nowMs:NOW_MS+86400000});
+  assert.equal((await renewed.json()).authenticated, true);
+  assert.match(renewed.headers.get('set-cookie'), /Max-Age=31536000/);
+  const persisted = await store.findSession(await sha256(cookies.session));
+  assert.equal(persisted.absolute_expires_at, NOW_MS/1000 + 86400 + 31536000);
+  assert.equal(persisted.authenticated_at, row.authenticated_at);
+
   assert.equal(database.prepare("SELECT remember_device, code_verifier FROM ravenos_auth_states WHERE state_hash != 'legacy'").get().code_verifier,"");
 });
 

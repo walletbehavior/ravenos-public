@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildParticipationMap, buildPerpParticipationMap, matchesParticipationCell, matchesPerpParticipationCell, layoutParticipationTiles } from '../ravenos-participation-map.js';
+import { buildParticipationMap, buildPerpParticipationMap, matchesParticipationCell, matchesPerpParticipationCell, layoutParticipationTiles, rankParticipationMarkets } from '../ravenos-participation-map.js';
 const now = Date.parse('2026-09-09T15:00:00Z');
 function spot(i, patch = {}) {
   return { instrument_id: `robinhood:pool:pool${i}`, market_type: 'spot', chain_id: 'robinhood', token_address: `token${i}`, pool_address: `pool${i}`, identity_scope: 'exact_pool', observed_at: new Date(now - 10_000).toISOString(), context_state: 'current',
@@ -55,4 +55,19 @@ test('perp funding groups do not infer trader PnL or fabricate missing timestamp
   const rows = [{ instrument_id: 'hyperliquid:perp:BTC', funding_rate: -0.01, day_change_pct: 8, day_notional_volume_usd: 5000 }];
   const map = buildPerpParticipationMap(rows, { now, family: 'funding' });
   assert.equal(map.cells[0].state, 'stale'); assert.equal(map.cells[0].filter.band, 'negative'); assert.equal(map.cells[0].sample, 0);
+});
+
+test('heatmap drilldown ranks six-hour movers ahead of quiet high-volume tokens and preserves coin identity', () => {
+  const filter = { chain: 'robinhood', kind: 'capitalization', band: '500k_2m' };
+  const quiet = spot(1, { price_change_6h_pct: 1, price_change_5m_pct: 40, volume_usd_6h: 90000000 });
+  const winner = { ...spot(2, { price_change_6h_pct: 85, price_change_5m_pct: 0.2 }), symbol: 'TREE', name: 'Tree', quote_symbol: 'AAPLx' };
+  const loser = spot(3, { price_change_6h_pct: -30 });
+  const unknown = spot(4, { price_change_6h_pct: null, price_change_24h_pct: 1000 });
+  const stock = { ...spot(5, { price_change_6h_pct: 200 }), name: 'Apple xStock' };
+  const rows = [quiet, winner, loser, unknown, stock];
+  const ranked = rankParticipationMarkets(rows, { filter, now });
+  assert.deepEqual(ranked.map(row => row.token_address), ['token2', 'token1', 'token3', 'token4']);
+  assert.equal(ranked[0].symbol, 'TREE'); assert.equal(ranked[0].quote_symbol, 'AAPLx');
+  assert.equal(rankParticipationMarkets(rows, { filter, now, order: 'decliners' })[0].token_address, 'token3');
+  assert.equal(buildParticipationMap(rows, { now }).tracked, 4);
 });

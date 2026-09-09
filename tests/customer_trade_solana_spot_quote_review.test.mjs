@@ -300,11 +300,13 @@ test("quote timing exposes latency and freshness without treating expired quotes
 test("slippage, priority, and Jito controls fail closed at reviewed bounds", () => {
   const standard = createSolanaSpotAdvancedControls({ slippage_bps: 300, priority: { mode: "standard" } });
   assert.equal(standard.slippage_bps, 300);
+  assert.equal(createSolanaSpotAdvancedControls().slippage_bps, 300);
+  assert.equal(createSolanaSpotAdvancedControls({ slippage_bps: 750 }).slippage_bps, 750);
   assert.equal(standard.priority.enforced_max_lamports, 50_000);
   assert.equal(standard.jito.state, "unavailable");
   const capped = createSolanaSpotAdvancedControls({ slippage_bps: 5, priority: { mode: "capped", max_lamports: 12_500 } });
   assert.equal(capped.priority.requested_max_lamports, 12_500);
-  assert.throws(() => createSolanaSpotAdvancedControls({ slippage_bps: 301 }), hasCode("slippage_bps_out_of_bounds"));
+  assert.throws(() => createSolanaSpotAdvancedControls({ slippage_bps: 1001 }), hasCode("slippage_bps_out_of_bounds"));
   assert.throws(() => createSolanaSpotAdvancedControls({ priority: { mode: "capped", max_lamports: 50_001 } }), hasCode("priority_max_lamports_out_of_bounds"));
   assert.throws(() => createSolanaSpotAdvancedControls({ jito_requested: true }), hasCode("jito_unavailable"));
 });
@@ -341,7 +343,7 @@ test("raw provider payloads and transaction material are not projected", () => {
 test("the contract module is browser-safe and exposes the reviewed hard limits", () => {
   const source = fs.readFileSync(new URL("../lib/customer_trade/solana_spot_quote_review.mjs", import.meta.url), "utf8");
   assert.doesNotMatch(source, /from\s+["']node:|\bBuffer\b|\bprocess\.|\brequire\s*\(/);
-  assert.equal(SolanaSpotQuoteReviewLimits.maximum_slippage_bps, 300);
+  assert.equal(SolanaSpotQuoteReviewLimits.maximum_slippage_bps, 1000);
   assert.equal(SolanaSpotQuoteReviewLimits.maximum_priority_fee_lamports, 50_000);
   assert.equal(SolanaSpotQuoteReviewLimits.maximum_configured_fee_bps, 255);
 });

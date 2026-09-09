@@ -98,3 +98,22 @@ test('retired commercial adapters are disabled in production even with retained 
  assert.equal(onchainProviderRuntime('dexpaprika',{RAVENOS_RELEASE_ENFORCE:'1'}).runtime_allowed,false);
  assert.equal(onchainProviderRuntime('coingecko',{RAVENOS_RELEASE_ENFORCE:'1',RAVENOS_COINGECKO_ENABLED:'0',ONCHAIN_CHART_PROVIDER_PLAN:'basic',ONCHAIN_CHART_PROVIDER_SECRET:'retained-test-secret'}).runtime_allowed,false);
 });
+
+test('a trending stock is a seed for its paired memecoin, never the primary Discovery or trading identity', async () => {
+  const previous=globalThis.fetch;
+  const stock='XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp', coin='8xH8ikqGXNTSYmmUVakCE2tVwU7aYJwz2JZkqAjW88sG', pool='DUv5LL9s1WPQQMeUqwdukuwScmM1i6PMx7t1GgMgyscG';
+  globalThis.fetch=async input=>{
+    const url=new URL(String(input));
+    if(url.hostname==='api.jup.ag')return json([{id:stock,symbol:'AAPLx',name:'Apple xStock',usdPrice:200,stats24h:{priceChange:1,numBuys:999}}]);
+    if(url.hostname==='api.dexscreener.com')return json([{chainId:'solana',pairAddress:pool,dexId:'raydium',baseToken:{address:coin,symbol:'TREE',name:'Tree'},quoteToken:{address:stock,symbol:'AAPLx',name:'Apple xStock'},priceUsd:'0.012',marketCap:800000,liquidity:{usd:100000},pairCreatedAt:Date.now()-86400000,volume:{h24:120000,h6:40000},priceChange:{h24:87,h6:40},txns:{h24:{buys:24,sells:10}}}]);
+    throw Error('unexpected provider');
+  };
+  try {
+    const response=await worker.fetch(new Request('https://ravenos.xyz/api/onchain/trending?chains=solana&duration=24h'),{JUPITER_API_KEY:'fixture-only',RAVENOS_MARKET_PROVIDER_FALLBACKS_ENABLED:'0'});
+    const body=await response.json();assert.equal(response.status,200,JSON.stringify(body));
+    assert.equal(body.rows.length,1);const row=body.rows[0];
+    assert.equal(row.token_address,coin);assert.equal(row.quote_token_address,stock);assert.equal(row.pool_address,pool);
+    assert.equal(row.symbol,'TREE');assert.equal(row.market.price_usd,0.012);assert.equal(row.market.price_change_24h_pct,87);
+    assert.notEqual(row.market.buys_24h,999);assert.equal(row.source_type,'market_activity');
+  }finally{globalThis.fetch=previous;}
+});

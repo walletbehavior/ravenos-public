@@ -1,3 +1,5 @@
+import { estimateEvmPriceImpact } from "./lib/customer_trade/price_impact.mjs";
+import { DEFAULT_SPOT_SLIPPAGE_BPS, MIN_SPOT_SLIPPAGE_BPS, MAX_SPOT_SLIPPAGE_BPS } from "./ravenos-spot-trade-policy.js";
 import { dexscreenerChartSurface } from './ravenos-chart-data-plane.js';
 import { resolveReleaseFlags } from './lib/runtime_release_flags.mjs';
 import { readExecutionStatusContext } from "./lib/customer_trade/live_execution_status.mjs";
@@ -157,7 +159,8 @@ import { buildParticipationPayoffProjection } from "./lib/participation_payoff.m
 import { MarketProviderReader, MarketProviderPolicy, normalizeDexScreenerActivity, dexchWalletCandidates } from "./lib/market_provider_fallbacks.mjs";
 import { buildDexchChart } from './lib/dexch_chart.mjs';
 import { collectParticipationUniverse, createParticipationSnapshotStore, refreshParticipationSnapshot, PARTICIPATION_UNIVERSE_POLICY } from './lib/participation_universe.mjs';
-import { buildParticipationMap, matchesParticipationCell, PARTICIPATION_BANDS } from './ravenos-participation-map.js';
+import { buildParticipationMap, rankParticipationMarkets, PARTICIPATION_BANDS } from './ravenos-participation-map.js';
+import { matchesMarketScope, isTokenizedEquity } from './ravenos-market-scope.js';
 import { EVM_CHAIN_PROFILES } from './lib/customer_trade/evm_chain_profiles.mjs';
 import {
   ONCHAIN_HOLDER_SCHEMA,
@@ -379,6 +382,7 @@ const AUTHENTICATED_APP_STATIC_PATHS = new Set([
   "/ravenos-workspace.css",
   "/ravenos-terminal-live.css",
   "/ravenos-terminal-live.js",
+  "/ravenos-spot-trade-policy.js",
   "/ravenos-price-workspace.css",
   "/ravenos-price-workspace.js",
   "/ravenos-chart-data-plane.js",
@@ -3668,7 +3672,7 @@ export async function collectRavenParticipation(env = {}, previous = null) {
       if (key) for (const [category, interval] of [['toptraded', '6h'], ['toptraded', '24h'], ['toporganicscore', '6h'], ['toptrending', '6h']]) {
         jobs.push(boundedProviderJson(`${JUPITER_TOKENS_BASE_URL}/${category}/${interval}?limit=100`, {
           headers: { 'x-api-key': key }, maxBytes: 1024 * 1024, timeoutMs: 5_000, errorPrefix: 'jupiter_tokens',
-        }).then(rows => (Array.isArray(rows) ? rows : []).map(row => ({ chain: 'solana', token_address: row.id }))));
+        }).then(rows => (Array.isArray(rows) ? rows : []).filter(row => !isTokenizedEquity(row)).map(row => ({ chain: 'solana', token_address: row.id, name: row.name }))));
       }
       const results = await Promise.allSettled(jobs);
       return { rows: results.flatMap(result => result.status === 'fulfilled' ? result.value : []), request_count: jobs.length };
@@ -3883,20 +3887,28 @@ async function jupiterVelocityRows({ env = {}, duration = "5m", fetchedAt = new 
           errorPrefix: "dexscreener_jupiter_exact_pools",
         },
       );
-      return sortedDexResults(Array.isArray(exactPools) ? exactPools : []);
+      const raw = Array.isArray(exactPools) ? exactPools : [];
+      return { pairs: sortedDexResults(raw), companionRows: raw.map(pair => normalizeDexScreenerActivity(pair, { chain: 'solana', duration, observedAt: fetchedAt }))
+        .filter(row => row && matchesMarketScope(row, 'memecoins')) };
     },
   })));
-  const pairs = pairSettled.flatMap((result) => result.status === "fulfilled" ? result.value : []);
+  const pairs = pairSettled.flatMap((result) => result.status === "fulfilled" ? result.value.pairs : []);
+  const companionRows = pairSettled.flatMap(result => result.status === "fulfilled" ? result.value.companionRows : []);
   const bestPair = new Map();
   for (const pair of pairs) {
     if (!bestPair.has(pair.tokenAddress)) bestPair.set(pair.tokenAddress, pair);
   }
-  const rows = tokens
+  const rows = tokens.filter(token => !isTokenizedEquity(token))
     .map((token, index) => normalizeJupiterVelocityToken(token, bestPair.get(token.id), { duration, rank: index + 1, fetchedAt }))
     .filter(Boolean)
     .slice(0, JUPITER_DISCOVERY_LIMIT);
-  cacheSet(jupiterVelocityCache, cacheKey, rows, 30_000);
-  return rows;
+  // A popular paired stock can be a discovery seed without becoming the card.
+  // Companion coins keep their own exact-pool metrics, never the stock's flow.
+  const seen = new Set(rows.map(row => row.token_address));
+  for (const row of companionRows) if (!seen.has(row.token_address)) { seen.add(row.token_address); rows.push(row); }
+  const selected = rows.slice(0, JUPITER_DISCOVERY_LIMIT);
+  cacheSet(jupiterVelocityCache, cacheKey, selected, 30_000);
+  return selected;
 }
 
 function legacyDiscoverRavenEvidence(row = {}) {
@@ -4348,14 +4360,14 @@ async function onchainMarketPulse({ env = {}, request = null, chains = [], durat
     return token ? attachDexchLifecycle(row, token, fetchedAt) : row;
   });
   const rowsByMarket = new Map();
-  for (const row of [...currentRows, ...(dexchDiscovery.rows || [])]) {
+  for (const row of [...currentRows, ...(dexchDiscovery.rows || [])].filter(row => matchesMarketScope(row, "memecoins"))) {
     const marketKey = String(row.instrument_id || "");
     if (marketKey && !rowsByMarket.has(marketKey)) rowsByMarket.set(marketKey, row);
   }
   let hasCurrentProviderRows = rowsByMarket.size > 0;
   const retainedRows = retainedDiscoverRegistryRows(registryHistory, chains, {
     onlyExplicitlyRetained: hasCurrentProviderRows,
-  });
+  }).filter(row => matchesMarketScope(row, "memecoins"));
   const retainedWithoutCurrentFacts = retainedRows.filter((row) => !rowsByMarket.has(String(row.instrument_id || "")));
   const hotWatch = await refreshRetainedDiscoverHotWatch({
     env,
@@ -8188,8 +8200,8 @@ async function loadCurrentRobinhoodLivePreparation(body = {}, env = {}) {
   if (side === "sell" && requestedPreference === "native") {
     throw Object.assign(new Error("robinhood_native_sell_settlement_not_supported"), { code: "robinhood_native_sell_settlement_not_supported" });
   }
-  const slippageBps = Math.round(Number(body?.slippage_bps ?? 50));
-  if (!Number.isSafeInteger(slippageBps) || slippageBps < 5 || slippageBps > 500) {
+  const slippageBps = Number(body?.slippage_bps ?? DEFAULT_SPOT_SLIPPAGE_BPS);
+  if (!Number.isSafeInteger(slippageBps) || slippageBps < MIN_SPOT_SLIPPAGE_BPS || slippageBps > MAX_SPOT_SLIPPAGE_BPS) {
     throw Object.assign(new Error("slippage_bps_invalid"), { code: "slippage_bps_invalid" });
   }
 
@@ -8226,7 +8238,7 @@ async function loadCurrentRobinhoodLivePreparation(body = {}, env = {}) {
   });
   if (!entryQuote.wallet_handoff_eligible) {
     const reason = entryQuote.blockers?.[0] || "robinhood_entry_quote_blocked";
-    throw Object.assign(new Error(reason), { code: reason, details: { allowance: entryQuote.allowance, blockers: entryQuote.blockers, approval: evmTokenApprovalContext(entryQuote, { profile: "robinhood", token: tokenEvidence, side, instrument_id: instrumentId, pool_address: poolAddress }) } });
+    throw Object.assign(new Error(reason), { code: reason, details: { allowance: entryQuote.allowance, blockers: entryQuote.blockers, approval: { ...evmTokenApprovalContext(entryQuote, { profile: "robinhood", token: tokenEvidence, side, instrument_id: instrumentId, pool_address: poolAddress }), price_impact: estimateEvmPriceImpact({ market: exact, quote: entryQuote, side, tokenDecimals: tokenEvidence.decimals, accountingDecimals: 6, notionalBaseUnits: sellToken === ROBINHOOD_USDG ? sellAmount : null }) } } });
   }
 
   let notionalBaseUnits;
@@ -8291,6 +8303,7 @@ async function loadCurrentRobinhoodLivePreparation(body = {}, env = {}) {
       chain: chainEvidence,
       stock_token: stockToken,
       source_valuation_quote_hash: sourceValuation?.quote_hash || null,
+      price_impact: estimateEvmPriceImpact({ market: exact, quote: entryQuote, side, tokenDecimals: tokenEvidence.decimals, accountingDecimals: 6, notionalBaseUnits }),
       token: tokenEvidence,
       accounting_asset: usdgEvidence,
       expected_output: robinhoodQuoteDisplay(entryQuote.exact_binding.buy_amount_base_units, side === "buy" ? tokenEvidence.decimals : 6, side === "buy" ? String(exact.symbol || "TOKEN") : "USDG"),
@@ -8434,8 +8447,8 @@ async function loadCurrentEvmLivePreparation(body = {}, env = {}, profile) {
   if (side === "sell" && requestedPreference === "native") {
     throw Object.assign(new Error("evm_native_sell_settlement_not_supported"), { code: "evm_native_sell_settlement_not_supported" });
   }
-  const slippageBps = Math.round(Number(body?.slippage_bps ?? 50));
-  if (!Number.isSafeInteger(slippageBps) || slippageBps < 5 || slippageBps > 500) {
+  const slippageBps = Number(body?.slippage_bps ?? DEFAULT_SPOT_SLIPPAGE_BPS);
+  if (!Number.isSafeInteger(slippageBps) || slippageBps < MIN_SPOT_SLIPPAGE_BPS || slippageBps > MAX_SPOT_SLIPPAGE_BPS) {
     throw Object.assign(new Error("slippage_bps_invalid"), { code: "slippage_bps_invalid" });
   }
 
@@ -8474,7 +8487,7 @@ async function loadCurrentEvmLivePreparation(body = {}, env = {}, profile) {
   });
   if (!entryQuote.wallet_handoff_eligible) {
     const reason = entryQuote.blockers?.[0] || `${profile.chain_namespace}_entry_quote_blocked`;
-    throw Object.assign(new Error(reason), { code: reason, details: { allowance: entryQuote.allowance, blockers: entryQuote.blockers, approval: evmTokenApprovalContext(entryQuote, { profile: profile, token: tokenEvidence, side, instrument_id: instrumentId, pool_address: poolAddress }) } });
+    throw Object.assign(new Error(reason), { code: reason, details: { allowance: entryQuote.allowance, blockers: entryQuote.blockers, approval: { ...evmTokenApprovalContext(entryQuote, { profile: profile, token: tokenEvidence, side, instrument_id: instrumentId, pool_address: poolAddress }), price_impact: estimateEvmPriceImpact({ market: exact, quote: entryQuote, side, tokenDecimals: tokenEvidence.decimals, accountingDecimals: profile.accounting_asset.decimals, notionalBaseUnits: sellToken === profile.accounting_asset.address ? sellAmount : null }) } } });
   }
   const gasEvidence = await currentProfileGasEvidence(rpcClient, profile, walletAddress, entryQuote);
 
@@ -8545,6 +8558,7 @@ async function loadCurrentEvmLivePreparation(body = {}, env = {}, profile) {
       chain: chainEvidence,
       gas: gasEvidence,
       source_valuation_quote_hash: sourceValuation?.quote_hash || null,
+      price_impact: estimateEvmPriceImpact({ market: exact, quote: entryQuote, side, tokenDecimals: tokenEvidence.decimals, accountingDecimals: profile.accounting_asset.decimals, notionalBaseUnits }),
       token: tokenEvidence,
       accounting_asset: Object.freeze({
         ...accountingEvidence,
@@ -8788,7 +8802,9 @@ async function handleTradeLiveSession(request, env = {}) {
   const evmFee = evmFeeCollectorStatus(env);
   return liveExecutionResponse({
     ok: true,
-    gate,
+    gate: { ...gate, chains: Object.fromEntries(Object.entries(gate.chains).map(([chain, lane]) => [chain, {
+      ...lane, unavailable_reason: customerLiveExecutionRefusal(gate, chain),
+    }])) },
     maximum_notional_usdc: boundedLiveNotional(env),
     hyperliquid_fee: {
       enabled: feePolicy.enabled,
@@ -11789,17 +11805,17 @@ async function routeApi(request, env, executionContext = null) {
     }
   }
   if (url.pathname === '/api/onchain/participation' && request.method === 'GET') {
-    const chain = url.searchParams.get('chain'), band = url.searchParams.get('band');
-    if ([...url.searchParams.keys()].some(key => !['chain', 'band'].includes(key)) || Boolean(chain) !== Boolean(band)
+    const chain = url.searchParams.get('chain'), band = url.searchParams.get('band'), order = url.searchParams.get('order') || 'gainers';
+    if (!['gainers', 'decliners'].includes(order) || [...url.searchParams.keys()].some(key => !['chain', 'band', 'order'].includes(key)) || Boolean(chain) !== Boolean(band)
       || (chain && !['solana', 'robinhood', 'bsc', 'base', 'ethereum'].includes(chain))
       || (band && band !== 'new_pairs' && !PARTICIPATION_BANDS.some(item => item.id === band))) return json({ ok: false, error: 'participation_filter_invalid' }, { status: 400 });
     try {
       const snapshot = await participationSnapshot(env, executionContext);
       if (!snapshot?.rows?.length) return json({ ok: false, state: 'refreshing', rows: [] }, { status: 503, headers: { 'cache-control': 'no-store' } });
       if (chain) {
-        const matching = snapshot.rows.filter(row => matchesParticipationCell(row, { chain, band, kind: band === 'new_pairs' ? 'new_pairs' : 'capitalization' }));
+        const matching = rankParticipationMarkets(snapshot.rows, { filter: { chain, band, kind: band === 'new_pairs' ? 'new_pairs' : 'capitalization' }, order });
         const radar = buildDiscoverRadarProjection(matching.slice(0, 200), { timeframe: '5m', generatedAt: snapshot.generated_at, nowMs: Date.now(), sourceState: 'current' });
-        return json({ ok: true, safe_public: true, schema_version: 'ravenos.participation_group.v1', total_matching: matching.length, rows: radar.rows }, { headers: { 'cache-control': 'public, max-age=15' } });
+        return json({ ok: true, safe_public: true, schema_version: 'ravenos.participation_group.v1', total_matching: matching.length, return_window: '6h', order, rows: radar.rows }, { headers: { 'cache-control': 'public, max-age=15' } });
       }
       return json({ ok: true, safe_public: true, schema_version: 'ravenos.participation_boards.v1', coverage: snapshot.coverage,
         boards: { capitalization: buildParticipationMap(snapshot.rows), new_pairs: buildParticipationMap(snapshot.rows, { family: 'new_pairs' }) },

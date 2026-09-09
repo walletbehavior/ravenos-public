@@ -4,13 +4,23 @@ export const MARKET_SCOPES = Object.freeze({ memecoins: "Onchain", perps: "Perps
 export function normalizeMarketScope(value, fallback = "memecoins") {
   return Object.hasOwn(MARKET_SCOPES, value || "") ? value : fallback;
 }
+// Classify the selected asset only. A stock-token quote never changes the
+// category of the coin being discovered. This is presentation, not issuer
+// verification or authority to trade a security. Bare tickers are ambiguous.
+export function isTokenizedEquity(row = {}) {
+  const primary = row.subject || row.instrument_contract || (typeof row.instrument === 'object' ? row.instrument : row);
+  const type = String(primary.asset_class || primary.assetClass || primary.instrument_type || primary.market_type || '').toLowerCase();
+  if (['tokenized_equity', 'tokenized_stock', 'stock_token'].includes(type)) return true;
+  const name = String(primary.name || primary.token_name || '').trim();
+  return /\S\s+xstocks?$/i.test(name) || /\s[-–—]\s*Backpack Securities$/i.test(name);
+}
 export function instrumentMarketScope(row = {}) {
   const subject = row.subject || row.instrument_contract || (typeof row.instrument === "object" ? row.instrument : row);
   const id = String(subject.instrument_id || subject.instrumentId || subject.id || row.instrument_id || row.key || "").toLowerCase();
   const type = String(subject.instrumentType || subject.instrument_type || subject.marketType || subject.market_type || row.market_type || row.lane || "").toLowerCase();
   const chain = String(subject.chain || row.chain_id || row.chain || "").toLowerCase();
   if (id.startsWith("hyperliquid:perp:") || ["perp", "perps", "perpetual", "perpetuals"].includes(type)) return "perps";
-  if (/^(equity|etf):/.test(id) || ["equity", "etf", "equities", "tokenized_equity"].includes(type) || ["equity", "etf", "tokenized_equity"].includes(subject.asset_class || subject.assetClass)) return "equities";
+  if (/^(equity|etf):/.test(id) || ["equity", "etf", "equities", "tokenized_equity"].includes(type) || ["equity", "etf", "tokenized_equity"].includes(subject.asset_class || subject.assetClass) || isTokenizedEquity(row)) return "equities";
   if (id.includes(":pool:") || ["spot", "spot_pool", "exact_pool", "token", "pool", "crypto_spot"].includes(type)) return "memecoins";
   if (chain && chain !== "hyperliquid" && (row.pool_address || row.pairAddress || subject.poolAddress)) return "memecoins";
   return null;

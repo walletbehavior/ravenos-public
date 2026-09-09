@@ -126,3 +126,33 @@ test("public projection exposes capability state without exposing the canary use
   assert.equal(projection.chains.ethereum.enabled, false);
   assert.equal(JSON.stringify(projection).includes(USER), false);
 });
+
+test("remembered account sessions can trade after 12 hours without promoting recent-auth authority", () => {
+  const account = principal({ authenticated_at: NOW - 23 * 3600, session_expires_at: NOW + 29 * 86400 });
+  const env = enabledEnv({ RAVENOS_CUSTOMER_TRADE_SOLANA_LIVE_ENABLE: "1", RAVENOS_CUSTOMER_TRADE_BASE_LIVE_ENABLE: "1" });
+  const gate = resolveCustomerLiveExecutionGate(env, account, { nowSeconds: NOW });
+  assert.equal(gate.recent_authentication, false);
+  assert.equal(gate.authentication_valid, true);
+  assert.equal(gate.authentication_policy, "validated_account_session");
+  for (const chain of ["solana", "base", "hyperliquid"]) {
+    assert.equal(gate.chains[chain].available_to_principal, true);
+    assert.equal(customerLiveExecutionRefusal(gate, chain), null);
+  }
+  for (const session_expires_at of [NOW, NOW - 1, NaN, NOW + 366 * 86400]) {
+    assert.equal(resolveCustomerLiveExecutionGate(env, { ...account, session_expires_at }, { nowSeconds: NOW }).principal_allowed, false);
+  }
+  const restricted = resolveCustomerLiveExecutionGate({ ...env, RAVENOS_CUSTOMER_TRADE_MAX_SESSION_AGE_SECONDS: "43200" }, account, { nowSeconds: NOW });
+  assert.equal(customerLiveExecutionRefusal(restricted, "solana"), "recent_authentication_required");
+});
+
+test("invalid authentication timestamps never authorize trading", () => {
+  for (const authenticated_at of [null, undefined, 0, NaN, NOW + 61]) {
+    const gate = resolveCustomerLiveExecutionGate(enabledEnv(), principal({ authenticated_at, session_expires_at: NOW + 3600 }), { nowSeconds: NOW });
+    assert.equal(gate.principal_allowed, false);
+  }
+});
+
+test('active remembered sessions older than a year retain trading access without fresh-auth authority', () => {
+  const gate = resolveCustomerLiveExecutionGate(enabledEnv({ RAVENOS_CUSTOMER_TRADE_SOLANA_LIVE_ENABLE: '1' }), principal({ authenticated_at: NOW - 700 * 86400, session_expires_at: NOW + 365 * 86400 }), { nowSeconds: NOW });
+  assert.equal(gate.principal_allowed, true); assert.equal(gate.recent_authentication, false);
+});

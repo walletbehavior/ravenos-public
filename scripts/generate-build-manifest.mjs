@@ -77,6 +77,7 @@ const files = [
   "ravenos-price-workspace.js",
   "ravenos-terminal-live.css",
   "ravenos-terminal-live.js",
+  "ravenos-spot-trade-policy.js",
   "ravenos-wallet-execution.js",
   "ravenos-privy-wallet.js",
   "ravenos-workspace.css",

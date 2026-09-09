@@ -454,6 +454,7 @@ export async function mockTerminalLiveApis(page, {
   spotExitQuoteTtlMs = spotQuoteTtlMs,
   spotQuoteDelayMs = 0,
   spotQuoteOutputMint = null,
+  spotQuoteImpactBps = 18,
 } = {}) {
   const calls = [];
   const holderCalls = [];
@@ -1166,7 +1167,7 @@ export async function mockTerminalLiveApis(page, {
           minimum_output_amount_base_units: sell ? selectedPreference === "native" ? "417900000" : "417900" : "8408000000",
           minimum_output_display: sell ? "0.4179" : "8408",
           output_mint: outputMint,
-          price_impact_bps: 18,
+          price_impact_bps: spotQuoteImpactBps,
           route: { policy: "exact_selected_token", leg_count: 2, venues: ["Raydium", "Meteora"] },
         },
         fee_disclosure: {

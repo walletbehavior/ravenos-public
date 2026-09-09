@@ -41,6 +41,7 @@ test("linked comparison follows selection and independent comparison cannot chan
   await expect(page.locator("#terminalChart canvas").first()).toBeVisible();
   await page.locator('[data-terminal-pane-button="raven"]').click();
   await expect(page.locator(".desk-research-brief")).toBeVisible();
+  await page.locator(".desk-brief-disclosure > summary").click();
   await expect(page.locator(".desk-research-brief")).toContainText(
     "Checks and conflicts",
   );
@@ -48,6 +49,7 @@ test("linked comparison follows selection and independent comparison cannot chan
     path: testInfo.outputPath("linked-desktop.png"),
     fullPage: true,
   });
+  await page.getByRole("dialog").getByRole("button", { name: "Close", exact: true }).click();
   await page.setViewportSize({ width: 390, height: 844 });
   expect(
     await page.evaluate(
@@ -78,7 +80,7 @@ test("named lists filter markets, quote rows populate, and saved workspaces rest
   await page.locator("#deskListName").fill("Majors");
   await page.locator("#deskCreateList").click();
   await expect(page.locator(".desk-market-row")).toHaveCount(1);
-  await page.locator("#deskList").selectOption("");
+  await page.locator("#deskList").getByRole("button", {name:"All markets",exact:true}).click();
   await expect(page.locator(".desk-market-row")).toHaveCount(2);
   await expect(page.locator(".desk-market-quote strong").first()).toBeVisible();
   await workspace(page);
@@ -167,4 +169,23 @@ test("market directory failure ends the loading state and provides recovery", as
   await expect(page.locator("#terminalChart [data-rpw-state]")).not.toHaveText(
     "Loading",
   );
+});
+
+test('mobile market lists use visible buttons and omit the empty All markets menu', async ({page},testInfo) => {
+  await page.setViewportSize({width:390,height:664});
+  await mockTerminalLiveApis(page);
+  await page.goto('/terminal/?market_scope=perps');
+  await waitForTerminalLive(page,{instrument:'SOL-PERP'});
+  await page.getByRole('button',{name:'☷ Markets',exact:true}).click();
+  await expect(page.locator('#deskList button')).toHaveCount(0);
+  await expect(page.locator('.desk-list-controls select')).toHaveCount(0);
+  await page.locator('#deskSort').getByRole('button',{name:'Name',exact:true}).click();
+  await expect(page.locator('[data-desk-sort="name"]')).toHaveAttribute('aria-pressed','true');
+  await page.locator('.desk-list-controls summary').click();
+  await page.locator('#deskListName').fill('My markets');
+  await page.locator('#deskCreateList').click();
+  await expect(page.locator('#deskList').getByRole('button',{name:'My markets',exact:true})).toHaveAttribute('aria-pressed','true');
+  await page.locator('#deskList').getByRole('button',{name:'All markets',exact:true}).click();
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({path:testInfo.outputPath('market-list-buttons.png')});
 });

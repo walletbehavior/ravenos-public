@@ -35,6 +35,25 @@ export function matchesParticipationCell(row, filter, now = Date.now()) {
   return Boolean(band && cap !== null && cap >= band.min && (band.max === null || cap < band.max));
 }
 
+export function participationReturn(row, now = Date.now()) {
+  const value = finite(row.market?.price_change_6h_pct), age = participationPairAge(row, now);
+  return spotMarketFactFreshness(row, now).current && value !== null && value >= -100 && age !== null && age >= 21_600 ? value : null;
+}
+
+// Use the board's actual return window. Volume breaks ties, never outranks a
+// larger measured move. Unknown returns stay last, not silently zero or 5m.
+export function rankParticipationMarkets(rows = [], { filter, now = Date.now(), order = 'gainers' } = {}) {
+  const unique = bestExactSpotMarketPerToken(rows.filter(row => matchesParticipationCell(row, filter, now)), { timeframe: '6h', nowMs: now });
+  return unique.sort((left, right) => {
+    const a = participationReturn(left, now), b = participationReturn(right, now);
+    if (a === null && b !== null) return 1;
+    if (b === null && a !== null) return -1;
+    if (a !== null && b !== null && a !== b) return order === 'decliners' ? a - b : b - a;
+    return (finite(right.market?.volume_usd_6h) ?? -1) - (finite(left.market?.volume_usd_6h) ?? -1)
+      || String(left.instrument_id).localeCompare(String(right.instrument_id));
+  });
+}
+
 export function buildParticipationMap(rows = [], { now = Date.now(), family = 'capitalization' } = {}) {
   const eligible = rows.filter(row => matchesMarketScope(row, 'memecoins') && CHAINS[chainOf(row)] && row.token_address && row.pool_address);
   // A token with several pools receives one vote; volume covers that pool only.
@@ -47,8 +66,7 @@ export function buildParticipationMap(rows = [], { now = Date.now(), family = 'c
       if (!members.length) continue;
       const current = members.filter(row => spotMarketFactFreshness(row, now).current);
       const measured = current.filter(row => {
-        const change = finite(row.market?.price_change_6h_pct), age = participationPairAge(row, now);
-        return change !== null && change >= -100 && age !== null && age >= 21_600;
+        return participationReturn(row, now) !== null;
       });
       const changes = measured.map(row => Number(row.market.price_change_6h_pct));
       const move = median(changes), positiveShare = changes.length ? changes.filter(value => value > 0).length / changes.length : null;

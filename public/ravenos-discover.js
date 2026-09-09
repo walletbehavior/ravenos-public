@@ -12,7 +12,7 @@ import {
 } from "/ravenos-discover-intelligence.js";
 import { mountTradingViewListedTape } from "/ravenos-tradingview-adapter.js";
 import { getPreference, setPreference } from "/ravenos-preferences.js";
-import { buildParticipationMap, buildPerpParticipationMap, matchesParticipationCell, matchesPerpParticipationCell, layoutParticipationTiles } from "/ravenos-participation-map.js";
+import { buildParticipationMap, buildPerpParticipationMap, matchesParticipationCell, matchesPerpParticipationCell, participationReturn, rankParticipationMarkets, layoutParticipationTiles } from "/ravenos-participation-map.js";
 import { openIntelligenceLayer, intelligenceLayerOpen } from "/ravenos-intelligence-layers.js";
 
 const REFRESH_MS = 45 * 1_000;
@@ -83,6 +83,7 @@ const state = {
   participationUniverse: null,
   participationLoading: false,
   participationGroupRows: [],
+  participationGroupLoaded: false,
   participationGroupRequest: 0,
   participationFilter: null,
   perpParticipationFilter: null,
@@ -1775,7 +1776,7 @@ function degenMarketCapFilterActive() {
 
 function spotRankedRows() {
   const broadDegenScan = degenMarketCapFilterActive() || state.spotRevivalOnly;
-  const candidates = state.participationFilter ? [...state.spotRows, ...state.participationGroupRows] : state.spotRows;
+  const candidates = state.participationFilter && state.participationGroupLoaded ? state.participationGroupRows : state.spotRows;
   const current = candidates.filter((row) => {
     const chain = text(row.chain_id || row.chain, "").toLowerCase();
     const retained = row?.discovery?.registry?.retained_after_trending === true;
@@ -1796,6 +1797,7 @@ function spotRankedRows() {
           || (broadDegenScan ? hasDegenRelevantSpotActivity(row) : hasDecisionUsefulSpotActivity(row)))
       ));
   });
+  if (state.participationFilter && state.spotSort === "participation") return rankParticipationMarkets(current, { filter: state.participationFilter, order: state.participationFilter.order });
   if (state.spotSort === "raven") {
     return current
       .filter((row) => row?.discovery?.raven_evidence_state?.qualified === true && row?.discovery?.raven_evidence_state?.raven_signal === true)
@@ -2309,7 +2311,8 @@ function updateSpotTokenRow(anchor, row, index) {
 
   const move = append(anchor, "div", "discover-token-move", "");
   move.textContent = "";
-  const selectedMovement = factFreshness.current ? spotMetric(row, "price_change") : null;
+  const participationRanking = state.participationFilter && state.spotSort === "participation";
+  const selectedMovement = participationRanking ? participationReturn(row) : factFreshness.current ? spotMetric(row, "price_change") : null;
   const primaryTrigger = discovery.notability?.primary_trigger;
   const triggerMovement = primaryTrigger?.kind === "material_price_move" ? finite(primaryTrigger.value_pct) : null;
   const showPrimaryTrigger = factFreshness.current
@@ -2329,7 +2332,7 @@ function updateSpotTokenRow(anchor, row, index) {
       ? primaryTrigger.window === state.spotTimeframe
         ? `${primaryTrigger.window} material move`
         : `${primaryTrigger.window} trigger · ${state.spotTimeframe} now ${percent(selectedMovement)}`
-      : `${state.spotTimeframe} move`
+      : participationRanking ? "6h move" : `${state.spotTimeframe} move`
     : "Last exact update";
   setSpotAgeNode(moveContext, row, movePrefix, factFreshness.current ? " · " : " ");
 
@@ -2629,7 +2632,7 @@ function renderSpotPulse(rows = state.spotRows, { forceOrder = false } = {}) {
   if (tokenReads) state.spotSort = "raven";
   host.querySelectorAll("[data-spot-sort]").forEach(button => { button.hidden = tokenReads && button.dataset.spotSort !== "raven"; });
   document.querySelectorAll("[data-spot-timeframe]").forEach((button) => {
-    const active = button.dataset.spotTimeframe === state.spotTimeframe;
+    const active = state.spotSort !== "participation" && button.dataset.spotTimeframe === state.spotTimeframe;
     button.classList.toggle("active", active);
     button.setAttribute("aria-pressed", String(active));
   });
@@ -2703,7 +2706,9 @@ function renderSpotPulse(rows = state.spotRows, { forceOrder = false } = {}) {
       column: "Flow-quality ranking",
     },
   };
-  const view = views[state.spotSort] || views.velocity;
+  const view = state.participationFilter && state.spotSort === 'participation'
+    ? { title: state.participationFilter.order === 'decliners' ? 'Largest 6h declines' : 'Top 6h movers', summary: 'Selected chain and cap range · ranked by six-hour price change.', column: '6h movers' }
+    : views[state.spotSort] || views.velocity;
   document.getElementById("discoverSpotPulseTitle").textContent = view.title;
   document.getElementById("discoverSpotPulseSummary").textContent = lifecycleBrowseActive() && state.spotSort !== "raven"
     ? "Reported lifecycle · quiet markets included · current evidence required."
@@ -2723,12 +2728,14 @@ const participationFilterKeys = Object.keys(state).filter(key => /^spot.*Filter$
 function clearParticipationFilter({ restore = true } = {}) {
   if (restore && participationPriorFilters) Object.assign(state, participationPriorFilters);
   participationPriorFilters = null;
+  if (state.spotSort === "participation") state.spotSort = getPreference("discoverSort", "velocity");
   state.participationFilter = null;
   state.participationGroupRows = [];
+  state.participationGroupLoaded = false;
 }
 async function selectParticipationCell(cell) {
   if (cell.filter.scope === 'perps') {
-    state.perpParticipationFilter = cell.filter;
+    state.perpParticipationFilter = { ...cell.filter, order: cell.state === 'punishing' ? 'decliners' : 'gainers' };
     document.querySelector('[data-discover-filter="perpetual"]').click();
     participationOverlay?.close();
     renderMarkets([...state.markets.values()], { observedAt: state.perpObservedAt });
@@ -2737,20 +2744,22 @@ async function selectParticipationCell(cell) {
   }
   if (!participationPriorFilters) participationPriorFilters = Object.fromEntries(participationFilterKeys.map(key => [key, state[key]]));
   for (const key of participationFilterKeys) if (key.endsWith('Filter')) state[key] = 'all';
-  Object.assign(state, { spotChain: cell.filter.chain, spotLane: 'all', spotCohort: 'all', spotRevivalOnly: false, spotChangedOnly: false, spotSort: 'activity', spotEmergingFirst: false, participationFilter: cell.filter });
+  Object.assign(state, { spotChain: cell.filter.chain, spotLane: 'all', spotCohort: 'all', spotRevivalOnly: false, spotChangedOnly: false, spotSort: 'participation', spotEmergingFirst: false, participationFilter: { ...cell.filter, order: cell.state === 'punishing' ? 'decliners' : 'gainers' } });
   state.participationGroupRows = [];
+  state.participationGroupLoaded = false;
   document.querySelector('[data-discover-filter="spot"]').click();
   participationOverlay?.close();
   renderSpotPulse(state.spotRows, { forceOrder: true });
-  if (state.participationUniverse) await loadParticipationGroup(cell.filter, true);
+  await loadParticipationGroup(state.participationFilter, true);
 }
 async function loadParticipationGroup(filter, forceOrder = false) {
   const request = ++state.participationGroupRequest;
   try {
-    const { response, payload } = await participationJson(`/api/onchain/participation?${new URLSearchParams({ chain: filter.chain, band: filter.band })}`);
+    const { response, payload } = await participationJson(`/api/onchain/participation?${new URLSearchParams({ chain: filter.chain, band: filter.band, order: filter.order || 'gainers' })}`);
     if (request !== state.participationGroupRequest || state.participationFilter !== filter || state.marketScope !== 'memecoins') return;
     if (response.ok && payload?.safe_public === true && payload?.schema_version === 'ravenos.participation_group.v1' && Array.isArray(payload.rows)) {
       state.participationGroupRows = payload.rows.slice(0, 200).filter(validDiscoverRow);
+      state.participationGroupLoaded = true;
       renderSpotPulse(state.spotRows, { forceOrder });
     }
   } catch { /* Current Discovery matches remain usable; no fresh RPC fallback. */ }
@@ -3280,7 +3289,15 @@ function renderMarkets(rows, { observedAt = null } = {}) {
   state.perpObservedAt = observedAt || rows.find(row => row.observed_at)?.observed_at || null;
   const host = document.getElementById("discoverPulse");
   host.replaceChildren();
-  const ranked = rows.filter(row => !state.perpParticipationFilter || matchesPerpParticipationCell(row, state.perpParticipationFilter)).sort((left, right) => (finite(right.day_notional_volume_usd) || 0) - (finite(left.day_notional_volume_usd) || 0)).slice(0, state.perpParticipationFilter ? 1000 : 10);
+  const ranked = rows.filter(row => !state.perpParticipationFilter || matchesPerpParticipationCell(row, state.perpParticipationFilter)).sort((left, right) => {
+    if (state.perpParticipationFilter) {
+      const a = finite(left.day_change_pct), b = finite(right.day_change_pct);
+      if (a === null && b !== null) return 1;
+      if (b === null && a !== null) return -1;
+      if (a !== null && b !== null && a !== b) return state.perpParticipationFilter.order === 'decliners' ? a - b : b - a;
+    }
+    return (finite(right.day_notional_volume_usd) || 0) - (finite(left.day_notional_volume_usd) || 0);
+  }).slice(0, state.perpParticipationFilter ? 1000 : 10);
   renderMarketTape(rows, observedAt);
   if (state.marketScope === 'perps') renderParticipationBoard();
   if (!ranked.length) {
@@ -3899,12 +3916,13 @@ function bind() {
     state.expanded = false;
     const url = new URL(location.href);
     url.searchParams.set("market_scope", state.marketScope);
-    if (button.dataset.discoverFilter === "signals") url.searchParams.set("view", "reads"); else { url.searchParams.delete("view"); state.spotSort = getPreference("discoverSort", "velocity"); }
+    if (button.dataset.discoverFilter === "signals") url.searchParams.set("view", "reads"); else { url.searchParams.delete("view"); if (!state.participationFilter) state.spotSort = getPreference("discoverSort", "velocity"); }
     history.replaceState({}, "", url);
     if (state.marketScope === "memecoins") renderSpotPulse(state.spotRows, { forceOrder: true });
     applyFilter();
   }));
   document.querySelectorAll("[data-spot-timeframe]").forEach((button) => button.addEventListener("click", () => {
+    if (state.participationFilter) clearParticipationFilter();
     state.spotTimeframe = button.dataset.spotTimeframe;
     setPreference("discoverTimeframe", state.spotTimeframe);
     renderSpotPulse(state.spotRows, { forceOrder: true });

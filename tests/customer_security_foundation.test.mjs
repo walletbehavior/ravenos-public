@@ -189,7 +189,7 @@ test("Stage A activates only managed accounts and revocable sessions", () => {
   assert.equal(security.customer_live_execution_canary.surface, "https://app.ravenos.xyz/terminal/");
   assert.equal(security.customer_live_execution_canary.authenticated_origin_only, true);
   assert.equal(security.customer_live_execution_canary.csrf_required_for_mutations, true);
-  assert.equal(security.customer_live_execution_canary.recent_authentication_required, true);
+  assert.equal(security.customer_live_execution_canary.validated_account_session_required, true);
   assert.equal(security.customer_live_execution_canary.explicit_user_allowlist_required, true);
   assert.equal(security.customer_live_execution_canary.wildcard_allowlist_for_initial_canary, false);
   assert.equal(security.customer_live_execution_canary.wildcard_allowlist_for_authenticated_public_release, true);

@@ -22,15 +22,20 @@ const WALLET="11111111111111111111111111111111";
 const USDC="EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 const SOL="So11111111111111111111111111111111111111112";
 const URL="https://app.ravenos.xyz/terminal/?instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&token_address=fixture-token-address&quote_address=fixture-quote-address&panel=trade";
-async function setup(page,baseURL,{delay=0,reject=false,pending=false,statusResult=null,minimum="8323920000",embedded=false,stalledWallet=false,panel="trade"}={}) {
+async function setup(page,baseURL,{delay=0,reject=false,pending=false,statusResult=null,minimum="8323920000",embedded=false,stalledWallet=false,panel="trade",sessionFailure=false,staleSession=false,quoteImpact=18}={}) {
   await page.route("https://app.ravenos.xyz/**", async route=>{
     const u=new globalThis.URL(route.request().url());
     await route.fulfill({response:await page.request.fetch(`${baseURL}${u.pathname}${u.search}`)});
   });
-  const fixtures=await mockTerminalLiveApis(page,{spotQuotePreview:true});
+  const fixtures=await mockTerminalLiveApis(page,{spotQuotePreview:true, spotQuoteImpactBps:quoteImpact});
   await page.route("**/api/v1/auth/session",route=>route.fulfill({json:{ok:true,authenticated:true,csrf_token:"fixturecsrf"}}));
   await page.route("**/api/v1/wallets/balances?**",route=>route.fulfill({status:401,json:{ok:false}}));
-  await page.route("**/api/trade/live/session",route=>route.fulfill({json:{ok:true,gate:{configured:true,chains:{solana:{available_to_principal:true}}}}}));
+  let sessionCalls=0;
+  await page.route("**/api/trade/live/session",route=>{
+    sessionCalls++;
+    return sessionFailure && sessionCalls === 1 ? route.fulfill({status:503,json:{ok:false,error:"unavailable"}})
+      : route.fulfill({json:{ok:true,gate:{configured:true,authentication_valid:!staleSession,recent_authentication:!staleSession,chains:{solana:{enabled:true,available_to_principal:!staleSession}}}}});
+  });
   await page.route("**/api/v1/wallets/privy",route=>route.fulfill({json:embedded ? {ok:true,available:true,app_id:"cmfixtureabcdefghijkl",client_id:"fixture",capabilities:{solana:true,evm:false,manual_signing:true},wallets:[{ecosystem:"solana",address:WALLET}]} : {ok:true,available:false}}));
   await page.route("**/api/v1/wallets/privy/session",route=>route.fulfill({json:{ok:true,token:"fixture.auth.token"}}));
   await page.route("**/api/v1/wallets/privy/link",route=>route.fulfill({json:{ok:true,linked:true,wallets:[{ecosystem:"solana",address:WALLET}]}}));
@@ -91,7 +96,7 @@ test("typing updates tokens, slippage and impact without preparing or signing",a
   const h=await setup(page,baseURL);
   await page.locator("#terminalSpotAmount").fill("75");
   await expect(page.locator("#terminalSpotEstimateOutput")).toContainText("8365.7475");
-  await expect(page.locator("#terminalSpotEstimateSlippage")).toContainText("0.50%");
+  await expect(page.locator("#terminalSpotEstimateSlippage")).toContainText("3.00%");
   await expect(page.locator("#terminalSpotEstimateImpact")).toContainText("0.18%");
   expect(h.prepare).toHaveLength(0);expect(h.execute).toHaveLength(0);
   expect(await page.evaluate(()=>window.buyCalls.sign)).toBe(0);
@@ -186,8 +191,8 @@ test("an already opened Raven Wallet is reused for a second explicit Buy",async(
 });
 
 test("a stalled wallet open ends without signing or preparing and restores Buy",async({page,baseURL})=>{
-  const h=await setup(page,baseURL,{embedded:true,stalledWallet:true});
   await page.clock.install();
+  const h=await setup(page,baseURL,{embedded:true,stalledWallet:true});
   await page.locator("#terminalSpotQuoteAction").click();
   await expect.poll(()=>page.evaluate(()=>window.buyCalls.open)).toBe(1);
   await page.clock.runFor(26000);
@@ -196,4 +201,71 @@ test("a stalled wallet open ends without signing or preparing and restores Buy",
   await expect(page.locator("#terminalSpotQuoteAction")).toBeEnabled();
   expect(h.prepare).toHaveLength(0);expect(h.execute).toHaveLength(0);
   expect(await page.evaluate(()=>window.buyCalls.sign)).toBe(0);
+});
+
+test("slippage updates immediately on empty tickets and persists across reloads", async ({page,baseURL}) => {
+  const h=await setup(page,baseURL,{embedded:true});
+  await page.locator('#terminalSpotAmount').fill('');
+  await expect(page.locator('#terminalSpotEstimateSlippage')).toHaveText('Slippage 3.00%');
+  await expect(page.locator('#terminalSpotEstimateOutput')).toHaveText('Enter an amount');
+  await page.locator('#terminalSpotAdvanced > summary').click();
+  await page.locator('#terminalSpotRoutingSettings > summary').click();
+  await page.locator('#terminalSpotSlippage').selectOption('750');
+  await expect(page.locator('#terminalSpotEstimateSlippage')).toHaveText('Slippage 7.50%');
+  await expect(page.locator('#terminalSpotPriceWarning')).toContainText('High slippage: 7.50%');
+  await page.locator('#terminalSpotAmount').fill('25');
+  await expect.poll(()=>h.fixtures.spotQuoteCalls.at(-1)?.slippage_bps).toBe(750);
+  await page.reload();
+  await waitForTerminalLive(page,{lane:'spot',instrument:'JUP/USDC',timeframe:'1h'});
+  await expect(page.locator('#terminalSpotEstimateSlippage')).toHaveText('Slippage 7.50%');
+  await expect(page.locator('#terminalSpotAdvancedState')).toContainText('7.50%');
+});
+
+test("high impact is visible before one Buy and clearing the amount removes stale impact", async ({page,baseURL}) => {
+  const h=await setup(page,baseURL,{embedded:true,quoteImpact:620});
+  await page.locator('#terminalSpotAmount').fill('25');
+  await expect(page.locator('#terminalSpotPriceWarning')).toContainText('High price impact: 6.20%');
+  await page.locator('#terminalSpotAmount').fill('');
+  await expect(page.locator('#terminalSpotEstimateImpact')).toHaveText('Impact —');
+  await expect(page.locator('#terminalSpotPriceWarning')).toBeHidden();
+  await page.locator('#terminalSpotAmount').fill('25');
+  await expect(page.locator('#terminalSpotPriceWarning')).toBeVisible();
+  await page.locator('#terminalSpotQuoteAction').click();
+  await expect(page.locator('#terminalSpotLiveState')).toHaveText('Trade confirmed');
+  expect(h.execute).toHaveLength(1);
+  expect(await page.evaluate(()=>window.buyCalls.sign)).toBe(1);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+});
+
+test("session-check failure offers recovery instead of claiming the account cannot trade", async ({page,baseURL}) => {
+  const h=await setup(page,baseURL,{embedded:true,sessionFailure:true});
+  await expect(page.locator('#terminalSpotLiveState')).toHaveText('Trading connection interrupted');
+  await page.locator('#terminalSpotLiveRetry').click();
+  await expect(page.locator('#terminalSpotQuoteAction')).toHaveText('Buy JUP');
+  expect(h.prepare).toHaveLength(0); expect(h.execute).toHaveLength(0);
+});
+
+test("an explicitly expired trading login gets an actionable sign-in link", async ({page,baseURL}) => {
+  const h=await setup(page,baseURL,{embedded:true,staleSession:true});
+  await expect(page.locator('#terminalSpotLiveState')).toHaveText('Sign in again');
+  await expect(page.locator('#terminalSpotLiveLink')).toHaveText('Sign in again');
+  await expect(page.locator('#terminalSpotLiveLink')).toHaveAttribute('href',/\/account\//);
+  await expect(page.locator('#terminalSpotQuoteAction')).toHaveText('Preview buy');
+  expect(h.prepare).toHaveLength(0); expect(h.execute).toHaveLength(0);
+});
+
+test('a remembered Raven wallet restores on chart load and reload without Connect, creation, or a signature', async ({page,baseURL}) => {
+  const h=await setup(page,baseURL,{embedded:true,panel:'chart'});
+  await expect(page.locator('#terminalWalletConnect')).not.toHaveText('Connect wallet');
+  await expect.poll(()=>page.evaluate(()=>window.buyCalls.open)).toBe(1);
+  expect(await page.evaluate(()=>window.buyCalls.sign + window.buyCalls.provision)).toBe(0);
+  expect(h.prepare).toHaveLength(0);
+  await page.reload();
+  await waitForTerminalLive(page,{lane:'spot',instrument:'JUP/USDC',timeframe:'1h'});
+  await expect.poll(()=>page.evaluate(()=>window.buyCalls.open)).toBe(1);
+  await page.locator('#terminalSpotAmount').fill('25');
+  await page.locator('#terminalSpotQuoteAction').click();
+  await expect(page.locator('#terminalSpotLiveState')).toHaveText('Trade confirmed');
+  expect(h.execute).toHaveLength(1);
+  await expect(page.locator('#terminalWalletChooser')).toHaveCount(0);
 });

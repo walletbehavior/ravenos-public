@@ -1,0 +1,162 @@
+{
+  "captured_at": "2026-09-09T18:30:43.989Z",
+  "source": "https://app.ravenos.xyz/api/onchain/participation?chain=solana&band=10m_plus",
+  "original_matches": 89,
+  "removed_primary_equities": [
+    "AAPLx",
+    "SPYx",
+    "SPCXx",
+    "TSLAx",
+    "MSTRx",
+    "GLDx",
+    "GOOGLx",
+    "QQQx",
+    "METAx",
+    "PLTRx",
+    "STRCx"
+  ],
+  "before": [
+    {
+      "symbol": "cbBTC",
+      "token_address": "cbbtcf3aa214zXHbiAZQwf4122FBYbraNdFqgw4iMij",
+      "quote": "SOL",
+      "change_6h_pct": -1,
+      "change_5m_pct": 0.05
+    },
+    {
+      "symbol": "STONK",
+      "token_address": "6GmAFSYs4gk3FDao5FzzySQpPZaWsa4rUJHacpMpUNgx",
+      "quote": "SOL",
+      "change_6h_pct": -3.59,
+      "change_5m_pct": -2.49
+    },
+    {
+      "symbol": "PUMP",
+      "token_address": "pumpCmXqMfrsAkQ5r49WcJnRayYRqmXz6ae8H7H9Dfn",
+      "quote": "USDC",
+      "change_6h_pct": 1.9,
+      "change_5m_pct": -0.33
+    },
+    {
+      "symbol": "USELESS",
+      "token_address": "Dz9mQ9NzkBcCsuGPFJ3r1bS4wgqKMHBPiVuniW8Mbonk",
+      "quote": "SOL",
+      "change_6h_pct": -18.03,
+      "change_5m_pct": 0.96
+    },
+    {
+      "symbol": "HYPE",
+      "token_address": "98sMhvDwXj1RQi5c5Mndm3vPe9cBqPrbLaufMXFNMh5g",
+      "quote": "SOL",
+      "change_6h_pct": -0.27,
+      "change_5m_pct": 0.05
+    },
+    {
+      "symbol": "RAY",
+      "token_address": "4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R",
+      "quote": "SOL",
+      "change_6h_pct": 4.68,
+      "change_5m_pct": -0.25
+    },
+    {
+      "symbol": "AAPLx",
+      "token_address": "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp",
+      "quote": "USDC",
+      "change_6h_pct": -1.1,
+      "change_5m_pct": 0.05
+    },
+    {
+      "symbol": "ANTFUN",
+      "token_address": "CWZ6BsdnjkDVTGkmL6bGbJXXig6ceef12KvyGQW14cMt",
+      "quote": "USDT",
+      "change_6h_pct": -0.8,
+      "change_5m_pct": -0.22
+    },
+    {
+      "symbol": "SPX",
+      "token_address": "J3NKxxXZcnNiMjKw9hYb2K4LUxgwB6t1FtPtQVsv3KFr",
+      "quote": "SOL",
+      "change_6h_pct": -1.73,
+      "change_5m_pct": 0.02
+    },
+    {
+      "symbol": "SPYx",
+      "token_address": "XsoCS1TfEyfFhfvj8EtZ528L3CaKBDBRqRapnBbDF2W",
+      "quote": "STONK",
+      "change_6h_pct": -0.94,
+      "change_5m_pct": -1.47
+    }
+  ],
+  "after_same_observations": [
+    {
+      "symbol": "PURR",
+      "token_address": "8RNUw4N655VSrZKuhGdywhbSMDTrheguFPfxbpE2NZHQ",
+      "quote": "HYPE",
+      "change_6h_pct": 61.67,
+      "change_5m_pct": 2.25
+    },
+    {
+      "symbol": "CRED",
+      "token_address": "CREDBHvVqREBCAxMihzr8D1nepHMr2gmQoZWpmgGmeta",
+      "quote": "USDC",
+      "change_6h_pct": 25.03,
+      "change_5m_pct": 1.04
+    },
+    {
+      "symbol": "PUMPCADE",
+      "token_address": "Eg2ymQ2aQqjMcibnmTt8erC6Tvk9PVpJZCxvVPJz2agu",
+      "quote": "SOL",
+      "change_6h_pct": 15.52,
+      "change_5m_pct": -1.32
+    },
+    {
+      "symbol": "FARTBOY",
+      "token_address": "y1AZt42vceCmStjW4zetK3VoNarC1VxJ5iDjpiupump",
+      "quote": "SOL",
+      "change_6h_pct": 6.74,
+      "change_5m_pct": 0.67
+    },
+    {
+      "symbol": "FO",
+      "token_address": "JDzPbXboQYWVmdxXS3LbvjM52RtsV1QaSv2AzoCiai2o",
+      "quote": "USDT",
+      "change_6h_pct": 6.63,
+      "change_5m_pct": 0.01
+    },
+    {
+      "symbol": "CATE",
+      "token_address": "Ai66LHZG9MCzg1WKdawwqduVAXpNDUuV8M3uyq5ppump",
+      "quote": "SOL",
+      "change_6h_pct": 5.95,
+      "change_5m_pct": 2.36
+    },
+    {
+      "symbol": "CLOUD",
+      "token_address": "CLoUDKc4Ane7HeQcPpE3YHnznRxhMimJ4MyaUqyHFzAu",
+      "quote": "USDC",
+      "change_6h_pct": 4.91,
+      "change_5m_pct": -0.4
+    },
+    {
+      "symbol": "RAY",
+      "token_address": "4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R",
+      "quote": "SOL",
+      "change_6h_pct": 4.68,
+      "change_5m_pct": -0.25
+    },
+    {
+      "symbol": "neet",
+      "token_address": "Ce2gx9KGXJ6C9Mp5b5x1sn9Mg87JwEbrQby4Zqo3pump",
+      "quote": "SOL",
+      "change_6h_pct": 3.63,
+      "change_5m_pct": 0.03
+    },
+    {
+      "symbol": "ALCH",
+      "token_address": "HNg5PYJmtqcmzXrv6S9zP1CDKk5BgDuyFBxbvNApump",
+      "quote": "SOL",
+      "change_6h_pct": 2.73,
+      "change_5m_pct": 0.35
+    }
+  ]
+}

@@ -1500,10 +1500,10 @@ async function initialize() {
   if (!response.ok || !payload) return renderActivationPending();
   state.config = payload;
   document.getElementById("accountRememberDeviceChoice").hidden = payload.session_policy?.remember_device_available !== true;
-  document.getElementById("accountRememberDevice").checked = false;
+  document.getElementById("accountRememberDevice").checked = payload.session_policy?.remember_device_default === true;
   const rememberDays = payload.session_policy?.remembered_device_days;
   if (Number.isSafeInteger(rememberDays) && rememberDays > 0) {
-    setText("accountRememberDeviceLabel", `Remember this device for up to ${rememberDays} days`);
+    setText("accountRememberDeviceLabel", "Keep me signed in on this device");
   }
   if (!payload.available) return renderActivationPending();
   page.dataset.accountState = "available";

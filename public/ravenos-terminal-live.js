@@ -1,3 +1,4 @@
+import { DEFAULT_SPOT_SLIPPAGE_BPS, MIN_SPOT_SLIPPAGE_BPS, MAX_SPOT_SLIPPAGE_BPS, spotPriceWarnings } from "./ravenos-spot-trade-policy.js";
 import { mountWalletBalances } from "./ravenos-wallet-balances.js";
 import { walletLaunchHref } from "./ravenos-wallet-connect.js";
 import { createTerminalDesk, deskFeeLabel, deskPercentFromBps } from "./ravenos-terminal-desk.js";
@@ -187,6 +188,8 @@ const state = {
   spotStatusTimer: null,
   spotLiveResult: null,
   liveAuth: null,
+  liveSessionError: null,
+  liveSessionCheckedAt: 0,
   liveSession: null,
   liveBuilderApproval: null,
   liveTicket: null,
@@ -294,7 +297,7 @@ function loadSpotTicketPreferences() {
     settlement_preference: spotAssetPreference(stored?.settlement_preference),
     take_profit_pct: boundedSpotPreference(stored?.take_profit_pct, 25, { minimum: 0.1, maximum: 1_000 }),
     stop_loss_pct: boundedSpotPreference(stored?.stop_loss_pct, 12, { minimum: 0.1, maximum: 99 }),
-    slippage_bps: boundedSpotPreference(stored?.slippage_bps, 50, { minimum: 5, maximum: 300 }),
+    slippage_bps: boundedSpotPreference(stored?.slippage_bps, DEFAULT_SPOT_SLIPPAGE_BPS, { minimum: MIN_SPOT_SLIPPAGE_BPS, maximum: MAX_SPOT_SLIPPAGE_BPS }),
     priority_mode: stored?.priority_mode === "capped" ? "capped" : "standard",
     priority_cap_lamports: Math.round(boundedSpotPreference(stored?.priority_cap_lamports, 10_000, { minimum: 1_000, maximum: 50_000 })),
   };
@@ -927,7 +930,7 @@ function inspectTerminalPane(pane) {
   if (['holders', 'raven'].includes(pane)) {
     if (intelligenceLayerOpen(`terminal-${pane}`)) return pane;
     const nodes = pane === 'holders' ? [document.getElementById('terminalAnatomySection')]
-      : [...document.querySelectorAll('#terminalContextSection:not([hidden]), #terminalAlphaSection:not([hidden]), #terminalPlanSection:not([hidden]), #terminalRavenEmptySection:not([hidden])')];
+      : [...document.querySelectorAll('.desk-research-brief, #terminalContextSection:not([hidden]), #terminalAlphaSection:not([hidden]), #terminalPlanSection:not([hidden]), #terminalRavenEmptySection:not([hidden])')];
     if (pane === 'holders') { document.getElementById('terminalHolderList').open = true; void loadHolderList(); void loadSpotTrades(); }
     openIntelligenceLayer({ title: pane === 'holders' ? 'Holders · wallet intelligence' : 'Raven market intelligence', kind: `terminal-${pane}`, nodes, parent: document.querySelector('.terminal-desk') || document.body });
     return pane;
@@ -1217,7 +1220,7 @@ async function loadPrivyWalletConfiguration({ refresh = false } = {}) {
 
 const RAVEN_WALLET_OPEN_TIMEOUT_MS = 25000;
 
-async function connectRavenEmbeddedWallet(chainType = "evm") {
+async function connectRavenEmbeddedWallet(chainType = "evm", { existingOnly = false } = {}) {
   const ecosystem = chainType === "solana" ? "solana" : "evm";
   if (state.privyWallet.opening.has(ecosystem)) return state.privyWallet.opening.get(ecosystem);
   let phase = "session", expired = false, timer;
@@ -1227,6 +1230,7 @@ async function connectRavenEmbeddedWallet(chainType = "evm") {
     active();
     if (!cfg?.capabilities?.[ecosystem]) throw new Error("privy_wallet_unavailable");
     const existingWallet = cfg.wallets?.find(wallet => wallet.ecosystem === ecosystem);
+    if (existingOnly && !existingWallet) throw new Error("existing_wallet_unavailable");
     if (existingWallet && cfg.capabilities.manual_signing !== true) {
       const provider = createEmbeddedWalletView(existingWallet);
       if (ecosystem === "evm") ravenEmbeddedEvmProviders.add(provider);
@@ -1293,6 +1297,49 @@ async function connectRavenEmbeddedWallet(chainType = "evm") {
   }).finally(() => { clearTimeout(timer); state.privyWallet.opening.delete(ecosystem); });
   state.privyWallet.opening.set(ecosystem, opening);
   return opening;
+}
+
+async function restoreRavenTradingWallets() {
+  if (state.liveAuth?.authenticated !== true) return;
+  const auth = state.liveAuth;
+  const cfg = await loadPrivyWalletConfiguration({ refresh: true });
+  if (!cfg || state.liveAuth !== auth || state.liveAuth?.authenticated !== true) return;
+  for (const ecosystem of ['solana', 'evm']) {
+    const wallets = (cfg.wallets || []).filter(wallet => wallet.ecosystem === ecosystem);
+    if (wallets.length !== 1) continue;
+    const wallet = wallets[0];
+    const selected = ecosystem === 'solana' ? state.selectedSolanaWalletProvider : state.selectedEvmWalletProvider;
+    // A deliberately chosen external wallet remains the user's trading wallet.
+    if (selected && !selected.ravenWalletViewOnly && !(ecosystem === 'evm' ? ravenEmbeddedEvmProviders.has(selected) : state.privyWallet.providers.get(ecosystem)?.provider === selected)) continue;
+    const view = state.privyWallet.providers.get(ecosystem)?.wallet.address === wallet.address
+      ? state.privyWallet.providers.get(ecosystem).provider : createEmbeddedWalletView(wallet);
+    if (ecosystem === 'solana') {
+      state.selectedSolanaWalletProvider = view;
+      state.solanaWalletAddress = wallet.address;
+      state.solanaWalletConnected = true;
+    } else {
+      ravenEmbeddedEvmProviders.add(view);
+      state.selectedEvmWalletProvider = view;
+      state.walletAddress = wallet.address;
+      state.walletTransportConnected = true;
+      initializeWalletAddressControl();
+    }
+  }
+  syncWalletControls();
+  syncSpotTicketControls();
+  updateWalletShellCapability();
+  scheduleSpotInputQuote();
+  const currentEcosystem = currentSpotChain() === 'solana' ? 'solana' : 'evm';
+  const ecosystem = cfg.wallets?.some(row => row.ecosystem === currentEcosystem) ? currentEcosystem : cfg.wallets?.[0]?.ecosystem;
+  const wallet = cfg.wallets?.find(row => row.ecosystem === ecosystem);
+  if (wallet && cfg.capabilities?.manual_signing === true) {
+    // Load the existing signer, never provision or sign a transaction on load.
+    void connectRavenEmbeddedWallet(ecosystem, { existingOnly: true }).then(opened => {
+      if (state.liveAuth?.authenticated !== true) return;
+      if (ecosystem === 'solana' && state.selectedSolanaWalletProvider?.ravenWalletViewOnly && state.solanaWalletAddress === opened.wallet.address) state.selectedSolanaWalletProvider = opened.provider;
+      if (ecosystem === 'evm' && state.selectedEvmWalletProvider?.ravenWalletViewOnly && sameSelectedAddress('evm', state.walletAddress, opened.wallet.address)) state.selectedEvmWalletProvider = opened.provider;
+    }).catch(() => { /* Buy retries the same existing wallet if warming failed. */ });
+  }
 }
 
 async function defaultSpotTradingProvider(ecosystem) {
@@ -1457,6 +1504,19 @@ function currentSpotWallet() {
 
 function currentSpotLiveGate() {
   return state.liveSession?.gate?.chains?.[currentSpotChain()] || null;
+}
+
+function spotTradingRestriction() {
+  const gate = state.liveSession?.gate;
+  const reason = currentSpotLiveGate()?.unavailable_reason;
+  if (!gate) return { label: "Trading connection interrupted", message: "Raven could not check trading access. Retry the connection to continue.", retry: true };
+  if (reason === "recent_authentication_required" || gate.authentication_valid === false || (gate.authentication_valid == null && gate.recent_authentication === false)) {
+    return { label: "Sign in again", message: "Your trading session needs a fresh sign-in. Your wallet and funds are unchanged.", signIn: true };
+  }
+  if (gate.kill_switch_clear === false) return { label: "Trading temporarily paused", message: "Raven trading is temporarily paused. You can still view prices and estimates." };
+  if (currentSpotLiveGate()?.enabled === false) return { label: "Trading temporarily paused", message: `${chainDisplayName(currentSpotChain())} trading is temporarily paused.` };
+  if (gate.configured === false) return { label: "Trading setup unavailable", message: "Raven could not establish the trading service configuration. Retry the connection.", retry: true };
+  return { label: "Trading access unavailable", message: "This account does not currently have access to this trading route." };
 }
 
 function evmSpotProfile(chain = currentSpotChain()) {
@@ -1624,6 +1684,8 @@ function renderSpotLiveExecution() {
   host.hidden = !spot;
   if (!spot) return;
   link.hidden = true;
+  const retry = document.getElementById("terminalSpotLiveRetry");
+  if (retry) retry.hidden = true;
   order.hidden = true;
   const liveAvailable = currentSpotLiveGate()?.available_to_principal === true;
   if (section) section.dataset.liveEnabled = String(liveAvailable);
@@ -1659,6 +1721,10 @@ function renderSpotLiveExecution() {
   } else if (state.spotQuoteFailure) {
     label = state.spotQuoteFailure.title;
     message = state.spotQuoteFailure.message;
+  } else if (state.liveSessionError && authenticatedTerminalOrigin()) {
+    label = "Trading connection interrupted";
+    message = "Raven could not check trading access. Retry the connection to continue.";
+    if (retry) retry.hidden = false;
   } else if (!authenticatedTerminalOrigin() || state.liveAuth?.authenticated !== true) {
     label = "Preview";
     message = "Preview a route, or sign in to buy with your wallet.";
@@ -1666,8 +1732,15 @@ function renderSpotLiveExecution() {
     link.href = authenticatedTerminalOrigin() ? terminalSignInHref() : liveTerminalHref();
     link.textContent = "Sign in to trade";
   } else if (!liveAvailable) {
-    label = "Trading unavailable";
-    message = `${chainDisplayName(chain)} execution is not active for this account.`;
+    const restriction = spotTradingRestriction();
+    label = restriction.label;
+    message = restriction.message;
+    if (restriction.signIn) {
+      link.hidden = false;
+      link.href = terminalSignInHref();
+      link.textContent = "Sign in again";
+    }
+    if (retry) retry.hidden = !restriction.retry;
   } else if (!currentSpotWallet().connected) {
     message = "Choose Buy to connect your wallet and continue with this amount.";
   }
@@ -1850,7 +1923,9 @@ async function loadLiveExecutionSession() {
     return;
   }
   try {
+    state.liveSessionError = null;
     const auth = await fetchJson("/api/v1/auth/session");
+    if (!auth.response.ok) throw new Error("account_service_unavailable");
     state.liveAuth = auth.response.ok && auth.payload?.authenticated === true ? auth.payload : { authenticated: false };
     if (state.liveAuth.authenticated !== true) {
       state.liveSession = null;
@@ -1859,10 +1934,14 @@ async function loadLiveExecutionSession() {
     }
     const live = await fetchJson("/api/trade/live/session");
     state.liveSession = live.response.ok ? live.payload : null;
+    if (!live.response.ok) state.liveSessionError = live.payload?.error || "trading_session_unavailable";
+    if (live.response.status === 401) state.liveAuth = { authenticated: false };
+    if (state.liveAuth.authenticated === true) await restoreRavenTradingWallets();
   } catch {
-    state.liveAuth = { authenticated: false };
+    state.liveSessionError = "trading_session_unavailable";
     state.liveSession = null;
   }
+  state.liveSessionCheckedAt = Date.now();
   updateQuoteBoundary();
 }
 
@@ -6701,7 +6780,10 @@ function clearSpotQuoteResult(message = "Enter an amount. Raven updates the rout
   setText("terminalSpotQuoteMessage", message);
   setSpotTicketExitSummary();
   setText("terminalSpotBalance", currentSpotWallet().connected ? "Read on quote" : "Not verified");
-  setText("terminalSpotEstimateOutput", "Updating estimate…");
+  setText("terminalSpotEstimateOutput", document.getElementById("terminalSpotAmount")?.value || state.spotSellPercent ? "Updating estimate…" : "Enter an amount");
+  setText("terminalSpotEstimateImpact", "Impact —");
+  syncSpotAdvancedSummary();
+  renderSpotPriceWarning();
   setText("terminalSpotEstimateMinimum", "Nothing is sent until you choose Buy or Sell.");
   document.getElementById("terminalSpotEstimate")?.setAttribute("data-state", "stale");
   updateSpotExecutionRail();
@@ -6717,6 +6799,26 @@ function syncSpotAdvancedSummary() {
   }[state.spotTicketPlanSource] || "Preset";
   const slippage = finite(document.getElementById("terminalSpotSlippage")?.value) ?? loadSpotTicketPreferences().slippage_bps;
   setText("terminalSpotAdvancedState", `${source} · ${(slippage / 100).toFixed(2)}% slippage`);
+  setText("terminalSpotEstimateSlippage", `Slippage ${(slippage / 100).toFixed(2)}%`);
+  setText("terminalSpotRoutingSummary", `${(slippage / 100).toFixed(2)}% slippage · ${document.getElementById("terminalSpotPriorityMode")?.value || "standard"} priority`);
+}
+
+function renderSpotPriceWarning(priceImpactBps = null, evidence = null) {
+  const host = document.getElementById("terminalSpotPriceWarning");
+  if (!host) return;
+  const slippageBps = finite(document.getElementById("terminalSpotSlippage")?.value) ?? loadSpotTicketPreferences().slippage_bps;
+  const warnings = spotPriceWarnings({ slippageBps, priceImpactBps });
+  host.replaceChildren(...warnings.map((message) => {
+    const p = document.createElement("p");
+    p.textContent = message;
+    return p;
+  }));
+  if (warnings.length && evidence?.estimated) {
+    const note = document.createElement("p");
+    note.textContent = "Impact is estimated against the current token price and includes fees and spread. The settlement asset is valued at its USD peg.";
+    host.append(note);
+  }
+  host.hidden = warnings.length === 0;
 }
 
 function renderSpotQuickSizes() {
@@ -6849,7 +6951,7 @@ function spotTicketSnapshot() {
   const evm = chain !== "solana";
   const normalizeAddress = (value) => evm ? String(value || "").toLowerCase() : value;
   const wallet = currentSpotWallet();
-  const slippageBps = finite(document.getElementById("terminalSpotSlippage")?.value) || 50;
+  const slippageBps = finite(document.getElementById("terminalSpotSlippage")?.value) || DEFAULT_SPOT_SLIPPAGE_BPS;
   const priorityMode = document.getElementById("terminalSpotPriorityMode")?.value === "capped" ? "capped" : "standard";
   const priorityCap = finite(document.getElementById("terminalSpotPriorityCap")?.value) || 10_000;
   const amount = document.getElementById("terminalSpotAmount")?.value;
@@ -7337,7 +7439,8 @@ function normalizeEvmSpotPreparePayload(payload, snapshot) {
       minimum_output_amount_base_units: reviewed.minimum_buy_amount_base_units,
       expected_output_display: review.expected_output,
       minimum_output_display: review.minimum_output,
-      price_impact_bps: null,
+      price_impact_bps: finite(review.price_impact?.bps),
+      price_impact_evidence: review.price_impact || null,
       route: { venues: routeSources },
       observed_at: providerQuote.observed_at,
       expires_at: ticket.expires_at,
@@ -7464,6 +7567,11 @@ function renderSpotQuote(payload, clientRttMs, { snapshot, fingerprint } = {}) {
   setText("terminalSpotEstimateMinimum", `Minimum ${displayQuoteAmount(quote.minimum_output_display ?? quote.minimum_output ?? quote.minimum, outputSymbol)} · estimated`);
   setText("terminalSpotEstimateSlippage", `Slippage ${(snapshot.slippage_bps / 100).toFixed(2)}%`);
   setText("terminalSpotEstimateImpact", `Impact ${deskPercentFromBps(finite(quote.price_impact_bps))}`);
+  renderSpotPriceWarning(finite(quote.price_impact_bps), quote.price_impact_evidence);
+  if (quote.price_impact_evidence?.estimated) {
+    setText("terminalSpotEstimateImpact", `Impact ≈${deskPercentFromBps(finite(quote.price_impact_bps))}`);
+    document.getElementById("terminalSpotEstimateImpact").title = "Net quote compared with the current token price. Includes fees and spread; assumes the settlement asset's USD peg.";
+  } else document.getElementById("terminalSpotEstimateImpact").removeAttribute("title");
   document.getElementById("terminalSpotEstimate")?.setAttribute("data-state", "current");
   setText("terminalSpotQuoteImpact", deskPercentFromBps(finite(quote.price_impact_bps)));
   const labels = Array.isArray(quote.route?.venues)
@@ -7608,6 +7716,8 @@ async function loadSpotQuote({ automatic = false, expectedFingerprint = "", trad
         setText("terminalSpotEstimateOutput", displayQuoteAmount(displayBaseUnitsClient(approval.expected_output_base_units, approval.output_decimals), snapshot.side === "buy" ? state.selected?.symbol : spotAccountingSymbol()));
         setText("terminalSpotEstimateMinimum", `Minimum ${displayBaseUnitsClient(approval.minimum_output_base_units, approval.output_decimals)} · fee included · approval on Buy`);
         setText("terminalSpotEstimateSlippage", `Slippage ${(snapshot.slippage_bps / 100).toFixed(2)}%`);
+        setText("terminalSpotEstimateImpact", `Impact ${approval.price_impact?.estimated ? "≈" : ""}${deskPercentFromBps(finite(approval.price_impact?.bps))}`);
+        renderSpotPriceWarning(finite(approval.price_impact?.bps), approval.price_impact);
         setText("terminalSpotLiveState", "Ready");
         setText("terminalSpotLiveMessage", "Buy includes this token’s exact spending approval, then the trade. Your wallet may request both signatures.");
       }
@@ -9464,6 +9574,7 @@ function bindControls() {
       clearSpotTradeRefresh();
       clearSpotQuoteRefresh();
     } else {
+      if (!state.spotSubmitRun && Date.now() - state.liveSessionCheckedAt > 60_000) void loadLiveExecutionSession();
       if (spotTradeSurfaceActive()) void loadSpotTrades();
       if (state.spotQuoteFollow) {
         if (spotQuoteStillCurrent()) scheduleSpotQuoteRefresh();
@@ -9513,6 +9624,11 @@ function bindControls() {
   document.getElementById("terminalSpotWalletConnect")?.addEventListener("click", () => void connectSpotWalletReadOnly());
   document.getElementById("terminalSpotQuoteAction")?.addEventListener("click", () => void submitSpotTrade());
   document.getElementById("terminalSpotPreviewAction")?.addEventListener("click", () => void requestSpotQuote());
+  document.getElementById("terminalSpotLiveRetry")?.addEventListener("click", async (event) => {
+    const button = event.currentTarget;
+    button.disabled = true;
+    try { await loadLiveExecutionSession(); } finally { button.disabled = false; }
+  });
   document.getElementById("terminalSpotQuoteFollow")?.addEventListener("change", (event) => {
     state.spotQuoteFollow = event.currentTarget.checked === true;
     syncSpotQuoteFollowControl();
@@ -9586,7 +9702,7 @@ function bindControls() {
     document.getElementById(id)?.addEventListener("input", () => clearSpotQuoteResult("Custom exit levels changed. Review the route again."));
   }
   document.getElementById("terminalSpotSlippage")?.addEventListener("change", (event) => {
-    const slippage = Math.round(boundedSpotPreference(event.currentTarget.value, 50, { minimum: 5, maximum: 300 }));
+    const slippage = Math.round(boundedSpotPreference(event.currentTarget.value, DEFAULT_SPOT_SLIPPAGE_BPS, { minimum: MIN_SPOT_SLIPPAGE_BPS, maximum: MAX_SPOT_SLIPPAGE_BPS }));
     saveSpotTicketPreferences({ slippage_bps: slippage });
     setText("terminalSpotRoutingSummary", `${(slippage / 100).toFixed(2)}% slippage · ${document.getElementById("terminalSpotPriorityMode")?.value || "standard"} priority`);
     syncSpotAdvancedSummary();
@@ -9597,7 +9713,7 @@ function bindControls() {
     saveSpotTicketPreferences({ priority_mode: mode });
     const field = document.getElementById("terminalSpotPriorityCapField");
     if (field) field.hidden = mode !== "capped";
-    const slippage = Number(document.getElementById("terminalSpotSlippage")?.value || 50);
+    const slippage = Number(document.getElementById("terminalSpotSlippage")?.value || DEFAULT_SPOT_SLIPPAGE_BPS);
     setText("terminalSpotRoutingSummary", `${(slippage / 100).toFixed(2)}% slippage · ${mode} priority`);
     syncSpotAdvancedSummary();
     clearSpotQuoteResult("Priority policy changed. Review a new exact route.");

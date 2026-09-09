@@ -270,6 +270,16 @@
 .desk-list-controls details { color: #aebed2; font: 12px/1.5 var(--desk-font); }
 .desk-list-controls details > :not(summary) { display: block; width: 100%; margin-top: 8px; box-sizing: border-box; }
 .desk-list-controls input { width: 100%; box-sizing: border-box; }
+.desk-list-choices { display: flex; flex-wrap: wrap; gap: 6px; }
+.desk-list-choices:empty { display: none; }
+.desk-sort-choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.desk-list-controls button[aria-pressed=true] { background: #173c36; border-color: #48aa8c; color: #a2e3cd; }
+.desk-list-controls .desk-list-choices button,.desk-list-controls .desk-sort-choices button { min-height: 40px; padding: 6px 10px; }
+.desk-list-choices button { max-width: 100%; overflow-wrap: anywhere; }
+.desk-list-controls .desk-controls-label { color: #9eafc1; font: 11px var(--desk-font); }
+.terminal-spot-price-warning { color: #efd18a; border: 1px solid #8b6d31; background: #2b2415; border-radius: 8px; padding: 10px 12px; font-size: 13px; line-height: 1.45; }
+.terminal-spot-price-warning p { margin: 0; }
+.terminal-spot-price-warning p + p { margin-top: 8px; }
 .desk-market-mode { display: none; }
 .desk-market-row { display: grid; grid-template-columns: minmax(0,1fr) 30px; padding: 6px; border-bottom: 1px solid var(--terminal-line); }
 .desk-market-open { padding: 4px; }
@@ -476,3 +486,5 @@ body .terminal-desk .ros-layer-body #terminalRavenEmptySection { display: block;
   .desk-mobile-extra-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 13px; }
   .desk-mobile-extra-facts dd { margin: 0; text-align: right; }
 }
+
+.ros-intelligence-layer .desk-research-brief { display: block !important; }
