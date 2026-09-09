@@ -113,7 +113,7 @@ test('dedicated ingestion cadence does not run billing, execution or discovery c
   const env=new Proxy({RAVENOS_WALLET_INGESTION_ENABLED:'0'},{get(target,key){if(key!=='RAVENOS_WALLET_INGESTION_ENABLED')throw Error('unrelated_service_access');return target[key];}});
   await worker.scheduled({cron:'* * * * *'},env,{});
   const config=JSON.parse(readFileSync('wrangler.jsonc','utf8'));
-  assert.deepEqual(config.triggers.crons,['*/5 * * * *','* * * * *']);
+  assert.deepEqual(config.triggers.crons,['*/5 * * * *','* * * * *','*/2 * * * *']);
   const packaging=readFileSync('scripts/package-release.mjs','utf8');
   assert(packaging.includes('RAVENOS_WALLET_INGESTION_ENABLED:'));assert(packaging.includes('RAVENOS_EVM_HISTORY_REQUESTS_PER_HOUR:'));
 });

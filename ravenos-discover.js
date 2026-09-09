@@ -80,6 +80,10 @@ const state = {
   marketScope: ravenOSContext.getState().marketScope,
   rawPayoff: null,
   participationFamily: "capitalization",
+  participationUniverse: null,
+  participationLoading: false,
+  participationGroupRows: [],
+  participationGroupRequest: 0,
   participationFilter: null,
   perpParticipationFilter: null,
   perpParticipationFamily: 'open_interest',
@@ -1771,7 +1775,8 @@ function degenMarketCapFilterActive() {
 
 function spotRankedRows() {
   const broadDegenScan = degenMarketCapFilterActive() || state.spotRevivalOnly;
-  const current = state.spotRows.filter((row) => {
+  const candidates = state.participationFilter ? [...state.spotRows, ...state.participationGroupRows] : state.spotRows;
+  const current = candidates.filter((row) => {
     const chain = text(row.chain_id || row.chain, "").toLowerCase();
     const retained = row?.discovery?.registry?.retained_after_trending === true;
     const currentFacts = spotMarketFactFreshness(row).current;
@@ -2719,8 +2724,9 @@ function clearParticipationFilter({ restore = true } = {}) {
   if (restore && participationPriorFilters) Object.assign(state, participationPriorFilters);
   participationPriorFilters = null;
   state.participationFilter = null;
+  state.participationGroupRows = [];
 }
-function selectParticipationCell(cell) {
+async function selectParticipationCell(cell) {
   if (cell.filter.scope === 'perps') {
     state.perpParticipationFilter = cell.filter;
     document.querySelector('[data-discover-filter="perpetual"]').click();
@@ -2732,9 +2738,41 @@ function selectParticipationCell(cell) {
   if (!participationPriorFilters) participationPriorFilters = Object.fromEntries(participationFilterKeys.map(key => [key, state[key]]));
   for (const key of participationFilterKeys) if (key.endsWith('Filter')) state[key] = 'all';
   Object.assign(state, { spotChain: cell.filter.chain, spotLane: 'all', spotCohort: 'all', spotRevivalOnly: false, spotChangedOnly: false, spotSort: 'activity', spotEmergingFirst: false, participationFilter: cell.filter });
+  state.participationGroupRows = [];
   document.querySelector('[data-discover-filter="spot"]').click();
   participationOverlay?.close();
   renderSpotPulse(state.spotRows, { forceOrder: true });
+  if (state.participationUniverse) await loadParticipationGroup(cell.filter, true);
+}
+async function loadParticipationGroup(filter, forceOrder = false) {
+  const request = ++state.participationGroupRequest;
+  try {
+    const { response, payload } = await participationJson(`/api/onchain/participation?${new URLSearchParams({ chain: filter.chain, band: filter.band })}`);
+    if (request !== state.participationGroupRequest || state.participationFilter !== filter || state.marketScope !== 'memecoins') return;
+    if (response.ok && payload?.safe_public === true && payload?.schema_version === 'ravenos.participation_group.v1' && Array.isArray(payload.rows)) {
+      state.participationGroupRows = payload.rows.slice(0, 200).filter(validDiscoverRow);
+      renderSpotPulse(state.spotRows, { forceOrder });
+    }
+  } catch { /* Current Discovery matches remain usable; no fresh RPC fallback. */ }
+}
+async function participationJson(path) {
+  const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 8_000);
+  try { const response = await fetch(path, { headers: { accept: 'application/json' }, signal: controller.signal }); return { response, payload: await response.json() }; }
+  finally { clearTimeout(timer); }
+}
+async function loadParticipationBoards() {
+  if (state.participationLoading || state.marketScope !== 'memecoins') return;
+  state.participationLoading = true;
+  try {
+    const { response, payload } = await participationJson('/api/onchain/participation');
+    if (response.ok && payload?.safe_public === true && payload?.schema_version === 'ravenos.participation_boards.v1'
+      && ['capitalization', 'new_pairs'].every(family => Array.isArray(payload.boards?.[family]?.cells) && payload.boards[family].cells.length <= 40 && payload.boards[family].returnWindow === '6h')) {
+      state.participationUniverse = payload;
+      renderParticipationBoard();
+      if (state.participationFilter) void loadParticipationGroup(state.participationFilter);
+    }
+  } catch { /* Preserve the last shared snapshot with its original timestamps. */ }
+  finally { state.participationLoading = false; }
 }
 function participationButton(cell, host) {
   const button = host.querySelector(`[data-participation-cell="${cell.id}"]`) || document.createElement('button');
@@ -2758,7 +2796,10 @@ function participationButton(cell, host) {
 function renderParticipationBoard() {
   const section = document.getElementById('discoverPayoff'), strip = document.getElementById('discoverPayoffStrip');
   const perps = state.marketScope === 'perps';
-  const board = perps ? buildPerpParticipationMap([...state.markets.values()], { family: state.perpParticipationFamily, observedAt: state.perpObservedAt }) : buildParticipationMap(state.spotRows, { family: state.participationFamily });
+  const shared = state.participationUniverse?.boards?.[state.participationFamily];
+  const board = perps ? buildPerpParticipationMap([...state.markets.values()], { family: state.perpParticipationFamily, observedAt: state.perpObservedAt })
+    : shared ? { ...shared, cells: shared.cells.map(cell => Date.now() - Date.parse(cell.observedAt || '') > 120_000 ? { ...cell, state: 'stale' } : cell) }
+    : buildParticipationMap(state.spotRows, { family: state.participationFamily });
   state.participationBoard = board;
   section.hidden = !['spot', 'perpetual', 'signals'].includes(activeDiscoverView());
   section.dataset.presentation = 'map';
@@ -2766,7 +2807,7 @@ function renderParticipationBoard() {
   document.getElementById('discoverPayoffTitle').textContent = 'Where participation is paying';
   document.getElementById('discoverPayoffWindow').textContent = `${state.paused ? 'Paused · ' : 'Rolling '}${board.returnWindow}`;
   document.getElementById('discoverPayoffSummary').textContent = '';
-  document.getElementById('discoverPayoffDetail').textContent = board.cells.length ? `${board.returnWindow} median price change · ${perps ? 'venue contracts' : 'sampled markets'} · tap to filter` : 'Waiting for current market samples. The map fills from the same feed as Discovery.';
+  document.getElementById('discoverPayoffDetail').textContent = board.cells.length ? `${board.returnWindow} median price change · ${perps ? 'venue contracts' : shared ? `${board.tracked} markets · shared snapshot` : 'Discovery sample'} · tap to filter` : 'The shared market snapshot is updating.';
   document.getElementById('discoverParticipationFamily').textContent = perps ? state.perpParticipationFamily === 'open_interest' ? 'By funding' : 'By open interest' : state.participationFamily === 'capitalization' ? 'New pairs' : 'Market caps';
   const clear = document.getElementById('discoverParticipationClear');
   const activeFilter = perps ? state.perpParticipationFilter : state.participationFilter;
@@ -3589,6 +3630,7 @@ async function refresh({ manual = false } = {}) {
   }
   if (state.paused && !manual) return;
   const requestedTimeframe = state.spotTimeframe;
+  void loadParticipationBoards();
   state.loading = true;
   document.getElementById("discoverRefresh").textContent = "Refreshing…";
   const shouldRefreshFeatured = manual || !state.featuredRows.length || Date.now() - state.featuredRefreshedAt >= 300_000;

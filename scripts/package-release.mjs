@@ -175,6 +175,7 @@ const releaseWrangler = {
     ONCHAIN_CHART_PROVIDER_COMMERCIAL: String(runtimeChartCommercial === true),
     RAVENOS_DEXCH_DISCOVERY_ENABLED: productionDexchProvider ? "1" : "0",
     RAVENOS_MARKET_PROVIDER_FALLBACKS_ENABLED: baseWrangler.vars?.RAVENOS_MARKET_PROVIDER_FALLBACKS_ENABLED === '1' ? '1' : '0',
+    RAVENOS_PARTICIPATION_UNIVERSE_ENABLED: baseWrangler.vars?.RAVENOS_PARTICIPATION_UNIVERSE_ENABLED === '1' ? '1' : '0',
     RAVENOS_DEXCH_CHARTS_ENABLED: productionDexchProvider && baseWrangler.vars?.RAVENOS_DEXCH_CHARTS_ENABLED === '1' ? '1' : '0',
     RAVENOS_DEXCH_COMMERCIAL_USE_ACKNOWLEDGED: productionDexchProvider ? "1" : "0",
     RAVENOS_CUSTOMER_ACCOUNTS_ENABLE: customerSecurity.customer_capabilities_enabled === true ? "1" : "0",

@@ -154,6 +154,8 @@ import {
 import { buildParticipationPayoffProjection } from "./lib/participation_payoff.mjs";
 import { MarketProviderReader, MarketProviderPolicy, normalizeDexScreenerActivity, dexchWalletCandidates } from "./lib/market_provider_fallbacks.mjs";
 import { buildDexchChart } from './lib/dexch_chart.mjs';
+import { collectParticipationUniverse, createParticipationSnapshotStore, refreshParticipationSnapshot, PARTICIPATION_UNIVERSE_POLICY } from './lib/participation_universe.mjs';
+import { buildParticipationMap, matchesParticipationCell, PARTICIPATION_BANDS } from './ravenos-participation-map.js';
 import { EVM_CHAIN_PROFILES } from './lib/customer_trade/evm_chain_profiles.mjs';
 import {
   ONCHAIN_HOLDER_SCHEMA,
@@ -511,6 +513,8 @@ function authenticatedAppBoundary(request) {
   const terminalReadApi = readRequest && (
     new Set([
       "/api/atlas",
+      "/api/atlas/featured",
+      "/api/brief",
       "/api/hyperliquid/perps",
       "/api/instruments/search",
       "/api/opportunity",
@@ -525,6 +529,9 @@ function authenticatedAppBoundary(request) {
       "/api/discovery/tokens",
       "/api/onchain/holders",
       "/api/onchain/trades",
+      "/api/onchain/trending",
+      "/api/onchain/token-metadata",
+      "/api/onchain/participation",
     ]).has(url.pathname)
     || url.pathname.startsWith("/api/chains/")
   );
@@ -3637,6 +3644,46 @@ async function dexchPulseDiscovery({ env = {}, chains = [], duration = "5m", fet
     failures,
     health: dexchDiscoveryProvider.healthSnapshot(),
   };
+}
+
+export async function collectRavenParticipation(env = {}, previous = null) {
+  const store = env.RAVENOS_CUSTOMER_DB?.prepare ? createParticipationSnapshotStore(env.RAVENOS_CUSTOMER_DB) : null;
+  return collectParticipationUniverse({
+    dexchEnabled: resolveDexchDiscoveryRuntime(env).runtime_allowed,
+    discoverTokens: filters => dexchDiscoveryProvider.discovery(filters),
+    readPairs: (chain, addresses) => marketProviderReader.snapshot(`${DEXSCREENER_BASE_URL}/tokens/v1/${chain}/${addresses.join(',')}`, { ttlMs: 60_000 }),
+    readKnownMarkets: async () => {
+      const [known, registry] = await Promise.allSettled([
+        store ? store.knownMarkets() : Promise.resolve([]),
+        discoverRegistryHistory(env, new Request('https://ravenos.xyz/api/onchain/participation')),
+      ]);
+      return [...(previous?.rows || []), ...(known.status === 'fulfilled' ? known.value : []), ...(registry.status === 'fulfilled' ? [...registry.value.values()] : [])];
+    },
+    readSeedTokens: async () => {
+      const jobs = [marketProviderReader.read(`${DEXSCREENER_BASE_URL}/token-profiles/latest/v1`, { ttlMs: 300_000 })
+        .then(rows => (Array.isArray(rows) ? rows : []).map(row => ({ chain: row.chainId, token_address: row.tokenAddress })))];
+      const key = String(env.JUPITER_API_KEY || '').trim();
+      if (key) for (const [category, interval] of [['toptraded', '6h'], ['toptraded', '24h'], ['toporganicscore', '6h'], ['toptrending', '6h']]) {
+        jobs.push(boundedProviderJson(`${JUPITER_TOKENS_BASE_URL}/${category}/${interval}?limit=100`, {
+          headers: { 'x-api-key': key }, maxBytes: 1024 * 1024, timeoutMs: 5_000, errorPrefix: 'jupiter_tokens',
+        }).then(rows => (Array.isArray(rows) ? rows : []).map(row => ({ chain: 'solana', token_address: row.id }))));
+      }
+      const results = await Promise.allSettled(jobs);
+      return { rows: results.flatMap(result => result.status === 'fulfilled' ? result.value : []), request_count: jobs.length };
+    },
+  });
+}
+
+async function participationSnapshot(env, executionContext, { refreshOnly = false } = {}) {
+  if (env.RAVENOS_PARTICIPATION_UNIVERSE_ENABLED !== '1' || !env.RAVENOS_CUSTOMER_DB?.prepare) return null;
+  const store = createParticipationSnapshotStore(env.RAVENOS_CUSTOMER_DB), cached = await store.read();
+  if (cached.nextRefreshAt <= Math.floor(Date.now() / 1000)) {
+    const work = refreshParticipationSnapshot(store, () => collectRavenParticipation(env, cached.payload)).catch(() => false);
+    if (executionContext?.waitUntil) executionContext.waitUntil(work);
+    else await work;
+  }
+  if (refreshOnly) return null;
+  return cached.payload || (await store.read()).payload;
 }
 
 async function existingProviderDiscovery({ env, chains, retained = [], duration, fetchedAt }) {
@@ -11706,6 +11753,24 @@ async function routeApi(request, env, executionContext = null) {
       return json(unavailable.payload, { status: unavailable.status });
     }
   }
+  if (url.pathname === '/api/onchain/participation' && request.method === 'GET') {
+    const chain = url.searchParams.get('chain'), band = url.searchParams.get('band');
+    if ([...url.searchParams.keys()].some(key => !['chain', 'band'].includes(key)) || Boolean(chain) !== Boolean(band)
+      || (chain && !['solana', 'robinhood', 'bsc', 'base', 'ethereum'].includes(chain))
+      || (band && band !== 'new_pairs' && !PARTICIPATION_BANDS.some(item => item.id === band))) return json({ ok: false, error: 'participation_filter_invalid' }, { status: 400 });
+    try {
+      const snapshot = await participationSnapshot(env, executionContext);
+      if (!snapshot?.rows?.length) return json({ ok: false, state: 'refreshing', rows: [] }, { status: 503, headers: { 'cache-control': 'no-store' } });
+      if (chain) {
+        const matching = snapshot.rows.filter(row => matchesParticipationCell(row, { chain, band, kind: band === 'new_pairs' ? 'new_pairs' : 'capitalization' }));
+        const radar = buildDiscoverRadarProjection(matching.slice(0, 200), { timeframe: '5m', generatedAt: snapshot.generated_at, nowMs: Date.now(), sourceState: 'current' });
+        return json({ ok: true, safe_public: true, schema_version: 'ravenos.participation_group.v1', total_matching: matching.length, rows: radar.rows }, { headers: { 'cache-control': 'public, max-age=15' } });
+      }
+      return json({ ok: true, safe_public: true, schema_version: 'ravenos.participation_boards.v1', coverage: snapshot.coverage,
+        boards: { capitalization: buildParticipationMap(snapshot.rows), new_pairs: buildParticipationMap(snapshot.rows, { family: 'new_pairs' }) },
+      }, { headers: { 'cache-control': 'public, max-age=15' } });
+    } catch { return json({ ok: false, state: 'unavailable', rows: [] }, { status: 503, headers: { 'cache-control': 'no-store' } }); }
+  }
   if (url.pathname === "/api/onchain/trending" && request.method === "GET") {
     const chains = parseOnchainPulseChains(url.searchParams.get("chains") || "");
     const duration = String(url.searchParams.get("duration") || "5m").trim().toLowerCase();
@@ -11891,6 +11956,11 @@ export async function runWalletHistoryIngestion(env) {
 
 export default {
   async scheduled(_controller, env, context) {
+    if (_controller?.cron === PARTICIPATION_UNIVERSE_POLICY.cron) {
+      const refresh = participationSnapshot(env, context, { refreshOnly: true }).catch(() => null);
+      if (context?.waitUntil) context.waitUntil(refresh); else await refresh;
+      return;
+    }
     if(_controller?.cron===WalletIngestionPolicy.cron) {
       if(env.RAVENOS_WALLET_INGESTION_ENABLED!=='1')return;
       const work=runWalletHistoryIngestion(env).then(run=>{
