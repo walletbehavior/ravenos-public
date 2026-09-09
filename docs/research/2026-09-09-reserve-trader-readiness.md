@@ -1,6 +1,6 @@
 # Shielded Reserve: trader capital workflow
 
-Shielded Reserve belongs in Portfolio → Capital helper. The trader controls the source wallet, reserve wallet, destination wallet and amount. Shield, Deploy and Return are customer capital movements. They do not feed Raven's fee collector, rewards ledger or operator treasury. The current adapter requests no Raven app fee and reports `raven_fee_bps: 0`; provider and network costs remain visible. No production Raven reserve fee is selected.
+Shielded Reserve belongs in Portfolio → Capital helper. The trader controls the source wallet, reserve wallet, destination wallet and amount. Shield, Deploy and Return are customer capital movements. They do not feed Raven's fee collector, rewards ledger or operator treasury. The user confirmed on September 9: **no Raven fee on Portfolio/Shielded Reserve capital movements; trading fees remain separate.** The adapter requests no Raven app fee and reports `raven_fee_bps: 0`; provider and network costs remain visible.
 
 ZEC spot representations are excluded from memecoin Discover, Raven Reads and participation groups, including retained snapshots. ZEC perps remain in Perps. A memecoin using ZEC as its quote asset remains a memecoin. This presentation rule does not classify a public-chain ZEC token balance as shielded capital.
 
@@ -27,4 +27,4 @@ The current Portfolio API explicitly reports wallet integration, settlement reco
 
 NEAR's [quote API](https://docs.near-intents.org/api-reference/oneclick/request-a-swap-quote) confirms that dry quotes initiate no swap and generate no deposit address. Its [bridge documentation](https://docs.near-intents.org/integration/bridging/overview) lists Zcash under its proof-of-authority bridge. [Privy's chain documentation](https://docs.privy.io/wallets/overview/chains) was checked; no Zcash shielded-wallet integration is assumed from generic key-curve support. Sources checked September 9, 2026.
 
-The next delivery should be a complete customer capital path, with zero Raven reserve fee during the initial beta, subject to an explicit future pricing decision. Fee collection is not a prerequisite for that work. No spend-key custody, pooled reserve or automatic profit sweep is introduced.
+The next delivery should be a complete customer capital path with zero Raven reserve fee. The no-fee decision applies to the Portfolio feature, not just its research phase. Ordinary trading retains its separate fee policy. No spend-key custody, pooled reserve or automatic profit sweep is introduced. See the [wallet backend evaluation](2026-09-09-reserve-wallet-backend.md).

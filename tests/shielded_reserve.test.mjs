@@ -97,6 +97,21 @@ test("forward quote normalizes confirmed read-only API response", async () => {
   assert.equal(q.input_usd_micros, "100000000"); assert.equal(q.all_in_marked_friction_ppm, "10000");
   assert.equal(q.boundary.signing_enabled, false); assert.equal(q.fee_components.raven_fee_bps, 0);
 });
+test("Portfolio reserve movements never add a Raven fee, including caller overrides", async () => {
+  for (const direction of [{}, { action: "SHIELDED_RETURN", source: "solana_usdc", destination: "zec" }]) {
+    const q = await fake(undefined, { fetchImpl: async (url, init) => {
+      const request = JSON.parse(init.body);
+      assert.equal(Object.hasOwn(request, "appFees"), false);
+      assert.equal(request.dry, true);
+      return Response.json(bodyFor(request));
+    } }).quote(intent({ ...direction, raven_fee_bps: 100, fee_recipient: "ignored.near" }), catalog);
+    assert.equal(q.available, true);
+    assert.equal(q.fee_components.raven_fee_bps, 0);
+    assert.equal(q.fee_components.provider_injected_app_fee_bps, 10);
+    assert.equal(q.boundary.native_execution_fee_applies, false);
+    assert.equal(q.boundary.cashback_eligible, false);
+  }
+});
 test("reverse quote keeps direct shielded destination unverified until settlement", async () => {
   const q = await fake().quote(intent({ action: "SHIELDED_RETURN", source: "solana_usdc", destination: "zec" }), catalog);
   assert.equal(q.available, true); assert.equal(q.privacy.quote_capability, "SHIELDED_DESTINATION_QUOTE_SUPPORTED");
