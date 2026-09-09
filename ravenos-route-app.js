@@ -2321,7 +2321,11 @@ function renderRoute(payload) {
 }
 
 async function fetchLivePayload() {
-  const endpoint = routeConfig.slug === "opportunity" ? (ravenOSContext.getState().marketScope === "equities" ? "/api/atlas" : "/api/opportunity") : routeConfig.api_endpoint;
+  let endpoint = routeConfig.slug === "opportunity" ? (ravenOSContext.getState().marketScope === "equities" ? "/api/atlas" : "/api/opportunity") : routeConfig.api_endpoint;
+  if (routeConfig.slug === "behavior") {
+    const params = new URLSearchParams({ market_scope: ravenOSContext.getState().marketScope });
+    endpoint += `?${params}`;
+  }
   if (routeConfig.slug === "claims") {
     const claimId = new URL(window.location.href).searchParams.get("id");
     if (claimId) {

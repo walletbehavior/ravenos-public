@@ -21,6 +21,7 @@ import { captureExecutionRewards, reconcileExecutionRewards, sweepExecutionRewar
 import { readProductAccess, expireProTrials } from "./lib/customer_pro.mjs";
 import { RAVEN_STANDARD_EXECUTION_FEE_BPS, RAVEN_PRO_CASHBACK_PERCENT, productFlags } from "./lib/customer_product.mjs";
 import { emergingDiscoverCandidate } from "./lib/discover_radar.mjs";
+import { preserveDiscoverCandidateLanes } from './lib/discover_candidate_lanes.mjs';
 import { createSolanaWalletProfileReads } from "./lib/customer_trade/solana_wallet_profile_provider.mjs";
 import { rememberSeenWalletTokenMarks } from "./lib/customer_trade/wallet_token_marks.mjs";
 const solanaWalletTokenMetadataCache = new Map();
@@ -4287,6 +4288,10 @@ function balancedDiscoverCandidates(rows = [], chains = [], { timeframe = "5m", 
     if (buckets.has(chain)) buckets.get(chain).push(row);
     else remainder.push(row);
   }
+  const capacity = Math.floor(limit / Math.max(1, [...buckets.values()].filter(bucket => bucket.length).length));
+  for (const [chain, bucket] of buckets) buckets.set(chain, preserveDiscoverCandidateLanes(bucket, {
+    capacity, nowMs, isRevivalCandidate: row => pulseSupplementPriority(row) >= 3_000_000,
+  }));
   const selected = [];
   while (selected.length < limit && [...buckets.values()].some((bucket) => bucket.length)) {
     for (const chain of orderedChains) {
@@ -10549,6 +10554,9 @@ async function handlePublicIntelligenceProjection(env, request, pathname, kind) 
 }
 
 async function handlePublicBehavior(env, request, pathname) {
+  const params = new URL(request.url).searchParams;
+  const requestedScope = params.get("market_scope");
+  const marketScope = ["memecoins", "perps", "equities"].includes(requestedScope) ? requestedScope : "memecoins";
   const [behaviorResult, outcomesResult] = await Promise.all([
     readPublicProjection(env, request, "behavior", "/ravenos/behavior.json"),
     readPublicProjection(env, request, "outcomes", "/ravenos/outcomes.json"),
@@ -10577,7 +10585,7 @@ async function handlePublicBehavior(env, request, pathname) {
   try {
     const splitActive = resolveCoordinatedIntelligenceSplits(env).participants;
     const projection = splitActive
-      ? buildParticipantFreeProjection(behaviorResult.payload, { delivery: behaviorResult.delivery })
+      ? buildParticipantFreeProjection(behaviorResult.payload, { delivery: behaviorResult.delivery, market_scope: marketScope })
       : behaviorResult.payload;
     return json(attachDelivery({
       ...projection,
@@ -11872,16 +11880,18 @@ async function routeApi(request, env, executionContext = null) {
     try {
       const snapshot = await participationSnapshot(env, executionContext);
       if (!snapshot?.rows?.length) return json({ ok: false, state: 'refreshing', rows: [] }, { status: 503, headers: { 'cache-control': 'no-store' } });
+      const boards = { capitalization: buildParticipationMap(snapshot.rows), new_pairs: buildParticipationMap(snapshot.rows, { family: 'new_pairs' }) };
       if (chain) {
         const matching = rankParticipationMarkets(snapshot.rows, { filter: { chain, band, kind: band === 'new_pairs' ? 'new_pairs' : 'capitalization' }, order });
         // Keep known group identities visible through a delayed refresh. The
         // radar removes stale prices/signals and retains the original time.
         const retained = matching.slice(0, 200).map(row => ({ ...row, registry: { ...row.registry, retained_after_trending: true } }));
         const radar = buildDiscoverRadarProjection(retained, { timeframe: '5m', generatedAt: snapshot.generated_at, nowMs: Date.now(), sourceState: 'current' });
-        return json({ ok: true, safe_public: true, schema_version: 'ravenos.participation_group.v1', total_matching: matching.length, return_window: '6h', order, rows: radar.rows }, { headers: { 'cache-control': 'public, max-age=15' } });
+        return json({ ok: true, safe_public: true, schema_version: 'ravenos.participation_group.v1', total_matching: matching.length, return_window: '6h', order, rows: radar.rows,
+          boards, coverage: snapshot.coverage }, { headers: { 'cache-control': 'public, max-age=15' } });
       }
       return json({ ok: true, safe_public: true, schema_version: 'ravenos.participation_boards.v1', coverage: snapshot.coverage,
-        boards: { capitalization: buildParticipationMap(snapshot.rows), new_pairs: buildParticipationMap(snapshot.rows, { family: 'new_pairs' }) },
+        boards,
       }, { headers: { 'cache-control': 'public, max-age=15' } });
     } catch { return json({ ok: false, state: 'unavailable', rows: [] }, { status: 503, headers: { 'cache-control': 'no-store' } }); }
   }

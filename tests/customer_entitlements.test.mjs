@@ -626,3 +626,19 @@ test("coordinated Participant split also bounds chain-route behavior context", a
   assert(!serialized.includes("score_strength"));
   assert(!serialized.includes("sample_gap"));
 });
+
+
+test("public Behavior preview represents individual chains before applying its six-row cap", () => {
+  const payload = structuredClone(PARTICIPANT_PAYLOAD);
+  const base = payload.data.rows.find(row => row.chain === "solana") || payload.data.rows[0];
+  payload.data.rows = ["fresh_pairs", "large", "mega", "micro", "mid", "small"].map(cap_band => ({ ...base, chain: "all", cap_band }));
+  for (const chain of ["solana", "robinhood", "base", "bnb", "eth"]) payload.data.rows.push({ ...base, chain, cap_band: "all" });
+  payload.data.rows.push({...base,chain:"hyperliquid",cap_band:"perps_all"});
+  const free = buildParticipantFreeProjection(payload, {market_scope:"memecoins"});
+  assert.deepEqual(free.participation_overview.map(row => row.chain), ["solana", "robinhood", "base", "bnb", "eth", "all"]);
+  const perps = buildParticipantFreeProjection(payload, {market_scope:"perps"});
+  assert.deepEqual(perps.participation_overview.map(row => row.chain), ["hyperliquid"]);
+  assert.equal(buildParticipantFreeProjection(payload,{market_scope:"equities"}).participation_overview.length, 0);
+  assert.equal(free.advanced, null);
+  assert.equal(free.provenance.participant_identity_included, false);
+});

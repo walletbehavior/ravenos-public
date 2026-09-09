@@ -72,6 +72,7 @@ function compact(value) {
 }
 
 function dateTime(value, fallback = "Time unavailable") {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(String(value || ""))) return dateOnly(value, fallback);
   const parsed = Date.parse(String(value || ""));
   return Number.isFinite(parsed)
     ? new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" }).format(parsed)
@@ -485,7 +486,7 @@ function renderFeatured(host, featured) {
       const value = append(button, "span", "atlas-pulse-value");
       value.dataset.state = shown.state;
       append(value, "strong", "", shown.value);
-      append(value, "small", "", shown.change || (row.public_display_eligibility === "allowed" ? "Market context available" : "Identity available"));
+      append(value, "small", "", shown.change || "Explore chart & sources");
       append(button, "span", "atlas-pulse-open", "→");
       button.addEventListener("click", () => selectEntity(row.entity_id));
     }
@@ -1348,6 +1349,15 @@ function renderDetail(payload) {
   setHeader({ title: `${row.symbol} · ${row.name}`, summary: `Chart, events, options, filings, and cross-market context for this market.`, detail: true });
   const host = document.getElementById("atlasContent");
   host.replaceChildren();
+  const back = append(host, "button", "workspace-secondary-action atlas-market-back", "← Market map");
+  back.type = "button";
+  back.addEventListener("click", () => {
+    clearFilingRailRequest();
+    state.tabController?.abort();
+    updateUrl();
+    renderLanding();
+    document.getElementById("atlasSearchInput").focus();
+  });
   const identity = append(host, "section", "atlas-detail-identity");
   const mark = append(identity, "div", "atlas-detail-symbol", row.symbol.slice(0, 6));
   mark.setAttribute("aria-hidden", "true");
@@ -1357,7 +1367,7 @@ function renderDetail(payload) {
   const visualIdentity = resolveTradingViewReference(row, { exactInstrument: payload.exact_instrument });
   append(copy, "p", "", `${visualIdentity ? visualIdentity.tradingview_symbol.replace(":", " · ") : row.symbol} · ${providerLabel(row.provider)} · ${timingLabel(row)}`);
   const badges = append(identity, "div", "atlas-detail-badges");
-  [timingLabel(row), row.optionable ? "Options available" : null].filter(Boolean).forEach((label) => append(badges, "span", "", label));
+  [timingLabel(row), row.optionable ? (row.public_display_eligibility === "allowed" ? "Options available" : "Options research") : null].filter(Boolean).forEach((label) => append(badges, "span", "", label));
   const tabs = append(host, "nav", "atlas-detail-tabs");
   tabs.setAttribute("role", "tablist");
   const validTabs = detailTabsFor(row);

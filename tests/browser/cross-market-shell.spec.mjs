@@ -3,7 +3,7 @@ import { buildDiscoverRadarProjection } from "../../lib/discover_radar.mjs";
 import { buildParticipationMap } from '../../ravenos-participation-map.js';
 import { jupiterDiscoveryLifecycle } from '../../lib/jupiter_discovery_lifecycle.mjs';
 
-test('the shared participation universe is broader than Discovery and a group opens its cached members', async ({ page }) => {
+test('a cached participation group opens its members and updates an older map from the same snapshot', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   const now = Date.now(), rows = Array.from({ length: 20 }, (_, i) => {
     const pool = `0x${(500 + i).toString(16).padStart(40, '0')}`;
@@ -14,20 +14,24 @@ test('the shared participation universe is broader than Discovery and a group op
         price_change_6h_pct: 6, volume_usd_6h: 10000, volume_usd_5m: 1000, buys_5m: 10, sells_5m: 5 } };
   });
   await mockWorkspaceApis(page, { pulseRowsOverride: rows.slice(0, 2) });
+  const boards = { capitalization: buildParticipationMap(rows, { now }), new_pairs: buildParticipationMap(rows, { now, family: 'new_pairs' }) };
   await page.route('**/api/onchain/participation*', async route => {
     const url = new URL(route.request().url());
     if (url.searchParams.has('chain')) return route.fulfill({ json: { ok: true, safe_public: true, schema_version: 'ravenos.participation_group.v1',
-      rows: buildDiscoverRadarProjection(rows, { timeframe: '5m', generatedAt: new Date(now).toISOString(), nowMs: now, sourceState: 'current' }).rows } });
+      boards, rows: buildDiscoverRadarProjection(rows, { timeframe: '5m', generatedAt: new Date(now).toISOString(), nowMs: now, sourceState: 'current' }).rows } });
     return route.fulfill({ json: { ok: true, safe_public: true, schema_version: 'ravenos.participation_boards.v1', boards: {
-      capitalization: buildParticipationMap(rows, { now }), new_pairs: buildParticipationMap(rows, { now, family: 'new_pairs' }),
+      capitalization: buildParticipationMap(rows, { now: now + 150_000 }), new_pairs: buildParticipationMap(rows, { now: now + 150_000, family: 'new_pairs' }),
     } } });
   });
   await page.goto('/discover/');
   await expect(page.locator('.discover-token-row')).toHaveCount(2);
   const cell = page.locator('#discoverPayoffStrip [data-participation-cell="robinhood:500k_2m"]');
-  await expect(cell).toContainText('20/20');
+  await expect(cell).toContainText('0/20');
+  await expect(cell).toHaveAttribute('data-payoff-state', 'stale');
   await cell.click();
   await expect(page.locator('.discover-token-row')).toHaveCount(20);
+  await expect(cell).toHaveAttribute('data-payoff-state', 'rewarding');
+  await expect(cell).toContainText('20/20');
   await page.locator('#discoverParticipationClear').click();
   await expect(page.locator('.discover-token-row')).toHaveCount(2);
 });

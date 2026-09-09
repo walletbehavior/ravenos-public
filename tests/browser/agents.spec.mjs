@@ -14,11 +14,15 @@ test("Agents renders the two-venue partial paper path without implying live exec
   await expect(page.getByText("No signing or order submission")).toBeVisible();
 
   await page.getByRole("button", { name: "Agent Radar" }).click();
+  await expect(page.locator("#agentsWorkspace")).toBeHidden();
   await expect(page.getByRole("heading", { name: "Agent Radar" })).toBeVisible();
   await expect(page.getByText("Verified facts")).toBeVisible();
   await expect(page.getByText("Project claims")).toBeVisible();
   await expect(page.getByText("Unknowns")).toBeVisible();
   await expect(page.getByText("Revenue attribution")).toBeVisible();
+  await page.getByRole("button", { name: "Agents", exact: true }).click();
+  await expect(page.locator("#radarWorkspace")).toBeHidden();
+  await expect(page.getByRole("heading", { name: "SOL Basis Guard" })).toBeVisible();
 });
 
 test("Agents never enables live controls in the local paper fixture", async ({ page }) => {

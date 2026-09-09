@@ -887,6 +887,7 @@ test("Worker expands Jupiter discovery with bounded exact-pool batches", async (
       return jsonResponse(tokens);
     }
     if (url.hostname === "api.dexscreener.com") {
+      if (url.pathname === "/latest/dex/search") return jsonResponse({ pairs: [] });
       const requested = decodeURIComponent(url.pathname.split("/").at(-1)).split(",").filter(Boolean);
       dexBatchSizes.push(requested.length);
       assert.ok(requested.length <= 30);

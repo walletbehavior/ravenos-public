@@ -1379,6 +1379,8 @@ test('missing provider transaction count is never shown as zero and advanced EVM
   await expect(page.locator('#copyProfileCoverage')).toContainText('1 transfers observed');
   await expect(page.locator('#copyProfileCoverage')).not.toContainText('0 tx');
   await expect(page.locator('#copyRavenEvidence')).not.toHaveAttribute('open');
+  await page.getByRole('link', { name: 'Raven signals · Pro', exact: true }).click();
+  await expect(page.locator('#copyRavenEvidence')).toHaveAttribute('open', '');
   await expect(page.locator('#copyOverviewScope')).toContainText('swaps and cost basis are not reconstructed');
   await expect(page.locator('#copyHoldingsTable')).toContainText(EVM_TOKEN);
   await expect(page.locator('#copyHoldingsTable')).toContainText('$0.0000025');
@@ -1610,6 +1612,28 @@ test('coverage distinguishes Raven discovery from analyzed profiles and chain-wi
  await expect(page.locator('#copyScreenerCoverage')).toContainText('1,800 wallets discovered by Raven in Solana · 30 analyzed profiles');
  await expect(page.locator('#copyScreenerCoverage')).toContainText('not the chain’s total wallet count');
  expect(shared.requests.some(row=>row.path.endsWith('/inspect'))).toBe(false);
+});
+
+test('failed chain switch clears prior coverage and retries the selected cached index', async ({ page }) => {
+ const shared = { requests: [] }; await install(page, shared); let failSolana = true;
+ await page.route('**/api/v1/wallet-copy/screener', route => {
+  const { chain } = route.request().postDataJSON();
+  if (chain === 'solana' && failSolana) return route.fulfill({ status: 503, json: { ok: false } });
+  return route.fulfill({ json: { ok: true, rows: [], scope: { chain },
+   index_coverage: { chains: [{ chain, seen_wallets: 3500, indexed_wallets: 30 }] },
+   pagination: { page: 1, page_size: 12 }, seen_wallets: { total: 0, rows: [] } } });
+ });
+ await page.goto('/account/copy/?chain=base&wallets=analyzed');
+ await expect(page.locator('#copyScreenerCoverage')).toContainText('Base · 30 analyzed profiles');
+ await page.getByRole('group', { name: 'Wallet chain', exact: true }).getByRole('button', { name: 'Solana', exact: true }).click();
+ await expect(page.locator('#copyScreenerCoverage')).toContainText('Solana wallet index could not be loaded');
+ await expect(page.locator('#copyScreenerCoverage')).not.toContainText('Base');
+ await expect(page.locator('#copyScreenerPages')).toBeHidden();
+ await expect(page.locator('#copyScreenerFilters')).toBeVisible();
+ failSolana = false;
+ await page.getByRole('button', { name: 'Retry wallet screener', exact: true }).click();
+ await expect(page.locator('#copyScreenerCoverage')).toContainText('Solana · 30 analyzed profiles');
+ expect(shared.requests.some(row => row.path.endsWith('/inspect'))).toBe(false);
 });
 
 for(const chain of ['base','ethereum','bsc','robinhood'])test(`${chain} empty analysis offers cached discovery without losing performance filters`,async({page})=>{

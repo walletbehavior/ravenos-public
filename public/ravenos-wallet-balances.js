@@ -27,11 +27,12 @@ export function mountWalletBalances(target,{compact=false,getContext=null}={}) {
     if(!labels[wanted]){root.hidden=true;return;}
     root.hidden=false;select.disabled=Boolean(getContext);select.value=wanted;
     if(wanted!==currentChain){currentChain=wanted;generation++;lastCheck=0;inFlight=false;clear();}
-    if((inFlight||Date.now()-lastCheck<30000)&&!force)return;
-    const version=++generation;inFlight=true;lastCheck=Date.now();refresh.disabled=true;clear();status.textContent='Checking '+labels[wanted]+' balances…';
+    if(inFlight||(!force&&Date.now()-lastCheck<30000))return;
+    const version=++generation;inFlight=true;lastCheck=Date.now();refresh.disabled=true;status.textContent=(rows.childElementCount?'Refreshing ':'Checking ')+labels[wanted]+' balances…';
     try{
       const response=await fetch('/api/v1/wallets/balances?chain='+encodeURIComponent(wanted),{credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(10000)});
       const payload=await response.json();if(version!==generation||disposed)return;
+      clear();
       if(response.status===401||response.status===409){status.textContent='Sign in to see your Raven Wallet funds.';account.textContent='Open your account →';return;}
       if(!response.ok||!payload.ok)throw Error('unavailable');
       const snapshot=payload.snapshot;

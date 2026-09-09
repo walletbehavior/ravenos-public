@@ -113,7 +113,7 @@ function legacyAtlas() {
   };
 }
 
-async function mockAtlas(page, { restricted = true } = {}) {
+async function mockAtlas(page, { restricted = true, filingDate = NOW } = {}) {
   const calls = [];
   const spy = searchRow();
   const msft = searchRow({ entity_id: "equity:us:MSFT", name: "Microsoft Corporation", symbol: "MSFT", entity_kind: "equity", entity_class: "tradable_quote", featured: false });
@@ -170,7 +170,7 @@ async function mockAtlas(page, { restricted = true } = {}) {
     } else if (url.pathname === "/api/atlas/options/chain") {
       payload = base("atlas_options_chain_v1", { entity_id: spy.entity_id, expiration: url.searchParams.get("expiration"), chain: providerView({ decision: "allowed", data: { symbol: "SPY", expiration: url.searchParams.get("expiration"), contracts: [{ symbol: "SPY260724C00640000", expiration: "2026-07-24", strike: 640, right: "call", bid: 4.1, ask: 4.2, last: 4.15, volume: 1200, open_interest: 10000, iv: .21, delta: .52, quote_timestamp: NOW, greeks_clock: "hourly" }] } }), lease: lease("options_chain"), selected_expiration_only: true, coherence_observer_active: false });
     } else if (url.pathname === "/api/atlas/sec/filings") {
-      payload = base("atlas_sec_filings_v1", { entity_id: spy.entity_id, filings: providerView({ provider: "sec", decision: "allowed", delayClass: "document", data: [{ event_id: "filing-1", issuer_name: "SPDR S&P 500 ETF Trust", form: "10-K", filed_at: NOW, reporting_period: "2025-12-31", amendment: false, filing_url: "https://www.sec.gov/Archives/edgar/data/1/fixture.htm" }] }), metadata_is_not_a_filing_summary: true });
+      payload = base("atlas_sec_filings_v1", { entity_id: spy.entity_id, filings: providerView({ provider: "sec", decision: "allowed", delayClass: "document", data: [{ event_id: "filing-1", issuer_name: "SPDR S&P 500 ETF Trust", form: "10-K", filed_at: filingDate, reporting_period: "2025-12-31", amendment: false, filing_url: "https://www.sec.gov/Archives/edgar/data/1/fixture.htm" }] }), metadata_is_not_a_filing_summary: true });
     } else if (url.pathname === "/api/atlas/sec/insiders") {
       payload = base("atlas_sec_insiders_v1", { entity_id: spy.entity_id, events: [{
         schema_version: "atlas_insider_event_v1", event_id: "insider-1", issuer: "SPDR S&P 500 ETF Trust",
@@ -258,6 +258,10 @@ test("Atlas chart research actions deep-link exact filings and insider activity"
   await expect(page.getByRole("tab", { name: "Insiders" })).toHaveAttribute("aria-selected", "true");
   await expect(page.locator(".atlas-insider-row").first()).toContainText("Chief Example Officer");
   await expect(page).toHaveURL(/entity_id=etf%3Aus%3ASPY&view=insiders/);
+  await page.getByRole("button", { name: "← Market map", exact: true }).click();
+  await expect(page).not.toHaveURL(/entity_id=/);
+  await expect(page.getByRole("tab", { name: "Major ETFs", exact: true })).toBeVisible();
+  await expect(page.locator(".atlas-pulse-row")).toHaveCount(1);
 });
 
 test("Atlas gives an arbitrary equity a chart only after one exact listing resolves", async ({ page }) => {
@@ -379,4 +383,16 @@ test("Atlas remains contained and decision-readable on mobile", async ({ page })
   await expect(page.locator(".atlas-detail-identity")).toBeVisible();
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(2);
+});
+
+
+test.describe('Atlas filing calendar dates', () => {
+  test.use({ timezoneId: 'America/Chicago' });
+  test('a filing date does not move to the previous local day', async ({ page }) => {
+    await mockAtlas(page, { filingDate: '2026-07-22' });
+    await page.goto('/atlas/?entity_id=etf%3Aus%3ASPY');
+    await page.getByRole('tab', { name: 'Filings' }).click();
+    await expect(page.locator('.atlas-filing-row').first()).toContainText('Jul 22, 2026 filed');
+    await expect(page.locator('.atlas-filing-row').first()).not.toContainText('Jul 21');
+  });
 });

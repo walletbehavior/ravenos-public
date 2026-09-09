@@ -259,6 +259,7 @@ function filterSelect(label, key, values, selected, onChange) {
   wrapper.append(node("span", "", label));
   const select = node("select");
   select.dataset.filter = key;
+  select.setAttribute("aria-label", label);
   select.append(new Option(`All ${label.toLowerCase()}`, ""));
   for (const value of Array.isArray(values) ? values.slice(0, 80) : []) select.append(new Option(text(value), String(value)));
   select.value = selected || "";
@@ -285,6 +286,7 @@ function choiceSelect(label, key, choices, selected, onChange) {
   const wrapper = node("label");
   wrapper.append(node("span", "", label));
   const select = node("select");
+  select.setAttribute("aria-label", label);
   select.dataset.filter = key;
   for (const choice of choices) select.append(new Option(choice.label, choice.value));
   select.value = selected || choices[0]?.value || "";

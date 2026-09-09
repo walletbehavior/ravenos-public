@@ -30,3 +30,25 @@ test('balance network survives reload but never overrides the exact trading netw
  await waitForTerminalLive(page,{lane:'spot',instrument:'JUP/USDC',timeframe:'1h'});
  await expect(page.locator('#terminalWalletFunds select')).toHaveValue('solana');await expect(page.locator('#terminalWalletFunds select')).toBeDisabled();
 });
+
+test('refresh keeps the last same-chain balance visible and does not duplicate in-flight requests',async({page})=>{
+ let calls=0,release;
+ await page.route('**/api/v1/wallets/balances?**',async route=>{
+   calls++;
+   if(calls>1)await new Promise(resolve=>{release=resolve;});
+   await route.fulfill({json:payload});
+ });
+ await page.goto('/portfolio/');
+ const widget=page.getByRole('region',{name:'Raven Wallet buying power'});
+ await expect(widget).toContainText('0.150197288');
+ await page.getByRole('button',{name:'Refresh balances'}).click();
+ await expect(widget).toContainText('Refreshing Solana balances');
+ await expect(widget).toContainText('0.150197288');
+ await page.evaluate(()=>window.dispatchEvent(new CustomEvent('ravenos:accountstate',{detail:{authenticated:true}})));
+ expect(calls).toBe(2);
+ release();
+ await expect(widget.getByRole('button',{name:'Refresh balances'})).toBeEnabled();
+ await expect(widget.locator('.raven-wallet-balance-grid > div')).toHaveCount(2);
+ await page.evaluate(()=>window.dispatchEvent(new CustomEvent('ravenos:accountstate',{detail:{authenticated:false}})));
+ await expect(widget.locator('.raven-wallet-balance-grid')).toBeEmpty();
+});

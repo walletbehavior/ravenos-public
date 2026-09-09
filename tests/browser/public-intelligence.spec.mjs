@@ -333,7 +333,7 @@ test("Behavior Lab suppresses unsupported rates and keeps stale wallet-pattern h
   behavior.data.actor_evidence.public_read_label = "Participant evidence is stale.";
   behavior.data.rows[0].cap_band = "jupiter_velocity";
   behavior.data.rows[0].plain_language_summary = "Jupiter Velocity participation on Solana is mixed or still unclear.";
-  await page.route("**/api/behavior", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(behavior) }));
+  await page.route("**/api/behavior*", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(behavior) }));
   await page.goto("/behavior/");
   await expect(page.locator("#routeHeadline")).toContainText("Robinhood fresh pairs are working; Solana fresh pairs are punishing recent participation.");
   await expect(page.locator(".behavior-payoff")).toContainText(/Where participation is working.*Robinhood fresh pairs.*6h \+0\.00%.*47 observations.*Solana fresh pairs.*6h -14\.8%.*30 observations/s);
@@ -358,7 +358,7 @@ test("Behavior Lab suppresses unsupported rates and keeps stale wallet-pattern h
 });
 
 test("Free Behavior Lab shows six market slices with plain labels and benefit-led Pro copy", async ({ page }) => {
-  await page.route("**/api/behavior", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(freeParticipantProjection()) }));
+  await page.route("**/api/behavior*", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(freeParticipantProjection()) }));
   await page.goto("/behavior/");
 
   await expect(page.locator(".behavior-matrix article")).toHaveCount(6);
@@ -389,7 +389,7 @@ test("Behavior Lab filters exact market slices and only labels counted followthr
     ...projection.participation_overview[3],
     age_cohort: "new",
   };
-  await page.route("**/api/behavior", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(projection) }));
+  await page.route("**/api/behavior*", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(projection) }));
   await page.goto("/behavior/?chain=solana&cap_band=micro&age_cohort=mature&window=4h");
 
   await expect(page.locator("#behaviorExplorer")).toBeVisible();
@@ -495,7 +495,7 @@ test("Behavior-scoped Followthrough counts only the requested settled slice", as
 });
 
 test("Behavior Lab keeps an unavailable live feed explicit without stale substitution", async ({ page }) => {
-  await page.route("**/api/behavior", (route) => route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ ok: false, state: "unavailable" }) }));
+  await page.route("**/api/behavior*", (route) => route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ ok: false, state: "unavailable" }) }));
   await page.goto("/behavior/");
   await expect(page.locator("#routeHeadline")).toContainText("unavailable");
   await expect(page.locator("#routeHeroSummary")).toContainText(/older (?:participant evidence is not substituted as current|behavior is not presented as a live read)/i);

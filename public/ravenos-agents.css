@@ -6,6 +6,7 @@
 }
 
 .agents-page { max-width: 1600px; margin: 0 auto; color: var(--ws-text, #e7edf5); }
+.agents-page [hidden] { display: none !important; }
 .agents-head { display: flex; align-items: end; justify-content: space-between; gap: 18px; padding: 24px 18px 18px; border-bottom: 1px solid var(--ws-border, #26303b); }
 .agents-head h1 { margin: 5px 0 0; font-size: clamp(30px, 4vw, 58px); letter-spacing: -.055em; }
 .agents-safety { display: grid; justify-items: end; gap: 3px; text-transform: uppercase; font: 700 10px/1.2 ui-monospace, monospace; color: var(--agent-amber); }

@@ -40,6 +40,23 @@ function fixture() {
   const data = new Map(), events = new Map();
   return { data, events, location: { pathname: "/discover/", search: "", origin: "https://ravenos.xyz" }, localStorage: { getItem: key => data.get(key), setItem: (key, value) => data.set(key, value) }, addEventListener: (event, fn) => events.set(event, fn), history: { replaceState() {}, pushState() {} } };
 }
+test('wallet screener chain and inspected address do not rewrite the selected trading market', () => {
+  const windowRef = fixture();
+  windowRef.data.set('ravenos:selected-context:v2', JSON.stringify({ subject: perp, marketScope: 'perps', walletId: 'original-account' }));
+  windowRef.location.pathname = '/account/copy/';
+  windowRef.location.search = '?chain=base&wallet=inspected-public-wallet';
+  const store = createRavenOSContextStore({ windowRef });
+  assert.equal(store.getState().subject.chain, 'hyperliquid');
+  assert.equal(store.getState().walletId, 'original-account');
+  windowRef.location.search = '?chain=ethereum&wallet=another-public-wallet';
+  windowRef.events.get('popstate')();
+  assert.equal(store.getState().subject.chain, 'hyperliquid');
+  assert.equal(store.getState().walletId, 'original-account');
+});
+test('exact market namespaces repair a conflicting chain in remembered or incoming context', () => {
+  assert.equal(contextFromSearch('?instrument_id=hyperliquid:perp:SOL&chain=base').subject.chain, 'hyperliquid');
+  assert.equal(contextFromSearch('?instrument_id=solana:pool:exact&chain=ethereum').subject.chain, 'solana');
+});
 test("navigation preserves a section while an explicit section switch discards foreign identity", () => {
   const windowRef = fixture(), store = createRavenOSContextStore({ windowRef });
   store.setSelection({ subject: perp }, { updateUrl: false });
@@ -108,4 +125,10 @@ for (const chain of ['solana', 'robinhood', 'base', 'bsc', 'ethereum']) test(`${
 test('ZEC perps keep their exact market while known Solana ZEC is excluded even without labels', () => {
   assert.equal(instrumentMarketScope({ ...perp, id: 'hyperliquid:perp:ZEC', symbol: 'ZEC', name: 'Zcash' }), 'perps');
   assert.equal(instrumentMarketScope({ chain_id: 'solana', market_type: 'spot', token_address: 'A7bdiYdS5GjqGFtxf17ppRHtDKPkkRqbKtR27dxvQXaS' }), null);
+});
+
+ test("all-chain onchain cohorts retain their mode without admitting unknown groups", () => {
+  assert.equal(participationMarketScope({chain:"all",capitalization_band:"micro"}),"memecoins");
+  assert.equal(participationMarketScope({chain:"all",capitalization_band:"perps_majors"}),"perps");
+  assert.equal(participationMarketScope({chain:"all",capitalization_band:"unknown"}),null);
 });

@@ -2091,13 +2091,25 @@ function renderScreener(payload) {
 async function loadScreener() {
   if (!state.activation.wallet_screener) return;
   const requestId = ++state.screener_request;
-  setText("copyScreenerStatus", `Screening ${chainLabel(state.screener.chain)}…`);
+  const scopeLabel = chainLabel(state.screener.chain);
+  setText("copyScreenerStatus", `Screening ${scopeLabel}…`);
+  setText("copyScreenerCount", "Loading");
+  setText("copyScreenerCoverage", `Loading Raven’s cached ${scopeLabel} wallet index…`);
+  document.getElementById("copyScreenerResults").replaceChildren();
+  document.getElementById("copySeenWallets").hidden = true;
+  document.getElementById("copyScreenerPages").hidden = true;
+  document.getElementById("copyScreenerFilters").hidden = state.screener.view === 'observed';
+  document.getElementById("copyPresetRail").hidden = state.screener.view === 'observed';
   const result = await api(`${API}/screener`, { method: "POST", body: JSON.stringify(screenerRequest()) });
   if (requestId !== state.screener_request) return;
   if (!result.response.ok) {
     setText("copyScreenerCount", "Unavailable");
+    setText("copyScreenerCoverage", `The ${scopeLabel} wallet index could not be loaded. Retry to check current coverage.`);
     setText("copyScreenerStatus", "Screener unavailable. Address lookup remains available.");
-    document.getElementById("copyScreenerResults").replaceChildren(empty("Screener unavailable", "Try again or inspect an address."));
+    const retry = document.createElement('button');
+    retry.type = 'button'; retry.className = 'raven-button'; retry.textContent = 'Retry wallet screener';
+    retry.addEventListener('click', () => void loadScreener());
+    document.getElementById("copyScreenerResults").replaceChildren(empty("Screener unavailable", "Try again or inspect an address."), retry);
     document.getElementById("copyScreenerResults").hidden = false;
     document.getElementById("copySeenWallets").hidden = true;
     document.getElementById("copyScreenerPages").hidden = true;
@@ -2288,6 +2300,9 @@ async function boot() {
 
 bindAuthStartForms();
 document.querySelectorAll("[data-copy-view]").forEach((button) => button.addEventListener("click", () => switchView(button.dataset.copyView)));
+document.querySelector('.copy-profile-nav a[href="#copyRavenEvidence"]')?.addEventListener("click", () => {
+  document.getElementById("copyRavenEvidence").open = true;
+});
 document.getElementById("copyWalletSearch").addEventListener("submit", inspectWallet);
 document.getElementById("copyWalletChain").addEventListener("change", (event) => setInspectChain(event.currentTarget.value));
 document.getElementById("copyRefreshHistoryStatus").addEventListener("click", async (event) => {

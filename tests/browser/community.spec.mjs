@@ -154,6 +154,8 @@ test("authenticated profile controls start private and save an exact CSRF-bound 
   await expect(page.getByText("Email, legal name, balances, connected accounts, and copy allocations stay private.")).toBeVisible();
   await expect(page.getByRole("checkbox", { name: "Public profile" })).not.toBeChecked();
   await expect(page.getByRole("checkbox", { name: "Wallet addresses" })).not.toBeChecked();
+  await expect(page.locator("#communityAccountState")).toBeHidden();
+  await expect(page.getByText("Checking account", { exact: true })).toBeHidden();
   await page.getByRole("checkbox", { name: "Public profile" }).check();
   await page.getByRole("checkbox", { name: "Performance" }).check();
   await page.getByRole("checkbox", { name: "Following", exact: true }).check();

@@ -2787,6 +2787,9 @@ async function loadParticipationGroup(filter, forceOrder = false) {
     if (response.ok && payload?.safe_public === true && payload?.schema_version === 'ravenos.participation_group.v1' && Array.isArray(payload.rows)) {
       state.participationGroupRows = payload.rows.slice(0, 200).filter(row => validDiscoverRow(row, { allowExpiredSnapshot: true }));
       state.participationGroupLoaded = true;
+      // A refresh may finish between loading the map and opening a group. Use
+      // the group's measured snapshot for both, without another provider call.
+      if (validParticipationBoards(payload.boards)) state.participationUniverse = { boards: payload.boards, coverage: payload.coverage };
       renderSpotPulse(state.spotRows, { forceOrder });
     }
   } catch { /* Current Discovery matches remain usable; no fresh RPC fallback. */ }
@@ -2796,13 +2799,16 @@ async function participationJson(path) {
   try { const response = await fetch(path, { headers: { accept: 'application/json' }, signal: controller.signal }); return { response, payload: await response.json() }; }
   finally { clearTimeout(timer); }
 }
+function validParticipationBoards(boards) {
+  return ['capitalization', 'new_pairs'].every(family => Array.isArray(boards?.[family]?.cells) && boards[family].cells.length <= 40 && boards[family].returnWindow === '6h');
+}
 async function loadParticipationBoards() {
   if (state.participationLoading || state.marketScope !== 'memecoins') return;
   state.participationLoading = true;
   try {
     const { response, payload } = await participationJson('/api/onchain/participation');
     if (response.ok && payload?.safe_public === true && payload?.schema_version === 'ravenos.participation_boards.v1'
-      && ['capitalization', 'new_pairs'].every(family => Array.isArray(payload.boards?.[family]?.cells) && payload.boards[family].cells.length <= 40 && payload.boards[family].returnWindow === '6h')) {
+      && validParticipationBoards(payload.boards)) {
       state.participationUniverse = payload;
       renderParticipationBoard();
       if (state.participationFilter) void loadParticipationGroup(state.participationFilter);
@@ -2960,7 +2966,7 @@ function createListedMarketCard(row) {
   const detail = append(anchor, "div", "", "");
   detail.textContent = "";
   append(detail, "span", "", row.entity_kind === "etf" ? "ETF" : "Equity");
-  append(detail, "small", "", row.optionable ? "Options available" : "Exact listing");
+  append(detail, "small", "", row.optionable ? "Options research" : "Exact listing");
   append(anchor, "b", "", "→");
   anchor.addEventListener("click", async (event) => {
     event.preventDefault();

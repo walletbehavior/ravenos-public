@@ -61,6 +61,7 @@ export function participationMarketScope(row = {}) {
   const chain = String(row.chain || parts[1] || "").toLowerCase();
   const band = String(row.cap_band || row.capitalization_band || parts[2] || "").toLowerCase();
   if (chain === "hyperliquid" || band.startsWith("perps_")) return "perps";
+  if (chain === "all" && ["all", "micro", "small", "mid", "large", "mega", "fresh_pairs", "live_activity", "high-velocity tokens"].includes(band)) return "memecoins";
   if (["solana", "robinhood", "base", "bsc", "ethereum", "arbitrum", "avalanche", "polygon", "pulsechain", "eth", "bnb", "rh", "avax"].includes(chain)) return "memecoins";
   return null;
 }

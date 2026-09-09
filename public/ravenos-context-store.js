@@ -72,15 +72,18 @@ export function normalizeInstrumentSubject(value = {}) {
   const label = clean(row.label || row.symbol || row.id, "No market selected");
   const instrumentType = clean(row.instrumentType || row.instrument_type || row.marketType || row.market_type, "unknown").toLowerCase();
   const assetClass = clean(row.assetClass || row.asset_class, ["perp", "perpetual", "spot", "token", "pool"].includes(instrumentType) ? "crypto" : "unknown").toLowerCase();
+  const id = clean(row.instrumentId || row.instrument_id || row.id || row.address || row.symbol || label, "unselected");
+  const exactChain = /^(solana|robinhood|base|bsc|ethereum):pool:/.exec(id)?.[1]
+    || (/^hyperliquid:perp:/.test(id) ? 'hyperliquid' : null);
   return {
-    id: clean(row.instrumentId || row.instrument_id || row.id || row.address || row.symbol || label, "unselected"),
+    id,
     type: clean(row.type, "market").toLowerCase(),
     label,
     symbol: clean(row.symbol || row.label),
     assetClass,
     instrumentType,
     identityScope: clean(row.identityScope || row.identity_scope, instrumentType === "exact_pool" || instrumentType === "pool" ? "exact_pool" : instrumentType === "token" ? "token_aggregate" : row.id || row.instrument_id ? "exact_instrument" : "unselected").toLowerCase(),
-    chain: clean(row.chain, "all").toLowerCase(),
+    chain: exactChain || clean(row.chain, "all").toLowerCase(),
     venue: clean(row.venue, "all").toLowerCase(),
     marketType: clean(row.marketType || row.market_type, "all").toLowerCase(),
     quoteAsset: clean(row.quoteAsset?.symbol || row.quote_asset?.symbol || row.quoteAsset || row.quote_asset || row.quote_asset_symbol).toUpperCase(),
@@ -256,7 +259,17 @@ export function createRavenOSContextStore(options = {}) {
       stored = JSON.parse(current || legacy || "{}");
     } catch { stored = {}; }
   }
-  let state = contextFromSearch(windowRef?.location?.search || "", stored);
+  function marketSearch() {
+    const params = new URLSearchParams(windowRef?.location?.search || '');
+    // Wallet research owns these query fields; they cannot change the chart's
+    // chain or turn an inspected public address into the trading account.
+    if (/^\/account\/copy(?:\/|$)/.test(windowRef?.location?.pathname || '')) {
+      params.delete('chain');
+      params.delete('wallet');
+    }
+    return params.toString();
+  }
+  let state = contextFromSearch(marketSearch(), stored);
   const pathScope = marketScopeFromSearch(windowRef?.location?.search || "", windowRef?.location?.pathname || "", state.marketScope);
   if (pathScope !== state.marketScope) state = contextFromSearch(`?market_scope=${pathScope}`, state);
 
@@ -366,7 +379,7 @@ export function createRavenOSContextStore(options = {}) {
 
   windowRef?.addEventListener?.("storage", handleStorage);
   windowRef?.addEventListener?.("popstate", () => {
-    state = contextFromSearch(windowRef.location.search, state);
+    state = contextFromSearch(marketSearch(), state);
     persist(); notify();
   });
   persist();

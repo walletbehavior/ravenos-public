@@ -163,7 +163,7 @@ test("the quick guide and FAQ explain the customer workflow without release or e
   await expect(page.getByRole("heading", { name: "Find a market. Understand why it matters." })).toBeVisible();
   await expect(page.locator("body")).toContainText("Research only · Not financial advice");
   const guide = await visibleBodyText(page);
-  expect(guide).toMatch(/Velocity.*Raven.*Activity/s);
+  expect(guide).toMatch(/Velocity.*Raven.*Trending/s);
   expect(guide).toMatch(/Chart.*Txns.*Holders.*Raven/s);
   expect(guide).not.toMatch(/Current intelligence connected|Exact identity enforced|Signing and submission off|Public artifact verified|Tradier, then future brokers|provider path|implementation|projection contract/i);
 
