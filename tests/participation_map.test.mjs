@@ -71,3 +71,13 @@ test('heatmap drilldown ranks six-hour movers ahead of quiet high-volume tokens 
   assert.equal(rankParticipationMarkets(rows, { filter, now, order: 'decliners' })[0].token_address, 'token3');
   assert.equal(buildParticipationMap(rows, { now }).tracked, 4);
 });
+
+test('ZEC cannot inflate memecoin participation or lead its drilldown, while ZEC perps remain', () => {
+  const coins = Array.from({ length: 6 }, (_, i) => spot(i));
+  const zec = { ...spot(7, { price_change_6h_pct: 900, volume_usd_6h: 900000000 }), symbol: 'ZEC', name: 'Zcash' };
+  const map = buildParticipationMap([...coins, zec], { now });
+  assert.equal(map.tracked, 6); assert.equal(map.cells[0].medianReturnPct, 12); assert.equal(map.cells[0].observedVolumeUsd, 60000);
+  assert.equal(rankParticipationMarkets([...coins, zec], { filter: map.cells[0].filter, now }).length, 6);
+  const zecPerp = { instrument_id: 'hyperliquid:perp:ZEC', symbol: 'ZEC', day_change_pct: 20, day_notional_volume_usd: 1000, open_interest_usd: 30000000 };
+  assert.equal(buildPerpParticipationMap([zecPerp], { now, observedAt: new Date(now).toISOString() }).tracked, 1);
+});

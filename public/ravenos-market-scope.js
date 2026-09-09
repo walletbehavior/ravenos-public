@@ -14,6 +14,19 @@ export function isTokenizedEquity(row = {}) {
   const name = String(primary.name || primary.token_name || '').trim();
   return /\S\s+xstocks?$/i.test(name) || /\s[-–—]\s*Backpack Securities$/i.test(name) || /\S\s*[•·]\s*Robinhood Token$/i.test(name);
 }
+// Zcash belongs to Portfolio capital tools or its exact perp market. Only the
+// primary asset is considered: a coin paired with ZEC remains discoverable.
+// These are presentation labels, never proof of a shielded balance or issuer.
+export function isZcashAsset(row = {}) {
+  const primary = row.subject || row.instrument_contract || (typeof row.instrument === 'object' ? row.instrument : row);
+  const symbol = String(primary.symbol || primary.base_symbol || primary.baseAsset || primary.label || '').split('/')[0].trim().toUpperCase();
+  const name = String(primary.name || primary.token_name || '').trim();
+  const chain = String(primary.chain_id || primary.chain || row.chain_id || row.chain || '').toLowerCase();
+  const address = primary.token_address || primary.tokenAddress || primary.address;
+  return ['ZEC', 'WZEC', 'ZCASH'].includes(symbol)
+    || /^(?:(?:wrapped|bridged)\s+)?zcash(?:\s*\(ZEC\))?$/i.test(name)
+    || (chain === 'solana' && address === 'A7bdiYdS5GjqGFtxf17ppRHtDKPkkRqbKtR27dxvQXaS');
+}
 export function instrumentMarketScope(row = {}) {
   const subject = row.subject || row.instrument_contract || (typeof row.instrument === "object" ? row.instrument : row);
   const id = String(subject.instrument_id || subject.instrumentId || subject.id || row.instrument_id || row.key || "").toLowerCase();
@@ -21,6 +34,7 @@ export function instrumentMarketScope(row = {}) {
   const chain = String(subject.chain || row.chain_id || row.chain || "").toLowerCase();
   if (id.startsWith("hyperliquid:perp:") || ["perp", "perps", "perpetual", "perpetuals"].includes(type)) return "perps";
   if (/^(equity|etf):/.test(id) || ["equity", "etf", "equities", "tokenized_equity"].includes(type) || ["equity", "etf", "tokenized_equity"].includes(subject.asset_class || subject.assetClass) || isTokenizedEquity(row)) return "equities";
+  if (isZcashAsset(row)) return null;
   if (id.includes(":pool:") || ["spot", "spot_pool", "exact_pool", "token", "pool", "crypto_spot"].includes(type)) return "memecoins";
   if (chain && chain !== "hyperliquid" && (row.pool_address || row.pairAddress || subject.poolAddress)) return "memecoins";
   return null;

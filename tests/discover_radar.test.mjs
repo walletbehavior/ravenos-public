@@ -107,6 +107,14 @@ test("a mature 200K to 450K exact market is admitted as a breakout rather than e
   assert.equal(Math.round(discovery.path.change_since_first_observation_pct), 125);
 });
 
+test('cached ZEC candidates do not consume the radar budget or replace memecoin reads', () => {
+  const zecRows = Array.from({ length: 240 }, (_, i) => pool({ symbol: 'ZEC', name: 'Zcash', pool_address: `zec-pool-${i}` }));
+  const coin = pool({ symbol: 'COIN', name: 'Coin', quote_symbol: 'ZEC', quote_name: 'Zcash' });
+  const result = build([...zecRows, coin]);
+  assert.equal(result.rows.length, 1); assert.equal(result.rows[0].symbol, 'COIN');
+  assert.equal(result.rows[0].quote_symbol, 'ZEC');
+});
+
 test("a very new high-turnover pool stays visible with explicit integrity warnings and a ranking penalty", () => {
   const row = pool({
     pool_address: "0x0000000000000000000000000000000000000091",

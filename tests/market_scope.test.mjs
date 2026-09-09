@@ -93,3 +93,19 @@ for (const chain of ['solana', 'robinhood', 'base', 'bsc', 'ethereum']) test(`${
   assert.equal(instrumentMarketScope({ ...coin, quote_name: 'Datadog • Robinhood Token' }), 'memecoins');
   for (const name of ['Stockland', 'XStock', 'Tree receives Apple stock', 'Not Apple']) assert.equal(instrumentMarketScope({ ...coin, name, symbol: 'AAPL' }), 'memecoins');
 });
+
+for (const chain of ['solana', 'robinhood', 'base', 'bsc', 'ethereum']) test(`${chain}: Zcash spot representations stay out of memecoins, including retained rows`, () => {
+  const row = { instrument_id: `${chain}:pool:zec-pool`, market_type: 'spot', chain_id: chain, token_address: 'zec-token', symbol: 'ZEC', name: 'Zcash' };
+  for (const source of [row, { ...row, name: '', symbol: 'ZEC/USDC' }, { ...row, symbol: 'WZEC', name: 'Wrapped Zcash' },
+    { ...row, symbol: '', name: 'Bridged Zcash' }, { ...row, context_state: 'delayed' }, { subject: row }, { instrument_contract: row }]) {
+    assert.equal(matchesMarketScope(source, 'memecoins'), false);
+    assert.equal(instrumentMarketScope(source), null);
+  }
+  assert.equal(matchesMarketScope({ ...row, symbol: 'COIN', name: 'Coin', quote_symbol: 'ZEC', quote_name: 'Zcash' }, 'memecoins'), true);
+  assert.equal(matchesMarketScope({ ...row, symbol: 'ZECAT', name: 'Zcash Cat' }, 'memecoins'), true);
+});
+
+test('ZEC perps keep their exact market while known Solana ZEC is excluded even without labels', () => {
+  assert.equal(instrumentMarketScope({ ...perp, id: 'hyperliquid:perp:ZEC', symbol: 'ZEC', name: 'Zcash' }), 'perps');
+  assert.equal(instrumentMarketScope({ chain_id: 'solana', market_type: 'spot', token_address: 'A7bdiYdS5GjqGFtxf17ppRHtDKPkkRqbKtR27dxvQXaS' }), null);
+});

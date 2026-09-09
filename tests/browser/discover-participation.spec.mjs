@@ -19,16 +19,19 @@ for (const chain of ['solana', 'base']) test(`${chain}: green group opens the co
   }));
   rows.push({ ...rows[0], instrument_id: `${chain}:pool:stockpool`, pool_address: 'stockpool', token_address: 'stock-address', name: 'Apple xStock', symbol: 'AAPLx' });
   const radar = buildDiscoverRadarProjection(rows, { timeframe: '5m', generatedAt: observed, nowMs: now, sourceState: 'current' });
+  // Older server/browser snapshots can still contain a leading ZEC row. The
+  // client must apply the new market boundary even before the cache refreshes.
+  const legacyRows = [{ ...radar.rows[0], instrument_id: `${chain}:pool:zecpool`, pool_address: 'zecpool', token_address: 'zec-token', symbol: 'ZEC', name: 'Zcash' }, ...radar.rows];
   await page.route('**/api/onchain/trending?**', route => route.fulfill({ json: {
     ok: true, safe_public: true, schema_version: 'ravenos.onchain_market_pulse.v1', state: 'current', freshness: { state: 'current' },
-    rows: radar.rows, discovery_radar: radar, provenance: { role: 'exact_pool_market_activity', raven_signal: false },
+    rows: legacyRows, discovery_radar: { ...radar, rows: legacyRows }, provenance: { role: 'exact_pool_market_activity', raven_signal: false },
     execution_boundary: { research_only: true, signing_available: false, submission_available: false },
   } }));
   const groupRequests = [];
   await page.route('**/api/onchain/participation**', route => {
     const url = new URL(route.request().url());
     if (url.searchParams.has('chain')) { groupRequests.push(url); return route.fulfill({ json: {
-      ok: true, safe_public: true, schema_version: 'ravenos.participation_group.v1', rows: radar.rows,
+      ok: true, safe_public: true, schema_version: 'ravenos.participation_group.v1', rows: legacyRows,
     } }); }
     return route.fulfill({ json: { ok: true, safe_public: true, schema_version: 'ravenos.participation_boards.v1',
       boards: { capitalization: buildParticipationMap(rows, { now }), new_pairs: buildParticipationMap(rows, { now, family: 'new_pairs' }) } } });
@@ -52,6 +55,7 @@ for (const chain of ['solana', 'base']) test(`${chain}: green group opens the co
   expect(href.searchParams.get('asset')).toBe('TREE/AAPLx');
   expect(groupRequests[0].searchParams.get('order')).toBe('gainers');
   await expect(page.locator('#discoverTokenTapeList [data-token-address="stock-address"]')).toHaveCount(0);
+  await expect(page.locator('#discoverTokenTapeList [data-token-address="zec-token"]')).toHaveCount(0);
   await page.clock.fastForward(125_000);
   await expect(coins).toHaveCount(6);
   await expect(coins.first()).toHaveAttribute('data-freshness', 'stale');
