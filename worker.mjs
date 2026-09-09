@@ -4,6 +4,7 @@ import { dexscreenerChartSurface } from './ravenos-chart-data-plane.js';
 import { resolveReleaseFlags } from './lib/runtime_release_flags.mjs';
 import { readExecutionStatusContext } from "./lib/customer_trade/live_execution_status.mjs";
 import { evmTokenApprovalContext } from "./lib/customer_trade/evm_token_approval.mjs";
+import { evmEconomicPreview, evmPreparationErrorStatus } from "./lib/customer_trade/evm_economic_preview.mjs";
 import { enrichHolderWalletContext } from './lib/customer_trade/holder_wallet_context.mjs';
 import { loadWalletHistoricalPrices } from './lib/customer_trade/wallet_historical_prices.mjs';
 import { WalletIngestionPolicy, walletIngestionPolicy, reserveEvmHistoryRequests, settleEvmHistoryRequests } from './lib/customer_trade/wallet_ingestion_policy.mjs';
@@ -8309,9 +8310,18 @@ async function loadCurrentRobinhoodLivePreparation(body = {}, env = {}) {
     fee_enabled: true,
     fee_token_side: side === "sell" ? "buy" : "sell",
   });
+  const economicPreview = evmEconomicPreview(entryQuote, {
+    profile: "robinhood", token: tokenEvidence, side, instrument_id: instrumentId, pool_address: poolAddress, slippage_bps: slippageBps,
+    price_impact: estimateEvmPriceImpact({ market: exact, quote: entryQuote, side, tokenDecimals: tokenEvidence.decimals,
+      accountingDecimals: 6, notionalBaseUnits: sellToken === ROBINHOOD_USDG ? sellAmount : null }),
+  });
   if (!entryQuote.wallet_handoff_eligible) {
-    const reason = entryQuote.blockers?.[0] || "robinhood_entry_quote_blocked";
-    throw Object.assign(new Error(reason), { code: reason, details: { allowance: entryQuote.allowance, blockers: entryQuote.blockers, approval: { ...evmTokenApprovalContext(entryQuote, { profile: "robinhood", token: tokenEvidence, side, instrument_id: instrumentId, pool_address: poolAddress }), price_impact: estimateEvmPriceImpact({ market: exact, quote: entryQuote, side, tokenDecimals: tokenEvidence.decimals, accountingDecimals: 6, notionalBaseUnits: sellToken === ROBINHOOD_USDG ? sellAmount : null }) } } });
+    const reason = entryQuote.blockers?.includes("insufficient_balance") ? "insufficient_balance" : entryQuote.blockers?.[0] || "evm_entry_quote_blocked";
+    const approval = evmTokenApprovalContext(entryQuote, { profile: "robinhood", token: tokenEvidence, side, instrument_id: instrumentId, pool_address: poolAddress });
+    throw Object.assign(new Error(reason), { code: reason, details: {
+      allowance: entryQuote.allowance, blockers: entryQuote.blockers, economic_preview: economicPreview,
+      approval: approval ? { ...approval, price_impact: economicPreview?.price_impact || null } : null,
+    } });
   }
 
   let notionalBaseUnits;
@@ -8558,11 +8568,25 @@ async function loadCurrentEvmLivePreparation(body = {}, env = {}, profile) {
     fee_enabled: true,
     fee_token_side: side === "sell" ? "buy" : "sell",
   });
+  const economicPreview = evmEconomicPreview(entryQuote, {
+    profile: profile, token: tokenEvidence, side, instrument_id: instrumentId, pool_address: poolAddress, slippage_bps: slippageBps,
+    price_impact: estimateEvmPriceImpact({ market: exact, quote: entryQuote, side, tokenDecimals: tokenEvidence.decimals,
+      accountingDecimals: profile.accounting_asset.decimals, notionalBaseUnits: sellToken === profile.accounting_asset.address ? sellAmount : null }),
+  });
   if (!entryQuote.wallet_handoff_eligible) {
-    const reason = entryQuote.blockers?.[0] || `${profile.chain_namespace}_entry_quote_blocked`;
-    throw Object.assign(new Error(reason), { code: reason, details: { allowance: entryQuote.allowance, blockers: entryQuote.blockers, approval: { ...evmTokenApprovalContext(entryQuote, { profile: profile, token: tokenEvidence, side, instrument_id: instrumentId, pool_address: poolAddress }), price_impact: estimateEvmPriceImpact({ market: exact, quote: entryQuote, side, tokenDecimals: tokenEvidence.decimals, accountingDecimals: profile.accounting_asset.decimals, notionalBaseUnits: sellToken === profile.accounting_asset.address ? sellAmount : null }) } } });
+    const reason = entryQuote.blockers?.includes("insufficient_balance") ? "insufficient_balance" : entryQuote.blockers?.[0] || "evm_entry_quote_blocked";
+    const approval = evmTokenApprovalContext(entryQuote, { profile: profile, token: tokenEvidence, side, instrument_id: instrumentId, pool_address: poolAddress });
+    throw Object.assign(new Error(reason), { code: reason, details: {
+      allowance: entryQuote.allowance, blockers: entryQuote.blockers, economic_preview: economicPreview,
+      approval: approval ? { ...approval, price_impact: economicPreview?.price_impact || null } : null,
+    } });
   }
-  const gasEvidence = await currentProfileGasEvidence(rpcClient, profile, walletAddress, entryQuote);
+  let gasEvidence;
+  try { gasEvidence = await currentProfileGasEvidence(rpcClient, profile, walletAddress, entryQuote); }
+  catch (error) {
+    if (error?.code === "insufficient_native_gas_balance") error.details = { ...error.details, economic_preview: economicPreview };
+    throw error;
+  }
 
   let notionalBaseUnits;
   let sourceValuation = null;
@@ -8990,9 +9014,7 @@ async function handleTradeLiveRobinhoodPrepare(request, env = {}) {
     }, authorization);
   } catch (error) {
     const code = String(error?.code || error?.message || "robinhood_live_prepare_unavailable");
-    const conflict = /(?:invalid|mismatch|restricted|blocked|required|insufficient|out_of_bounds|not_supported)$/.test(code)
-      || new Set(["allowance_required", "simulation_incomplete", "invalid_liquidity_sources"]).has(code);
-    return liveExecutionResponse({ ok: false, error: code, details: error?.details || null }, authorization, { status: conflict ? 409 : 503 });
+    return liveExecutionResponse({ ok: false, error: code, details: error?.details || null }, authorization, { status: evmPreparationErrorStatus(code) });
   }
 }
 
@@ -9109,9 +9131,7 @@ async function handleTradeLiveEvmPrepare(request, env = {}, profile) {
     }, authorization);
   } catch (error) {
     const code = String(error?.code || error?.message || `${profile.chain_namespace}_live_prepare_unavailable`);
-    const conflict = /(?:invalid|mismatch|restricted|blocked|required|insufficient|out_of_bounds|not_supported)$/.test(code)
-      || new Set(["allowance_required", "simulation_incomplete", "invalid_liquidity_sources"]).has(code);
-    return liveExecutionResponse({ ok: false, error: code, details: error?.details || null }, authorization, { status: conflict ? 409 : 503 });
+    return liveExecutionResponse({ ok: false, error: code, details: error?.details || null }, authorization, { status: evmPreparationErrorStatus(code) });
   }
 }
 

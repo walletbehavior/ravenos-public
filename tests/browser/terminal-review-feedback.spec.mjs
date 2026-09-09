@@ -34,11 +34,17 @@ test("desktop selected price survives watchlist fetch failure and dock controls 
   await expect(page.locator(".desk-research-brief")).toBeHidden();
   await expect(page.locator('.desk-dock-nav')).toBeVisible();
   expect(await page.locator('#terminalSpotQuoteAction').evaluate(n=>getComputedStyle(n).position)).toBe("static");
+  const terminalUrl = page.url();
   await page.locator('.desk-dock-nav [data-desk-tab="raven"]').click();
-  await expect(page.locator('#terminalSpotTicketSection')).toBeHidden();
+  await expect(page.locator('.ros-intelligence-layer')).toBeVisible();
+  await expect(page.locator('.ros-intelligence-layer')).toContainText('Raven market intelligence');
+  expect(page.url()).toBe(terminalUrl);
   await expect(page.locator('.desk-brief-disclosure')).not.toHaveAttribute("open","");
   await page.locator('.desk-brief-disclosure > summary').click();
   await expect(page.locator('.desk-research-brief dl')).toBeVisible();
+  await page.locator('.ros-layer-close').click();
+  await expect(page.locator('.ros-intelligence-layer')).toHaveCount(0);
+  expect(page.url()).toBe(terminalUrl);
   await page.locator('.desk-dock-nav [data-desk-tab="trade"]').click();
   await expect(page.locator('#terminalSpotTicketSection')).toBeVisible();
   await expect(page.locator('.desk-research-brief')).toBeHidden();

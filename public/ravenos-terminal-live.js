@@ -172,6 +172,7 @@ const state = {
   spotQuoteStatus: "idle",
   spotQuoteFailure: null,
   spotTokenApproval: null,
+  spotEconomicPreview: null,
   spotQuoteExpiresAt: 0,
   spotQuoteFingerprint: "",
   spotQuoteFollow: true,
@@ -6757,6 +6758,7 @@ function clearSpotQuoteResult(message = "Enter an amount. Raven updates the rout
   state.spotQuoteAbortController?.abort?.();
   state.spotQuoteAbortController = null;
   state.spotTokenApproval = null;
+  state.spotEconomicPreview = null;
   state.spotQuote = null;
   state.spotQuoteStatus = "idle";
   state.spotQuoteFailure = null;
@@ -7524,6 +7526,48 @@ function netSpotPreview(payload, snapshot) {
   return { ...payload, quote, fee_disclosure: { ...payload.fee_disclosure, estimated: { fee_bps: bps, included_in_output: true, basis: "fee_adjusted_preview_rechecked_on_buy" } } };
 }
 
+function renderEvmEconomicPreview(preview, snapshot, fingerprint) {
+  const profile = evmSpotProfile(snapshot?.chain);
+  const units = value => /^[1-9][0-9]{0,77}$/.test(String(value || ""));
+  if (!profile || preview?.schema_version !== "ravenos.evm_economic_preview.v1"
+    || fingerprint !== spotTicketFingerprint() || preview.chain !== snapshot.chain || preview.chain_id !== profile.chain_id
+    || preview.side !== snapshot.side || preview.instrument_id !== snapshot.instrument_id
+    || !sameSelectedAddress(snapshot.chain, preview.pool_address, snapshot.pool_address)
+    || !sameSelectedAddress(snapshot.chain, preview.token_address, snapshot.token_address)
+    || !sameSelectedAddress(snapshot.chain, preview.wallet_address, snapshot.wallet_address)
+    || preview.slippage_bps !== snapshot.slippage_bps || preview.fee_bps !== 100
+    || preview.execution_ready !== false || preview.transaction_material_available !== false || preview.exit_verified !== false
+    || Date.parse(preview.expires_at) <= Date.now() || !Number.isFinite(Date.parse(preview.expires_at))
+    || ![preview.input_amount_base_units, preview.expected_output_base_units, preview.minimum_output_base_units].every(units)
+    || BigInt(preview.minimum_output_base_units) > BigInt(preview.expected_output_base_units)) return false;
+  const native = snapshot.side === "buy" && snapshot.funding_preference === "native";
+  const inputToken = snapshot.side === "buy" ? native ? EVM_NATIVE_ASSET : profile.accounting_address : snapshot.token_address;
+  const outputToken = snapshot.side === "buy" ? snapshot.token_address : profile.accounting_address;
+  const expectedAmount = snapshot.side === "buy"
+    ? exactDecimalClient(snapshot.display_amount, native ? 18 : profile.accounting_decimals)
+    : /^\d+$/.test(String(preview.input_balance_base_units)) ? (BigInt(preview.input_balance_base_units) * BigInt(snapshot.sell_percent) / 100n).toString() : null;
+  const expected = displayBaseUnitsClient(preview.expected_output_base_units, preview.output_decimals);
+  const minimum = displayBaseUnitsClient(preview.minimum_output_base_units, preview.output_decimals);
+  if (!sameSelectedAddress(snapshot.chain, preview.input_token, inputToken) || !sameSelectedAddress(snapshot.chain, preview.output_token, outputToken)
+    || expectedAmount !== preview.input_amount_base_units || expected === null || minimum === null) return false;
+  state.spotEconomicPreview = { preview, fingerprint, quote: { minimum_output_amount_base_units: preview.minimum_output_base_units } };
+  const symbol = snapshot.side === "buy" ? state.selected?.symbol : spotAccountingSymbol();
+  const networkCost = displayBaseUnitsClient(preview.network_fee_native_base_units, 18);
+  const detail = `Minimum ${displayQuoteAmount(minimum, symbol)} · 1.00% Raven fee included${networkCost === null ? " · network cost separate" : ` · network ≈${networkCost} ${profile.native_symbol}`}`;
+  setText("terminalSpotEstimateOutput", displayQuoteAmount(expected, symbol));
+  setText("terminalSpotEstimateMinimum", detail);
+  setText("terminalSpotEstimateSlippage", `Slippage ${(snapshot.slippage_bps / 100).toFixed(2)}%`);
+  setText("terminalSpotEstimateImpact", `Impact ${preview.price_impact?.estimated ? "≈" : ""}${deskPercentFromBps(finite(preview.price_impact?.bps))}`);
+  renderSpotPriceWarning(finite(preview.price_impact?.bps), preview.price_impact);
+  document.getElementById("terminalSpotEstimate")?.setAttribute("data-state", "preview");
+  state.spotQuoteExpiryTimer = setTimeout(() => {
+    if (state.spotEconomicPreview?.preview !== preview) return;
+    document.getElementById("terminalSpotEstimate")?.setAttribute("data-state", "stale");
+    setText("terminalSpotEstimateMinimum", `Previous estimate · refreshes on Buy. ${detail}`);
+  }, Math.max(0, Date.parse(preview.expires_at) - Date.now()));
+  return true;
+}
+
 function renderSpotQuote(payload, clientRttMs, { snapshot, fingerprint } = {}) {
   payload = netSpotPreview(payload, snapshot);
   if (!payload?.ok) {
@@ -7533,6 +7577,7 @@ function renderSpotQuote(payload, clientRttMs, { snapshot, fingerprint } = {}) {
     state.spotQuoteStatus = "blocked";
     setText("terminalSpotEstimateOutput", "Estimate unavailable");
     setText("terminalSpotEstimateMinimum", failure.message);
+    renderEvmEconomicPreview(payload?.details?.economic_preview, snapshot, fingerprint);
     setText("terminalSpotQuoteState", failure.title);
     setSpotTicketExitSummary(failure.exit_state, failure.exit_label, failure.exit_note);
     renderSpotLiveExecution();
@@ -7545,6 +7590,7 @@ function renderSpotQuote(payload, clientRttMs, { snapshot, fingerprint } = {}) {
     return;
   }
   state.spotQuote = payload;
+  state.spotEconomicPreview = null;
   state.spotQuoteStatus = "current";
   state.spotQuoteFingerprint = fingerprint;
   state.spotQuoteExpiresAt = spotQuoteEffectiveExpiry(payload);
@@ -7940,6 +7986,7 @@ async function submitSpotTrade() {
   const quoteInFlight = state.spotQuotePromise;
   const beforeConnect = spotTicketSnapshot();
   let lastGlance = state.spotQuoteFingerprint === spotTicketFingerprint(beforeConnect) ? state.spotQuote : null;
+  if (!lastGlance && state.spotEconomicPreview?.fingerprint === spotTicketFingerprint(beforeConnect)) lastGlance = state.spotEconomicPreview;
   const approvalGlance = state.spotTokenApproval?.fingerprint === spotTicketFingerprint(beforeConnect) ? state.spotTokenApproval.approval : null;
   if (!lastGlance && approvalGlance) lastGlance = { quote: { minimum_output_amount_base_units: approvalGlance.minimum_output_base_units } };
   const withoutWallet = (snapshot) => JSON.stringify({ ...snapshot, wallet_address: null });

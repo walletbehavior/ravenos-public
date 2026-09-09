@@ -1,10 +1,11 @@
 import {test,expect} from "@playwright/test";
 import {mockTerminalLiveApis,waitForTerminalLive} from "./terminal-live-fixtures.mjs";
+import {evmEconomicPreview} from "../../lib/customer_trade/evm_economic_preview.mjs";
 import {EVM_CHAIN_PROFILES} from "../../lib/customer_trade/evm_chain_profiles.mjs";
 test.afterEach(async ({page}) => { await page.unrouteAll({behavior:"wait"}); });
 const WALLET="0x3333333333333333333333333333333333333333", TOKEN="0x1111111111111111111111111111111111111111", POOL="0x2222222222222222222222222222222222222222";
-async function setup(page,baseURL,chain,{needsApproval=false,native=false,holdNetwork=false,embedded=false,impactBps=null}={}) {
-  const profile=EVM_CHAIN_PROFILES[chain];const prepared=[],reported=[];
+async function setup(page,baseURL,chain,{needsApproval=false,native=false,holdNetwork=false,embedded=false,impactBps=null,fundingError=null,previewMismatch=false,economicMinimum="49000000"}={}) {
+  const profile=EVM_CHAIN_PROFILES[chain];const prepared=[],reported=[];const controls={fundingError,previewMismatch};
   await page.route("https://app.ravenos.xyz/**",async route=>{const url=new URL(route.request().url());await route.fulfill({response:await page.request.fetch(`${baseURL}${url.pathname}${url.search}`)});});
   await mockTerminalLiveApis(page,{spotQuotePreview:true,spotQuoteChains:[chain,"solana"]});
   await page.route("**/api/dexscreener/pair**",route=>route.fulfill({json:{ok:true,results:[{chainId:chain,dexId:"uniswap",pairAddress:POOL,tokenAddress:TOKEN,quoteTokenAddress:profile.wrapped_native_token_address,symbol:"TKN",quoteSymbol:"WETH",name:"Token",priceUsd:1,liquidityUsd:1000000,volume24h:300000,lastUpdated:new Date().toISOString()}]}}));
@@ -27,6 +28,16 @@ async function setup(page,baseURL,chain,{needsApproval=false,native=false,holdNe
     const input=route.request().postDataJSON();prepared.push(input);const expires=new Date(Date.now()+30000).toISOString();
     const sellToken=input.funding_preference==="native"?profile.native_token_address:profile.accounting_asset.address;
     const amount=(BigInt(input.display_amount.replace(".",""))*10n**BigInt((input.funding_preference==="native"?18:profile.accounting_asset.decimals)-(input.display_amount.split(".")[1]?.length||0))).toString();
+    if(controls.fundingError) {
+      let economic_preview=evmEconomicPreview({ok:true,chain_id:profile.chain_id,
+        exact_binding:{taker:WALLET,recipient:WALLET,sell_token:sellToken,buy_token:TOKEN,sell_amount_base_units:amount,buy_amount_base_units:"70000000",minimum_buy_amount_base_units:economicMinimum},
+        fee:{enabled:true,fee_bps:100,amount:"250000",token:sellToken},
+        blockers:controls.fundingError==="insufficient_balance"?["insufficient_balance"]:[],
+        observed_at:new Date().toISOString(),expires_at:expires,total_network_fee_native_base_units:"10000000000000",route:{fills:[{source:"Uniswap"}]}},
+        {profile,token:{token_address:TOKEN,decimals:6},side:"buy",instrument_id:input.instrument_id,pool_address:input.pool_address,slippage_bps:input.slippage_bps});
+      if(controls.previewMismatch)economic_preview && (economic_preview = {...economic_preview, wallet_address:TOKEN});
+      return route.fulfill({status:409,json:{ok:false,error:controls.fundingError,details:{blockers:[controls.fundingError],economic_preview}}});
+    }
     if(needsApproval&&await page.evaluate(()=>window.tradeCalls.approve===0))return route.fulfill({status:409,json:{ok:false,error:"allowance_required",details:{blockers:["allowance_required"],approval:{schema_version:"ravenos.exact_token_approval.v1",profile_id:profile.profile_id,chain_id:profile.chain_id,wallet_address:WALLET,spender:profile.allowance_holder,token_address:sellToken,amount_base_units:amount,output_token:TOKEN,expected_output_base_units:"50000000",minimum_output_base_units:"49000000",output_decimals:6,input_decimals:profile.accounting_asset.decimals,instrument_id:input.instrument_id,pool_address:input.pool_address,side:"buy",expires_at:expires,unlimited:false}}}});
     return route.fulfill({json:{ok:true,schema_version:chain==="robinhood"?"ravenos.robinhood_live_prepare_response.v1":"ravenos.evm_live_prepare_response.v1",ticket:{schema_version:chain==="robinhood"?"ravenos.robinhood_live_ticket.v1":"ravenos.evm_live_ticket.v1",ticket_id:`ticket-${prepared.length}`,profile_id:profile.profile_id,chain_namespace:chain,chain_id:profile.chain_id,wallet_address:WALLET,expires_at:expires,exact_market:{instrument_id:input.instrument_id,pool_address:input.pool_address},reviewed_order:{side:"buy",sell_token:sellToken,buy_token:TOKEN,expected_buy_amount_base_units:"50000000",minimum_buy_amount_base_units:"49000000"},exit_proof:{verified:true},fee:{fee_bps:100},accounting:{notional_base_units:"25000000",decimals:6}},provider_quote:{provider_quote_id:"fixturequote",observed_at:new Date().toISOString(),route:{fills:[{source:"Uniswap"}]}},review:{price_impact:impactBps === null ? null : {bps:impactBps,estimated:true,includes_fees_and_spread:true},expected_output:{display:"50",base_units:"50000000",symbol:"TKN"},minimum_output:{display:"49",base_units:"49000000",symbol:"TKN"},executable_exit:{display:"24"}}}});
   });
@@ -34,7 +45,7 @@ async function setup(page,baseURL,chain,{needsApproval=false,native=false,holdNe
   await page.goto(`https://app.ravenos.xyz/terminal/?chain=${chain}&market=spot&lane=spot&instrument_type=exact_pool&instrument_id=${chain}%3Apool%3A${POOL}&pair_address=${POOL}&token_address=${TOKEN}&quote_address=${profile.wrapped_native_token_address}&panel=trade`);
   await waitForTerminalLive(page,{lane:"spot",instrument:"TKN/WETH",timeframe:"1h"});
   if(!embedded){await page.locator("#terminalWalletConnect").click();await page.locator("#terminalWalletChooser").getByRole("button",{name:/MetaMask/}).click();}
-  return {prepared,reported};
+  return {prepared,reported,controls};
 }
 for(const chain of Object.keys(EVM_CHAIN_PROFILES))for(const needsApproval of [false,true])test(`${chain} one Buy ${needsApproval?"includes exact token approval":"uses an existing allowance"}`,async({page,baseURL})=>{
   const h=await setup(page,baseURL,chain,{needsApproval});
@@ -81,4 +92,40 @@ for(const chain of Object.keys(EVM_CHAIN_PROFILES))test(`${chain} Raven wallet r
   await expect(page.locator('#terminalSpotLiveState')).toHaveText('Trade confirmed');
   expect(h.reported).toHaveLength(1);
   await expect(page.locator('#terminalWalletChooser')).toHaveCount(0);
+});
+
+for(const chain of Object.keys(EVM_CHAIN_PROFILES))for(const native of [false,true])test(`${chain} ${native?"native":"stable"} unfunded wallet sees prices without signing`,async({page,baseURL})=>{
+  await page.setViewportSize({width:native?390:1440,height:native?844:1000});
+  const h=await setup(page,baseURL,chain,{embedded:true,native,fundingError:"insufficient_balance"});
+  await page.locator("#terminalSpotAmount").fill(native?"0.002":"25");
+  await expect(page.locator("#terminalSpotEstimateOutput")).toHaveText("70 TKN");
+  await expect(page.locator("#terminalSpotEstimateMinimum")).toContainText("1.00% Raven fee included");
+  await expect(page.locator("#terminalSpotEstimateMinimum")).toContainText("network ≈0.00001");
+  await expect(page.locator("#terminalSpotLiveState")).toHaveText("Insufficient funds");
+  await expect(page.locator("#terminalSpotExitCompact")).toHaveText("Not checked");
+  expect(await page.evaluate(()=>window.tradeCalls.sign+window.tradeCalls.approve)).toBe(0);
+  await page.locator("#terminalSpotQuoteAction").click();
+  await expect(page.locator("#terminalSpotLiveState")).toHaveText("Insufficient funds");
+  expect(h.reported).toHaveLength(0);
+  expect(await page.evaluate(()=>window.tradeCalls.sign+window.tradeCalls.approve)).toBe(0);
+});
+test("gas readiness keeps the quote visible and a wrong-wallet estimate is rejected",async({page,baseURL})=>{
+  const h=await setup(page,baseURL,"base",{embedded:true,fundingError:"insufficient_native_gas_balance"});
+  await page.locator("#terminalSpotAmount").fill("25");
+  await expect(page.locator("#terminalSpotEstimateOutput")).toHaveText("70 TKN");
+  await expect(page.locator("#terminalSpotLiveState")).toHaveText("Gas required");
+  h.controls.previewMismatch=true;
+  await page.locator("#terminalSpotAmount").fill("26");
+  await expect(page.locator("#terminalSpotEstimateOutput")).toHaveText("Estimate unavailable");
+  expect(await page.evaluate(()=>window.tradeCalls.sign)).toBe(0);
+});
+test("funding recovery still respects the minimum shown in the previous estimate",async({page,baseURL})=>{
+  const h=await setup(page,baseURL,"base",{embedded:true,fundingError:"insufficient_balance",economicMinimum:"58000000"});
+  await page.locator("#terminalSpotAmount").fill("25");
+  await expect(page.locator("#terminalSpotEstimateMinimum")).toContainText("Minimum 58 TKN");
+  h.controls.fundingError=null;
+  await page.locator("#terminalSpotQuoteAction").click();
+  await expect(page.locator("#terminalSpotLiveMessage")).toContainText("price moved beyond your displayed minimum");
+  expect(h.reported).toHaveLength(0);
+  expect(await page.evaluate(()=>window.tradeCalls.sign)).toBe(0);
 });
