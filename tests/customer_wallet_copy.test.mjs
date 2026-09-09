@@ -1162,3 +1162,55 @@ test("old Solana profile gains token records from retained events without refres
   assert.deepEqual(lookup.profile.trading_record,trading_record);
   assert.equal(lookup.provider_request_performed,false);
 });
+
+test("large Solana holder inspection opens under the response limit and pages every retained balance without RPC", async () => {
+  const store = memoryStore();
+  let providerCalls = 0;
+  const tokens = Array.from({ length: 850 }, (_, index) => ({ mint: `retained-${index}`, contract: `retained-${index}`,
+    balance_base_units: "1000000000", balance_display: "1000", decimals: 6, provider_mark_price_usd: null,
+    symbol: `Token ${index}`, observed_at: new Date(NOW * 1000).toISOString(), token_program: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" }));
+  const provider = {
+    async loadHistory() { providerCalls++; return { events: [walletEvent()] }; },
+    async loadHoldings() { providerCalls++; return { chain: "solana", address: WALLET, state: "available", observed_at: new Date(NOW * 1000).toISOString(), tokens }; },
+  };
+  const response = await routeCustomerWalletCopy(request('/api/v1/wallet-copy/inspect', {method:'POST',body:{address:WALLET}}), env(), deps(store, provider));
+  assert.equal(response.status, 200, await response.clone().text());
+  assert(Buffer.byteLength(await response.clone().text()) < 256 * 1024);
+  const result = await json(response);
+  assert.equal(result.profile.holdings_page.total, 850);
+  assert.equal(store.profiles.get(result.source_wallet_id).holdings_snapshot.tokens.length, 850);
+  const all = [...result.profile.holdings_snapshot.tokens];
+  let cursor = result.profile.holdings_page.next_cursor;
+  while (cursor) {
+    const pageResponse = await routeCustomerWalletCopy(request(`/api/v1/wallet-copy/wallets/${result.source_wallet_id}/holdings?cursor=${cursor}`), env(), deps(store, provider));
+    assert.equal(pageResponse.status, 200);
+    const page = await json(pageResponse);
+    assert.equal(page.provider_request_performed, false);
+    all.push(...page.tokens); cursor = page.pagination.next_cursor;
+  }
+  assert.equal(all.length, 850);
+  assert.equal(new Set(all.map(row => row.mint)).size, 850);
+  assert.equal(providerCalls, 2);
+  const denied = await routeCustomerWalletCopy(request(`/api/v1/wallet-copy/wallets/${result.source_wallet_id}/holdings`), env({RAVENOS_WALLET_INTELLIGENCE_ENABLED:'0'}), deps(store, provider));
+  assert.equal(denied.status, 503);
+});
+
+test("basic EVM profiles use the same balance continuation as Pro without returning Pro analysis", async () => {
+  const store = memoryStore();
+  const source = { chain: "base", network: "mainnet", chain_id: 8453, address: `0x${"12".repeat(20)}` };
+  const sourceId = createSourceWalletId(source);
+  await store.upsertSourceWallet({ ...source, source_wallet_id: sourceId, now: NOW, state: "current" });
+  const tokens = Array.from({ length: 110 }, (_, index) => ({ contract: `0x${index.toString(16).padStart(40, "0")}`, balance_display: "3", provider_mark_value_usd: index }));
+  store.profiles.set(sourceId, { schema_version: "fixture-evm-profile", source_wallet: source, generated_at: new Date(NOW * 1000).toISOString(),
+    balances_observed_at: new Date((NOW - 30) * 1000).toISOString(), positions: { provider_reported_token_balances: tokens },
+    mark_coverage: { unavailable: [] }, trading_record: { pro_only: true } });
+  const activeEnv = env({ RAVENOS_WALLET_SCREENER_ENABLED: "1" });
+  const result = await json(await routeCustomerWalletCopy(request(`/api/v1/wallet-copy/wallets/${sourceId}`), activeEnv, deps(store, null, [])));
+  assert.equal(result.profile.trading_record, undefined);
+  assert.equal(result.profile.holdings_page.total, 110);
+  const continuation = await routeCustomerWalletCopy(request(`/api/v1/wallet-copy/wallets/${sourceId}/holdings?cursor=${result.profile.holdings_page.next_cursor}`), activeEnv, deps(store, null, []));
+  assert.equal(continuation.status, 200, await continuation.clone().text());
+  assert.equal((await json(continuation)).tokens.length, 50);
+  const invalid = await routeCustomerWalletCopy(request(`/api/v1/wallet-copy/wallets/${sourceId}/holdings?cursor=bad`), activeEnv, deps(store, null, []));
+  assert.equal(invalid.status, 400);
+});

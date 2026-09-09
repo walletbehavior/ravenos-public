@@ -877,6 +877,53 @@ function recordBasis(row, key) {
   return values.join(" · ") || "—";
 }
 
+function renderHoldingsPager(host, loaded) {
+  const pagination = state.profile?.holdings_page;
+  if (!pagination || pagination.total <= loaded) return;
+  const status = document.createElement("p");
+  status.setAttribute("role", "status");
+  status.textContent = `${loaded} of ${pagination.total} token balances loaded from this scan.`;
+  host.append(status);
+  if (!pagination.has_more || !pagination.next_cursor) return;
+  const button = document.createElement("button");
+  button.type = "button";
+  button.textContent = "Load more holdings";
+  button.addEventListener("click", async () => {
+    const sourceId = state.source_wallet_id;
+    const cursor = pagination.next_cursor;
+    button.disabled = true;
+    button.textContent = "Loading holdings…";
+    const result = await api(`${API}/wallets/${encodeURIComponent(sourceId)}/holdings?cursor=${encodeURIComponent(cursor)}`);
+    if (state.source_wallet_id !== sourceId || state.profile?.holdings_page?.next_cursor !== cursor) return;
+    button.disabled = false;
+    button.textContent = "Load more holdings";
+    if (!result.response.ok) {
+      status.textContent = result.payload?.error === "wallet_holdings_snapshot_changed"
+        ? "A newer balance scan is available. Refresh analysis to load its holdings."
+        : "More holdings could not load. Your current results are still available; try again.";
+      return;
+    }
+    if (result.payload?.source_wallet_id !== sourceId || result.payload?.pagination?.snapshot !== pagination.snapshot
+      || !Array.isArray(result.payload?.tokens)) {
+      status.textContent = "The balance scan changed. Refresh analysis to continue.";
+      return;
+    }
+    const profile = state.profile;
+    const snapshot = profile.holdings_snapshot;
+    const marks = result.payload.mark_unavailable || [];
+    if (snapshot) {
+      snapshot.tokens = [...(snapshot.tokens || []), ...result.payload.tokens];
+      if (snapshot.mark_coverage) snapshot.mark_coverage.unavailable = [...(snapshot.mark_coverage.unavailable || []), ...marks];
+    } else {
+      profile.positions.provider_reported_token_balances = [...(profile.positions.provider_reported_token_balances || []), ...result.payload.tokens];
+      if (profile.mark_coverage) profile.mark_coverage.unavailable = [...(profile.mark_coverage.unavailable || []), ...marks];
+    }
+    profile.holdings_page = { ...result.payload.pagination, offset: 0, returned: loaded + result.payload.tokens.length };
+    renderWalletRecord();
+  });
+  host.append(button);
+}
+
 function renderWalletRecord() {
   const profile = state.profile;
   if (!profile) return;
@@ -957,6 +1004,7 @@ function renderWalletRecord() {
     (()=>{const row=(record?.usd?.tokens||record?.tokens)?.find(row=>row.mint===(token.mint||token.contract));return row?.unrealized_pnl_usd==null?"Not reconstructed":recordUsd(row.unrealized_pnl_usd);})(),
   ]);
   document.getElementById("copyHoldingsTable").replaceChildren(recordTable(["Token / contract", "Balance", "Mark price", "Marked value", "Unrealized P&L"], holdingRows, "No token balances in this snapshot"));
+  renderHoldingsPager(document.getElementById("copyHoldingsTable"), balances.length);
   const query = document.getElementById("copyTokenSearch").value.trim().toLowerCase();
   const tokens = record?.tokens || [];
   const tokenRows = tokens.filter(token => `${token.mint} ${symbolFor(token.mint) || ""}`.toLowerCase().includes(query)).map(token => [
@@ -976,8 +1024,9 @@ function renderProfile(payload, { scroll = true, from_poll: fromPoll = false } =
     state.deep_poll_attempts = 0;
   }
   if (!fromPoll) state.policy_source = null;
-  const previousHoldings = state.profile?.source_wallet?.address === payload.profile?.source_wallet?.address ? state.profile?.holdings_snapshot : null;
-  state.profile = fromPoll && previousHoldings ? { ...payload.profile, holdings_snapshot: previousHoldings } : payload.profile;
+  const previousHoldings = state.profile?.source_wallet?.address === payload.profile?.source_wallet?.address
+    && state.profile?.source_wallet?.chain === payload.profile?.source_wallet?.chain ? state.profile?.holdings_snapshot : null;
+  state.profile = fromPoll && previousHoldings ? { ...payload.profile, holdings_snapshot: previousHoldings, holdings_page: state.profile.holdings_page } : payload.profile;
   state.prospective_copyability = payload.prospective_copyability || null;
   state.address = payload.profile?.source_wallet?.address || state.address;
   state.source_wallet_id = payload.source_wallet_id || state.source_wallet_id;
@@ -2151,19 +2200,26 @@ async function loadWorkspace() {
 
 async function inspectWalletAddress(address, button, { refresh = false } = {}) {
   const requestId = ++state.profile_request;
+  const requestedAddress = String(address || "").trim();
+  const sameWallet = state.profile?.source_wallet?.chain === state.inspect_chain
+    && (state.inspect_chain === "solana" ? state.profile.source_wallet.address === requestedAddress
+      : state.profile.source_wallet.address.toLowerCase() === requestedAddress.toLowerCase());
   state.activity_request += 1;
-  state.source_wallet_id = null;
-  state.profile = null;
-  state.prospective_copyability = null;
-  state.deep_history = null;
-  state.events = [];
-  state.activity = { filter: "all", next_cursor: null, has_more: false, provider_has_more: false, matching_event_count: 0, loading: false, on_demand_only: false };
-  state.on_demand_events = [];
+  if (!sameWallet) {
+    state.source_wallet_id = null;
+    state.profile = null;
+    state.prospective_copyability = null;
+    state.deep_history = null;
+    state.events = [];
+    state.activity = { filter: "all", next_cursor: null, has_more: false, provider_has_more: false, matching_event_count: 0, loading: false, on_demand_only: false };
+    state.on_demand_events = [];
+  }
   document.getElementById("copyActivityFilter").disabled = false;
   state.policy_source = null;
   state.deep_poll_token += 1;
-  state.address = String(address || "").trim();
-  profileNode.hidden = true;
+  clearTimeout(state.deep_poll_timer);
+  state.address = requestedAddress;
+  profileNode.hidden = !sameWallet;
   policyNode.hidden = true;
   const idleLabel = button.dataset.idleLabel || button.textContent || "Analyze wallet";
   button.disabled = true;
@@ -2174,7 +2230,15 @@ async function inspectWalletAddress(address, button, { refresh = false } = {}) {
   button.textContent = idleLabel;
   if (requestId !== state.profile_request) return;
   if (!result.response.ok) {
-    if (!state.session_expired) inspectionFeedback(button, result.payload?.error === "wallet_analysis_in_progress" ? "Raven is already analyzing this wallet. Try again shortly to reuse that scan." : result.payload?.error === "wallet_history_unavailable" ? "Wallet history is temporarily unavailable. Try again shortly." : "Wallet inspection could not finish. Try again shortly.");
+    if (!state.session_expired) {
+      const reasons = {
+        wallet_analysis_in_progress: "Raven is already analyzing this wallet. Try again shortly to reuse that scan.",
+        wallet_history_unavailable: "Wallet history is temporarily unavailable. Try again shortly.",
+        wallet_copy_response_too_large: "This wallet's analysis is too large to display. Its stored history is retained.",
+        wallet_copy_rate_limited: "The lookup limit was reached. Wait a few minutes before refreshing.",
+      };
+      inspectionFeedback(button, `${reasons[result.payload?.error] || "Wallet inspection could not finish. Try again shortly."}${sameWallet ? " Your previous analysis remains available." : ""}`);
+    }
     return;
   }
   setText("copySearchStatus", result.payload?.evidence_mode === "retained_raven_index"

@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import { join } from "node:path";
 import { normalizeSourceWalletChainIdentity } from "../../lib/customer_trade/source_wallet_chain_identity.mjs";
 import { mockTerminalLiveApis, waitForTerminalLive } from './terminal-live-fixtures.mjs';
+import { projectWalletProfileDelivery, walletHoldingsPage } from '../../lib/customer_trade/wallet_profile_delivery.mjs';
 
 test('Wallet profile opens over a mobile Terminal and closes back to the same draft', async ({ page }, info) => {
   await page.setViewportSize({ width: 390, height: 844 });
@@ -1650,4 +1651,67 @@ for(const chain of ['base','ethereum','bsc','robinhood'])test(`${chain} empty an
  await expect(page.locator('#copyScreenTrades')).toHaveValue('20');
  expect(calls.map(c=>c.view)).toEqual(['analyzed','observed','analyzed']);
  expect(shared.requests.some(row=>row.path.endsWith('/inspect'))).toBe(false);
+});
+
+test('wallet refresh keeps the current analysis visible while loading and after a failure', async ({ page }) => {
+  await install(page, { requests: [] });
+  await page.goto('/account/copy/');
+  await page.locator('#copyWalletAddress').fill(WALLET);
+  await page.getByRole('button', { name: 'Analyze wallet', exact: true }).click();
+  await expect(page.locator('#copyProfile')).toBeVisible();
+  const original = await page.locator('#copyProfile').innerText();
+  let finishRefresh;
+  const pending = new Promise(resolve => { finishRefresh = resolve; });
+  await page.route('**/api/v1/wallet-copy/inspect', async route => {
+    await pending;
+    return route.fulfill({ status: 503, json: { ok: false, error: 'wallet_copy_response_too_large' } });
+  });
+  await page.locator('#copyRefreshProfile').click();
+  await expect(page.locator('#copyProfile')).toBeVisible();
+  await expect(page.locator('#copyProfile')).toContainText(WALLET);
+  finishRefresh();
+  await expect(page.locator('#copySearchStatus')).toContainText('previous analysis remains available');
+  await expect(page.locator('#copyProfile')).toBeVisible();
+  expect(await page.locator('#copyProfile').innerText()).toContain('Realized');
+  expect(original).toContain(WALLET);
+  await page.locator('#copyWalletAddress').fill('11111111111111111111111111111111');
+  await page.getByRole('button', { name: 'Analyze wallet', exact: true }).click();
+  await expect(page.locator('#copyProfile')).toBeHidden();
+});
+
+for (const chain of ['solana', 'base']) test(`${chain} loads all retained holdings in pages and keeps them on a stale-page response`, async ({ page }) => {
+  await install(page, { requests: [] });
+  await page.setViewportSize({ width: 390, height: 844 });
+  const id = chain === 'solana' ? SOURCE_ID : EVM_SOURCE_ID;
+  const model = chain === 'solana' ? profile() : { ...evmProfile(), source_wallet: { ...evmProfile().source_wallet, chain } };
+  const tokens = Array.from({ length: 120 }, (_, index) => ({ mint: `holding-${index}`, contract: `holding-${index}`, symbol: `Holding ${index}`, balance_display: '12', provider_mark_value_usd: index }));
+  if (chain === 'solana') model.holdings_snapshot = { chain, address: WALLET, state: 'available', observed_at: model.generated_at, native: { amount: 1 }, tokens };
+  else model.positions.provider_reported_token_balances = tokens;
+  let stale = false;
+  const requests = [];
+  await page.route('**/api/v1/wallet-copy/inspect', route => route.fulfill({ json: { ok: true, source_wallet_id: id,
+    profile: projectWalletProfileDelivery(model), recent_events: [], deep_history: { state: 'not_enabled' } } }));
+  await page.route(`**/api/v1/wallet-copy/wallets/${id}/holdings?**`, route => {
+    requests.push(route.request().url());
+    if (stale) return route.fulfill({ status: 409, json: { ok: false, error: 'wallet_holdings_snapshot_changed' } });
+    return route.fulfill({ json: { ok: true, source_wallet_id: id, ...walletHoldingsPage(model, { cursor: new URL(route.request().url()).searchParams.get('cursor') }) } });
+  });
+  await page.goto('/account/copy/');
+  await page.locator('#copyWalletChain').selectOption(chain);
+  await page.locator('#copyWalletAddress').fill(chain === 'solana' ? WALLET : EVM_WALLET);
+  await page.getByRole('button', { name: 'Analyze wallet', exact: true }).click();
+  await expect(page.locator('#copyProfile')).toBeVisible();
+  await page.getByRole('link', { name: 'Holdings', exact: true }).click();
+  await expect(page.locator('#copyHoldingsTable')).toContainText('50 of 120');
+  await page.getByRole('button', { name: 'Load more holdings', exact: true }).click();
+  await expect(page.locator('#copyHoldingsTable')).toContainText('100 of 120');
+  stale = true;
+  await page.getByRole('button', { name: 'Load more holdings', exact: true }).click();
+  await expect(page.locator('#copyHoldingsTable')).toContainText('A newer balance scan is available');
+  await expect(page.locator('#copyHoldingsTable tbody tr')).toHaveCount(100);
+  stale = false;
+  await page.getByRole('button', { name: 'Load more holdings', exact: true }).click();
+  await expect(page.locator('#copyHoldingsTable tbody tr')).toHaveCount(120);
+  await expect(page.getByRole('button', { name: 'Load more holdings', exact: true })).toHaveCount(0);
+  expect(requests).toHaveLength(3);
 });
