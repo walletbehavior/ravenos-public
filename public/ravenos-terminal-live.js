@@ -9649,10 +9649,10 @@ function bindControls() {
 
 function renderWorkspaceState(workspace = {}) {
   const workspaceState = workspace?.state || "unavailable";
-  const operatorState = workspace?.operatorStateLabel || titleCase(workspaceState);
+  const operatorState = workspace?.chartSurface ? "Chart" : workspace?.operatorStateLabel || titleCase(workspaceState);
   setState("terminalMarketFreshness", workspaceState, operatorState);
   const chartStateLabel = `${workspaceState} ${operatorState}`.toLowerCase();
-  const chartStatus = /current|fresh|live|connected/.test(chartStateLabel)
+  const chartStatus = workspace?.chartSurface ? "Available" : /current|fresh|live|connected/.test(chartStateLabel)
     ? "Current"
     : /delayed|stale|lag/.test(chartStateLabel)
       ? "Delayed"
@@ -9662,7 +9662,7 @@ function renderWorkspaceState(workspace = {}) {
           ? "Available"
           : "Unavailable";
   setTerminalPaneStatus("chart", chartStatus, chartStatus === "Current" ? "positive" : chartStatus === "Unavailable" ? "warning" : "neutral");
-  setText("terminalChartStatus", workspace?.refreshError || (workspace?.candles?.length
+  setText("terminalChartStatus", workspace?.chartSurface ? "Chart by DexScreener" : workspace?.refreshError || (workspace?.candles?.length
     ? `${workspace.candles.length.toLocaleString()} candles · ${workspace?.marketActivityState === "no_recent_trades" && finite(workspace?.lastCandleAgeSeconds) !== null ? `last trade ${durationLabel(workspace.lastCandleAgeSeconds)}` : marketUpdateLabel(workspace.connectionState)}`
     : workspace?.message || titleCase(workspaceState)));
   renderSourceDetails(workspace);

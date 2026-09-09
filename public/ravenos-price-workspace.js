@@ -1260,6 +1260,8 @@ export class PriceWorkspace {
         this.destroyChart();
         const state = this.setState({ state: PRICE_WORKSPACE_STATES.PROVIDER_MANAGED, source: 'DexScreener chart', timeframe,
           chartSurface: payload.chart_surface, instrument, marketIdentity: payload.market_identity, candles: [], returnedBars: 0,
+          marketState: payload.market_state || {}, marketHealth: payload.market_health || null, operatorStateLabel: 'Chart',
+          providerFreshnessState: 'provider_managed', candleFreshnessState: 'unavailable',
           observedAt: null, connectionState: 'provider_managed', message: '', lineage: payload.lineage, capabilities: payload.capabilities,
           candleSeries: null, continuity: null, derivation: null, ravenAnnotations: null, marketEvents: null,
           providerSelection: payload.provider_selection, providerUsage: payload.provider_usage, availableScopes: { exact_pool: true },
@@ -1368,7 +1370,7 @@ export class PriceWorkspace {
         marketAnatomy: payload.market_anatomy || this.state.marketAnatomy,
         alphaLayers: payload.alpha_layers || this.state.alphaLayers,
         marketHealth: payload.market_health || this.state.marketHealth,
-        operatorStateLabel: payload.market_health?.operator_label || this.state.operatorStateLabel,
+        operatorStateLabel: this.state.chartSurface ? 'Chart' : payload.market_health?.operator_label || this.state.operatorStateLabel,
         providerFreshnessState: payload.provider_freshness_state || payload.market_health?.provider_delivery_state || this.state.providerFreshnessState,
         candleFreshnessState: payload.candle_freshness_state || payload.market_health?.candle_recency_state || this.state.candleFreshnessState,
         marketActivityState: payload.market_activity_state || payload.market_health?.market_activity_state || this.state.marketActivityState,

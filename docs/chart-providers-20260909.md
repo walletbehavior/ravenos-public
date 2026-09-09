@@ -25,3 +25,15 @@ A provider-managed chart is recorded as `chart_surface.kind=provider_embed`, wit
 The retired CoinGecko-only release assertion is replaced by an exact-market chart-surface check on Solana and current pools on Base, BNB, Ethereum and Robinhood. Embedded charts must have validated identities, allowlisted URLs and explicit non-native semantics. A separate native Dexch anchor still must return at least 120 real one-minute bars with verified continuity; an iframe cannot satisfy that requirement.
 
 Contract tests cover all five chains, disabled retired adapters, URL injection, inverted/wrong token rejection and absence of native-data claims. Browser checks cover mobile/desktop layouts, the persistent trade amount, overlay closure and transition to the native perps chart. Live staging and normal Chrome checks provide provider evidence beyond mocked UI tests. Deployment status is recorded in the immutable release receipt, not inferred from this document.
+
+The outer Terminal status and chart tab recognize provider-rendered charts independently of native candle availability. The Markets list can display a timestamped exact-pool market snapshot, with no invented candle change, volume or sparkline.
+
+## Release binding capacity
+
+Cloudflare rejected staging with 151 text bindings: 97 public configuration values plus 54 existing secrets. Packaging now groups 73 explicitly allowlisted boolean switches into one `RAVENOS_RELEASE_FLAGS` JSON binding, leaving release identity, enforcement, endpoints and identifiers separate. Both Worker HTTP and scheduled entrypoints expand the flags. Existing flat overrides take precedence; malformed or undeclared packed fields fail closed.
+
+Staging checks that every existing public setting is represented before replacing plain bindings. Wrangler `versions upload` preserves secrets independently of `keep_vars`; the stage script then verifies every previous secret against the uploaded version and checks its exact public-binding inventory before running release qualification. No secret values are read through Cloudflare or copied into the JSON binding. This change preserves the existing feature values, including disabled live shielded/copy execution.
+
+## Additional provider research
+
+Raven core's existing Mobula key successfully retrieved 240 native one-minute bars on Solana, Base and Ethereum on September 9, with matching pool/base/quote metadata. This research has not activated a Mobula adapter in RavenOS. Its next integration needs shared credit budgeting, Worker transport qualification, and additional launch/migration coverage. MadeOnSol's free plan permits internal use only; its candles and public-display rights require paid tiers, so it is not selected as a free RavenOS source.
