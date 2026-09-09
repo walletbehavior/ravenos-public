@@ -1,3 +1,4 @@
+import { dexscreenerChartSurface } from './ravenos-chart-data-plane.js';
 import { readExecutionStatusContext } from "./lib/customer_trade/live_execution_status.mjs";
 import { evmTokenApprovalContext } from "./lib/customer_trade/evm_token_approval.mjs";
 import { enrichHolderWalletContext } from './lib/customer_trade/holder_wallet_context.mjs';
@@ -4859,6 +4860,32 @@ async function fetchDexchPoolCandles(options = {}) {
   }});
 }
 
+async function fetchDexscreenerChart(options = {}) {
+  const { chain, pairAddress, tokenAddress, quoteAddress, asset, timeframe = '1m', before } = options;
+  if (before) throw new Error('provider_managed_history');
+  const surface = dexscreenerChartSurface({ chain, pairAddress, tokenAddress, quoteAddress, timeframe });
+  const envelope = await cachedDex(`/latest/dex/pairs/${encodeURIComponent(chain)}/${encodeURIComponent(pairAddress)}`);
+  const pair = (envelope.pairs || []).find(row => row.chainId === chain && sameOnchainAddress(chain, row.pairAddress, pairAddress));
+  // The embed defaults to the pool's base asset. Never silently invert it.
+  if (!pair || !sameOnchainAddress(chain, pair.baseToken?.address, tokenAddress) || !sameOnchainAddress(chain, pair.quoteToken?.address, quoteAddress)) {
+    throw new Error('dexscreener_chart_identity_mismatch');
+  }
+  const instrument = normalizeChartInstrument({ instrumentType: CHART_INSTRUMENT_TYPES.SPOT_POOL, chain,
+    venue: 'onchain_pool', marketType: 'spot', symbol: asset || pair.baseToken?.symbol,
+    tokenAddress, pairAddress, quoteTokenAddress: quoteAddress, baseAsset: asset || pair.baseToken?.symbol, quoteAsset: 'USD',
+    providerRouting: { history: 'dexscreener', live: 'dexscreener', providerAsset: pairAddress, providerNetwork: chain } });
+  return { ok: true, asset, chain, pair_address: pairAddress, token_address: tokenAddress, quote_address: quoteAddress,
+    market_identity: `${chain}:${pairAddress}`, instrument, timeframe, chart_surface: surface,
+    source: 'DexScreener', source_label: 'DexScreener chart', source_type: 'provider_embed',
+    candles: [], returned_bars: 0, freshness_state: 'provider_managed', observed_at: new Date().toISOString(),
+    attribution: { required: true, label: 'Chart by DexScreener', url: 'https://dexscreener.com/' },
+    capabilities: { chart_embed: true, live_bars: false, older_bar_backfill: false, raven_candle_analytics: false },
+    lineage: { provider: 'DexScreener', data_access: 'provider_rendered_only', raven_observations_are_candles: false },
+    chart_readiness: { schema_version: 'ravenos.exact_market_chart_readiness.v1', state: 'provider_managed', exact_market_verified: true,
+      provider_id: 'dexscreener', timeframe, bars: null, one_minute_requirement: 'provider_managed_not_measured' },
+  };
+}
+
 async function fetchOnchainPoolCandles(options = {}) {
   const providerOrder = onchainChartProvidersForMarket(options.env || {}, options.chain);
   const attempts = [];
@@ -4869,8 +4896,9 @@ async function fetchOnchainPoolCandles(options = {}) {
       continue;
     }
     try {
-      if (providerId === 'dexch' && !onchainProviderRuntime(providerId, options.env || {}).runtime_allowed) throw new Error('dexch_charts_disabled');
-      const payload = providerId === 'dexch' ? await fetchDexchPoolCandles(options) : providerId === "dexpaprika"
+      const providerRuntime = onchainProviderRuntime(providerId, options.env || {});
+      if (providerRuntime.runtime_allowed === false) throw new Error(providerRuntime.runtime_block_reason || 'chart_provider_disabled');
+      const payload = providerId === 'dexscreener' ? await fetchDexscreenerChart(options) : providerId === 'dexch' ? await fetchDexchPoolCandles(options) : providerId === "dexpaprika"
         ? await fetchDexPaprikaPoolCandles(options)
         : await fetchGeckoPoolCandles(options);
       if (!payload?.ok) {
@@ -4914,7 +4942,7 @@ async function fetchOnchainPoolCandles(options = {}) {
       }
       return {
         ...payload,
-        chart_readiness: {
+        chart_readiness: payload.chart_readiness || {
           schema_version: "ravenos.exact_market_chart_readiness.v1",
           state: ["fresh", "live"].includes(payload.freshness_state) ? "verified_current" : "verified_with_visible_staleness",
           exact_market_verified: true,
@@ -5572,7 +5600,7 @@ async function terminalChartPayload({
     const spotAttentionPromise = enrichmentRequested && pairAddress && tokenAddress
       ? loadCurrentSpotAttentionContext({ env, chain, pairAddress, tokenAddress }).catch(() => null)
       : Promise.resolve(null);
-    const marketProfilePromise = enrichmentRequested && pairAddress && tokenAddress
+    const marketProfilePromise = enrichmentRequested && pairAddress && tokenAddress && env.RAVENOS_COINGECKO_ENABLED !== "0"
       ? fetchGeckoPoolMarketProfile({ env, chain, pairAddress, tokenAddress, quoteAddress }).catch(() => null)
       : Promise.resolve(null);
     const dexchTokenPromise = enrichmentRequested

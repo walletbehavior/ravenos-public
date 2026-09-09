@@ -183,12 +183,10 @@ test("generated deploy surface contains no unhashed JavaScript, CSS, or provider
   assert.deepEqual(unhashed, []);
 
   const assets = JSON.parse(readFileSync(".deploy-public/ravenos_asset_manifest.json", "utf8")).assets;
-  const logo = assets["assets/providers/dexpaprika-symbol.svg"];
+  assert.equal(assets["assets/providers/dexpaprika-symbol.svg"], undefined);
   const shell = assets["ravenos-shell.js"];
-  assert.equal(logo.type, "image");
-  assert.match(logo.path, /^assets\/.+\.[0-9a-f]{16}\.svg$/);
-  assert.equal(shell.dependencies.includes("assets/providers/dexpaprika-symbol.svg"), true);
-  assert.match(readFileSync(`.deploy-public/${shell.path}`, "utf8"), new RegExp(`/${logo.path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
+  assert.equal(shell.dependencies.includes("assets/providers/dexpaprika-symbol.svg"), false);
+  assert.doesNotMatch(readFileSync(`.deploy-public/${shell.path}`, "utf8"), /dexpaprika-symbol/);
 });
 
 test("origin connectivity preflight resolves its probes from the immutable asset manifest", () => {
@@ -289,35 +287,35 @@ test("release packaging carries the versioned on-chain provider gate without har
   assert.match(source, /RAVENOS_ZEROX_API_KEY/);
   assert.match(source, /triggers: baseWrangler\.triggers/);
   assert.match(source, /cron_schedules/);
-  assert.match(source, /ONCHAIN_CHART_PROVIDER_SECRET/);
+  assert.match(source, /chartProviderConfig.provider_secret_binding/);
   assert.doesNotMatch(source, /required_server_secret_bindings:[\s\S]{0,200}COINGECKO_PRO_API_KEY/);
   const releaseConfig = JSON.parse(readFileSync("config/release.json", "utf8"));
   assert.equal(releaseConfig.onchain_chart_provider.contract_version, "ravenos.onchain_chart_provider_registry.v1");
-  assert.deepEqual(releaseConfig.onchain_chart_provider.evaluation_provider_order, ["dexpaprika", "coingecko_onchain"]);
-  assert.equal(releaseConfig.onchain_chart_provider.preview_provider, "coingecko");
-  assert.equal(releaseConfig.onchain_chart_provider.preview_provider_plan, "basic");
+  assert.deepEqual(releaseConfig.onchain_chart_provider.evaluation_provider_order, ["dexch", "dexscreener"]);
+  assert.equal(releaseConfig.onchain_chart_provider.preview_provider, "dexch");
+  assert.equal(releaseConfig.onchain_chart_provider.preview_provider_plan, "public");
   assert.equal(releaseConfig.onchain_chart_provider.preview_provider_commercial, true);
-  assert.equal(releaseConfig.onchain_chart_provider.provider_secret_binding, "ONCHAIN_CHART_PROVIDER_SECRET");
+  assert.equal(releaseConfig.onchain_chart_provider.provider_secret_binding, null);
   assert.equal(releaseConfig.onchain_chart_provider.keyless_application_fallback_allowed, false);
-  assert.equal(releaseConfig.onchain_chart_provider.production_provider, "coingecko");
-  assert.equal(releaseConfig.onchain_chart_provider.production_provider_plan, "basic");
+  assert.equal(releaseConfig.onchain_chart_provider.production_provider, "dexch");
+  assert.equal(releaseConfig.onchain_chart_provider.production_provider_plan, "public");
   assert.equal(releaseConfig.onchain_chart_provider.production_provider_commercial, true);
   assert.equal(releaseConfig.onchain_chart_provider.production_promotion_eligible, true);
   assert.deepEqual(releaseConfig.onchain_chart_provider.production_blockers, []);
-  assert.equal(releaseConfig.onchain_chart_provider.production_qualification.pro_api_authentication_verified, true);
-  assert.equal(releaseConfig.onchain_chart_provider.production_qualification.exact_pool_ohlcv_verified, true);
+  assert.equal(releaseConfig.onchain_chart_provider.embedded_chart_provider, "dexscreener");
+  assert.equal(releaseConfig.onchain_chart_provider.embedded_chart_candles_accessible, false);
   assert.ok(releaseConfig.onchain_chart_provider.required_intervals.includes("1m"));
   assert.equal(releaseConfig.onchain_chart_provider.one_minute_minimum_useful_bars, 120);
   assert.equal(releaseConfig.onchain_chart_provider.subminute_candles_required, false);
   assert.equal(releaseConfig.dexch_discovery_provider.contract_version, "ravenos.dexch_discovery_provider.v1");
-  assert.deepEqual(releaseConfig.dexch_discovery_provider.supported_chains, ["solana", "robinhood", "bsc"]);
+  assert.deepEqual(releaseConfig.dexch_discovery_provider.supported_chains, ["bsc", "robinhood"]);
   assert.equal(releaseConfig.dexch_discovery_provider.production_enabled, true);
   assert.equal(releaseConfig.dexch_discovery_provider.commercial_use_acknowledged, true);
   assert.equal(releaseConfig.dexch_discovery_provider.production_promotion_eligible, true);
   assert.deepEqual(releaseConfig.dexch_discovery_provider.production_blockers, []);
   assert.equal(
     releaseConfig.dexch_discovery_provider.production_qualification.provider_role_limited_to_discovery_and_lifecycle_enrichment,
-    true,
+    false,
   );
   assert.equal(releaseConfig.dexch_discovery_provider.empirical_evaluation.sample_size_per_chain, 25);
   assert.deepEqual(releaseConfig.dexch_discovery_provider.empirical_evaluation.chains, ["solana", "robinhood", "bsc"]);
@@ -331,9 +329,8 @@ test("release packaging carries the versioned on-chain provider gate without har
   assert.match(promote, /"triggers", "deploy"/);
   assert.match(promote, /wrangler\.release\.jsonc/);
   const preview = readFileSync("scripts/verify-release-preview.mjs", "utf8");
-  assert.match(preview, /chart_readiness\?\.one_minute_requirement !== "verified"/);
-  assert.match(preview, /candle_series\?\.provider !== "coingecko_onchain"/);
-  assert.match(preview, /commercial_state !== "commercial_qualified"/);
+  assert.match(preview, /qualifiedChartSurface/);
+  assert.match(preview, /nativeRequired: true/);
   assert.match(preview, /Server-only chart-provider secret entered the preview response/);
   assert.match(preview, /current_plus_retained_exact_pool_market_activity/);
   assert.match(preview, /discovery_lanes\?\.retained_exact_markets/);
@@ -346,11 +343,12 @@ test("local provider validation inherits the qualified release contract without 
     COINGECKO_API_KEY: "server-only-qualified-key",
     RAVEN_APP_ENV_PATH: "/does/not/exist",
   });
-  assert.equal(env.ONCHAIN_CHART_PROVIDER, "coingecko");
-  assert.equal(env.ONCHAIN_CHART_PROVIDER_PLAN, "basic");
+  assert.equal(env.ONCHAIN_CHART_PROVIDER, "");
+  assert.equal(env.ONCHAIN_CHART_PROVIDER_PLAN, "public");
   assert.equal(env.ONCHAIN_CHART_PROVIDER_COMMERCIAL, "true");
-  assert.equal(env.ONCHAIN_CHART_PROVIDER_SECRET, "server-only-qualified-key");
-  assert.equal(env.RAVENOS_ONCHAIN_CHART_PRODUCTION_PROVIDER, "coingecko");
+  assert.equal(env.RAVENOS_COINGECKO_ENABLED, "0");
+  assert.equal(env.RAVENOS_ONCHAIN_CHART_PROVIDER_ORDER, "dexch,dexscreener");
+  assert.equal(env.RAVENOS_ONCHAIN_CHART_PRODUCTION_PROVIDER, "dexch");
   assert.equal(env.RAVENOS_ONCHAIN_CHART_PRODUCTION_QUALIFIED, "1");
 });
 

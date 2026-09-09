@@ -1,3 +1,4 @@
+import { qualifiedChartSurface } from '../lib/chart_release_validation.mjs';
 import { findPerpWithoutDecisionHistory } from "./lib/perp-live-verification.mjs";
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
@@ -635,32 +636,18 @@ if (chartNoLeakFindings.length) {
   throw new Error(`Isolated preview chart response failed the public no-leak gate: ${fields}`);
 }
 const chart = chartEnvelope?.data || chartEnvelope;
-const chartProviderContract = packageManifest.onchain_chart_provider || {};
-const expectedChartPlan = chartProviderContract.production_promotion_eligible === true
-  ? chartProviderContract.production_provider_plan
-  : chartProviderContract.preview_provider_plan;
-if (
-  chart?.ok !== true
-  || chart?.market_identity !== `${chartAnchor.chain}:${chartAnchor.pair}`
-  || chart?.instrument?.pool_address !== chartAnchor.pair
-  || chart?.candle_series?.provider !== "coingecko_onchain"
-  || chart?.candle_series?.role !== "base_ohlcv"
-  || chart?.candle_series?.raven_observations_are_candles !== false
-  || chart?.provider_selection?.selected !== "coingecko_onchain"
-  || chart?.provider_selection?.fallback !== false
-  || chart?.lineage?.provider_plan !== expectedChartPlan
-  || (chartProviderContract.production_promotion_eligible === true && chart?.lineage?.commercial_state !== "commercial_qualified")
-  || (chartProviderContract.production_promotion_eligible === true && chart?.provider_selection?.production_state !== "qualified_for_production")
-  || chart?.lineage?.empty_interval_policy !== "provider_previous_close_zero_volume"
-  || chart?.attribution?.required !== true
-  || chart?.attribution?.label !== "Data provided by CoinGecko"
-  || chart?.attribution?.url !== "https://www.coingecko.com/en/api"
-  || !["verified_current", "verified_with_visible_staleness"].includes(chart?.chart_readiness?.state)
-  || chart?.chart_readiness?.one_minute_requirement !== "verified"
-  || !Array.isArray(chart?.candles)
-  || chart.candles.length < 120
-) {
-  throw new Error(`Isolated preview did not return the exact keyed CoinGecko ${expectedChartPlan || "configured"} one-minute chart contract`);
+if (!qualifiedChartSurface(chart, { chain: chartAnchor.chain, pairAddress: chartAnchor.pair,
+  tokenAddress: chartAnchor.token, quoteAddress: chartAnchor.quote, timeframe: '1m' })) {
+  throw new Error('Isolated preview did not return the selected exact-market chart surface');
+}
+// An embed is not a native OHLCV result. Independently require genuine Dexch history.
+const nativeAnchor = { chain: 'bsc', pairAddress: '0x3ea3f9a7b7edbfe0ba3568bfc0f30ba870b7553d',
+  tokenAddress: '0xfa6d9b504848606eb9aec04ccc161d169b3f2159', quoteAddress: '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c', timeframe: '1m' };
+const nativeCapture = await capture('/api/terminal/chart?' + new URLSearchParams({ market: 'crypto_spot', asset: 'BREW/WBNB', timeframe: '1m', limit: '240',
+  chain: nativeAnchor.chain, pair_address: nativeAnchor.pairAddress, token_address: nativeAnchor.tokenAddress, quote_address: nativeAnchor.quoteAddress }));
+const nativeEnvelope = JSON.parse(nativeCapture.text);
+if (!qualifiedChartSurface(nativeEnvelope.data || nativeEnvelope, { ...nativeAnchor, nativeRequired: true })) {
+  throw new Error('Isolated preview did not return genuine Dexch one-minute history with verified pool identity and at least 120 bars');
 }
 
 const onchainPulseCapture = await capture("/api/onchain/trending?chains=base,bsc,ethereum,robinhood&duration=5m");
@@ -713,21 +700,14 @@ for (const chain of ["base", "bsc", "ethereum", "robinhood"]) {
       evmChartEnvelope = null;
     }
     const evmChart = evmChartEnvelope?.data || evmChartEnvelope;
-    const denseExactChart = evmChartCapture.response.status === 200
-      && evmChart?.ok === true
-      && evmChart?.market_identity === `${row.chain_id}:${row.pool_address}`
-      && evmChart?.instrument?.pool_address === row.pool_address
-      && evmChart?.instrument?.token_address?.toLowerCase() === row.token_address.toLowerCase()
-      && evmChart?.candle_series?.provider === "coingecko_onchain"
-      && evmChart?.candle_series?.raven_observations_are_candles === false
-      && Array.isArray(evmChart?.candles)
-      && evmChart.candles.length >= 120;
-    if (!denseExactChart) continue;
+    const exactChart = evmChartCapture.response.status === 200 && qualifiedChartSurface(evmChart, {
+      chain: row.chain_id, pairAddress: row.pool_address, tokenAddress: row.token_address, quoteAddress: row.quote_token_address, timeframe: '1m' });
+    if (!exactChart) continue;
     verifiedRow = row;
     break;
   }
   if (!verifiedRow) {
-    throw new Error(`Isolated preview ${chain} market pulse had no dense exact-pool one-minute chart in its bounded current set`);
+    throw new Error(`Isolated preview ${chain} market pulse had no qualified exact-pool chart surface in its bounded current set`);
   }
   evmChartRows.push(verifiedRow);
 }

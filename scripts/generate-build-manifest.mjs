@@ -91,7 +91,6 @@ const files = [
   "raven-chart-overlays.js",
   "raven-reads.js",
   "raven-price-chart.js",
-  "assets/providers/dexpaprika-symbol.svg",
 ];
 
 function sha256(path) {

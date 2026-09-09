@@ -5,13 +5,13 @@
   "onchain_chart_provider": {
     "contract_version": "ravenos.onchain_chart_provider_registry.v1",
     "evaluation_provider_order": [
-      "dexpaprika",
-      "coingecko_onchain"
+      "dexch",
+      "dexscreener"
     ],
-    "preview_provider": "coingecko",
-    "preview_provider_plan": "basic",
+    "preview_provider": "dexch",
+    "preview_provider_plan": "public",
     "preview_provider_commercial": true,
-    "provider_secret_binding": "ONCHAIN_CHART_PROVIDER_SECRET",
+    "provider_secret_binding": null,
     "keyless_application_fallback_allowed": false,
     "required_intervals": [
       "1m",
@@ -23,26 +23,32 @@
     ],
     "one_minute_minimum_useful_bars": 120,
     "subminute_candles_required": false,
-    "production_provider": "coingecko",
-    "production_provider_plan": "basic",
+    "production_provider": "dexch",
+    "production_provider_plan": "public",
     "production_provider_commercial": true,
     "production_promotion_eligible": true,
     "production_blockers": [],
     "production_qualification": {
-      "qualified_at": "2026-07-22T19:40:00Z",
-      "qualification_basis": "owner_confirmed_basic_subscription_and_server_side_pro_api_probe",
-      "pro_api_authentication_verified": true,
-      "exact_pool_ohlcv_verified": true,
-      "required_attribution": "Data provided by CoinGecko"
-    }
+      "qualified_at": "2026-09-09",
+      "qualification_basis": "owner_requested_dexch_primary_and_dexscreener_chart_fallback",
+      "documentation_url": "https://dexch.art/api-docs",
+      "native_chart_identity_policy": "current_pool_cross_check_and_post_migration_history",
+      "embedded_chart_policy": "exact_pool_identity_verified_provider_renders_history_no_native_candle_claims",
+      "required_attribution": "Dexch or DexScreener on the selected chart"
+    },
+    "production_provider_order": [
+      "dexch",
+      "dexscreener"
+    ],
+    "embedded_chart_provider": "dexscreener",
+    "embedded_chart_candles_accessible": false
   },
   "dexch_discovery_provider": {
     "contract_version": "ravenos.dexch_discovery_provider.v1",
-    "provider_role": "replaceable_discovery_and_lifecycle_enrichment",
+    "provider_role": "market_charts_discovery_and_lifecycle_enrichment",
     "supported_chains": [
-      "solana",
-      "robinhood",
-      "bsc"
+      "bsc",
+      "robinhood"
     ],
     "preview_enabled": true,
     "production_enabled": true,
@@ -55,7 +61,7 @@
       "documentation_url": "https://docs.dexch.art/",
       "api_documentation_url": "https://dexch.art/api-docs",
       "authentication_required": false,
-      "provider_role_limited_to_discovery_and_lifecycle_enrichment": true
+      "provider_role_limited_to_discovery_and_lifecycle_enrichment": false
     },
     "empirical_evaluation": {
       "completed_at": "2026-09-03T19:48:48.923Z",

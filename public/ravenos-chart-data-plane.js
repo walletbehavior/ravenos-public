@@ -61,7 +61,8 @@ export const RAVENOS_CHART_CAPABILITY_REGISTRY = deepFreeze({
       attribution_required: true, attribution_label: 'Market data: Dexch',
     },
     dexscreener: {
-      responsibilities: ["discovery", "exact_market_identity", "current_pair_state"],
+      responsibilities: ["discovery", "exact_market_identity", "current_pair_state", "embedded_chart"],
+      chart_surface: "provider_embed",
       base_candles: false,
     },
     dexpaprika: {
@@ -114,15 +115,15 @@ export const RAVENOS_CHART_CAPABILITY_REGISTRY = deepFreeze({
   },
   onchain_networks: {
     solana: {
-      provider_networks: { dexpaprika: "solana", coingecko_onchain: "solana" },
-      provider_order: ["dexpaprika", "coingecko_onchain"],
+      provider_networks: { dexscreener: "solana", dexpaprika: "solana", coingecko_onchain: "solana" },
+      provider_order: ["dexch", "dexscreener"],
       discovery_supported: true,
       historical_candles_supported: true,
       live_candles_supported: true,
       intervals: ["1m", "5m", "15m", "1h", "4h", "1d"],
-      maximum_history_bars: 366,
-      history_provider: "dexpaprika",
-      live_provider: "dexpaprika",
+      maximum_history_bars: null,
+      history_provider: "dexscreener",
+      live_provider: "dexscreener",
       freshness_policy_seconds: 120,
       raven_overlay_support: true,
       route_preview_support: true,
@@ -130,15 +131,15 @@ export const RAVENOS_CHART_CAPABILITY_REGISTRY = deepFreeze({
       trading_state: "route_review_only",
     },
     base: {
-      provider_networks: { dexpaprika: "base", coingecko_onchain: "base" },
-      provider_order: ["dexpaprika", "coingecko_onchain"],
+      provider_networks: { dexscreener: "base", dexpaprika: "base", coingecko_onchain: "base" },
+      provider_order: ["dexch", "dexscreener"],
       discovery_supported: true,
       historical_candles_supported: true,
       live_candles_supported: true,
       intervals: ["1m", "5m", "15m", "1h", "4h", "1d"],
-      maximum_history_bars: 366,
-      history_provider: "dexpaprika",
-      live_provider: "dexpaprika",
+      maximum_history_bars: null,
+      history_provider: "dexscreener",
+      live_provider: "dexscreener",
       freshness_policy_seconds: 120,
       raven_overlay_support: true,
       route_preview_support: false,
@@ -146,15 +147,15 @@ export const RAVENOS_CHART_CAPABILITY_REGISTRY = deepFreeze({
       trading_state: "adapter_not_activated",
     },
     bsc: {
-      provider_networks: { dexch: 'bsc', dexpaprika: "bsc", coingecko_onchain: "bsc" },
-      provider_order: ["dexpaprika", "coingecko_onchain"],
+      provider_networks: { dexch: "bsc", dexscreener: "bsc", dexpaprika: "bsc", coingecko_onchain: "bsc" },
+      provider_order: ["dexch", "dexscreener"],
       discovery_supported: true,
       historical_candles_supported: true,
       live_candles_supported: true,
       intervals: ["1m", "5m", "15m", "1h", "4h", "1d"],
-      maximum_history_bars: 366,
-      history_provider: "dexpaprika",
-      live_provider: "dexpaprika",
+      maximum_history_bars: null,
+      history_provider: "dexch",
+      live_provider: "dexch",
       freshness_policy_seconds: 120,
       raven_overlay_support: true,
       route_preview_support: false,
@@ -162,15 +163,15 @@ export const RAVENOS_CHART_CAPABILITY_REGISTRY = deepFreeze({
       trading_state: "adapter_not_activated",
     },
     ethereum: {
-      provider_networks: { dexpaprika: "ethereum", coingecko_onchain: "eth" },
-      provider_order: ["dexpaprika", "coingecko_onchain"],
+      provider_networks: { dexscreener: "ethereum", dexpaprika: "ethereum", coingecko_onchain: "eth" },
+      provider_order: ["dexch", "dexscreener"],
       discovery_supported: true,
       historical_candles_supported: true,
       live_candles_supported: true,
       intervals: ["1m", "5m", "15m", "1h", "4h", "1d"],
-      maximum_history_bars: 366,
-      history_provider: "dexpaprika",
-      live_provider: "dexpaprika",
+      maximum_history_bars: null,
+      history_provider: "dexscreener",
+      live_provider: "dexscreener",
       freshness_policy_seconds: 120,
       raven_overlay_support: true,
       route_preview_support: false,
@@ -178,15 +179,15 @@ export const RAVENOS_CHART_CAPABILITY_REGISTRY = deepFreeze({
       trading_state: "adapter_not_activated",
     },
     robinhood: {
-      provider_networks: { dexch: 'robinhood', dexpaprika: "robinhood", coingecko_onchain: "robinhood" },
-      provider_order: ["coingecko_onchain", "dexpaprika"],
+      provider_networks: { dexch: "robinhood", dexscreener: "robinhood", dexpaprika: "robinhood", coingecko_onchain: "robinhood" },
+      provider_order: ["dexch", "dexscreener"],
       discovery_supported: true,
       historical_candles_supported: true,
       live_candles_supported: true,
       intervals: ["1m", "5m", "15m", "1h", "4h", "1d"],
-      maximum_history_bars: 366,
-      history_provider: "coingecko_onchain",
-      live_provider: "coingecko_onchain",
+      maximum_history_bars: null,
+      history_provider: "dexch",
+      live_provider: "dexch",
       freshness_policy_seconds: 120,
       raven_overlay_support: true,
       route_preview_support: false,
@@ -298,7 +299,7 @@ export function resolveChartCapability({ market = "", chain = "", instrumentType
   const exactIdentity = Boolean(text(pairAddress));
   const intervalSupported = record.intervals.includes(cleanTimeframe);
   const requestedProvider = text(providerId).toLowerCase();
-  const selectedProvider = requestedProvider || record.provider_order?.[0] || record.history_provider;
+  const selectedProvider = requestedProvider || record.provider_order?.find(id => record.provider_networks?.[id]) || record.history_provider;
   const providerNetwork = record.provider_networks?.[selectedProvider] || null;
   const requestSupported = Boolean(exactIdentity && providerNetwork && record.historical_candles_supported && intervalSupported);
   return {
@@ -306,6 +307,8 @@ export function resolveChartCapability({ market = "", chain = "", instrumentType
     ...record,
     chain: cleanNetwork,
     provider_id: selectedProvider,
+    chart_surface: selectedProvider === "dexscreener" ? "provider_embed" : "native_candles",
+    raven_candle_analytics: selectedProvider !== "dexscreener",
     provider_network: providerNetwork,
     history_provider: selectedProvider,
     live_provider: selectedProvider,
@@ -1002,4 +1005,28 @@ export function deriveSpotValuation({ identityKey, reference, price, nowMs = Dat
   const marketCap = scale(reference.marketCap), fdv = scale(reference.fdv);
   if (marketCap === null && fdv === null) return { ...base, state: "valuation_unavailable" };
   return { ...base, marketCap, fdv, state: "available", basis: nextPrice === originalPrice ? "reported_snapshot" : "price_scaled_estimate" };
+}
+
+// A provider-rendered chart is a display surface, never a Raven candle series.
+export function dexscreenerChartSurface({ chain, pairAddress, tokenAddress, quoteAddress, timeframe = '1m' } = {}) {
+  if (!['solana', 'base', 'bsc', 'ethereum', 'robinhood'].includes(chain)) throw new Error('chart_embed_chain_unsupported');
+  const address = chain === 'solana' ? /^[1-9A-HJ-NP-Za-km-z]{32,44}$/ : /^0x[0-9a-fA-F]{40}$/;
+  const pool = chain === 'solana' ? address : /^0x(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})$/;
+  if (!pool.test(pairAddress || '') || !address.test(tokenAddress || '') || !address.test(quoteAddress || '')) throw new Error('chart_embed_identity_invalid');
+  const interval = { '1m': '1', '5m': '5', '15m': '15', '1h': '60', '4h': '240', '1d': 'D' }[timeframe];
+  if (!interval) throw new Error('chart_embed_interval_unsupported');
+  const normalize = value => chain === 'solana' ? value : value.toLowerCase();
+  const url = new URL(`https://dexscreener.com/${chain}/${normalize(pairAddress)}`);
+  url.search = new URLSearchParams({ embed: '1', theme: 'dark', trades: '0', info: '0', interval, chartLeftToolbar: '0', loadChartSettings: '0', chartType: 'usd' }).toString();
+  return { schema_version: 'ravenos.chart_surface.v1', kind: 'provider_embed', provider: 'dexscreener',
+    chain, pool_address: normalize(pairAddress), token_address: normalize(tokenAddress), quote_address: normalize(quoteAddress),
+    timeframe, url: url.href, candles_accessible_to_raven: false };
+}
+
+export function validateDexscreenerChartSurface(surface, expected = {}) {
+  if (surface?.kind !== 'provider_embed' || surface?.provider !== 'dexscreener' || surface?.candles_accessible_to_raven !== false) return false;
+  try {
+    const safe = dexscreenerChartSurface(expected);
+    return ['schema_version', 'chain', 'pool_address', 'token_address', 'quote_address', 'timeframe', 'url'].every(key => safe[key] === surface[key]);
+  } catch { return false; }
 }

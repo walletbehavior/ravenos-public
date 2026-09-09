@@ -26,8 +26,8 @@ if (
 ) {
   throw new Error("Production promotion requires an explicitly commercially qualified provider and non-Demo plan");
 }
-const providerSecretBinding = chartProvider.provider_secret_binding || "ONCHAIN_CHART_PROVIDER_SECRET";
-if (!(receipt.required_server_secret_bindings_verified || []).includes(providerSecretBinding)) {
+const providerSecretBinding = chartProvider.provider_secret_binding;
+if (providerSecretBinding && !(receipt.required_server_secret_bindings_verified || []).includes(providerSecretBinding)) {
   throw new Error("Production promotion requires the selected chart provider's generic server-only secret binding");
 }
 const requiredChartIntervals = packageManifest.onchain_chart_provider?.required_intervals || [];

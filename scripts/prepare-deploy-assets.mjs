@@ -86,7 +86,6 @@ const runtimeAssets = [
   "raven-chart-overlays.js",
   "raven-reads.js",
   "raven-price-chart.js",
-  "assets/providers/dexpaprika-symbol.svg",
   "vendor/lightweight-charts.standalone.production.js",
 ];
 

@@ -52,6 +52,7 @@ function releaseProviderDefaults(repoRoot) {
         : provider.preview_provider_commercial,
       productionProvider: provider.production_provider,
       productionQualified,
+      order: provider.production_provider_order,
     };
   } catch {
     return {};
@@ -64,6 +65,21 @@ export function onchainChartProviderEnv(repoRoot, baseEnv = process.env) {
   const env = { ...baseEnv };
   for (const name of PROVIDER_ENV_NAMES) {
     if (!String(env[name] || "").trim() && String(parentValues[name] || "").trim()) env[name] = parentValues[name];
+  }
+  const defaults = releaseProviderDefaults(repoRoot);
+  if (defaults.order) {
+    env.ONCHAIN_CHART_PROVIDER = '';
+    env.RAVENOS_ONCHAIN_CHART_PROVIDER_ORDER = defaults.order.join(',');
+    env.ONCHAIN_CHART_PROVIDER_PLAN = defaults.plan;
+    env.ONCHAIN_CHART_PROVIDER_COMMERCIAL = String(defaults.commercial === true);
+    env.RAVENOS_ONCHAIN_CHART_PRODUCTION_PROVIDER = defaults.productionProvider;
+    env.RAVENOS_ONCHAIN_CHART_PRODUCTION_QUALIFIED = defaults.productionQualified ? '1' : '0';
+    env.RAVENOS_DEXCH_CHARTS_ENABLED = '1';
+    env.RAVENOS_DEXCH_DISCOVERY_ENABLED = '1';
+    env.RAVENOS_DEXCH_COMMERCIAL_USE_ACKNOWLEDGED = '1';
+    env.RAVENOS_DEXSCREENER_CHARTS_ENABLED = '1';
+    env.RAVENOS_COINGECKO_ENABLED = '0';
+    return env;
   }
   if (!String(env.ONCHAIN_CHART_PROVIDER_SECRET || "").trim() && String(env.COINGECKO_API_KEY || "").trim()) {
     const defaults = releaseProviderDefaults(repoRoot);

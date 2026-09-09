@@ -583,3 +583,18 @@ body.raven-chart-focus { overflow: hidden; }
   .rpw:not(.rpw-focus-mode) .rpw-window-analytics { display: none; }
   .rpw:not(.rpw-focus-mode) .rpw-activity > div { grid-auto-rows: 19px; }
 }
+
+/* The external chart owns its toolbar and candles. Raven retains market context and the trade ticket. */
+.rpw-provider-frame { display: block; width: 100%; height: 100%; border: 0; background: #0b1016; }
+.rpw-provider-chart .rpw-chart-tools,
+.rpw-provider-chart .rpw-watermark,
+.rpw-provider-chart [data-rpw-time],
+.rpw-provider-chart [data-rpw-connection],
+.rpw-provider-chart [data-rpw-follow],
+.rpw-provider-chart [data-rpw-overlays],
+.rpw-provider-chart [data-rpw-crosshair] { display: none !important; }
+.rpw.rpw-provider-chart { display: flex; flex-direction: column; }
+.rpw-provider-chart .rpw-provenance { flex: 0 0 30px; }
+.rpw-provider-chart .rpw-stage { flex: 1 1 0; }
+.rpw-provider-chart .rpw-activity { display: none; }
+.rpw-provider-chart .rpw-resize-handle { flex: 0 0 8px; }

@@ -200,7 +200,6 @@ for (const asset of [
   "ravenos-tradingview-adapter.js",
   "raven-chart-overlays.js",
   "raven-price-chart.js",
-  "assets/providers/dexpaprika-symbol.svg",
 ]) {
   const source = join(repoRoot, asset);
   const content = readFileSync(source, "utf8");

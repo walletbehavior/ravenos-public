@@ -154,7 +154,7 @@ test("versioned chart capabilities distinguish discovery from exact chart covera
   const retire = resolveChartCapability({ market: "crypto_spot", chain: "solana", instrumentType: "spot_pool", pairAddress: "ExactPool", timeframe: "15m" });
   assert.equal(retire.chart_ready, true);
   assert.equal(retire.exact_market_id, "solana:ExactPool");
-  assert.equal(retire.history_provider, "dexpaprika");
+  assert.equal(retire.history_provider, "dexscreener");
   assert.equal(retire.raven_overlay_support, true);
   const unresolved = resolveChartCapability({ market: "crypto_spot", chain: "solana", instrumentType: "spot_pool", timeframe: "15m" });
   assert.equal(unresolved.chart_ready, false);
@@ -165,7 +165,7 @@ test("versioned chart capabilities distinguish discovery from exact chart covera
   assert.equal(robinhood.chart_request_supported, true);
   assert.equal(robinhood.advertised_chart_ready, false);
   assert.equal(robinhood.exact_market_verification, "probe_required");
-  assert.equal(robinhood.history_provider, "coingecko_onchain");
+  assert.equal(robinhood.history_provider, "dexch");
   assert.equal(robinhood.provider_network, "robinhood");
   const robinhoodViaCoinGecko = resolveChartCapability({
     market: "crypto_spot",
@@ -213,7 +213,7 @@ test("on-chain provider selection is explicit and not inferred from a CoinGecko 
   assert.deepEqual(RAVENOS_ONCHAIN_CHART_PROVIDER_REGISTRY.required_release_intervals, ["1m", "5m", "15m", "1h", "4h", "1d"]);
   assert.equal(RAVENOS_ONCHAIN_CHART_PROVIDER_REGISTRY.one_minute_policy.required_for_every_advertised_chart_ready_market, true);
   assert.equal(RAVENOS_ONCHAIN_CHART_PROVIDER_REGISTRY.one_minute_policy.subminute_derivation, false);
-  assert.deepEqual(onchainChartProviderOrder({ COINGECKO_PRO_API_KEY: "present-but-not-authoritative" }), ["dexpaprika", "coingecko_onchain"]);
+  assert.deepEqual(onchainChartProviderOrder({ COINGECKO_PRO_API_KEY: "present-but-not-authoritative" }), ["dexch", "dexscreener"]);
   assert.deepEqual(onchainChartProviderOrder({ ONCHAIN_CHART_PROVIDER: "coingecko" }), ["coingecko_onchain"]);
   assert.deepEqual(onchainChartProviderOrder({ RAVENOS_ONCHAIN_CHART_PROVIDER_ORDER: "coingecko_onchain,dexpaprika" }), ["coingecko_onchain", "dexpaprika"]);
   assert.equal(RAVENOS_ONCHAIN_CHART_PROVIDER_REGISTRY.production_promotion_eligible, false);
@@ -612,6 +612,7 @@ test("insufficient DexPaprika history falls through to the next exact-pool provi
       throw new Error(`Unexpected test request: ${url}`);
     };
     const response = await ravenosWorker.fetch(new Request(`https://ravenos.xyz/api/terminal/chart?market=crypto_spot&asset=TEST%2FUSDC&timeframe=15m&limit=120&chain=base&pair_address=${pairAddress}&token_address=${tokenAddress}&quote_address=${quoteAddress}`), {
+      RAVENOS_ONCHAIN_CHART_PROVIDER_ORDER: "dexpaprika,coingecko_onchain",
       ONCHAIN_CHART_PROVIDER_PLAN: "demo",
       ONCHAIN_CHART_PROVIDER_COMMERCIAL: "false",
       ONCHAIN_CHART_PROVIDER_SECRET: "server-only-demo-test-value",
@@ -937,6 +938,7 @@ test("search reports per-provider exact-market coverage without silently switchi
     };
     const response = await ravenosWorker.fetch(new Request(`https://ravenos.xyz/api/dexscreener/search?q=${tokenAddress}`), {
       ONCHAIN_CHART_PROVIDER: "coingecko",
+      RAVENOS_ONCHAIN_CHART_PROVIDER_ORDER: "dexpaprika,coingecko_onchain",
       ONCHAIN_CHART_PROVIDER_PLAN: "demo",
       ONCHAIN_CHART_PROVIDER_COMMERCIAL: "false",
       ONCHAIN_CHART_PROVIDER_SECRET: "fixture-only",

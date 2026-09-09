@@ -8,12 +8,14 @@ import {
   normalizeChartInstrument,
   sharedChartSubscriptions,
   timeframeSeconds,
+  validateDexscreenerChartSurface,
 } from "./ravenos-chart-data-plane.js";
 
 export const RAVENOS_PRICE_WORKSPACE_SCHEMA = "ravenos.price_workspace.v1";
 
 export const PRICE_WORKSPACE_STATES = Object.freeze({
   LIVE: "live",
+  PROVIDER_MANAGED: "provider_managed",
   DELAYED: "delayed",
   DEMO: "demo",
   HISTORICAL: "historical",
@@ -27,6 +29,7 @@ export const PRICE_WORKSPACE_STATES = Object.freeze({
 
 const STATE_LABELS = Object.freeze({
   live: "Live",
+  provider_managed: "Chart",
   delayed: "Delayed",
   demo: "Demo",
   historical: "Historical",
@@ -563,6 +566,7 @@ export class PriceWorkspace {
       observedAt: null,
       marketIdentity: "",
       timeframe: options.timeframe || "1h",
+      chartSurface: null,
       candles: [],
       message: options.initialLoading ? "Loading your selected market." : "Select a supported market.",
       lineage: null,
@@ -816,8 +820,9 @@ export class PriceWorkspace {
   }
 
   paintState() {
-    const label = this.state.operatorStateLabel || STATE_LABELS[this.state.state] || "Data unavailable";
+    const label = this.state.chartSurface ? "Chart" : this.state.operatorStateLabel || STATE_LABELS[this.state.state] || "Data unavailable";
     this.root.dataset.priceWorkspaceState = this.state.state;
+    this.root.classList.toggle("rpw-provider-chart", Boolean(this.state.chartSurface));
     this.container.querySelector("[data-rpw-state]").textContent = label;
     this.container.querySelector("[data-rpw-source]").textContent = primaryChartSourceLabel(this.state.source);
     this.container.querySelector("[data-rpw-market]").textContent = primaryMarketScopeLabel(this.state.instrument, this.state.marketIdentity);
@@ -1134,7 +1139,7 @@ export class PriceWorkspace {
     };
     this.historyBatchLimit = historyLimit(request, timeframe);
     this.historyExhausted = false;
-    if (!preserveChart) this.visibleRange = null;
+    if (!preserveChart) { this.visibleRange = null; this.destroyChart(); }
     if (preserveChart) {
       this.setState({
         ...priorState,
@@ -1150,6 +1155,7 @@ export class PriceWorkspace {
         source: request.source || "Market provider",
         marketIdentity: request.marketIdentity || request.asset || "",
         observedAt: null,
+        chartSurface: null,
         candles: [],
         returnedBars: 0,
         message: "Loading current candles.",
@@ -1216,7 +1222,7 @@ export class PriceWorkspace {
       const { response, payload } = await this.fetchPayload({ ...request, timeframe }, { limit: this.historyBatchLimit });
       if (sequence !== this.requestSequence) return this.state;
       const candles = normalizeCandles(payload.candles);
-      if (!response.ok || !payload.ok || !candles.length) {
+      if (!response.ok || !payload.ok || (!candles.length && !payload.chart_surface)) {
         const restored = restorePreservedChart(payload.message || payload.error || `Market provider returned ${response.status}.`);
         if (restored) return restored;
         this.destroyChart();
@@ -1225,6 +1231,7 @@ export class PriceWorkspace {
           source: payload.source_label || payload.source || "Market provider",
           observedAt: payload.observed_at || null,
           marketIdentity: payload.market_identity || request.marketIdentity || request.asset || "",
+          chartSurface: null,
           candles: [],
           message: payload.message || payload.error || `Market provider returned ${response.status}.`,
           lineage: payload.lineage || null,
@@ -1246,6 +1253,21 @@ export class PriceWorkspace {
       }
       if (!validateExpectedInstrument(instrument, request.expectedIdentity)) {
         throw new Error("The chart provider returned a different exact market than the one selected.");
+      }
+      if (payload.chart_surface) {
+        if (!validateDexscreenerChartSurface(payload.chart_surface, { chain: request.chain, pairAddress: request.pairAddress,
+          tokenAddress: request.tokenAddress, quoteAddress: request.quoteAddress, timeframe })) throw new Error('Chart surface does not match the selected market.');
+        this.destroyChart();
+        const state = this.setState({ state: PRICE_WORKSPACE_STATES.PROVIDER_MANAGED, source: 'DexScreener chart', timeframe,
+          chartSurface: payload.chart_surface, instrument, marketIdentity: payload.market_identity, candles: [], returnedBars: 0,
+          observedAt: null, connectionState: 'provider_managed', message: '', lineage: payload.lineage, capabilities: payload.capabilities,
+          candleSeries: null, continuity: null, derivation: null, ravenAnnotations: null, marketEvents: null,
+          providerSelection: payload.provider_selection, providerUsage: payload.provider_usage, availableScopes: { exact_pool: true },
+          instrumentScope: 'exact_pool', technicalAnalysis: null, chartRead: null, enrichmentState: 'loading' });
+        this.render(this.renderInput);
+        // Market/holder facts remain available; an iframe never supplies Raven TA bars.
+        void this.loadEnrichment({ ...request, timeframe }, sequence);
+        return state;
       }
       const ravenAnnotations = exactRavenAnnotations(payload.raven_annotations, instrument);
       const marketEvents = exactMarketEvents(payload.market_events, instrument);
@@ -1315,6 +1337,7 @@ export class PriceWorkspace {
         state: PRICE_WORKSPACE_STATES.ERROR,
         source: request.source || "Market provider",
         observedAt: null,
+        chartSurface: null,
         candles: [],
         message: error instanceof Error ? error.message : "Market provider request failed.",
       });
@@ -1332,7 +1355,7 @@ export class PriceWorkspace {
       if (payload.timeframe && String(payload.timeframe) !== String(request.timeframe || this.state.timeframe)) return false;
       if (request.expectedCanonicalId && instrument.canonical_id !== request.expectedCanonicalId) return false;
       if (!validateExpectedInstrument(instrument, request.expectedIdentity)) return false;
-      this.acceptProviderTransition(payload);
+      if (!this.state.chartSurface) this.acceptProviderTransition(payload);
       const ravenAnnotations = exactRavenAnnotations(payload.raven_annotations, instrument);
       const marketEvents = exactMarketEvents(payload.market_events, instrument);
       const hasAnnotations = Boolean(ravenAnnotations);
@@ -1392,6 +1415,7 @@ export class PriceWorkspace {
       source,
       marketIdentity,
       observedAt: null,
+      chartSurface: null,
       candles: [],
       returnedBars: 0,
       message,
@@ -1417,6 +1441,21 @@ export class PriceWorkspace {
 
   render(input = {}) {
     this.renderInput = { ...this.renderInput, ...input };
+    if (this.state.chartSurface) {
+      if (!this.chartHost.querySelector('iframe')) {
+        this.destroyChart();
+        const frame = document.createElement('iframe');
+        frame.className = 'rpw-provider-frame';
+        frame.title = `${this.state.instrument?.symbol || 'Selected market'} chart by DexScreener`;
+        frame.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-popups');
+        frame.setAttribute('referrerpolicy', 'no-referrer');
+        frame.setAttribute('loading', 'eager');
+        frame.src = this.state.chartSurface.url;
+        this.chartHost.append(frame);
+      }
+      this.paintState();
+      return null;
+    }
     if (this.renderInput.showMarketEvents === false) {
       this.renderInput = { ...this.renderInput, events: [] };
     }
