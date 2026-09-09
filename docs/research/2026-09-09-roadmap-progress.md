@@ -4,9 +4,9 @@ Tracks the [approved roadmap](2026-09-09-ravenos-roadmap.md) against the [produc
 
 | Package | Status | Current evidence / next gate |
 | --- | --- | --- |
-| 1. Everyday trading | In progress | Holder fix deployed and verified on its failing production example. EVM readiness/estimate fix validated locally; deploy and verify, then validate trading, fees and reconciliation. |
+| 1. Everyday trading | In progress | Holder fix deployed and verified on its failing production example. EVM readiness/estimate fix deployed; 39 release checks pass. Specific signed-in provider preview verification remains pending after a browser-policy rejection. Actual settlement, fees and reconciliation remain open. |
 | 2. Wallet intelligence | In progress | Retained holdings pagination and refresh resilience implemented. Deep history and qualified category populations remain to be measured. |
-| 3. Market data | Pending | Replace empty CoinGecko-only activity path; verify participation freshness and provider coverage. |
+| 3. Market data | In progress, prioritized | User reported too few usable Discover markets. Widening cached candidate delivery, enforcing liquidity/holder/activity qualification and adding 100-token pages. Replace empty CoinGecko-only activity path and verify sustained freshness next. |
 | 4. Portfolio | Pending | Buying-power reconciliation and useful Governor proposals remain required. |
 | 5. Pro intelligence | Pending | Sourced wallet families and prospective outcomes remain required. |
 | 6. Copy / Agents | Pending | Enforced policy and shadow outcomes must precede an expressly authorized controlled live beta. |
@@ -39,6 +39,30 @@ On Base STONKEX/WETH, entering 0.002 ETH triggered the automatic preparation req
 
 Implemented a bounded economic projection of the validated 0x response. Funding/allowance/gas blockers remain enforced, but the UI retains expected tokens, exact minimum, configured slippage, known impact, the included 1% Raven fee and separate native network cost. No calldata or execution ticket is exposed by this projection. Unknown routes, wrong identities and absent trading fees cannot qualify. A later Buy must still meet the previously displayed minimum. Funding and gas failures now use HTTP 409 rather than masquerading as a provider outage.
 
-Validation: 33 focused economic/approval tests and 126 existing EVM execution tests pass. Thirty terminal browser cases passed initially; the remaining desktop case asserted the superseded inline research behavior. It now verifies the requested research overlay, unchanged Terminal URL and restoration on Close, and passes. All four EVM chains have native/stable unfunded-preview browser coverage, with no simulated signing/approval call. Wrong-wallet estimates and worse prices after funding recovery are rejected. Security/build checks pass. Deployment and real-provider preview verification are pending.
+Validation: 33 focused economic/approval tests and 126 existing EVM execution tests pass. Thirty terminal browser cases passed initially; the remaining desktop case asserted the superseded inline research behavior. It now verifies the requested research overlay, unchanged Terminal URL and restoration on Close, and passes. All four EVM chains have native/stable unfunded-preview browser coverage, with no simulated signing/approval call. Wrong-wallet estimates and worse prices after funding recovery are rejected. Security/build checks pass. Deployed `d51ac98136e2` as release `ravenos-d51ac98136e2-a73c98ad55665866`, Worker `27517350-af8a-4ec3-aab6-da1a3a59460f`. Production verification passed 39 checks, 24 assets and seven authenticated workspace entry points. The browser URL policy rejected the specific trading-page navigation for the provider preview check; it remains unverified, with no workaround attempted. No transaction was submitted.
 
 This is the first readiness separation: automatic EVM requests still use the existing preparation endpoint for funded routes. A dedicated read-only economic endpoint, broader provider diagnoses and actual user-authorized settlement remain open package-1 work.
+
+## Discover: usable breadth before ranking
+
+New user priority: remove one-holder/dust markets and show substantially more useful tokens, with DexScreener's paginated trending board as the reference.
+
+Production baseline at 2026-09-09 23:53 UTC: the pulse returned exactly 240 rows (48 per chain). Its own source counters reported 1,252 cached-universe markets. Eleven returned rows had one holder and 15 had less than $5,000 reported liquidity. Only 203 passed the new qualification policy. The same deployment showed only 53 Solana candidates in the browser. Thus the visible count was a bounded candidate slice, not Raven's entire stored market universe.
+
+Implementation:
+
+- Apply a shared qualification policy before candidate selection and in the browser. Require at least $5,000 reported pool liquidity, at least 10 holders where a census is supplied, and meaningful volume or transactions. Known low holder counts follow the token across alternate pools. Unknown counts remain unknown. Current evidenced bonding curves with unreported depth require at least 25 holders, 20 transactions and $1,000 volume, and display liquidity as unreported; known zero depth cannot use this exception.
+- Remove the 240-row producer/classifier/browser bottleneck for broad Discover. Retain a 2,000-token projection budget to bound Worker memory, report its delivery limit separately from qualified and sampled coverage, and keep only one full projection in isolate memory. This is still a bounded market sample, not a complete global index.
+- Page the browser at 100 tokens, applying chain/lifecycle/range filters before pagination. Reset the page when filters change. Preserve complete-cohort ranking across pages.
+- Expand the shared collector to at most 750 exact token identities per supported chain, reusing known and prior identities. Dexch cap-band discovery uses a liquidity floor. Existing provider and durable refresh leases remain in use; no wallet RPC, paid plan or execution authority is added.
+- Add bounded, rotating seeds from DexScreener's official category pages, recent profile updates and community takeovers. Fresh pair facts still come from exact-token pair requests; profile or category membership never creates a Raven signal.
+
+Verified official endpoints: [DexScreener API reference](https://docs.dexscreener.com/api/reference). Live probes returned 18 trending categories, 30 updated profiles, and 42 pairs in the Cat category (including all five Raven chains). The documented API does not expose the website's complete paginated pair table. No claim of 193,000 indexed Raven markets is made.
+
+Validation: 91 focused unit/API tests passed, including 600 cached candidates producing 598 qualified results with zero provider requests. Four desktop/mobile browser checks passed for 100-row pagination, page isolation, chain-filter reset and six-hour participation drilldown. The broader 56-case browser selection passed 51 initially; the other five asserted the old counter wording or admitted sub-$5K liquidity/inactive launches. Those fixtures now distinguish adequate day activity from a quiet current window and enforce the new liquidity floor; all five pass, plus two additional Solana lifecycle cases. Build, security and response-leak checks pass. Production population verification follows deployment.
+
+## Deeper history: concrete remaining blocker
+
+Read-only production inspection found two Solana backfill jobs dead-lettered at exactly 10,000 decoded transactions. The backfill-job table still constrains `signatures_seen` to 10,000 even though newer policy targets 50,000; the later migrations widened page limits and targets but not this constraint. A preserving migration and restart/reconciliation are needed, with dependent page/progress rows retained.
+
+The configured shared Helius budget is also being exhausted: recent hours consumed 600/600 and 560 credits. More paid RPC is not the first fix. Scheduling, retained analysis and progress reporting need to respect the existing budget. A Base inspection briefly returned `account_service_unavailable`, then succeeded on retry with 15 holdings; its underlying history was queued. Neither that transient failure nor the depth target is counted as resolved by holdings pagination.

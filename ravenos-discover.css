@@ -383,3 +383,7 @@
   .discover-participation-controls button { min-height: 36px; }
   .discover-participation-buttons { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+.discover-spot-pagination { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 16px 8px; }
+.discover-spot-pagination[hidden] { display: none; }
+.discover-spot-pagination button { min-height: 44px; padding: 8px 14px; }
+.discover-spot-pagination span { font-size: 12px; color: var(--muted, #9aabba); }

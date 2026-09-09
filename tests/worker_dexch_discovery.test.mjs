@@ -196,7 +196,7 @@ test("current exact-pool rows receive token-creation and migration evidence with
             quote_token_price_usd: "2500",
             fdv_usd: "17000",
             market_cap_usd: "6800",
-            reserve_in_usd: "4000",
+            reserve_in_usd: "5000",
             price_change_percentage: { m5: "2", h1: "6", h24: "10" },
             volume_usd: { m5: "500", h1: "3000", h24: "90000" },
             transactions: {

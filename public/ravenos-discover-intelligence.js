@@ -20,6 +20,36 @@ export function spotTransactionCount(market = {}, timeframe = "5m") {
   return buys !== null && sells !== null && buys >= 0 && sells >= 0 ? buys + sells : null;
 }
 
+// Discovery admission is a browsing default, not a safety or executable-route
+// claim. Unknown holder counts are not zero; sampled holders are not a census.
+export const DISCOVER_MARKET_QUALITY = Object.freeze({
+  version: '2026-09-09.1', minimum_liquidity_usd: 5_000,
+  minimum_reported_holders: 10, minimum_volume_usd: 1_000,
+  minimum_transactions: 10, bonding_minimum_holders: 25,
+  bonding_minimum_transactions: 20,
+});
+
+export function spotDiscoveryQuality(row = {}, { nowMs = Date.now() } = {}) {
+  const market = row.market || {}, policy = DISCOVER_MARKET_QUALITY, reasons = [];
+  const liquidity = finite(market.liquidity_usd), holders = finite(market.holder_count);
+  const price = finite(market.price_usd);
+  const volume = Math.max(0, ...['5m', '1h', '6h', '24h'].map(window => finite(market[`volume_usd_${window}`]) ?? 0));
+  const transactions = Math.max(0, ...['5m', '1h', '6h', '24h'].map(window => spotTransactionCount(market, window) ?? 0));
+  const bonding = reportedSpotLifecycle(row, nowMs)?.state === 'BONDING';
+  const evidencedCurve = bonding && liquidity === null && holders >= policy.bonding_minimum_holders
+    && volume >= policy.minimum_volume_usd && transactions >= policy.bonding_minimum_transactions;
+  if (!(price > 0)) reasons.push('price_unavailable');
+  if (liquidity === null && !evidencedCurve) reasons.push('liquidity_unavailable');
+  if (liquidity !== null && liquidity < policy.minimum_liquidity_usd) reasons.push('insufficient_liquidity');
+  if (holders !== null && holders < policy.minimum_reported_holders) reasons.push('insufficient_holders');
+  if (volume < policy.minimum_volume_usd && transactions < policy.minimum_transactions) reasons.push('insufficient_activity');
+  if ([market.price_change_1h_pct, market.price_change_24h_pct].map(finite).some(value => value !== null && value <= -95)
+    || ['5m', '1h', '24h'].some(window => { const value = finite(market[`liquidity_change_${window}_pct`]); return value !== null && value <= -85; })) reasons.push('collapsed_market');
+  return { eligible: reasons.length === 0, reasons, policy_version: policy.version,
+    liquidity_state: liquidity === null ? 'unreported_bonding_curve' : 'reported',
+    holder_count_reported: holders !== null, execution_verified: false };
+}
+
 export function spotMarketFactFreshness(row = {}, nowMs = Date.now()) {
   const contract = row?.discovery?.facts?.freshness;
   const observedAt = row?.discovery?.facts?.observed_at || row?.observed_at;

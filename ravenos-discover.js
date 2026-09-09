@@ -7,6 +7,7 @@ import {
   opportunityLifecycle,
   spotMarketCapitalization,
   spotMarketFactFreshness,
+  spotDiscoveryQuality,
   reportedSpotLifecycle,
   spotRouteIsCurrent,
   validateAttentionBenchmark,
@@ -99,6 +100,9 @@ const state = {
   featuredRows: [],
   featuredRefreshedAt: 0,
   spotRows: [],
+  spotUniverse: null,
+  spotPage: 0,
+  spotPaginationKey: '',
   spotVisibleTokenCount: 0,
   spotVisibleExactMarketCount: 0,
   spotShowSameSymbolContracts: false,
@@ -1083,6 +1087,7 @@ function lifecycleBrowseActive() {
 
 function survivesCurrentSpotMarket(row = {}, { allowQuietLifecycle = false } = {}) {
   if (!spotMarketFactFreshness(row).current) return false;
+  if (!spotDiscoveryQuality(row).eligible) return false;
   const market = row.market || {};
   const age = finite(row.age_seconds);
   const price = finite(market.price_usd);
@@ -1172,13 +1177,10 @@ function updateSpotResultState(visibleCount, exactTokenCount, exactMarketCount) 
     output.textContent = "No matching markets";
     return;
   }
-  if (visibleCount < exactTokenCount) {
-    output.textContent = `${visibleCount} shown · ${exactTokenCount} exact tokens`;
-    return;
-  }
-  output.textContent = exactTokenCount === exactMarketCount
-    ? `${exactTokenCount} token${exactTokenCount === 1 ? "" : "s"}`
-    : `${exactTokenCount} tokens · ${exactMarketCount} exact pools`;
+  const start = state.spotPage * 100 + 1, end = Math.min((state.spotPage + 1) * 100, visibleCount);
+  output.textContent = `${start}–${end} of ${visibleCount.toLocaleString()} qualifying tokens`
+    + (visibleCount < exactTokenCount ? ` · ${exactTokenCount} exact contracts` : '')
+    + (state.spotUniverse?.sampled_tokens ? ` · ${state.spotUniverse.sampled_tokens.toLocaleString()} in shared market sample` : '');
 }
 
 function spotTokenFingerprint(value) {
@@ -1438,7 +1440,7 @@ function currentDiscoverRadar(value, expectedTimeframe = null) {
     || value?.public_safety?.private_participant_identities_exposed !== false
     || value?.public_safety?.execution_data_exposed !== false
     || !Array.isArray(value?.rows)
-    || value.rows.length > 240
+    || value.rows.length > 4_000
     || !Number.isFinite(generatedMs)
     || generatedMs > Date.now() + 300_000
     || Date.now() - generatedMs > 3_600_000
@@ -1783,6 +1785,7 @@ function spotRankedRows({ cohort = state.spotCohort, revival = state.spotRevival
     return ["solana", "robinhood", "base", "bsc", "ethereum"].includes(chain)
       && (state.spotChain === "all" || chain === state.spotChain)
       && validDiscoverRow(row, { allowExpiredSnapshot: Boolean(state.participationFilter) })
+      && ((!currentFacts && retained && state.participationFilter) || spotDiscoveryQuality(row).eligible)
       && opportunityLaneMatches(row, lane)
       && revivalScanMatches(row, revival)
       && cohortMatches(row, cohort)
@@ -2338,7 +2341,8 @@ function updateSpotTokenRow(anchor, row, index) {
   const anatomy = append(anchor, "div", "discover-token-anatomy", "");
   anatomy.textContent = "";
   renderTokenStat(anatomy, participationRanking ? "6h Vol" : "Vol", !factFreshness.current || finite(spotMetric(row, "volume_usd")) === null ? "" : compact(spotMetric(row, "volume_usd"), { currency: true }));
-  renderTokenStat(anatomy, "Liq", !factFreshness.current || finite(row.market?.liquidity_usd) === null ? "" : compact(row.market.liquidity_usd, { currency: true }));
+  renderTokenStat(anatomy, "Liq", !factFreshness.current ? "" : finite(row.market?.liquidity_usd) === null
+    ? (reportedSpotLifecycle(row)?.state === 'BONDING' ? 'Unreported' : '') : compact(row.market.liquidity_usd, { currency: true }));
   const marketCap = factFreshness.current ? spotMarketCapitalization(row.market) : null;
   const fdv = factFreshness.current && finite(row.market?.fdv_usd) > 0 ? finite(row.market.fdv_usd) : null;
   renderTokenStat(anatomy, "MCap", marketCap === null ? "Unknown" : compact(marketCap, { currency: true }));
@@ -2496,15 +2500,29 @@ function renderSpotTokenTape({ forceOrder = false } = {}) {
     ? [...surfaceEverySpotChain(emerging), ...surfaceEverySpotChain(sourceRanked.filter((row) => !emergingIds.has(spotRowId(row))))]
     : surfaceEverySpotChain(sourceRanked);
   const exactTokens = groupSpotRowsByCanonicalAsset(exactRanked);
-  const ranked = state.spotShowSameSymbolContracts ? exactTokens : groupSpotRowsBySymbol(exactTokens);
-  updateSpotResultState(ranked.length, exactTokens.length, exactRanked.length);
+  const allRanked = state.spotShowSameSymbolContracts ? exactTokens : groupSpotRowsBySymbol(exactTokens);
+  const filterKey = JSON.stringify([state.spotChain, state.spotSort, state.spotLane, state.spotCohort, state.spotTimeframe,
+    state.spotRevivalOnly, state.spotShowSameSymbolContracts, state.participationFilter, state.spotNumericRanges,
+    Object.entries(state).filter(([key]) => /^spot.*Filter$/.test(key))]);
+  if (filterKey !== state.spotPaginationKey) { state.spotPage = 0; state.spotPaginationKey = filterKey; }
+  const pageCount = Math.max(1, Math.ceil(allRanked.length / 100));
+  state.spotPage = Math.min(state.spotPage, pageCount - 1);
+  const ranked = allRanked.slice(state.spotPage * 100, (state.spotPage + 1) * 100);
+  updateSpotResultState(allRanked.length, exactTokens.length, exactRanked.length);
+  const pagination = document.getElementById('discoverSpotPagination');
+  if (pagination) {
+    pagination.hidden = pageCount <= 1;
+    document.getElementById('discoverSpotPage').textContent = `Page ${state.spotPage + 1} of ${pageCount} · 100 per page`;
+    document.getElementById('discoverSpotPrevious').disabled = state.spotPage === 0;
+    document.getElementById('discoverSpotNext').disabled = state.spotPage + 1 >= pageCount;
+  }
   const rankedIds = ranked.map(spotRowId);
   if ((intelligenceLayerOpen('market-evidence') || (discoverInteractionActive() && !forceOrder)) && host.childElementCount) {
     const byId = new Map(ranked.map((row) => [spotRowId(row), row]));
     [...host.querySelectorAll(".discover-token-row")].forEach((node, index) => {
       const row = byId.get(node.dataset.tokenRowId);
       if (row) {
-        updateSpotTokenRow(node, row, index);
+        updateSpotTokenRow(node, row, state.spotPage * 100 + index);
         const shell = node.closest(".discover-token-row-shell");
         if (shell) renderSpotEvidence(shell, row);
       }
@@ -2530,7 +2548,7 @@ function renderSpotTokenTape({ forceOrder = false } = {}) {
   ranked.forEach((row, index) => {
     const id = spotRowId(row);
     const node = existing.get(id) || document.createElement("a");
-    updateSpotTokenRow(node, row, index);
+    updateSpotTokenRow(node, row, state.spotPage * 100 + index);
     const shell = wrapSavedMonitorControl(node, "discover-token-row-shell");
     renderSpotEvidence(shell, row);
     fragment.append(shell);
@@ -2738,7 +2756,7 @@ function renderSpotPulse(rows = state.spotRows, { forceOrder = false } = {}) {
     : views[state.spotSort] || views.velocity;
   document.getElementById("discoverSpotPulseTitle").textContent = view.title;
   document.getElementById("discoverSpotPulseSummary").textContent = lifecycleBrowseActive() && state.spotSort !== "raven"
-    ? "Reported lifecycle · quiet markets included · current evidence required."
+    ? "Reported lifecycle · liquidity and participation checked."
     : state.spotLane === "opportunities" && state.spotSort !== "raven"
     ? `High signal only. ${view.summary}`
     : state.spotEmergingFirst && state.spotSort !== "raven" ? `Emerging markets first · ${view.summary}` : view.summary;
@@ -3774,6 +3792,7 @@ async function refresh({ manual = false } = {}) {
     try {
       const current = currentOnchainPulsePayload(onchainPulse.value.payload);
       marketPulseRows = current.rows;
+      state.spotUniverse = onchainPulse.value.payload.universe || null;
       marketPulseGeneratedAt = current.generatedAt;
       state.spotFeedState = current.state === "degraded" ? "refreshing" : "current";
       state.spotRadarState = current.radarState === "current" && state.spotRadarState === "shadow" ? "shadow" : current.radarState;
@@ -4035,6 +4054,13 @@ function bind() {
     renderSpotPulse(state.spotRows, { forceOrder: true });
   });
   document.getElementById("discoverTokenUpdates").addEventListener("click", () => renderSpotPulse(state.spotRows, { forceOrder: true }));
+  for (const [id, delta] of [['discoverSpotPrevious', -1], ['discoverSpotNext', 1]]) {
+    document.getElementById(id)?.addEventListener('click', () => {
+      state.spotPage = Math.max(0, state.spotPage + delta);
+      renderSpotTokenTape({ forceOrder: true });
+      document.getElementById('discoverSpotResultState')?.scrollIntoView({ block: 'center' });
+    });
+  }
   document.getElementById("discoverStreamControl").addEventListener("click", () => {
     state.expanded = !state.expanded;
     applyFilter();

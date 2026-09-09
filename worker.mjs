@@ -22,7 +22,7 @@ import { captureExecutionRewards, reconcileExecutionRewards, sweepExecutionRewar
 import { readProductAccess, expireProTrials } from "./lib/customer_pro.mjs";
 import { RAVEN_STANDARD_EXECUTION_FEE_BPS, RAVEN_PRO_CASHBACK_PERCENT, productFlags } from "./lib/customer_product.mjs";
 import { emergingDiscoverCandidate } from "./lib/discover_radar.mjs";
-import { preserveDiscoverCandidateLanes } from './lib/discover_candidate_lanes.mjs';
+import { preserveDiscoverCandidateLanes, qualifyDiscoverCandidates } from './lib/discover_candidate_lanes.mjs';
 import { createSolanaWalletProfileReads } from "./lib/customer_trade/solana_wallet_profile_provider.mjs";
 import { rememberSeenWalletTokenMarks } from "./lib/customer_trade/wallet_token_marks.mjs";
 const solanaWalletTokenMetadataCache = new Map();
@@ -63,7 +63,8 @@ import {
   resolveChartCapability,
   timeframeSeconds,
 } from "./ravenos-chart-data-plane.js";
-import { bestExactSpotMarketPerToken, spotMarketCapitalization, spotTransactionCount } from "./ravenos-discover-intelligence.js";
+import { bestExactSpotMarketPerToken, spotMarketCapitalization, spotTransactionCount, spotDiscoveryQuality, DISCOVER_MARKET_QUALITY } from "./ravenos-discover-intelligence.js";
+import { collectDexScreenerDiscoverySeeds } from './lib/dexscreener_discovery_seeds.mjs';
 import { resolveCustomerTradeFlags } from "./lib/customer_trade/feature_flags.mjs";
 import {
   createHyperliquidMarketPreview,
@@ -613,7 +614,9 @@ const ONCHAIN_PULSE_PROVIDER_PAGES = Object.freeze([1, 2, 3]);
 const ONCHAIN_PULSE_PROVIDER_PAGE_SIZE = 20;
 const ONCHAIN_PULSE_PROVIDER_ROWS_PER_CHAIN = 60;
 const ONCHAIN_PULSE_SUPPLEMENT_TTL_MS = 90_000;
-const ONCHAIN_PULSE_MAX_ROWS = 240;
+// Full-cohort ranking stays bounded in a 128 MiB Worker; the browser pages 100
+// rows at a time. Shared snapshot coverage is reported separately from delivery.
+const ONCHAIN_PULSE_MAX_ROWS = 2_000;
 const JUPITER_DISCOVERY_LIMIT = 50;
 const DEXSCREENER_TOKEN_BATCH_LIMIT = 30;
 const DEXCH_PULSE_TOKENS_PER_CHAIN = MarketProviderPolicy.seed_pools_per_chain;
@@ -3674,16 +3677,16 @@ export async function collectRavenParticipation(env = {}, previous = null) {
       return [...(previous?.rows || []), ...(known.status === 'fulfilled' ? known.value : []), ...(registry.status === 'fulfilled' ? [...registry.value.values()] : [])];
     },
     readSeedTokens: async () => {
-      const jobs = [marketProviderReader.read(`${DEXSCREENER_BASE_URL}/token-profiles/latest/v1`, { ttlMs: 300_000 })
-        .then(rows => (Array.isArray(rows) ? rows : []).map(row => ({ chain: row.chainId, token_address: row.tokenAddress })))];
+      const seeds = collectDexScreenerDiscoverySeeds((url, options) => marketProviderReader.read(url, options));
+      const jobs = [];
       const key = String(env.JUPITER_API_KEY || '').trim();
       if (key) for (const [category, interval] of [['toptraded', '6h'], ['toptraded', '24h'], ['toporganicscore', '6h'], ['toptrending', '6h']]) {
         jobs.push(boundedProviderJson(`${JUPITER_TOKENS_BASE_URL}/${category}/${interval}?limit=100`, {
           headers: { 'x-api-key': key }, maxBytes: 1024 * 1024, timeoutMs: 5_000, errorPrefix: 'jupiter_tokens',
         }).then(rows => (Array.isArray(rows) ? rows : []).filter(row => !isTokenizedEquity(row)).map(row => ({ chain: 'solana', token_address: row.id, name: row.name }))));
       }
-      const results = await Promise.allSettled(jobs);
-      return { rows: results.flatMap(result => result.status === 'fulfilled' ? result.value : []), request_count: jobs.length };
+      const [results, additional] = await Promise.all([Promise.allSettled(jobs), seeds]);
+      return { rows: [...additional.rows, ...results.flatMap(result => result.status === 'fulfilled' ? result.value : [])], request_count: jobs.length + additional.request_count };
     },
   });
 }
@@ -4417,7 +4420,10 @@ async function onchainMarketPulse({ env = {}, request = null, chains = [], durat
     .map(row => ({ ...row, discovery_source: 'cached_participation_universe' }));
   const currentRows = [...jupiterRows, ...providerRows, ...existingRows, ...cachedUniverseRows].map((row) => {
     const token = dexchByToken.get(dexchDiscoveryTokenKey(row.chain_id || row.chain, row.token_address));
-    return token ? attachDexchLifecycle(row, token, fetchedAt) : row;
+    // Holder census is token-wide and may be absent from the pool-price source.
+    // Keep this reported fact even when lifecycle metadata itself is absent.
+    const enriched = token ? { ...row, market: { ...row.market, holder_count: row.market?.holder_count ?? token.market?.holder_count ?? null } } : row;
+    return token ? attachDexchLifecycle(enriched, token, fetchedAt) : enriched;
   });
   const rowsByMarket = new Map();
   for (const row of [...currentRows, ...(dexchDiscovery.rows || [])].filter(row => matchesMarketScope(row, "memecoins"))) {
@@ -4441,8 +4447,10 @@ async function onchainMarketPulse({ env = {}, request = null, chains = [], durat
     const marketKey = String(row.instrument_id || "");
     if (marketKey && !rowsByMarket.has(marketKey)) rowsByMarket.set(marketKey, row);
   }
-  const rows = balancedDiscoverCandidates([...rowsByMarket.values()], chains, { timeframe: duration });
-  if (!rows.length) throw new Error("onchain_market_pulse_unavailable");
+  const indexedRows = [...rowsByMarket.values()];
+  const qualifiedRows = qualifyDiscoverCandidates(indexedRows);
+  const rows = balancedDiscoverCandidates(qualifiedRows, chains, { timeframe: duration });
+  if (!indexedRows.length) throw new Error("onchain_market_pulse_unavailable");
   const classifiedRows = attachDiscoverRegistryHistory(rows, registryHistory).map((row) => ({
     ...row,
     name: boundedPublicMarketName(row.name, 80),
@@ -4454,6 +4462,7 @@ async function onchainMarketPulse({ env = {}, request = null, chains = [], durat
     timeframe: duration,
     generatedAt,
     sourceState: degraded ? "degraded" : registryHistory.size ? "shadow" : "forming",
+    maxRows: ONCHAIN_PULSE_MAX_ROWS,
   });
   const result = {
     ok: true,
@@ -4468,6 +4477,17 @@ async function onchainMarketPulse({ env = {}, request = null, chains = [], durat
     },
     duration,
     chains,
+    universe: {
+      indexed_tokens: bestExactSpotMarketPerToken(indexedRows, { timeframe: duration }).length,
+      qualified_tokens: bestExactSpotMarketPerToken(qualifiedRows, { timeframe: duration }).length,
+      delivered_tokens: rows.length,
+      delivery_limited: rows.length < bestExactSpotMarketPerToken(qualifiedRows, { timeframe: duration }).length,
+      sampled_tokens: participation?.payload?.coverage?.tracked || 0,
+      shared_snapshot_at: participation?.payload?.generated_at || null,
+      excluded_candidates: indexedRows.length - qualifiedRows.length,
+      quality_policy: DISCOVER_MARKET_QUALITY,
+      complete_chain_census: false,
+    },
     rows: discoveryRadar.rows,
     // Rows are the heavy portion of this contract. Keep one authoritative
     // copy at the response root and attach only the versioned classifier
@@ -4541,6 +4561,9 @@ async function onchainMarketPulse({ env = {}, request = null, chains = [], durat
   if (env.RAVENOS_WALLET_UNIVERSE_ENABLED === "1" && env.RAVENOS_CUSTOMER_DB?.prepare) {
     await createWalletUniverseStore(env.RAVENOS_CUSTOMER_DB).rememberMarkets(result.rows).catch(() => undefined);
   }
+  // A complete classified universe is larger than the old 240-row slice. Keep
+  // only the latest projection in isolate memory; the edge holds shared variants.
+  onchainPulseCache.clear();
   cacheSet(onchainPulseCache, cacheKey, result, onchainPulseCachePolicy(result, { jupiterConfigured }).memoryTtlMs);
   return result;
 }
@@ -11910,7 +11933,7 @@ async function routeApi(request, env, executionContext = null) {
       if (!snapshot?.rows?.length) return json({ ok: false, state: 'refreshing', rows: [] }, { status: 503, headers: { 'cache-control': 'no-store' } });
       const boards = { capitalization: buildParticipationMap(snapshot.rows), new_pairs: buildParticipationMap(snapshot.rows, { family: 'new_pairs' }) };
       if (chain) {
-        const matching = rankParticipationMarkets(snapshot.rows, { filter: { chain, band, kind: band === 'new_pairs' ? 'new_pairs' : 'capitalization' }, order });
+        const matching = rankParticipationMarkets(qualifyDiscoverCandidates(snapshot.rows), { filter: { chain, band, kind: band === 'new_pairs' ? 'new_pairs' : 'capitalization' }, order });
         // Keep known group identities visible through a delayed refresh. The
         // radar removes stale prices/signals and retains the original time.
         const retained = matching.slice(0, 200).map(row => ({ ...row, registry: { ...row.registry, retained_after_trending: true } }));

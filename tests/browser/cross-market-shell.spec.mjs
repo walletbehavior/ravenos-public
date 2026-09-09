@@ -150,16 +150,19 @@ function quietLaunchpadRow(source, symbol, lifecycle) {
     state: lifecycle, observed_at: new Date().toISOString(), raven_verified: false, execution_authority: false,
     quality: { contradictions: [] }, progress_bps: lifecycle === "BONDING" ? 1200 : 10000,
   };
-  row.market = { ...row.market, price_usd: 0.00002, market_cap_usd: 20_000, liquidity_usd: 2_000 };
+  row.market = { ...row.market, price_usd: 0.00002, market_cap_usd: 20_000, liquidity_usd: 10_000, holder_count: 100 };
   for (const window of ["5m", "1h", "24h"]) {
     for (const metric of ["volume_usd", "buys", "sells", "traders", "buyers", "sellers"]) row.market[`${metric}_${window}`] = 0;
     row.market[`price_change_${window}_pct`] = 0;
   }
+  // Quiet in the current window, with sufficient observed participation over
+  // the day. Inactive/dust launches no longer qualify merely by lifecycle.
+  Object.assign(row.market, { volume_usd_24h: 2000, buys_24h: 20, sells_24h: 10 });
   row.registry = { state: "tracking", observation_count: 1, retained_after_trending: false };
   return row;
 }
 
-for (const width of [1440, 390]) test(`Discover lifecycle controls show quiet reported launches at ${width}px`, async ({ page }) => {
+for (const width of [1440, 390]) test(`Discover lifecycle controls show qualified launches quiet in the current window at ${width}px`, async ({ page }) => {
   await page.setViewportSize({ width, height: 1000 });
   const bonding = quietLaunchpadRow(solanaPulseRow, "BONDQUIET", "BONDING");
   const graduated = quietLaunchpadRow(robinhoodPulseRow, "GRADQUIET", "GRADUATED");
@@ -172,7 +175,7 @@ for (const width of [1440, 390]) test(`Discover lifecycle controls show quiet re
   await expect(page.locator('.discover-token-row')).toHaveCount(1);
   await expect(page.locator('#discoverTokenTapeList')).toContainText('BONDQUIET');
   await expect(page.locator('[data-spot-lane="all"]')).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.locator('#discoverSpotPulseSummary')).toContainText('quiet markets included');
+  await expect(page.locator('#discoverSpotPulseSummary')).toContainText('liquidity and participation checked');
   await page.locator('.discover-lifecycle-quickbar [data-spot-cohort="migrated"]').click();
   await expect(page.locator('.discover-token-row')).toHaveCount(1);
   await expect(page.locator('#discoverTokenTapeList')).toContainText('GRADQUIET');
@@ -1525,13 +1528,13 @@ test("Discover groups same-symbol contracts for clarity and reveals every exact 
   await expect(page.locator('.discover-lifecycle-quickbar [data-spot-cohort="migrated"]')).toBeHidden();
   await expect(page.locator('#discoverRevivalScan')).toBeHidden();
   await expect(page.locator(".discover-token-row")).toHaveCount(1);
-  await expect(page.locator("#discoverSpotResultState")).toHaveText("1 shown · 2 exact tokens");
+  await expect(page.locator("#discoverSpotResultState")).toHaveText("1–1 of 1 qualifying tokens · 2 exact contracts");
   await expect(page.locator("#discoverTokenTapeList")).toContainText("2 same-symbol contracts · best shown");
   await expect(page.locator("#discoverSameSymbolToggle")).toHaveAttribute("aria-pressed", "false");
   await page.locator("#discoverRefineMarkets > summary").click();
   await page.locator("#discoverSameSymbolToggle").click();
   await expect(page.locator("#discoverSameSymbolToggle")).toHaveAttribute("aria-pressed", "true");
-  await expect(page.locator("#discoverSpotResultState")).toHaveText("2 tokens");
+  await expect(page.locator("#discoverSpotResultState")).toHaveText("1–2 of 2 qualifying tokens");
   await expect(page.locator(".discover-token-row").filter({ hasText: "TWINS" })).toHaveCount(2);
 });
 
@@ -1584,9 +1587,9 @@ test("Discover scans sub-5K and sub-10K markets and rejects one-print revival no
     return row;
   };
   const rows = [
-    microcap({ symbol: "OLD5", suffix: "71", marketCap: 4_200, ageDays: 730, holderCount: 80, liquidity: 800, volume5m: 900, buys5m: 3, sells5m: 2, move5m: 3.2 }),
-    microcap({ symbol: "OLD8", suffix: "72", marketCap: 8_200, ageDays: 420, holderCount: 350, liquidity: 1_800, volume5m: 3_000, buys5m: 5, sells5m: 5, move5m: 22 }),
-    microcap({ symbol: "YOUNG4", suffix: "73", marketCap: 4_600, ageDays: 5, holderCount: 40, liquidity: 600, volume5m: 500, buys5m: 4, sells5m: 2, move5m: 4 }),
+    microcap({ symbol: "OLD5", suffix: "71", marketCap: 4_200, ageDays: 730, holderCount: 80, liquidity: 6_000, volume5m: 900, buys5m: 3, sells5m: 2, move5m: 3.2 }),
+    microcap({ symbol: "OLD8", suffix: "72", marketCap: 8_200, ageDays: 420, holderCount: 350, liquidity: 12_000, volume5m: 3_000, buys5m: 5, sells5m: 5, move5m: 22 }),
+    microcap({ symbol: "YOUNG4", suffix: "73", marketCap: 4_600, ageDays: 5, holderCount: 40, liquidity: 6_000, volume5m: 500, buys5m: 4, sells5m: 2, move5m: 4 }),
     microcap({ symbol: "PRINT9", suffix: "74", marketCap: 9_200, ageDays: 500, holderCount: 20, liquidity: 500, volume5m: 700, buys5m: 1, sells5m: 0, move5m: 20, singlePrint: true }),
   ];
   await mockWorkspaceApis(page, { pulseRowsOverride: rows });
@@ -1607,7 +1610,7 @@ test("Discover scans sub-5K and sub-10K markets and rejects one-print revival no
   await expect(page.locator(".discover-token-row").first()).toHaveAttribute("href", /launch=velocity/);
 
   await page.locator("[data-spot-market-cap='under_10k']").click();
-  await expect(page.locator(".discover-token-row")).toHaveCount(4);
+  await expect(page.locator(".discover-token-row")).toHaveCount(3);
   await page.locator("#discoverRevivalScan").click();
   await expect(page.locator("#discoverRevivalScan")).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator(".discover-token-row")).toHaveCount(2);
@@ -1630,6 +1633,8 @@ test("Discover scans sub-5K and sub-10K markets and rejects one-print revival no
   await page.locator("#discoverVolumeFilter").selectOption("all");
 
   await page.locator("#discoverLiquidityFilter").selectOption("under_1k");
+  await expect(page.locator(".discover-token-row")).toHaveCount(0);
+  await page.locator("#discoverLiquidityFilter").selectOption("5k_10k");
   await expect(page.locator(".discover-token-row")).toHaveCount(1);
   await expect(page.locator(".discover-token-row")).toContainText("OLD5");
   await page.locator("#discoverLiquidityFilter").selectOption("all");
@@ -1668,7 +1673,7 @@ test("Discover keeps recently active microcaps visible when the selected five-mi
   recentlyActive.market = {
     ...recentlyActive.market,
     market_cap_usd: 4_600,
-    liquidity_usd: 1_900,
+    liquidity_usd: 6_000,
     market_age_seconds: 200 * 86_400,
     price_change_5m_pct: 0,
     volume_usd_5m: 0,

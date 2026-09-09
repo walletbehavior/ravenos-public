@@ -158,3 +158,30 @@ test('participation cadence does not enter wallet ingestion, billing or executio
   } });
   await worker.scheduled({ cron: '*/2 * * * *' }, env, {});
 });
+
+test('Discover reads hundreds of qualified cached tokens before the old 240-row cut, without provider calls', async () => {
+  const db = database(), store = createParticipationSnapshotStore(db), now = Math.floor(Date.now() / 1000);
+  const data = await collectParticipationUniverse({ dexchEnabled: false,
+    readPairs: async (chain, addresses) => ({ value: addresses.map(address => pair(chain, address)), observed_at: new Date().toISOString() }),
+    readKnownMarkets: async () => Array.from({ length: 600 }, (_, i) => ({ chain: 'base', token_address: addr(i + 1) })),
+  });
+  data.rows[0].market.holder_count = 1;
+  data.rows[1].market.liquidity_usd = 10;
+  await store.claim('broad-discover', now); await store.finish('broad-discover', data, now);
+  const previousFetch = globalThis.fetch;
+  let requests = 0;
+  globalThis.fetch = async () => { requests += 1; throw new Error('no provider request allowed'); };
+  try {
+    const response = await worker.fetch(new Request('https://ravenos.xyz/api/onchain/trending?chains=base&duration=5m'), {
+      RAVENOS_PARTICIPATION_UNIVERSE_ENABLED: '1', RAVENOS_CUSTOMER_DB: db, RAVENOS_COINGECKO_ENABLED: '0',
+    });
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.rows.length, 598);
+    assert.equal(body.universe.sampled_tokens, 600);
+    assert.equal(body.universe.qualified_tokens, 598);
+    assert.equal(body.universe.delivery_limited, false);
+    assert.equal(body.rows.some(row => row.market.holder_count === 1 || row.market.liquidity_usd < 5000), false);
+    assert.equal(requests, 0);
+  } finally { globalThis.fetch = previousFetch; db.raw.close(); }
+});
