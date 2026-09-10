@@ -12,6 +12,7 @@ import { enrichHolderWalletContext } from './lib/customer_trade/holder_wallet_co
 import { loadWalletHistoricalPrices } from './lib/customer_trade/wallet_historical_prices.mjs';
 import { WalletIngestionPolicy, walletIngestionPolicy, reserveEvmHistoryRequests, settleEvmHistoryRequests } from './lib/customer_trade/wallet_ingestion_policy.mjs';
 import { EvmWalletBackfillPolicy, loadEvmWalletBackfillPage } from './lib/customer_trade/evm_wallet_backfill.mjs';
+import { evmBackfillAccountingHistory } from './lib/customer_trade/evm_wallet_history_window.mjs';
 import { createWalletUniverseStore, runWalletUniverse } from "./lib/customer_trade/wallet_universe.mjs";
 import { CUSTOMER_TRADING_SETTINGS_ROUTE, routeCustomerTradingSettings } from './lib/customer_trading_settings.mjs';
 import { exitStrategyLevels } from './ravenos-trading-strategy.js';
@@ -12214,11 +12215,8 @@ export async function runWalletHistoryIngestion(env) {
               const historicalPrices=await loadWalletHistoricalPrices(env,env.RAVENOS_CUSTOMER_DB,events).catch(()=>[]);
               return persistSourceWalletProfile(walletStore, job.source_wallet_id, now, {
                 ...sourceWalletBackfillHistoryEvidence(job),
+                ...(job.source_wallet.chain==='solana'?{}:evmBackfillAccountingHistory(job.provider_cursor)),
                 historical_prices:env.RAVENOS_WALLET_HISTORICAL_USD_ENABLED === "1" ? historicalPrices : null,
-                opening_balances:job.provider_cursor?.opening_balances,
-                window_start_block:job.provider_cursor?.from_block ? Number(BigInt(job.provider_cursor.from_block)) : null,
-                window_end_block:job.provider_cursor?.verified_through_block ? Number(BigInt(job.provider_cursor.verified_through_block)) : null,
-                verified_through_at:job.provider_cursor?.verified_through_at || null,
               }, null, null, events);
             })()]));
             return {

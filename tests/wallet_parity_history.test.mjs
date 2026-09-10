@@ -6,6 +6,7 @@ import { createD1CustomerWalletCopyStore, persistSourceWalletProfile } from '../
 import { createD1SourceWalletBackfillStore, createSourceWalletBackfillJob, runSourceWalletBackfillBatch, publicSourceWalletBackfillJob, sourceWalletBackfillHistoryEvidence } from '../lib/customer_trade/source_wallet_backfill.mjs';
 import { normalizeSourceWalletChainIdentity } from '../lib/customer_trade/source_wallet_chain_identity.mjs';
 import { loadEvmWalletBackfillPage } from '../lib/customer_trade/evm_wallet_backfill.mjs';
+import { evmBackfillAccountingHistory, verifiedEvmHistoryWindow } from '../lib/customer_trade/evm_wallet_history_window.mjs';
 import { historicalUsdValue, loadWalletHistoricalPrices, walletUsdTradingRecord } from '../lib/customer_trade/wallet_historical_prices.mjs';
 import { enrichHolderWalletContext } from '../lib/customer_trade/holder_wallet_context.mjs';
 import { evmSettlementBases, decodeEvmWalletReceipt, WALLET_SWAP_TOPICS } from '../lib/customer_trade/evm_wallet_swaps.mjs';
@@ -152,6 +153,79 @@ test('completed histories catch up from the last verified head instead of scanni
   const next=await loadEvmWalletBackfillPage(env,{...job,provider_cursor:{...result.cursor,advance_from_head:true}},{fetchImpl,now:NOW+600000});
   assert.equal(calls.find(c=>c.method==='alchemy_getAssetTransfers').params[0].fromBlock,hex(137));
   assert.equal(next.cursor.head,hex(146));assert.equal(next.cursor.verified_through_block,hex(136));
+});
+
+test('completed EVM accounting boundaries survive budget deferral, extension receipt retries and restart',async t=>{
+ const db=sqliteStore();t.after(()=>db.raw.close());
+ const walletStore=createD1CustomerWalletCopyStore(db);
+ let backfill=createD1SourceWalletBackfillStore(db,{record_events:walletStore.recordEvents}),clock=NOW,recovered=false;
+ await walletStore.upsertSourceWallet({...id,now:NOW/1000,state:'requested',provider_scope:'history'});
+ await backfill.enqueueJob({chain:'base',address:W,now:clock});
+ const p=provider();
+ const run=(fetchEvmPage)=>runSourceWalletBackfillBatch(backfill,{fetchEvmPage,fetchSignatures:async()=>assert.fail('unexpected Solana read'),hydrateTransaction:async()=>assert.fail('unexpected Solana read')},{now:clock,maximum_jobs:1});
+ const original=job=>loadEvmWalletBackfillPage(env,job,{fetchImpl:p.fetchImpl,now:clock});
+ await run(original);clock+=1000;await run(original);
+ let job=await backfill.jobForSource(id.source_wallet_id);
+ assert.equal(job.state,'complete');const verifiedAt=job.provider_cursor.verified_through_at;
+ // Read a cursor written by the prior release. Its completed prefix is enough
+ // to migrate the start marker, even if no new provider call fits the budget.
+ const legacy={...job.provider_cursor};delete legacy.verified_from_block;
+ await db.prepare('UPDATE ravenos_source_wallet_backfill_jobs SET provider_cursor_json=? WHERE job_id=?').bind(JSON.stringify(legacy),job.job_id).run();
+ clock=NOW+600000;await backfill.enqueueJob({chain:'base',address:W,now:clock});
+ await run(async()=>{const error=Error('evm_history_budget_exhausted');error.code=error.message;error.retry_at=clock+60000;throw error;});
+ job=await backfill.jobForSource(id.source_wallet_id);
+ assert.equal(job.state,'retry_wait');assert.equal(evmBackfillAccountingHistory(job.provider_cursor).verified_window.through_block,136);
+ const fetchImpl=async(url,options)=>{
+  const request=JSON.parse(options.body),{method,params}=request;
+  if(method==='eth_blockNumber')return Response.json({id:1,result:hex(210)});
+  if(method==='alchemy_getAssetTransfers')return Response.json({id:1,result:{transfers:params[0].toAddress?[{hash:hash(2),blockNum:hex(140),uniqueId:'new-transfer',category:'erc20',from:S,to:W,rawContract:{address:T},metadata:{blockTimestamp:new Date(Number(BigInt(block(140).timestamp))*1000).toISOString()}}]:[]}});
+  const body=await (await p.fetchImpl(url,options)).json();
+  if(method==='eth_getTransactionReceipt')body.result=recovered?{...body.result,transactionHash:hash(2),blockNumber:hex(140),blockHash:block(140).hash}:null;
+  if(method==='eth_getTransactionByHash')body.result={...body.result,hash:hash(2),blockNumber:hex(140),blockHash:block(140).hash};
+  return Response.json(body);
+ };
+ const extension=async job=>loadEvmWalletBackfillPage(env,job,{fetchImpl,now:clock,deferReferenceFailures:true,retryReferences:await backfill.dueReferences(job.job_id,clock)});
+ clock+=60000;await run(extension);
+ job=await backfill.jobForSource(id.source_wallet_id);
+ assert.equal(job.provider_cursor.head,hex(146));assert.equal(job.provider_cursor.unresolved_references,1);
+ assert.equal(evmBackfillAccountingHistory(job.provider_cursor).verified_window.through_block,136);
+ backfill=createD1SourceWalletBackfillStore(db,{record_events:walletStore.recordEvents});
+ clock+=1000;await run(extension);job=await backfill.jobForSource(id.source_wallet_id);
+ assert.equal(job.state,'retry_wait');assert.equal(job.provider_cursor.direction,'done');
+ assert.equal(evmBackfillAccountingHistory(job.provider_cursor).verified_window.verified_at,verifiedAt);
+ clock+=61000;recovered=true;await run(extension);job=await backfill.jobForSource(id.source_wallet_id);
+ assert.equal(job.state,'complete');assert.equal(job.provider_cursor.unresolved_references,0);
+ assert.equal(evmBackfillAccountingHistory(job.provider_cursor).verified_window.through_block,146);
+ assert.equal(job.transactions_decoded,2);
+});
+
+test('older or unlocatable receipt gaps and reorgs invalidate a previously verified prefix',async t=>{
+ const db=sqliteStore();t.after(()=>db.raw.close());
+ const walletStore=createD1CustomerWalletCopyStore(db),backfill=createD1SourceWalletBackfillStore(db,{record_events:walletStore.recordEvents});
+ await walletStore.upsertSourceWallet({...id,now:NOW/1000,state:'requested',provider_scope:'history'});
+ await backfill.enqueueJob({chain:'base',address:W,now:NOW});
+ const cursor={version:1,from_block:hex(0),head:hex(146),head_hash:block(146).hash,seek_block:hex(146),direction:'done',pending:[],scan_from_block:hex(137),verified_from_block:hex(0),verified_through_block:hex(136),verified_through_at:new Date(NOW-64000).toISOString(),coverage_start_at:new Date(NOW-86400000).toISOString(),coverage_end_at:new Date(NOW-54000).toISOString()};
+ const reset=async()=>{await db.prepare("UPDATE ravenos_source_wallet_backfill_jobs SET provider_cursor_json=?,state='queued',next_attempt_at=0").bind(JSON.stringify(cursor)).run();};
+ const page=async job=>({events:[],cursor:job.provider_cursor,reference_count:0,new_reference_count:0,decoded_count:0,reference_outcomes:[],exhausted:true,request_count:0});
+ const run=fetchEvmPage=>runSourceWalletBackfillBatch(backfill,{fetchEvmPage,fetchSignatures:async()=>assert.fail('unexpected Solana read'),hydrateTransaction:async()=>assert.fail('unexpected Solana read')},{now:NOW,maximum_jobs:1});
+ for(const blockNum of [hex(100),'unknown']) {
+  await reset();let job=await backfill.jobForSource(id.source_wallet_id);
+  await backfill.recordReferenceOutcomes(job,[{reference:{hash:hash(9),blockNum},error_code:'evm_wallet_backfill_receipt_incomplete'}],'gap-'+blockNum,NOW);
+  await run(page);
+  job=await backfill.jobForSource(id.source_wallet_id);
+  assert.equal(job.provider_cursor.verified_through_block,undefined);
+  assert.equal(evmBackfillAccountingHistory(job.provider_cursor).verified_window,null);
+  await db.prepare('DELETE FROM ravenos_wallet_reference_retries WHERE job_id=?').bind(job.job_id).run();
+ }
+ await reset();
+ await run(async()=>{throw Error('evm_wallet_backfill_reorg_requires_review');});
+ const changed=await backfill.jobForSource(id.source_wallet_id);
+ assert.equal(changed.provider_cursor.verification_invalidated,1);
+ assert.equal(evmBackfillAccountingHistory(changed.provider_cursor).verified_window,null);
+ await assert.rejects(loadEvmWalletBackfillPage(env,changed,{fetchImpl:provider().fetchImpl,now:NOW}),/reorg_requires_review/);
+ assert.equal(verifiedEvmHistoryWindow({...cursor,verified_from_block:hex(1)}),null);
+ assert.equal(verifiedEvmHistoryWindow({...cursor,scan_from_block:hex(138)}),null);
+ assert.equal(evmBackfillAccountingHistory({...cursor,verified_through_block:undefined}).verified_window,null);
 });
 
 test('one chain-scoped D1 job persists cursor through leasing and replay without duplicate events',async()=>{

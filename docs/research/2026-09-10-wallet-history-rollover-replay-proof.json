@@ -1,0 +1,119 @@
+{
+  "kind": "bounded retained-evidence replay; not a production deployment proof",
+  "baseline_source_commit": "2045dcde5c7326e79da12034f4bc1e53c45daf71",
+  "database_capture": {
+    "captured_at": "2026-09-10T18:21:51.085Z",
+    "sha256": "c7614a99faa7914ee0da5fdeded8d956c8611b99c280a6e03ae5081e9d12a9c0",
+    "events": 13,
+    "profile_version": 4,
+    "history_state": "complete",
+    "queries": [
+      {
+        "rows_read": 27,
+        "rows_written": 0
+      },
+      {
+        "rows_read": 5,
+        "rows_written": 0
+      },
+      {
+        "rows_read": 1,
+        "rows_written": 0
+      }
+    ]
+  },
+  "before": {
+    "captured_at": "2026-09-10T18:21:51.085Z",
+    "replayed_at": "2026-09-10T18:22:58.811Z",
+    "input_sha256": "c7614a99faa7914ee0da5fdeded8d956c8611b99c280a6e03ae5081e9d12a9c0",
+    "input_events": 13,
+    "rows": [
+      {
+        "state": "complete",
+        "profile_version": 4,
+        "trades": 8,
+        "matched_observations": 7,
+        "realized_eth": "0.826661679888576546",
+        "opening_balance_tokens": 1,
+        "window_start_block": 49817746,
+        "window_end_block": 51137002,
+        "coverage_end_at": "2026-09-10T18:02:31.000Z",
+        "history_complete": false
+      },
+      {
+        "state": "queued",
+        "profile_version": 4,
+        "trades": 8,
+        "matched_observations": 0,
+        "realized_eth": null,
+        "opening_balance_tokens": 0,
+        "window_start_block": 49817746,
+        "window_end_block": 51137002,
+        "coverage_end_at": "2026-09-10T18:02:31.000Z",
+        "history_complete": false
+      },
+      {
+        "state": "retry_wait",
+        "profile_version": 4,
+        "trades": 8,
+        "matched_observations": 0,
+        "realized_eth": null,
+        "opening_balance_tokens": 0,
+        "window_start_block": 49817746,
+        "window_end_block": 51137002,
+        "coverage_end_at": "2026-09-10T18:02:31.000Z",
+        "history_complete": false
+      }
+    ],
+    "events_unchanged": true,
+    "provider_requests": 0,
+    "production_writes": 0
+  },
+  "candidate": {
+    "captured_at": "2026-09-10T18:21:51.085Z",
+    "replayed_at": "2026-09-10T18:22:45.960Z",
+    "input_sha256": "c7614a99faa7914ee0da5fdeded8d956c8611b99c280a6e03ae5081e9d12a9c0",
+    "input_events": 13,
+    "rows": [
+      {
+        "state": "complete",
+        "profile_version": 5,
+        "trades": 8,
+        "matched_observations": 7,
+        "realized_eth": "0.826661679888576546",
+        "opening_balance_tokens": 1,
+        "window_start_block": 49817746,
+        "window_end_block": 51137002,
+        "coverage_end_at": "2026-09-10T18:02:31.000Z",
+        "history_complete": false
+      },
+      {
+        "state": "queued",
+        "profile_version": 5,
+        "trades": 8,
+        "matched_observations": 7,
+        "realized_eth": "0.826661679888576546",
+        "opening_balance_tokens": 1,
+        "window_start_block": 49817746,
+        "window_end_block": 51137002,
+        "coverage_end_at": "2026-09-10T18:02:31.000Z",
+        "history_complete": false
+      },
+      {
+        "state": "retry_wait",
+        "profile_version": 5,
+        "trades": 8,
+        "matched_observations": 7,
+        "realized_eth": "0.826661679888576546",
+        "opening_balance_tokens": 1,
+        "window_start_block": 49817746,
+        "window_end_block": 51137002,
+        "coverage_end_at": "2026-09-10T18:02:31.000Z",
+        "history_complete": false
+      }
+    ],
+    "events_unchanged": true,
+    "provider_requests": 0,
+    "production_writes": 0
+  }
+}

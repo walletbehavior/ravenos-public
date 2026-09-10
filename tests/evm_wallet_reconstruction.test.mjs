@@ -68,7 +68,7 @@ test('first background swap profile uses verified inventory and never treats a p
  const events=[await decode(receipt()),await decode(receipt(true))].map(event=>({...event,source_wallet_id:identity.source_wallet_id}));
  await store.upsertSourceWallet({...identity,now,state:'requested',provider_scope:'history'});
  await store.recordEvents(identity.source_wallet_id,events,now);
- const history={backfill_state:'queued',window_start_block:101,window_end_block:102,opening_balances:{[T]:'0'},historical_prices:[]};
+ const history={backfill_state:'queued',window_start_block:101,window_end_block:102,coverage_end_at:iso(NOW-60000),opening_balances:{[T]:'0'},historical_prices:[]};
  const partial=await persistSourceWalletProfile(store,identity.source_wallet_id,now,history);
  assert.equal(partial.behavior.trade_count,2);
  assert.equal(partial.trading_record.periods.d30.realized_pnl.usdc,null);
@@ -86,6 +86,58 @@ test('first background swap profile uses verified inventory and never treats a p
  assert.equal(replay.coverage.transactions_observed,2);
  const other=normalizeSourceWalletChainIdentity({chain:'ethereum',network:'mainnet',address:W});
  await assert.rejects(persistSourceWalletProfile({listSourceEvents:async()=>events,latestProfile:async()=>null,recordProfile:async()=>assert.fail('must not persist another chain')},other.source_wallet_id,now,history),/wallet_profile_chain_mixed/);
+});
+
+test('a verified window survives queued and failed extensions, restart and balance refresh',async t=>{
+ const db=sqliteStore();t.after(()=>db.raw.close());
+ let store=createD1CustomerWalletCopyStore(db);const p=provider(),now=Math.floor(NOW/1000);
+ const input={chain:'base',address:W,env:{...env,RAVENOS_WALLET_HISTORICAL_USD_ENABLED:'1'},fetchImpl:p.fetchImpl,now:iso(NOW)};
+ const first=await inspectRetainedEvmWallet(input,{db,store,now});
+ const window={from_block:101,through_block:102,verified_at:iso(NOW-60000)};
+ const history={backfill_state:'complete',window_start_block:101,window_end_block:102,verified_window:window,opening_balances:{[T]:'0'},historical_prices:[]};
+ await persistSourceWalletProfile(store,first.source_wallet_id,now+1,history);
+ // The newly observed sale cannot extend the verified accounting window.
+ const later={...await decode({...receipt(true),blockNumber:hex(103),blockHash:'0x'+word(103),transactionHash:'0x'+word(3)}),source_wallet_id:first.source_wallet_id};
+ await store.recordEvents(first.source_wallet_id,[later],now+2);
+ for(const [index,state] of ['queued','retry_wait','bounded_partial'].entries()) {
+  store=createD1CustomerWalletCopyStore(db);
+  const next=await persistSourceWalletProfile(store,first.source_wallet_id,now+3+index,{...history,backfill_state:state,unresolved_references:state==='queued'?0:1});
+  assert.equal(next.trading_record.periods.d30.realized_pnl.usdc,'25');
+  assert.equal(next.trading_record.periods.d30.sell_count,1);
+  assert.equal(next.trading_record.usd.periods.d30.realized_pnl.usd,'25');
+  assert.equal(next.durable_history.state,state);assert.equal(next.durable_history.window_end_block,102);
+  assert.equal(next.durable_history.coverage_end_at,window.verified_at);
+  assert.equal(next.durable_history.complete_wallet_history,false);
+  assert.equal(next.balances_observed_at,first.profile.balances_observed_at||first.profile.generated_at);
+ }
+ const refreshed=await inspectRetainedEvmWallet({...input,refresh:true,now:iso(NOW+601000)},{db,store,now:now+601});
+ assert.equal(refreshed.profile.trading_record.periods.d30.realized_pnl.usdc,'25');
+ assert.equal(refreshed.profile.trading_record.periods.d30.sell_count,1);
+ assert.equal(refreshed.profile.durable_history.window_end_block,102);
+ const completed=await persistSourceWalletProfile(store,first.source_wallet_id,now+602,{...history,window_end_block:103,verified_window:{...window,through_block:103,verified_at:iso(NOW)}});
+ assert.equal(completed.trading_record.periods.d30.realized_pnl.usdc,'50');
+ assert.equal(completed.trading_record.periods.d30.sell_count,2);
+ assert.equal(completed.evidence_boundary.copy_signal_created,false);
+});
+
+test('verified accounting rejects changed bounds, truncation and invalidated evidence without copying prior profit',async()=>{
+ const identity=normalizeSourceWalletChainIdentity({chain:'base',network:'mainnet',address:W}),now=Math.floor(NOW/1000);
+ const events=[await decode(receipt()),await decode(receipt(true))];
+ const history={backfill_state:'retry_wait',window_start_block:101,window_end_block:102,verified_window:{from_block:101,through_block:102,verified_at:iso(NOW-60000)},opening_balances:{[T]:'0'}};
+ let saved=null;const store={latestProfile:async()=>saved,recordProfile:async(_,p)=>{saved=p;},listSourceEvents:async()=>events};
+ assert.equal((await persistSourceWalletProfile(store,identity.source_wallet_id,now,history)).trading_record.periods.d30.realized_pnl.usdc,'25');
+ for(const change of [{window_start_block:100},{window_end_block:103},{verified_window:null},{opening_balances:{}},{verification_invalidated:true}]) {
+  const next=await persistSourceWalletProfile(store,identity.source_wallet_id,now+1,{...history,...change});
+  assert.equal(next.trading_record.periods.d30.realized_pnl.usdc,null);
+ }
+ const many=Array.from({length:10000},(_,i)=>({...events[i%2],event_id:'retained-'+i}));
+ const truncated=await persistSourceWalletProfile(store,identity.source_wallet_id,now+2,history,null,null,many);
+ assert.equal(truncated.durable_history.analysis_truncated,true);
+ assert.deepEqual(truncated.wallet_reconstruction.opening_balances,{});
+ // A corrected receipt within the old window must actually be recomputed.
+ const corrected=structuredClone(events);corrected[1].wallet_accounting.movements.find(m=>m.contract===T).decimals=18;
+ const revised=await persistSourceWalletProfile(store,identity.source_wallet_id,now+3,history,null,null,corrected);
+ assert.equal(revised.trading_record?.periods.d30.realized_pnl.usdc ?? null,null);
 });
 
 test('arbitrary Swap topics and mismatched factory membership cannot establish trading profit',async()=>{
@@ -267,7 +319,7 @@ test('background projection extends cached activity without refreshing balance t
  const db=sqliteStore(),store=createD1CustomerWalletCopyStore(db),p=provider(),now=Math.floor(NOW/1000);
  const first=await inspectRetainedEvmWallet({chain:'base',address:W,env,fetchImpl:p.fetchImpl,now:iso(NOW)},{db,store,now});
  const count=p.calls.length;
- const projected=await persistSourceWalletProfile(store,first.source_wallet_id,now+600,{backfill_state:'complete',window_start_block:101,opening_balances:{[T]:'0'},historical_prices:[]});
+ const projected=await persistSourceWalletProfile(store,first.source_wallet_id,now+600,{backfill_state:'complete',window_start_block:101,window_end_block:102,coverage_end_at:iso(NOW-60000),opening_balances:{[T]:'0'},historical_prices:[]});
  assert.equal(projected.trading_record.periods.d30.realized_pnl.usdc,'25');
  assert.equal(projected.trading_record.usd.periods.d30.realized_pnl.usd,'25');
  assert.equal(projected.balances_observed_at,first.profile.generated_at);
@@ -280,7 +332,7 @@ test('balance refresh preserves durable EVM USD results and reads cached histori
  const db=sqliteStore(),store=createD1CustomerWalletCopyStore(db),p=provider(),now=Math.floor(NOW/1000);
  const active={...env,RAVENOS_WALLET_HISTORICAL_USD_ENABLED:'1'},input={chain:'base',address:W,env:active,fetchImpl:p.fetchImpl,now:iso(NOW)};
  const first=await inspectRetainedEvmWallet(input,{db,store,now});
- await persistSourceWalletProfile(store,first.source_wallet_id,now+1,{backfill_state:'complete',window_start_block:101,window_end_block:102,opening_balances:{[T]:'0'},historical_prices:[]});
+ await persistSourceWalletProfile(store,first.source_wallet_id,now+1,{backfill_state:'complete',window_start_block:101,window_end_block:102,coverage_end_at:iso(NOW-60000),opening_balances:{[T]:'0'},historical_prices:[]});
  const refreshed=await inspectRetainedEvmWallet({...input,refresh:true,now:iso(NOW+601000)},{db,store,now:now+601});
  assert.equal(refreshed.profile.trading_record.usd.periods.d30.realized_pnl.usd,'25');
  assert.equal(refreshed.profile.trading_record.usd.unrealized_summary.value_usd,'50');
