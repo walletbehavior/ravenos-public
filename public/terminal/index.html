@@ -256,7 +256,6 @@
           <header>
             <div><span id="terminalSpotActivityScope">Recent activity</span><h2>Transactions</h2></div>
             <strong id="terminalSpotActivityState">Loading</strong>
-            <button type="button" id="terminalSpotTradeRefresh" aria-label="Refresh transactions">Refresh</button>
           </header>
           <nav class="terminal-activity-views" aria-label="Choose market activity view">
             <button type="button" data-spot-activity-view="trades" aria-controls="terminalSpotTradesView" aria-pressed="true">
@@ -265,8 +264,17 @@
             <button type="button" data-spot-activity-view="wallets" aria-controls="terminalActiveTraders" aria-pressed="false">
               <span>Active wallets</span><small id="terminalActivityWalletCount">Returned sample</small>
             </button>
+            <button type="button" id="terminalSpotTradeRefresh" aria-label="Refresh transactions" title="Refresh transactions">↻</button>
           </nav>
           <div id="terminalSpotTradesView">
+            <div class="terminal-spot-controls" role="group" aria-label="Transaction filters">
+            <div class="terminal-spot-size-filters" role="group" aria-label="Minimum transaction value">
+              <span>Min</span>
+              <button type="button" data-spot-trade-min="0" aria-pressed="true">Any</button>
+              <button type="button" data-spot-trade-min="100" aria-pressed="false">$100</button>
+              <button type="button" data-spot-trade-min="1000" aria-pressed="false">$1K</button>
+              <button type="button" data-spot-trade-min="10000" aria-pressed="false">$10K</button>
+            </div>
             <div class="terminal-spot-trade-filters" id="terminalSpotTradeFilters" aria-label="Filter recent swaps">
               <button type="button" data-spot-trade-filter="all" aria-pressed="true">All</button>
               <button type="button" data-spot-trade-filter="buy" aria-label="Show incoming swaps" aria-pressed="false">Buys</button>
@@ -274,12 +282,6 @@
               <button type="button" data-spot-trade-filter="large" aria-pressed="false">Largest 10%</button>
               <button type="button" data-spot-trade-filter="repeat" aria-pressed="false">Repeat</button>
             </div>
-            <div class="terminal-spot-size-filters" role="group" aria-label="Minimum transaction value">
-              <span>Min</span>
-              <button type="button" data-spot-trade-min="0" aria-pressed="true">Any</button>
-              <button type="button" data-spot-trade-min="100" aria-pressed="false">$100</button>
-              <button type="button" data-spot-trade-min="1000" aria-pressed="false">$1K</button>
-              <button type="button" data-spot-trade-min="10000" aria-pressed="false">$10K</button>
             </div>
             <p class="terminal-spot-scroll-hint">Swipe for price &amp; wallets →</p>
             <div class="terminal-spot-tape-scroll" id="terminalSpotTapeScroll" tabindex="0" role="region" aria-label="Transaction table. Scroll horizontally for price and wallets.">

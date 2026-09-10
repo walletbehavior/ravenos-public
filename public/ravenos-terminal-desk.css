@@ -495,16 +495,17 @@ body .terminal-desk .ros-layer-body #terminalRavenEmptySection { display: block;
 .terminal-live #terminalSpotActivitySection > header span { font: 12px/1.4 var(--desk-font); color: var(--terminal-muted); }
 .terminal-live #terminalSpotActivitySection h2 { font: 600 17px/1.4 var(--desk-font); margin: 2px 0; }
 .terminal-live #terminalSpotActivityState { font: 12px/1.4 var(--desk-font); color: var(--terminal-muted); }
-.terminal-live #terminalSpotTradeRefresh { min-height: 44px; padding: 0 10px; border: 1px solid var(--terminal-line); border-radius: 7px; background: transparent; color: var(--terminal-text); font: 13px var(--desk-font); cursor: pointer; }
+.terminal-live #terminalSpotTradeRefresh { flex: 0 0 44px; min-height: 44px; width: 44px; margin-left: auto; padding: 0; justify-content: center; align-items: center; border: 0; background: transparent; color: var(--terminal-text); font: 22px var(--desk-font); cursor: pointer; }
 .terminal-live .terminal-activity-views { display: flex; gap: 18px; margin: 0; padding: 0; background: none; border-bottom: 1px solid var(--terminal-line); }
 .terminal-live .terminal-activity-views button { display: flex; align-items: baseline; flex-wrap: wrap; gap: 5px; min-height: 44px; padding: 8px 0; background: transparent; }
 .terminal-live .terminal-activity-views span { font: 600 14px/1.4 var(--desk-font); text-transform: none; }
 .terminal-live .terminal-activity-views small { font: 11px/1.4 var(--desk-font); margin: 0; }
+.terminal-live .terminal-spot-controls { display: flex; align-items: center; gap: 8px; overflow-x: auto; scrollbar-width: none; }
 .terminal-live .terminal-spot-trade-filters,
-.terminal-live .terminal-spot-size-filters { display: flex; align-items: center; gap: 4px; margin: 5px 0 0; overflow-x: auto; scrollbar-width: none; }
+.terminal-live .terminal-spot-size-filters { display: flex; flex: 0 0 auto; align-items: center; gap: 2px; margin: 5px 0 0; overflow: visible; }
 .terminal-live .terminal-spot-size-filters > span { color: var(--terminal-muted); font: 12px var(--desk-font); padding: 0 4px; }
 .terminal-live .terminal-spot-trade-filters button,
-.terminal-live .terminal-spot-size-filters button { flex: 0 0 auto; width: auto; min-height: 44px; padding: 0 10px; background: transparent; border: 1px solid transparent; border-radius: 6px; font: 13px var(--desk-font); text-transform: none; color: var(--terminal-muted); cursor: pointer; }
+.terminal-live .terminal-spot-size-filters button { flex: 0 0 auto; width: auto; min-height: 44px; padding: 0 8px; background: transparent; border: 1px solid transparent; border-radius: 6px; font: 13px var(--desk-font); text-transform: none; color: var(--terminal-muted); cursor: pointer; }
 .terminal-live .terminal-spot-trade-filters button[aria-pressed=true],
 .terminal-live .terminal-spot-size-filters button[aria-pressed=true] { background: rgba(63,185,130,.1); border-color: rgba(63,185,130,.25); color: #77ddbd; }
 .terminal-live .terminal-spot-trade-head,
