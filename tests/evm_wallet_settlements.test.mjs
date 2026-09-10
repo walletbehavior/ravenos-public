@@ -81,6 +81,23 @@ test('symbols, other-chain addresses, conflicting decimals and unreviewed pools 
   assert.equal((await swap('ethereum',{factory:ROUTER})).wallet_accounting.trade,null);
 });
 
+test('BNB profile delivery retains USDT activity totals when another transfer lacks token metadata',async()=>{
+ const buy=await swap('bsc'),sell=await swap('bsc',{sell:true});
+ const incoming={...buy,event_id:'bnb_transfer_missing_metadata',chain_evidence:{...buy.chain_evidence,block_number:100},
+  classification:{kind:'TRANSFER_IN',ambiguous:false},
+  wallet_accounting:{version:1,movements:[{contract:TOKEN,decimals:null,delta_raw:'10000000'}],trade:null}};
+ const events=[incoming,buy,sell],before=JSON.stringify(events),result=analyze('bsc',events,null);
+ const {publicWalletResponse}=await import('../lib/customer_trade/wallet_public_delivery.mjs');
+ const delivered=publicWalletResponse({ok:true,profile:result}).profile;
+ assert.equal(delivered.behavior.buy_count,1);assert.equal(delivered.behavior.sell_count,1);
+ assert.equal(delivered.trading_record.periods.all_available.buy_notional_by_basis.binance_peg_usdt.total,'100');
+ assert.equal(delivered.trading_record.periods.all_available.sell_notional_by_basis.binance_peg_usdt.total,'75');
+ assert.equal(delivered.trading_record.periods.all_available.realized_pnl.binance_peg_usdt,null);
+ assert.equal(delivered.trading_record.periods.all_available.observations,0);
+ assert.equal(result.trading_record.periods.all_available.fully_matched_sells,0);
+ assert.equal(JSON.stringify(events),before);assert.equal(buy.copy_signal.eligible_buy_signal,false);
+});
+
 test('retained analytical direction requires unchanged verified route, exact chain, finality and matching precision',async()=>{
   const valid=await swap('ethereum');
   const mutations=[

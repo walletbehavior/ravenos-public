@@ -104,20 +104,20 @@ test('Solana accounting upgrades old profiles once without refreshing unrelated 
   assert.deepEqual(await sol.store.listProfileRefreshCandidates(8,{now:NOW+900000}),[]);
 });
 
-test('USDT accounting upgrades retained Ethereum and BNB profiles once within the profile queue', async t => {
+test('precision accounting upgrades retained profiles on every EVM chain once within the bounded queue', async t => {
   const db=database(t), wallets=createD1CustomerWalletCopyStore(db), items=[];
   for(const [index,chain] of [[31,'ethereum'],[32,'bsc'],[33,'base'],[34,'robinhood']]) {
     const item=await addJob(db,index,chain); items.push(item);
     db.raw.prepare('UPDATE ravenos_source_wallet_backfill_jobs SET signatures_seen=24,transactions_decoded=24 WHERE job_id=?').run(item.job.job_id);
     await wallets.recordProfile(item.job.source_wallet_id,{
-      schema_version:'ravenos.evm_wallet_basic_profile.v1',profile_version:2,
+      schema_version:'ravenos.evm_wallet_basic_profile.v1',profile_version:3,
       source_wallet:{chain,network:'mainnet',address:item.address},
       generated_at:new Date(NOW+600000).toISOString(),coverage:{normalized_events:24},behavior:{},source_performance:{},data_quality:{},wallet_reconstruction:{version:1},
     },NOW/1000+600);
   }
   const selected=await items[0].store.listProfileRefreshCandidates(8,{now:NOW+700000});
-  assert.deepEqual(new Set(selected.map(j=>j.job_id)),new Set(items.slice(0,2).map(item=>item.job.job_id)));
-  for(const item of items.slice(0,2)) {
+  assert.deepEqual(new Set(selected.map(j=>j.job_id)),new Set(items.map(item=>item.job.job_id)));
+  for(const item of items) {
     const old=await wallets.latestProfile(item.job.source_wallet_id);
     await wallets.recordProfile(item.job.source_wallet_id,{...old,profile_version:EVM_WALLET_TRADING_PROFILE_VERSION},NOW/1000+800);
   }

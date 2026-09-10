@@ -135,6 +135,68 @@ test('missing or nonzero starting inventory is never assumed to have zero cost',
  assert.equal(record(events,{price:null}).tokens[0].unrealized_pnl_usd,null);
 });
 
+test('missing transfer precision preserves verified trades and unknown incoming FIFO cost',async()=>{
+ const buy=await decode(receipt()),sell=await decode(receipt(true));
+ const incoming={...buy,event_id:'incoming_without_metadata',chain_evidence:{...buy.chain_evidence,block_number:100},
+  wallet_accounting:{version:1,movements:[{contract:T,decimals:null,delta_raw:'10000000'}],trade:null}};
+ const events=[incoming,buy,sell],before=JSON.stringify(events),result=record(events,{balance:'15000000'});
+ assert.equal(result.periods.d30.buy_count,1);assert.equal(result.periods.d30.sell_count,1);
+ assert.equal(result.periods.d30.buy_notional_by_basis.usdc.total,'100');
+ assert.equal(result.periods.d30.sell_notional_by_basis.usdc.total,'75');
+ assert.equal(result.periods.d30.realized_pnl.usdc,null);assert.equal(result.periods.d30.fully_matched_sells,0);
+ assert.equal(result.tokens[0].balance_reconciled,true);assert.equal(result.tokens[0].remaining_cost_complete,false);
+ assert.equal(result.tokens[0].unrealized_pnl_usd,null);assert.equal(result.invalid_precision_tokens,0);
+ assert.equal(JSON.stringify(events),before);
+});
+
+test('an outgoing transfer without decimals still consumes raw inventory before a partial sell',async()=>{
+ const buy=await decode(receipt()),sell=await decode(receipt(true));
+ const outgoing={...buy,event_id:'outgoing_without_metadata',chain_evidence:{...buy.chain_evidence,transaction_index:1},
+  wallet_accounting:{version:1,movements:[{contract:T,delta_raw:'-6000000'}],trade:null}};
+ const result=record([buy,outgoing,sell],{balance:'0'});
+ assert.equal(result.periods.d30.trade_count,2);assert.equal(result.periods.d30.realized_pnl.usdc,'20');
+ assert.equal(result.periods.d30.fully_matched_sells,0);assert.equal(result.unresolved_starting_inventory_tokens,1);
+ assert.equal(result.tokens[0].unrealized_pnl_usd,null);
+});
+
+test('a trade cannot borrow missing event precision to create a known acquisition cost',async()=>{
+ const buy=await decode(receipt()),sell=await decode(receipt(true));
+ buy.wallet_accounting.movements.find(m=>m.contract===T).decimals=null;
+ const result=record([buy,sell]);
+ assert.equal(result.periods.d30.buy_count,0);assert.equal(result.periods.d30.sell_count,1);
+ assert.equal(result.periods.d30.realized_pnl.usdc,null);
+ assert.equal(result.tokens[0].remaining_cost_complete,false);
+});
+
+test('missing metadata does not excuse malformed precision, invalid units or a different token',async()=>{
+ const buy=await decode(receipt()),sell=await decode(receipt(true));
+ const transfer={...buy,event_id:'missing_metadata',chain_evidence:{...buy.chain_evidence,block_number:100},
+  wallet_accounting:{version:1,movements:[{contract:T,decimals:null,delta_raw:'10000000'}],trade:null}};
+ for(const decimals of [-1,31,1.5,'6','']) {
+  const broken=structuredClone(transfer);broken.wallet_accounting.movements[0].decimals=decimals;
+  const result=record([broken,buy,sell]);assert.equal(result.periods.d30.trade_count,0);assert.equal(result.invalid_precision_tokens,1);
+ }
+ const badUnits=structuredClone(transfer);badUnits.wallet_accounting.movements[0].delta_raw='not-an-integer';
+ assert.equal(record([badUnits,buy,sell]).periods.d30.trade_count,0);
+ const other=structuredClone(transfer);other.wallet_accounting.movements[0].contract=R;
+ const result=record([other,buy,sell]);
+ assert.equal(result.periods.d30.realized_pnl.usdc,'25');assert.equal(result.invalid_precision_tokens,1);
+ assert.equal(record([transfer]).periods.d30.trade_count,0);
+});
+
+test('zero-decimal tokens reconcile missing transfer metadata without treating zero as unavailable',async()=>{
+ const buy=await decode(receipt()),sell=await decode(receipt(true));
+ for(const event of [buy,sell]) {
+  event.wallet_accounting.movements.find(m=>m.contract===T).decimals=0;
+  event.wallet_accounting.trade.decimals=0;
+ }
+ const incoming={...buy,event_id:'zero_decimal_transfer',chain_evidence:{...buy.chain_evidence,block_number:100},
+  wallet_accounting:{version:1,movements:[{contract:T,decimals:null,delta_raw:'1'}],trade:null}};
+ const result=record([incoming,buy,sell],{balances:[{contract:T,decimals:0,balance_raw:'5000001',provider_mark_value_usd:'100'}]});
+ assert.equal(result.periods.d30.trade_count,2);assert.equal(result.tokens[0].decimals,0);
+ assert.equal(result.tokens[0].balance_reconciled,true);assert.equal(result.periods.d30.fully_matched_sells,0);
+});
+
 test('mixed settlement currencies do not become synthetic USDC returns',async()=>{
  const buy=await decode(receipt()),sell=await decode(receipt(true)),usdg={key:'usdg',label:'USDG',decimals:6};
  buy.wallet_accounting.trade.basis=usdg;sell.wallet_accounting.trade.basis=usdg;
