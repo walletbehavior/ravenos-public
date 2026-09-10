@@ -91,6 +91,20 @@ test("PumpSwap preserves native SOL accounting for a transient WSOL account", ()
   assert.equal(reviewPumpSwapCpis(fixture).reviewed, true);
 });
 
+test("a closed WSOL simulation record must be empty, System-owned and have exactly zero lamports", () => {
+  const closed = () => {
+    const fixture = rpcSimulationFormat(pumpSwapFixture());
+    fixture.postAccounts[2] = { address: fixture.postAccounts[2].address, exists: true,
+      owner: "1".repeat(32), executable: false, lamports: 0n, data: Buffer.alloc(0) };
+    return fixture;
+  };
+  assert.equal(reviewPumpSwapCpis(closed()).reviewed, true);
+  for (const changed of [{lamports:1n},{owner:pump.amm_program},{data:Buffer.from([0])},{executable:true}]) {
+    const fixture = closed(); Object.assign(fixture.postAccounts[2],changed);
+    assert.throws(() => reviewPumpSwapCpis(fixture), /token_account_mismatch/);
+  }
+});
+
 test("PumpSwap admission leaves bonding curves excluded and never grants general program admission", () => {
   assert.equal(SOLANA_UNREVIEWED_DEX_EXCLUSIONS.includes(pump.venue), false);
   assert.equal(SOLANA_UNREVIEWED_DEX_EXCLUSIONS.includes("Pump.fun"), true);
