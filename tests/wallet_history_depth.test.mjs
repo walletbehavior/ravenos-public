@@ -7,6 +7,7 @@ import { createD1CustomerWalletCopyStore } from '../lib/customer_wallet_copy.mjs
 import { createD1SourceWalletBackfillStore, runSourceWalletBackfillBatch } from '../lib/customer_trade/source_wallet_backfill.mjs';
 import { normalizeSourceWalletChainIdentity } from '../lib/customer_trade/source_wallet_chain_identity.mjs';
 import { SOLANA_WALLET_PROFILE_VERSION } from '../lib/customer_trade/solana_wallet_intelligence.mjs';
+import { EVM_WALLET_TRADING_PROFILE_VERSION } from '../lib/customer_trade/evm_wallet_trading_record.mjs';
 
 const NOW = Date.parse('2026-09-10T00:00:00Z');
 const migration = readFileSync('customer-migrations/0050_wallet_history_depth.sql', 'utf8');
@@ -101,6 +102,26 @@ test('Solana accounting upgrades old profiles once without refreshing unrelated 
     await wallets.recordProfile(item.job.source_wallet_id,{...old,profile_version:SOLANA_WALLET_PROFILE_VERSION,coverage:{normalized_events:item===shallow?100:5000}},NOW/1000+800);
   }
   assert.deepEqual(await sol.store.listProfileRefreshCandidates(8,{now:NOW+900000}),[]);
+});
+
+test('USDT accounting upgrades retained Ethereum and BNB profiles once within the profile queue', async t => {
+  const db=database(t), wallets=createD1CustomerWalletCopyStore(db), items=[];
+  for(const [index,chain] of [[31,'ethereum'],[32,'bsc'],[33,'base'],[34,'robinhood']]) {
+    const item=await addJob(db,index,chain); items.push(item);
+    db.raw.prepare('UPDATE ravenos_source_wallet_backfill_jobs SET signatures_seen=24,transactions_decoded=24 WHERE job_id=?').run(item.job.job_id);
+    await wallets.recordProfile(item.job.source_wallet_id,{
+      schema_version:'ravenos.evm_wallet_basic_profile.v1',profile_version:2,
+      source_wallet:{chain,network:'mainnet',address:item.address},
+      generated_at:new Date(NOW+600000).toISOString(),coverage:{normalized_events:24},behavior:{},source_performance:{},data_quality:{},wallet_reconstruction:{version:1},
+    },NOW/1000+600);
+  }
+  const selected=await items[0].store.listProfileRefreshCandidates(8,{now:NOW+700000});
+  assert.deepEqual(new Set(selected.map(j=>j.job_id)),new Set(items.slice(0,2).map(item=>item.job.job_id)));
+  for(const item of items.slice(0,2)) {
+    const old=await wallets.latestProfile(item.job.source_wallet_id);
+    await wallets.recordProfile(item.job.source_wallet_id,{...old,profile_version:EVM_WALLET_TRADING_PROFILE_VERSION},NOW/1000+800);
+  }
+  assert.deepEqual(await items[0].store.listProfileRefreshCandidates(8,{now:NOW+900000}),[]);
 });
 
 function page(address, count, token = '999999:2') {

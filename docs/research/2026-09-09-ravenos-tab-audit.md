@@ -120,3 +120,11 @@ The complete session recorded 161 UI states, including post-release repeats. Fin
 - **Release integrity:** Build/security/no-leak checks and both preview and production verification passed. The immutable archive SHA256 is `cb8ec7362df52dd619e2938f399567b43dc9387ce2965446a8a7141d9544c667`; 964 source digests were checked before staging.
 
 The next implementation sequence is in the [post-audit roadmap](2026-09-09-ravenos-roadmap.md). It includes the failures found in this audit rather than treating successful navigation as proof of full product readiness.
+
+## Mobile transaction follow-up, 10 September UTC
+
+The owner's horizontal-scroll reference is implemented and verified on production at 390 pixels. Time, side, USD and token amount lead the table; horizontal scrolling reveals quote amount, price, complete wallet address and transaction link. Rows use 14-pixel text and 44-pixel height. Solana's exact-pool sample renders all 120 returned rows, with no page-wide overflow. Small positive quote amounts remain nonzero (`0.003409` for a reported `0.00340934 SOL`), and individual rows retain precise reported amounts. Chart + Txns / Chart / Txns views share market context; amount/side filters work locally.
+
+Mobula supplies verified bounded exact-pool samples for Solana, Base and Ethereum; the latest three-chain provider proof returned 120 swaps and 24 senders per pool. Robinhood/BNB Dexch activity remains token-wide when pool/quote identity is absent. No unsupported quote amount is invented. A full wallet address opens the existing intelligence overlay, and Close restores the selected Terminal URL and transaction pane.
+
+The linked Solana profile exposed split-route accounting omissions. Release `ravenos-c79ea3b87aba-b89ef66fbd3efbb0` fixes the analytical direction; a signed-in production refresh now shows 18 buys, one CODEC token record, and 5.689204119 SOL of known open cost. No matched sells or realized profit were asserted. Release verification passed all 39 checks with zero transactions submitted. These affected-path checks do not replace the still-pending full roadmap audit or user-authorized trading round trips.

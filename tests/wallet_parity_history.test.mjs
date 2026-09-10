@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { sqliteStore } from './customer_pro_rewards.test.mjs';
 import { createD1CustomerWalletCopyStore, persistSourceWalletProfile } from '../lib/customer_wallet_copy.mjs';
 import { createD1SourceWalletBackfillStore, createSourceWalletBackfillJob, runSourceWalletBackfillBatch, publicSourceWalletBackfillJob, sourceWalletBackfillHistoryEvidence } from '../lib/customer_trade/source_wallet_backfill.mjs';
@@ -213,10 +214,16 @@ test('decoder improvements append evidence but activity and rolling counts retai
   const db=sqliteStore(),store=createD1CustomerWalletCopyStore(db),p=provider();
   await store.upsertSourceWallet({...id,now:NOW/1000,state:'requested',provider_scope:'history'});
   const page=await loadEvmWalletBackfillPage(env,createSourceWalletBackfillJob({chain:'base',address:W,requested_at:new Date(NOW).toISOString()}),{now:NOW,fetchImpl:p.fetchImpl});
-  const newer=page.events[0],older={...newer,event_id:'swe_'+'a'.repeat(40),decode_version:101};
+  const newer=page.events[0];
+  // Reproduce the deployed version-102 identity; the next revision must append
+  // under a different ID, while activity still selects exactly one transaction.
+  const priorId='swe_'+createHash('sha256').update(JSON.stringify(['base',W,newer.chain_evidence.transaction_reference,'wallet_receipt_v2'])).digest('hex').slice(0,40);
+  const older={...newer,event_id:priorId,decode_version:102};
+  assert.notEqual(newer.event_id,priorId); assert.equal(newer.decode_version,103);
   await store.recordEvents(id.source_wallet_id,[older,newer],NOW/1000);
   assert.equal(db.raw.prepare('SELECT COUNT(*) AS n FROM ravenos_source_wallet_events').get().n,2);
-  assert.equal((await store.listSourceEvents(id.source_wallet_id)).length,1);
+  const current=await store.listSourceEvents(id.source_wallet_id);
+  assert.equal(current.length,1); assert.equal(current[0].decode_version,103);
   assert.equal((await store.listSourceEventPage(id.source_wallet_id)).matching_event_count,1);db.raw.close();
 });
 

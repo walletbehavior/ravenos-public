@@ -1,0 +1,32 @@
+{
+  "generated_at": "2026-09-10T04:13:38.897Z",
+  "retained_events": 62,
+  "original_events_unchanged": true,
+  "by_chain": {
+    "bsc": {
+      "retained_events": 14,
+      "recovered_buys": 9,
+      "recovered_sells": 4,
+      "unresolved_or_rotations": 1,
+      "wallets": 6
+    },
+    "ethereum": {
+      "retained_events": 41,
+      "recovered_buys": 13,
+      "recovered_sells": 20,
+      "unresolved_or_rotations": 8,
+      "wallets": 10
+    },
+    "robinhood": {
+      "retained_events": 7,
+      "recovered_buys": 0,
+      "recovered_sells": 0,
+      "unresolved_or_rotations": 7,
+      "wallets": 0
+    }
+  },
+  "provider_requests": 0,
+  "transactions_submitted": 0,
+  "realized_profit_claimed": false,
+  "query_rows_read": 13071
+}

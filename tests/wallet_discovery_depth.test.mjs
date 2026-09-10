@@ -8,6 +8,7 @@ import {createD1CustomerWalletCopyStore} from '../lib/customer_wallet_copy.mjs';
 import {createD1SourceWalletBackfillStore,runSourceWalletBackfillBatch,publicSourceWalletBackfillJob} from '../lib/customer_trade/source_wallet_backfill.mjs';
 import {loadHeliusWalletPage} from '../lib/customer_trade/helius_wallet_history.mjs';
 import {normalizeSolanaWalletTransaction,SOLANA_WALLET_PROFILE_VERSION} from '../lib/customer_trade/solana_wallet_intelligence.mjs';
+import {EVM_WALLET_TRADING_PROFILE_VERSION} from '../lib/customer_trade/evm_wallet_trading_record.mjs';
 import {normalizeSourceWalletChainIdentity} from '../lib/customer_trade/source_wallet_chain_identity.mjs';
 import {WalletHistoryPolicy,heliusBackfillPolicy,reserveHeliusBackfillCredits} from '../lib/customer_trade/wallet_history_policy.mjs';
 import {normalizeWalletDiscoverySource,retainWalletDiscoverySource,queuePriorityWalletWarmups} from '../lib/customer_trade/wallet_discovery_sources.mjs';
@@ -171,7 +172,7 @@ test('profile refreshes serve every chain while direct user demand remains first
   for(const job of jobs) {
    visited.add(job.source_wallet.chain);
    const snapshot='swp_'+String(++sequence).padStart(40,'0'),generated=NOW+1+cycle*300;
-   const version=job.source_wallet.chain==='solana'?SOLANA_WALLET_PROFILE_VERSION:1;
+   const version=job.source_wallet.chain==='solana'?SOLANA_WALLET_PROFILE_VERSION:EVM_WALLET_TRADING_PROFILE_VERSION;
    db.raw.prepare(`INSERT INTO ravenos_source_wallet_profiles
     (profile_snapshot_id,source_wallet_id,profile_version,normalized_event_count,profile_json,generated_at,retention_expires_at)
     VALUES (?,?,?,1,'{}',?,?)`).run(snapshot,job.source_wallet_id,version,generated,generated+86400);
