@@ -225,6 +225,8 @@ const releaseWrangler = {
     RAVENOS_EVM_WALLET_BACKFILL_ENABLED: walletBackfillActive && alchemyHistoryActive && baseWrangler.vars?.RAVENOS_EVM_WALLET_BACKFILL_ENABLED === "1" ? "1" : "0",
     RAVENOS_WALLET_HISTORICAL_USD_ENABLED: walletBackfillActive && alchemyHistoryActive && baseWrangler.vars?.RAVENOS_WALLET_HISTORICAL_USD_ENABLED === "1" ? "1" : "0",
     RAVENOS_WALLET_HOLDER_CONTEXT_ENABLED: walletIntelligenceActive && baseWrangler.vars?.RAVENOS_WALLET_HOLDER_CONTEXT_ENABLED === "1" ? "1" : "0",
+    RAVENOS_PORTFOLIO_PREVIEW_ENABLE: customerSecurity.portfolio_preview?.read_only_release_enabled === true ? '1' : '0',
+    RAVENOS_PORTFOLIO_ACCOUNT_WALLETS_ENABLED: privySolanaWalletCanaryActive && customerSecurity.portfolio_preview?.durable_wallet_link_active === true ? '1' : '0',
     ZCASH_ENABLED: shieldedPreview.customer_preview_enabled === true && shieldedPreview.ZCASH_ENABLED === true ? "1" : "0",
     SHIELDED_RESERVE_ENABLED: shieldedPreview.customer_preview_enabled === true && shieldedPreview.SHIELDED_RESERVE_ENABLED === true ? "1" : "0",
     SHIELDED_ROUTE_QUOTES_ENABLED: shieldedPreview.customer_preview_enabled === true && shieldedPreview.SHIELDED_ROUTE_QUOTES_ENABLED === true ? "1" : "0",

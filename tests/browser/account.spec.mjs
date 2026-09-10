@@ -305,7 +305,7 @@ test("portfolio holdings stay compact and preserve unavailable cost basis and su
     if (route.request().method() === "GET") return route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ ok: true, wallets: [{ wallet_reference: "wallet_fixture", label: "Primary" }] }),
+      body: JSON.stringify({ ok: true, authorization_boundary:'account_bound_privy_wallet', wallets: [{ wallet_reference: "wallet_fixture", label: "Primary" }] }),
     });
     return route.fulfill({
       status: 200,
@@ -336,6 +336,7 @@ test("portfolio holdings stay compact and preserve unavailable cost basis and su
 
   await page.goto("/account/");
   await page.locator("#accountGovernorAnalyze").click();
+  await expect(page.locator('#accountWalletOwnershipState')).toHaveText('Linked to your account');
   await expect(page.locator(".account-holding-row")).toHaveCount(2);
   await expect(page.locator(".account-holding-columns")).toContainText("% supply");
   const usdc = page.locator(".account-holding-row").first();

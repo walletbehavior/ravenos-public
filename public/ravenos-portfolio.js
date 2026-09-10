@@ -1,3 +1,4 @@
+import { mountCapitalHelper } from './ravenos-capital-helper.js';
 import { mountWalletBalances } from "./ravenos-wallet-balances.js";
 import { ravenOSContext } from "/ravenos-context-store.js";
 
@@ -235,3 +236,4 @@ window.__RAVENOS_PORTFOLIO__ = Object.freeze({
 });
 
 mountWalletBalances(document.getElementById("portfolioWalletFunds"));
+mountCapitalHelper(document.getElementById('capital-helper'));

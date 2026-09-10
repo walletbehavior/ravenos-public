@@ -58,7 +58,7 @@ async function walletObservations({ native = "0", classic = [], token2022 = [], 
       if (program === SOLANA_TOKEN_PROGRAMS[1].program_id && failToken2022) throw new Error("provider_unavailable");
       return {
         context: { slot: 444 },
-        value: program === SOLANA_TOKEN_PROGRAMS[0].program_id ? classic : token2022,
+        value: (program === SOLANA_TOKEN_PROGRAMS[0].program_id ? classic : token2022).map(row => ({...row,account:{...row.account,owner:program,data:{...row.account.data,parsed:{...row.account.data.parsed,info:{...row.account.data.parsed.info,owner:WALLET}}}}})),
       };
     },
   });
@@ -110,6 +110,23 @@ function measuredExposure(result, scopeType, scopeId, side = null) {
     && (!side || row.exposure_side === side)
   ));
 }
+
+test('frozen balances stay marked but cannot become executable through a public route quote',async()=>{
+  const wallet=await walletObservations({classic:[
+    tokenAccount({accountSeed:91,mint:SOLANA_USDC_MINT,amount:'25000000',state:'frozen'}),
+    tokenAccount({accountSeed:92,mint:SOLANA_USDT_MINT,amount:'30000000',state:'frozen'}),
+  ]});
+  const result=build([...wallet.observations,
+    mark('solana:USDC',SOLANA_USDC_MINT,'1000000','1000000'),
+    mark('solana:USDT',SOLANA_USDT_MINT,'1000000','1000000'),
+    createSolanaExecutableExitObservation({input_mint:SOLANA_USDT_MINT,input_amount_base_units:'30000000',expected_output_minor:'30000000',minimum_output_minor:'29900000',routeability:'routeable',observed_at:NOW,expires_at:FRESH_EXPIRY}),
+  ]);
+  const frozen=result.snapshot.positions.filter(row=>row.position_state==='frozen');
+  assert.equal(frozen.length,2);
+  for(const row of frozen){assert.notEqual(row.marked_value_minor,null);assert.equal(row.executable_value_minor,null);assert.equal(row.routeability,'not_routeable');}
+  const selection=selectSolanaExecutableValuationCandidates({positions:result.snapshot.positions,minimum_material_value_minor:'1'});
+  assert.equal(selection.selected?.length ?? selection.candidates?.length,0);
+});
 
 test("native SOL and wrapped SOL remain separate instruments but conserve into one SOL exposure", async () => {
   const wallet = await walletObservations({

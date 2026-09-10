@@ -82,7 +82,9 @@ test("Stage A activates only managed accounts and revocable sessions", () => {
   assert.equal(security.portfolio_preview.implementation_status, "feature_flagged_read_only_beta");
   assert.equal(security.portfolio_preview.authenticated_origin_only, true);
   assert.equal(security.portfolio_preview.raw_address_input_allowed, false);
-  assert.equal(security.portfolio_preview.durable_wallet_link_active, false);
+  assert.equal(security.portfolio_preview.durable_wallet_link_active, true);
+  assert.equal(security.portfolio_preview.read_only_release_enabled, true);
+  assert.equal(security.portfolio_preview.authorization_basis, 'account_bound_privy_wallet');
   assert.equal(security.portfolio_preview.portfolio_history_persisted, false);
   assert.equal(security.portfolio_preview.maximum_provider_calls_per_analysis, 8);
   assert.equal(security.portfolio_preview.signing_available, false);

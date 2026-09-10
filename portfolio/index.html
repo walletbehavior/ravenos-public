@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="/ravenos-shell.css" />
   <link rel="stylesheet" href="/ravenos-workspace.css" />
   <link rel="stylesheet" href="/ravenos-reserve.css" />
+  <link rel="stylesheet" href="/ravenos-capital-helper.css" />
 </head>
 <body>
   <main class="workspace-page portfolio-page" data-route-slug="portfolio">
@@ -23,7 +24,36 @@
     </header>
 
     <div id="portfolioWalletFunds"></div>
-    <nav class="reserve-section-nav" aria-label="Portfolio sections"><a href="#shielded-reserve">Capital helper</a><a href="#portfolioPositions">Positions &amp; risk</a></nav>
+    <nav class="reserve-section-nav" aria-label="Portfolio sections"><a href="#capital-helper">Capital helper</a><a href="#shielded-reserve">Shielded Reserve</a><a href="#portfolioPositions">Positions &amp; risk</a></nav>
+    <section class="capital-helper" id="capital-helper" aria-labelledby="capitalTitle">
+      <header><div><span class="workspace-label">Your Raven wallet · Solana</span><h2 id="capitalTitle">Capital helper</h2></div><button id="capitalRefresh" type="button">Refresh wallet</button></header>
+      <p id="capitalStatus" role="status">Loading your Raven wallet…</p>
+      <div id="capitalControls" class="capital-controls" hidden><label>Wallet<select id="capitalWallet"></select></label></div>
+      <div id="capitalResults" hidden>
+        <div class="capital-metrics">
+          <article><span>Usable SOL</span><strong id="capitalBalanceSOL"></strong><small id="capitalTotalSOL"></small></article>
+          <article><span>Usable USDC</span><strong id="capitalBalanceUSDC"></strong><small id="capitalTotalUSDC"></small></article>
+          <article><span>Marked holdings</span><strong id="capitalMarked"></strong><small id="capitalMarkedState"></small></article>
+        </div>
+        <p id="capitalObserved"></p>
+        <h3>Your working-capital plan</h3>
+        <div class="capital-targets">
+          <label>Working USDC target<input data-capital-target="usdc" inputmode="decimal" placeholder="Optional" maxlength="25" autocomplete="off" /></label>
+          <label>SOL buffer<input data-capital-target="sol" inputmode="decimal" placeholder="Optional" maxlength="25" autocomplete="off" /></label>
+          <label>Maximum asset share (%)<input data-capital-target="concentration" inputmode="decimal" placeholder="Optional" maxlength="6" autocomplete="off" /></label>
+        </div>
+        <p>Draft targets for this tab. Raven compares them with your wallet; this does not save a policy or move funds.</p>
+        <div id="capitalPlan" aria-live="polite"></div>
+        <details><summary>Holdings, exit estimates &amp; coverage</summary>
+          <p id="capitalHoldingCount"></p>
+          <div class="capital-holdings-scroll"><table><thead><tr><th>Asset</th><th>Amount</th><th>Marked value</th><th>Exit estimate</th></tr></thead><tbody id="capitalHoldings"></tbody></table></div>
+          <p>Combined exit estimate: <strong id="capitalExitValue"></strong>. Quotes expire and do not guarantee a trade or include every network cost.</p>
+          <p id="capitalCoverage"></p>
+          <a href="https://app.ravenos.xyz/account/#accountGovernorPanel">Detailed exposure view →</a>
+        </details>
+      </div>
+      <p><a href="https://app.ravenos.xyz/account/#accountPrivyPanel">Manage your Raven wallets →</a></p>
+    </section>
     <section class="reserve-workspace" id="shielded-reserve" aria-labelledby="reserveTitle">
       <header class="reserve-hero">
         <div><span class="workspace-label">Raven capital helper <span class="reserve-badge">PRO · PREVIEW</span></span>

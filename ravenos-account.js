@@ -1154,9 +1154,9 @@ async function loadPortfolioPreviewCapability() {
       setText("accountWalletConnectionTitle", `${state.previewWallets.length} saved wallet${state.previewWallets.length === 1 ? "" : "s"}`);
       setText("accountWalletConnectionDetail", "Public portfolio view available.");
       setText("accountWalletConnectionState", "View only");
-      setText("accountWalletOwnershipState", "Not proven");
+      setText("accountWalletOwnershipState", payload.authorization_boundary === 'account_bound_privy_wallet' ? 'Linked to your account' : 'Not proven');
     }
-    setText("accountGovernorStatus", "Select a wallet to inspect current public account data. RavenOS does not save portfolio history.");
+    setText("accountGovernorStatus", payload.authorization_boundary === 'account_bound_privy_wallet' ? 'Your Raven wallet is ready to inspect. Analyze its current balances and exposure.' : 'Select a wallet to inspect current public account data. RavenOS does not save portfolio history.');
   } catch {
     governorPanel.dataset.previewState = "unavailable";
     setText("accountGovernorState", "Unavailable");

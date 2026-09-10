@@ -8,6 +8,7 @@ import { createUserPolicyVersion } from "../lib/portfolio_governor/domain.mjs";
 import {
   analyzeSolanaPortfolioPreview,
   authorizedPortfolioPreviewWallets,
+  accountPortfolioPreviewWallets,
   PORTFOLIO_GOVERNOR_PREVIEW_ROUTE,
   PortfolioGovernorPreviewLimits,
   routePortfolioGovernorPreview,
@@ -43,13 +44,15 @@ const WALLET_REFERENCE = "wpr_owner_beta_wallet_001";
 const UNKNOWN_MINT = publicKey(70);
 const TOKEN_2022_MINT = publicKey(90);
 
-function tokenAccount({ accountSeed, mint, amount, decimals = 6, state = "initialized" }) {
+function tokenAccount({ accountSeed, mint, amount, decimals = 6, state = "initialized", owner = WALLET_ADDRESS, program = SOLANA_TOKEN_PROGRAMS[0].program_id }) {
   return {
     pubkey: publicKey(accountSeed),
     account: {
+      owner: program,
       data: {
         parsed: {
           info: {
+            owner,
             mint,
             state,
             tokenAmount: { amount, decimals, uiAmountString: null },
@@ -172,7 +175,7 @@ function walletResolver({ user_id: userId }) {
 }
 
 function rpcFixture(method, params) {
-  if (method === "getBalance") return { context: { slot: 900 }, value: "1000000000" };
+  if (method === "getBalance") return { context: { slot: 900 }, value: 1000000000 };
   const program = params[1].programId;
   if (program === SOLANA_TOKEN_PROGRAMS[0].program_id) {
     return {
@@ -187,7 +190,7 @@ function rpcFixture(method, params) {
   }
   return {
     context: { slot: 900 },
-    value: [tokenAccount({ accountSeed: 24, mint: TOKEN_2022_MINT, amount: "1000000", decimals: 6 })],
+    value: [tokenAccount({ accountSeed: 24, mint: TOKEN_2022_MINT, amount: "1000000", decimals: 6, program: SOLANA_TOKEN_PROGRAMS[1].program_id })],
   };
 }
 
@@ -233,6 +236,75 @@ test("operator-authorized beta registry is account scoped and never returns raw 
     ...env,
     RAVENOS_PORTFOLIO_PREVIEW_WALLETS: JSON.stringify({ [USER_ID]: [{ wallet_reference: WALLET_REFERENCE, address: "not-a-key" }] }),
   }, USER_ID), /registry_invalid/);
+});
+
+test('account wallet discovery uses active embedded Solana bindings and changes reference when the wallet changes', async () => {
+  const calls = [], record = {wallet_record_id:'rpw_'+'1'.repeat(64),public_address:WALLET_ADDRESS,ecosystem:'solana',wallet_type:'privy_embedded',state:'active'};
+  const privyStore = {
+    getIdentity:async id => {calls.push(['identity',id]);return {state:'active'};},
+    listWallets:async id => {calls.push(['wallets',id]);return [record,{...record,ecosystem:'evm'},{...record,state:'revoked'},{...record,wallet_type:'external'}];},
+  };
+  const wallets = await accountPortfolioPreviewWallets({},USER_ID,privyStore);
+  assert.equal(wallets.length,1);assert.equal(wallets[0].authorization_basis,'account_bound_privy_wallet');
+  assert.deepEqual(calls,[['identity',USER_ID],['wallets',USER_ID]]);
+  const other = await accountPortfolioPreviewWallets({},'another_user',privyStore);
+  assert.notEqual(other[0].wallet_reference,wallets[0].wallet_reference);
+  record.public_address=publicKey(200);
+  assert.notEqual((await accountPortfolioPreviewWallets({},USER_ID,privyStore))[0].wallet_reference,wallets[0].wallet_reference);
+  assert.deepEqual(await accountPortfolioPreviewWallets({},USER_ID,{getIdentity:async()=>({state:'revoked'}),listWallets:async()=>{throw Error('must not query');}}),[]);
+});
+
+test('account-bound preview ignores legacy registry and rejects another account or rotated wallet reference before analysis', async () => {
+  const store=await new MemoryStore().seed();let analyses=0;
+  const record={wallet_record_id:'rpw_'+'2'.repeat(64),public_address:WALLET_ADDRESS,ecosystem:'solana',wallet_type:'privy_embedded',state:'active'};
+  const privyStore={getIdentity:async()=>({state:'active'}),listWallets:async id=>{assert.equal(id,USER_ID);return [record];}};
+  const env=configuredEnv({RAVENOS_PORTFOLIO_ACCOUNT_WALLETS_ENABLED:'1',RAVENOS_PORTFOLIO_PREVIEW_WALLETS:'invalid legacy registry'});
+  const deps={store,privyStore,nowMs:NOW_MS,analyze:async()=>{analyses++;throw Error('must not analyze');}};
+  const response=await routePortfolioGovernorPreview(request('GET'),env,deps),body=await response.json();
+  assert.equal(response.status,200);assert.equal(body.wallet_link_registry_active,true);assert.equal(body.wallets.length,1);assert.equal(JSON.stringify(body).includes(WALLET_ADDRESS),false);
+  const reference=body.wallets[0].wallet_reference;
+  const other=(await accountPortfolioPreviewWallets({},'other',{getIdentity:async()=>({state:'active'}),listWallets:async()=>[record]}))[0].wallet_reference;
+  assert.equal((await routePortfolioGovernorPreview(request('POST',{wallet_reference:other}),env,deps)).status,404);
+  record.public_address=publicKey(201);
+  assert.equal((await routePortfolioGovernorPreview(request('POST',{wallet_reference:reference}),env,deps)).status,404);
+  assert.equal((await routePortfolioGovernorPreview(request('POST',{wallet_reference:reference,address:WALLET_ADDRESS}),env,deps)).status,400);
+  assert.equal(analyses,0);
+});
+
+test('account binding lookup is not reached without session or CSRF', async () => {
+  const store=await new MemoryStore().seed();let calls=0;
+  const deps={store,nowMs:NOW_MS,privyStore:{getIdentity:async()=>{calls++;return {state:'active'};}}};
+  const env=configuredEnv({RAVENOS_PORTFOLIO_ACCOUNT_WALLETS_ENABLED:'1'});
+  assert.equal((await routePortfolioGovernorPreview(request('GET',null,{authenticated:false}),env,deps)).status,401);
+  assert.equal((await routePortfolioGovernorPreview(request('POST',{}, {csrf:false}),env,deps)).status,403);
+  assert.equal(calls,0);
+});
+
+for (const mode of ['current','frozen','unavailable','wrong_owner']) test(`buying-power projection reuses observations and handles ${mode} token evidence`, async () => {
+  let rpcCalls=0;
+  const result=await analyzeSolanaPortfolioPreview({
+    user_id:USER_ID,wallet:walletResolver({user_id:USER_ID})[0],jupiter_api_key:'test',fetch_impl:async url=>liveProviderFixture(url),now:()=>NOW_MS,
+    rpc_request:async(method,params)=>{
+      rpcCalls++;
+      if(method==='getBalance')return {context:{slot:900},value:1234567890};
+      if(params[1].programId!==SOLANA_TOKEN_PROGRAMS[0].program_id)return {value:[]};
+      if(mode==='unavailable')throw Error('provider_timeout');
+      return {context:{slot:900},value:[tokenAccount({accountSeed:21,mint:SOLANA_USDC_MINT,amount:'25000001',state:mode==='frozen'?'frozen':'initialized',owner:mode==='wrong_owner'?publicKey(201):WALLET_ADDRESS})]};
+    },
+  });
+  assert.equal(rpcCalls,3);assert.equal(result.dto.diagnostics.provider_call_counts.solana_rpc,3);
+  const [sol,usdc]=result.dto.buying_power.assets;
+  assert.equal(sol.amount,'1.234567890');
+  assert.equal(usdc.amount,['unavailable','wrong_owner'].includes(mode)?null:'25.000001');
+  assert.equal(usdc.spendable_before_network_fees,['unavailable','wrong_owner'].includes(mode)?null:mode==='frozen'?'0.000000':'25.000001');
+  assert.equal(result.dto.buying_power.execution_authority,false);
+  assert.equal(JSON.stringify(result.analysis).includes(WALLET_ADDRESS),false);
+  if(mode==='wrong_owner')assert.equal(result.analysis.snapshot.positions.some(row=>row.asset_id==='solana:USDC'),false);
+  if(mode==='frozen') {
+    const position=result.analysis.snapshot.positions.find(row=>row.asset_id==='solana:USDC');
+    assert.equal(position.executable_value_minor,null);
+    assert.equal(position.routeability,'not_routeable');
+  }
 });
 
 test("live validation harness requires authorization and emits only structural diagnostics", async () => {
@@ -440,7 +512,7 @@ test("sanitized live regression: five unknown SPL balances stay unresolved when 
       return {
         context: { slot: 901 },
         value: token2022
-          ? [tokenAccount({ accountSeed: 170, mint: mints[4], amount: "1", decimals: 6 })]
+          ? [tokenAccount({ accountSeed: 170, mint: mints[4], amount: "1", decimals: 6, program: SOLANA_TOKEN_PROGRAMS[1].program_id })]
           : mints.slice(0, 4).map((mint, index) => tokenAccount({ accountSeed: 160 + index, mint, amount: "1", decimals: 6 })),
       };
     },
@@ -466,6 +538,7 @@ test("sanitized live regression: five unknown SPL balances stay unresolved when 
 
 test("large dust inventories keep explicit totals while bounding holdings, prices, and exposure rows", async () => {
   const accounts = Array.from({ length: 120 }, (_, index) => tokenAccount({
+    owner: publicKey(250),
     accountSeed: 130 + index,
     mint: publicKey(1 + index),
     amount: "1",
