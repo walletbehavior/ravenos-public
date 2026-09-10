@@ -1,0 +1,150 @@
+{
+  "schema_version": "ravenos.wallet_history_completion.capacity_followup.v1",
+  "captured_at": "2026-09-10T17:05:21.280009+00:00",
+  "source_commit": "43dc074e5463f77a06193ba9ae483cdedf66ae80",
+  "worker_version_id": "7a5f43b0-77f5-4170-84ac-75615870c197",
+  "bounded_trace": [
+    {
+      "event": "wallet_history_ingestion",
+      "worker_version_id": "7a5f43b0-77f5-4170-84ac-75615870c197",
+      "event_at": 1789059751936,
+      "outcome": "ok",
+      "totals": {
+        "jobs_leased": 4,
+        "jobs_completed": 1,
+        "jobs_bounded": 0,
+        "jobs_retried": 0,
+        "jobs_dead_lettered": 0,
+        "pages_completed": 4,
+        "pages_partial": 0,
+        "signatures_seen": 38,
+        "transactions_decoded": 38,
+        "decode_failures": 0,
+        "jobs_budget_deferred": 0
+      },
+      "profiles_refreshed": 3,
+      "profile_refresh_failures": 0,
+      "state": null,
+      "event_at_utc": "2026-09-10T17:02:31.936000+00:00"
+    },
+    {
+      "tail_complete": true,
+      "matching_cycles": 1
+    }
+  ],
+  "queries": [
+    {
+      "success": true,
+      "results": [
+        {
+          "chain": "base",
+          "jobs": 281,
+          "unfinished": 259,
+          "complete": 22,
+          "bounded_partial": 0,
+          "dead_letter": 0,
+          "profiled": 262,
+          "trading_profiles": 30,
+          "matched_profiles": 0,
+          "unfinished_profiled": 259,
+          "unfinished_trading": 29,
+          "due_trading": 29,
+          "oldest_trading_update": "2026-09-10 04:14:48"
+        },
+        {
+          "chain": "bsc",
+          "jobs": 2764,
+          "unfinished": 2763,
+          "complete": 1,
+          "bounded_partial": 0,
+          "dead_letter": 0,
+          "profiled": 264,
+          "trading_profiles": 24,
+          "matched_profiles": 0,
+          "unfinished_profiled": 263,
+          "unfinished_trading": 24,
+          "due_trading": 24,
+          "oldest_trading_update": "2026-09-10 07:31:23"
+        },
+        {
+          "chain": "ethereum",
+          "jobs": 178,
+          "unfinished": 142,
+          "complete": 32,
+          "bounded_partial": 0,
+          "dead_letter": 3,
+          "profiled": 162,
+          "trading_profiles": 58,
+          "matched_profiles": 0,
+          "unfinished_profiled": 142,
+          "unfinished_trading": 54,
+          "due_trading": 54,
+          "oldest_trading_update": "2026-09-10 08:10:24"
+        },
+        {
+          "chain": "robinhood",
+          "jobs": 3166,
+          "unfinished": 3160,
+          "complete": 5,
+          "bounded_partial": 0,
+          "dead_letter": 0,
+          "profiled": 457,
+          "trading_profiles": 53,
+          "matched_profiles": 0,
+          "unfinished_profiled": 451,
+          "unfinished_trading": 52,
+          "due_trading": 52,
+          "oldest_trading_update": "2026-09-10 02:34:49"
+        },
+        {
+          "chain": "solana",
+          "jobs": 638,
+          "unfinished": 594,
+          "complete": 10,
+          "bounded_partial": 31,
+          "dead_letter": 2,
+          "profiled": 235,
+          "trading_profiles": 197,
+          "matched_profiles": 152,
+          "unfinished_profiled": 196,
+          "unfinished_trading": 165,
+          "due_trading": 165,
+          "oldest_trading_update": "2026-09-10 07:25:23"
+        }
+      ],
+      "rows_read": 47025,
+      "rows_written": 0,
+      "duration_ms": 117.0297
+    },
+    {
+      "success": true,
+      "results": [
+        {
+          "hour": "2026-09-10 17:00:00",
+          "reserved_requests": 735,
+          "unsettled_reservations": 1,
+          "reservations": 14
+        },
+        {
+          "hour": "2026-09-10 16:00:00",
+          "reserved_requests": 5934,
+          "unsettled_reservations": 0,
+          "reservations": 103
+        },
+        {
+          "hour": "2026-09-10 15:00:00",
+          "reserved_requests": 5956,
+          "unsettled_reservations": 1,
+          "reservations": 164
+        }
+      ],
+      "rows_read": 282,
+      "rows_written": 0,
+      "duration_ms": 0.6036
+    }
+  ],
+  "qualified_category_counts_measured": false,
+  "matched_cost_evm_profiles_in_census": 0,
+  "provider_limits_changed": false,
+  "transactions_submitted": 0
+}
