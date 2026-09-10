@@ -4601,10 +4601,19 @@ function renderSpotTradeRows(payload) {
     price.textContent = formatPrice(row.price_usd);
     const rowWallet = document.createElement(row.trader_address ? 'a' : 'span');
     rowWallet.className = 'terminal-spot-trade-wallet';
-    rowWallet.textContent = row.trader_address || 'Not listed';
     if (row.trader_address) {
+      const fullAddress = document.createElement('span');
+      fullAddress.className = 'terminal-spot-wallet-full';
+      fullAddress.textContent = row.trader_address;
+      const compactAddress = document.createElement('span');
+      compactAddress.className = 'terminal-spot-wallet-compact';
+      compactAddress.textContent = `${row.trader_address.slice(0, 6)}…${row.trader_address.slice(-4)}`;
+      rowWallet.append(fullAddress, compactAddress);
       rowWallet.href = `https://app.ravenos.xyz/account/copy/?wallet=${encodeURIComponent(row.trader_address)}&chain=${encodeURIComponent(payload.identity.chain)}`;
-      rowWallet.title = 'Inspect this wallet in Raven';
+      rowWallet.title = row.trader_address;
+      rowWallet.setAttribute('aria-label', `Inspect wallet ${row.trader_address}`);
+    } else {
+      rowWallet.textContent = 'Not listed';
     }
     const transaction = document.createElement('span');
     transaction.className = 'terminal-spot-transaction-link';

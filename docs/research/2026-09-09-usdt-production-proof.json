@@ -1,0 +1,51 @@
+{
+  "release_id": "ravenos-c9d9204a4815-ae63e73fc528984f",
+  "worker_version": "1f7e1181-ac8e-4c9f-911e-5583e86795f0",
+  "release_checks": 39,
+  "verified_assets": 24,
+  "workspace_entrypoints": 7,
+  "transactions_submitted": 0,
+  "sampled_profiles": 16,
+  "first_postflight_versions": {
+    "1": 15,
+    "3": 1
+  },
+  "signed_in_browser_checks": [
+    {
+      "chain": "ethereum",
+      "address": "0x6f858f383842c887a82d30b392cfc686938413ec",
+      "before": "No token cost records",
+      "buy_count": 14,
+      "sell_count": 8,
+      "token_records": 6,
+      "buy_total": "3350",
+      "sell_total": "2000.597645",
+      "settlement": "USDT",
+      "matched_sells": 0,
+      "usd_priced_trades": 0,
+      "usd_eligible_trades": 22
+    },
+    {
+      "chain": "bsc",
+      "address": "0x7e110a75a10d526a80ea0ec7e445686b29ae27d5",
+      "buy_count": 14,
+      "sell_count": 2,
+      "token_records": 1,
+      "buy_total": "2031.112105582682750992",
+      "sell_total": "917.017035507637169666",
+      "settlement": "USDT (Binance-Peg)",
+      "matched_sells": 0,
+      "usd_priced_trades": 0,
+      "usd_eligible_trades": 16
+    }
+  ],
+  "scope": "Read-only production accounting samples; unknown starting inventory prevents realized-profit claims.",
+  "opening_inventory_followup": {
+    "release_id": "ravenos-f1c0925d9298-2f029f774d2a6825",
+    "worker_version": "72a47366-1ed7-4a8c-9f80-c0faef0ac070",
+    "wallet_history_tests": 148,
+    "production_checks": 39,
+    "transactions_submitted": 0,
+    "scope": "Pinned opening-balance lookup for retained USDT trades is deployed; complete production starting inventory is not yet proven."
+  }
+}

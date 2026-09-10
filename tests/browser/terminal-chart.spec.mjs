@@ -1566,7 +1566,7 @@ for (const width of [390, 1440]) test(`token activity populates trades and walle
   expect(await page.locator('#terminalSpotActivitySection').evaluate(el => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(2);
 });
 
-for (const width of [360, 390, 1440]) test(`readable transaction tape scrolls to full wallets and combines amount filters at ${width}px`, async ({ page }) => {
+for (const width of [360, 390, 1440]) test(`readable transaction tape fits price and wallet links after scrolling and combines amount filters at ${width}px`, async ({ page }) => {
   await page.setViewportSize({ width, height: 844 });
   const { tradeCalls } = await mockTerminalLiveApis(page, { spotTokenTrades: true });
   await page.goto(`/terminal/?instrument_id=${encodeURIComponent(`robinhood:pool:${ROBINHOOD_POOL}`)}&lane=spot&market=spot&instrument_type=exact_pool&token_address=${ROBINHOOD_CONTRACT}&quote_address=${ROBINHOOD_QUOTE}&panel=activity`);
@@ -1595,13 +1595,33 @@ for (const width of [360, 390, 1440]) test(`readable transaction tape scrolls to
   if (width === 390) await page.screenshot({ path: '/tmp/raven-readable-tape-mobile.png' });
   await viewport.evaluate(el => { el.scrollLeft = el.scrollWidth; });
   const wallet = rows.first().locator('.terminal-spot-trade-wallet');
-  await expect(wallet).toHaveText('0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
+  await expect(wallet).toHaveAccessibleName('Inspect wallet 0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
+  await expect(wallet.locator(width < 821 ? '.terminal-spot-wallet-compact' : '.terminal-spot-wallet-full')).toBeVisible();
+  await expect(wallet.locator(width < 821 ? '.terminal-spot-wallet-full' : '.terminal-spot-wallet-compact')).toBeHidden();
+  await expect(wallet.locator('.terminal-spot-wallet-compact')).toHaveText('0xaaaa…aaaa');
+  await expect(rows.first().locator('.terminal-spot-trade-detail .terminal-spot-trader')).toHaveText('0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
   const bounds = await wallet.boundingBox(), viewportBounds = await viewport.boundingBox();
   expect(bounds.x).toBeGreaterThanOrEqual(viewportBounds.x - 1);
   expect(bounds.x + bounds.width).toBeLessThanOrEqual(viewportBounds.x + viewportBounds.width + 1);
+  if (width < 821) {
+    for (const selector of ['.terminal-spot-trade-price', '.terminal-spot-transaction-link']) {
+      const column = await rows.first().locator(selector).boundingBox();
+      expect(column.x).toBeGreaterThanOrEqual(viewportBounds.x - 1);
+      expect(column.x + column.width).toBeLessThanOrEqual(viewportBounds.x + viewportBounds.width + 1);
+    }
+  }
   await expect(wallet).toHaveAttribute('href', 'https://app.ravenos.xyz/account/copy/?wallet=0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&chain=robinhood');
   await expect(rows.first().locator('.terminal-spot-transaction-link a')).toHaveAttribute('href', /\/tx\/0x[0-9a-f]{64}$/);
   if (width === 390) await page.screenshot({ path: '/tmp/raven-readable-tape-mobile-right.png' });
+  await rows.first().locator('.terminal-spot-trade-price').click();
+  const detail = rows.first().locator('.terminal-spot-trade-detail');
+  await expect(detail).toBeVisible();
+  const detailBounds = await detail.boundingBox();
+  expect(detailBounds.x).toBeGreaterThanOrEqual(viewportBounds.x - 1);
+  expect(detailBounds.x + detailBounds.width).toBeLessThanOrEqual(viewportBounds.x + viewportBounds.width + 1);
+  await expect(detail.locator('.terminal-spot-trader a')).toHaveText('0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
+  if (width === 390) await page.screenshot({ path: '/tmp/raven-readable-tape-mobile-detail.png' });
+  await rows.first().locator('.terminal-spot-trade-price').click();
   if (width === 390) {
     // A wallet inspection stays over this tape even when its workspace cannot load.
     await page.route('**/account/copy/', route => route.fulfill({ status: 503, body: '' }));
@@ -1663,7 +1683,8 @@ for (const retained of [false, true]) test(`Mobula exact-pool amounts and attrib
   await expect(rows.nth(2).locator('.terminal-spot-token-amount')).toHaveText('123.46K');
   await expect(rows.first().locator('.terminal-spot-trade-detail')).toContainText('0.003332');
   await page.locator('#terminalSpotTapeScroll').evaluate(el=>{el.scrollLeft=el.scrollWidth;});
-  await expect(rows.first().locator('.terminal-spot-trade-wallet')).toHaveText('Stake11111111111111111111111111111111111111');
+  await expect(rows.first().locator('.terminal-spot-trade-wallet')).toHaveAccessibleName('Inspect wallet Stake11111111111111111111111111111111111111');
+  await expect(rows.first().locator('.terminal-spot-wallet-compact')).toHaveText('Stake1…1111');
   await expect(rows.first().locator('.terminal-spot-transaction-link a')).toHaveAttribute('href',/solscan.io\/tx\//);
   if (retained) {
     await expect(page.locator('#terminalSpotActivityState')).toContainText('Snapshot');
