@@ -593,7 +593,8 @@ test("Worker proves a same-chain Solana USDC entry and reverse USDC exit without
       if (valuation) assert.equal(url.searchParams.get("excludeDexes"), null);
       else {
         const excluded = url.searchParams.get("excludeDexes").split(",");
-        assert.ok(excluded.includes("Pump.fun Amm"));
+        assert.ok(!excluded.includes("Pump.fun Amm"));
+        assert.ok(excluded.includes("Pump.fun"));
         assert.ok(!excluded.includes("Raydium CLMM"));
       }
     }

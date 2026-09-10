@@ -6,11 +6,15 @@ import {jupiterQuotedFeeAmount,verifyJupiterFeeInstruction} from '../lib/custome
 
 for(const filename of ['jupiter_v2_fee_transaction.json','jupiter_direct_v2_fee_transaction.json']) {
   const fixture=JSON.parse(readFileSync(new URL(`./fixtures/${filename}`,import.meta.url)));
+  // These recorded USDC -> BONK transactions predate the selected-mint
+  // metadata argument. Supply their actual SPL mint context to the verifier.
+  fixture.request.terminal={token_address:fixture.request.output_mint};
+  const selectedMint={mint:fixture.request.output_mint,token_program:'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA'};
   const decoded=decodeSolanaTransaction(fixture.unsigned_transaction);
   const original=resolveSolanaTransactionAccounts(decoded,new Map(fixture.lookup_tables));
   test(`${filename}: actual unsigned transaction encodes exactly 100 bps`,()=>{
     assert(decoded.signatures.every(s=>!s.populated));
-    const evidence=verifyJupiterFeeInstruction(original,fixture.request,fixture.quote);
+    const evidence=verifyJupiterFeeInstruction(original,fixture.request,fixture.quote,selectedMint);
     assert.equal(evidence.fee_bps,100);
     assert.equal(evidence.fee_mint,fixture.request.input_mint);
     assert.equal(evidence.fee_account,'AZvRGXzbBAJK5BoWMGp18wJUtJLFgc9LadY274gs6U17');
@@ -35,9 +39,14 @@ for(const filename of ['jupiter_v2_fee_transaction.json','jupiter_direct_v2_fee_
       if(field==='discriminator')data[0]=0;
       if(field==='duplicate')programs.instructions.push(structuredClone(ix));
       ix.data_base64=data.toString('base64');
-      assert.throws(()=>verifyJupiterFeeInstruction(programs,fixture.request,fixture.quote),/jupiter_/);
+      assert.throws(()=>verifyJupiterFeeInstruction(programs,fixture.request,fixture.quote,selectedMint),/jupiter_/);
     });
   }
+  test(`${filename}: missing or mismatched selected mint fails with a validation reason`,()=>{
+    assert.throws(()=>verifyJupiterFeeInstruction(original,fixture.request,fixture.quote),/selected_mint_unverified/);
+    assert.throws(()=>verifyJupiterFeeInstruction(original,fixture.request,fixture.quote,{...selectedMint,mint:fixture.request.input_mint}),/selected_mint_unverified/);
+    assert.throws(()=>verifyJupiterFeeInstruction(original,{...fixture.request,terminal:undefined},fixture.quote,selectedMint),/selected_mint_unverified/);
+  });
   test(`${filename}: fee amount omitted, exact integer rounding and mismatch rejection`,()=>{
     const request={...fixture.request,amount_base_units:'1000099'};
     assert.equal(jupiterQuotedFeeAmount({feeMint:request.input_mint,platformFee:{feeBps:100}},request),'10000');

@@ -5,6 +5,7 @@ import test from "node:test";
 import bs58 from "bs58";
 import { RAVEN_JUPITER_REFERRAL, ravenJupiterFeeAsset } from "../lib/customer_trade/jupiter_referral.mjs";
 import { referralFixture } from "./fixtures/jupiter_referral.mjs";
+import { PUMP_SWAP_REVIEW } from "../lib/customer_trade/pump_swap_review.mjs";
 
 import {
   OperatorCanaryExecutionAuthorization,
@@ -413,6 +414,13 @@ function requestFor(fixture, overrides = {}) {
     ...overrides,
   };
 }
+
+test("customer preflight cannot admit PumpSwap from a program label without its CPI evidence", async () => {
+  const fixture = runtime({ invokedProgram: PUMP_SWAP_REVIEW.amm_program });
+  await assert.rejects(runCustomerSolanaLivePreflight(requestFor(fixture, { wallet_role: "customer", funding_kind: "native_sol" }), {
+    rpc_url: "https://rpc.example", jupiter_api_key: "fixture-key", fetch_impl: fixture.fetchImpl,
+  }), /pump_swap_reviewed_route_required/);
+});
 
 test("operator preflight binds exact pool and mint, resolves a v0 lookup table, and passes unsigned mainnet simulation", async () => {
   const fixture = runtime();
