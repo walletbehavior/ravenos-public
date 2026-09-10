@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { projectMobulaTrades, fetchMobulaTrades, mobulaTradeUrl } from '../lib/mobula_trades.mjs';
 import { createMobulaMarketStore, loadMobulaMarketTrades, MobulaMarketPolicy } from '../lib/mobula_market_cache.mjs';
 import worker from '../worker.mjs';
+import { publicOnchainTradeUnavailable } from '../lib/onchain_trade_projection.mjs';
 
 const NOW = Date.now(), a = n => '0x'+n.toString(16).padStart(40,'0');
 const identity = { chain:'base', pool_address:a(1), token_address:a(2), quote_token_address:a(3), instrument_id:'base:pool:'+a(1) };
@@ -43,6 +44,13 @@ test('inverse selected asset reverses side, prices and both amounts without a gu
   const id={...identity,token_address:identity.quote_token_address,quote_token_address:identity.token_address};
   const row=projectMobulaTrades({data:[trade()]},id,{now:NOW}).trades[0];
   assert.equal(row.side,'sell');assert.equal(row.price_usd,2000);assert.equal(row.token_amount,0.01);assert.equal(row.quote_amount,40);
+});
+
+test('empty samples, invalid provider rows and exhausted budgets have distinct recovery states',()=>{
+  assert.equal(publicOnchainTradeUnavailable(Error('mobula_no_recent_swaps'),identity).payload.error,'onchain_trade_no_recent_swaps');
+  assert.equal(publicOnchainTradeUnavailable(Error('mobula_no_matching_recent_swaps'),identity).payload.error,'onchain_trade_temporarily_unavailable');
+  assert.equal(publicOnchainTradeUnavailable(Error('onchain_trade_budget_limited'),identity).payload.error,'onchain_trade_budget_limited');
+  assert.equal(publicOnchainTradeUnavailable(Error('onchain_trade_refresh_pending'),identity).payload.state,'refreshing');
 });
 
 test('reject deposits, unrelated pools/chains/assets, invalid times, impossible prices and missing IDs',()=>{

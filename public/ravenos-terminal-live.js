@@ -4870,6 +4870,7 @@ async function loadSpotTrades({ force = false } = {}) {
       setText("terminalActiveTraderState", "Unavailable");
       renderActiveWalletMessage("Recent traders are unavailable for this market. You can still inspect its holders.");
       renderSpotTradeMessage(pending ? 'Recent transactions are being refreshed. This view updates automatically.'
+        : payload?.error === 'onchain_trade_no_recent_swaps' ? 'No recent swaps were returned for this pool. Its chart is still available.'
         : payload?.error === 'onchain_trade_budget_limited' ? 'Transaction updates are paused for now. The chart is still available.' : payload?.error === 'onchain_trade_not_indexed'
         ? 'Transaction history is not indexed for this token yet. Its chart is still available.'
         : payload?.error === 'onchain_trade_coverage_unavailable'
