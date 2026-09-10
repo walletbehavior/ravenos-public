@@ -313,6 +313,8 @@ test('small native and working USDC balances remain visible below the dust displ
     rpc_request:async(method,params)=>method==='getBalance'?{value:100000}:{value:params[1].programId===SOLANA_TOKEN_PROGRAMS[0].program_id?[tokenAccount({accountSeed:21,mint:SOLANA_USDC_MINT,amount:'10000'})]:[]},
   });
   assert.deepEqual(result.dto.holdings.rows.map(row=>row.instrument.symbol).sort(),['SOL','USDC']);
+  assert.equal(result.dto.holdings.rows.find(row=>row.instrument.symbol==='SOL').executable_value_minor,null);
+  assert.equal(result.dto.summary.executable_value_state,'partial');
 });
 
 test("live validation harness requires authorization and emits only structural diagnostics", async () => {
