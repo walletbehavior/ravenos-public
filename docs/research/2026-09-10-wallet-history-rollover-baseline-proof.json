@@ -1,0 +1,112 @@
+{
+  "captured_at": "2026-09-10T17:59:33.793Z",
+  "queries": [
+    {
+      "success": true,
+      "results": [
+        {
+          "profile_version": 4,
+          "generated_at": "2026-09-10 17:57:45",
+          "trades": 8,
+          "matched_observations": 0,
+          "realized_eth": null,
+          "opening_balance_tokens": 0,
+          "history_state": "retry_wait",
+          "start_block": 49817746,
+          "end_block": 51113682,
+          "retained_events": 13
+        },
+        {
+          "profile_version": 4,
+          "generated_at": "2026-09-10 17:57:28",
+          "trades": 8,
+          "matched_observations": 7,
+          "realized_eth": "0.826661679888576546",
+          "opening_balance_tokens": 1,
+          "history_state": "complete",
+          "start_block": 49817746,
+          "end_block": 51113682,
+          "retained_events": 13
+        },
+        {
+          "profile_version": 3,
+          "generated_at": "2026-09-10 17:09:36",
+          "trades": 8,
+          "matched_observations": 7,
+          "realized_eth": "0.826661679888576546",
+          "opening_balance_tokens": 1,
+          "history_state": "complete",
+          "start_block": 49817746,
+          "end_block": 51113682,
+          "retained_events": 13
+        },
+        {
+          "profile_version": 3,
+          "generated_at": "2026-09-10 11:49:24",
+          "trades": 1,
+          "matched_observations": 0,
+          "realized_eth": null,
+          "opening_balance_tokens": 0,
+          "history_state": "retry_wait",
+          "start_block": 49817746,
+          "end_block": null,
+          "retained_events": 4
+        },
+        {
+          "profile_version": 3,
+          "generated_at": "2026-09-10 09:41:24",
+          "trades": 1,
+          "matched_observations": 0,
+          "realized_eth": null,
+          "opening_balance_tokens": 0,
+          "history_state": "retry_wait",
+          "start_block": 49817746,
+          "end_block": null,
+          "retained_events": 4
+        },
+        {
+          "profile_version": 3,
+          "generated_at": "2026-09-10 05:07:34",
+          "trades": 1,
+          "matched_observations": 0,
+          "realized_eth": null,
+          "opening_balance_tokens": 0,
+          "history_state": "queued",
+          "start_block": 49817746,
+          "end_block": null,
+          "retained_events": 4
+        }
+      ],
+      "rows_read": 17,
+      "rows_written": 0,
+      "duration_ms": 4.2877
+    },
+    {
+      "success": true,
+      "results": [
+        {
+          "state": "retry_wait",
+          "updated_at": "2026-09-10 17:57:38",
+          "advance_from_head": 1,
+          "head": "0x30beed2",
+          "from_block": "0x2f82892",
+          "direction": "done",
+          "incoming_complete": 1,
+          "outgoing_complete": 1,
+          "opening_balance_tokens": 1
+        }
+      ],
+      "rows_read": 2,
+      "rows_written": 0,
+      "duration_ms": 0.2321
+    }
+  ],
+  "schema_version": "ravenos.wallet_history_rollover.baseline.v1",
+  "source_commit": "2045dcde5c7326e79da12034f4bc1e53c45daf71",
+  "release_id": "ravenos-2045dcde5c73-1627e8be94d1cce7",
+  "chain": "base",
+  "address": "0x98a8e6d5049a85b4f59499d31fca4096116e0404",
+  "status": "reproduced_not_fixed",
+  "transactions_submitted": 0,
+  "qualified_category_membership_claimed": false
+}

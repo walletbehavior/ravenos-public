@@ -1,0 +1,264 @@
+{
+  "schema_version": "ravenos.wallet_transfer_precision.production.v1",
+  "recorded_at": "2026-09-10T18:03:04.031884+00:00",
+  "source_commit": "2045dcde5c7326e79da12034f4bc1e53c45daf71",
+  "release_id": "ravenos-2045dcde5c73-1627e8be94d1cce7",
+  "worker_version_id": "b80e6349-457c-4399-ad8a-91438e469d88",
+  "archive_sha256": "42d964734d05a944943b98056a88318a547358534b2dd4b0dbe090685f59286c",
+  "package_content_sha256": "666194a9febf8853154b02630486941d9c0f02de128cf3c7d883a1e12af04f93",
+  "source_tree_state": "clean",
+  "production_traffic_percent": 100,
+  "production_origins": [
+    "https://ravenos.xyz",
+    "https://app.ravenos.xyz"
+  ],
+  "staged_at": "2026-09-10T17:52:49.228Z",
+  "staging_verified_at": "2026-09-10T17:53:28.765Z",
+  "initial_release": {
+    "source_commit": "79e8a166085598322847800b5e54ad5e1e31b9d3",
+    "release_id": "ravenos-79e8a1660855-121b64d302d7efa5",
+    "worker_version_id": "a42c2a8b-fd78-4dd6-b161-f1cd8ab84487",
+    "production_checks_passed": 66,
+    "first_stage_attempt": "Stopped at health gate; exact uploaded version later reported healthy and passed full staging on recheck.",
+    "same_worker_version_reused": true
+  },
+  "qualification": {
+    "initial_regressions_reproduced": 6,
+    "storage_regressions_reproduced": 2,
+    "final_backend_tests_passed": 184,
+    "final_backend_tests_failed": 0,
+    "build_and_security_passed": true,
+    "public_worker_response_checks": 41,
+    "production_checks_passed": 66,
+    "verified_assets": 39,
+    "workspace_entrypoints_checked": 11,
+    "verifier_scope": "Release identity, HTML/assets and unauthenticated API gates. Actual signed-in samples are separate; no full desktop/mobile audit is claimed."
+  },
+  "immutable_replay": {
+    "input_sha256": "be8fa243aa0c4860ef10bc0b5e92d20e0a7e9217d6c4c5fb019540df869e07d4",
+    "retained_events": 474,
+    "baseline_trade_count": 0,
+    "corrected_trade_count": 265,
+    "public_buy_count": 106,
+    "public_sell_count": 159,
+    "public_buy_notional": {
+      "binance_peg_usdc": {
+        "count": 0,
+        "total": null,
+        "average": null
+      },
+      "binance_peg_usdt": {
+        "count": 106,
+        "total": "20079.082144926315120445",
+        "average": "189.425303254021840758"
+      },
+      "bnb": {
+        "count": 0,
+        "total": null,
+        "average": null
+      },
+      "wbnb": {
+        "count": 0,
+        "total": null,
+        "average": null
+      }
+    },
+    "public_sell_notional": {
+      "binance_peg_usdc": {
+        "total": null
+      },
+      "binance_peg_usdt": {
+        "total": "20027.101945812774646861"
+      },
+      "bnb": {
+        "total": null
+      },
+      "wbnb": {
+        "total": null
+      }
+    },
+    "matched_sells": 0,
+    "realized_profit_unavailable": true,
+    "events_unchanged": true,
+    "provider_requests": 0,
+    "production_writes": 0
+  },
+  "large_profile_before": {
+    "captured_at": "2026-09-10T17:46:08.128Z",
+    "storage": {
+      "profile_version": 3,
+      "stored_separately": 1,
+      "inline_reconstruction_version": null,
+      "detail_reconstruction_version": 1,
+      "inline_characters": 1167,
+      "detail_characters": 68417
+    },
+    "profile": {
+      "profile_version": 3,
+      "generated_at": "2026-09-10 17:35:45",
+      "decoded_trades": 0,
+      "buys": null,
+      "sells": null,
+      "total_buy_usdt": null,
+      "total_sell_usdt": null,
+      "realized_pnl_usdt": null,
+      "matched_sells": null,
+      "history_state": "retry_wait",
+      "retained_events": 474
+    }
+  },
+  "live_profile_after": {
+    "captured_at": "2026-09-10T17:55:26.854Z",
+    "chain": "bsc",
+    "address": "0x7e110a75a10d526a80ea0ec7e445686b29ae27d5",
+    "profile": {
+      "profile_version": 4,
+      "generated_at": "2026-09-10 17:54:45",
+      "decoded_trades": 265,
+      "buys": 106,
+      "sells": 159,
+      "total_buy_usdt": "20079.082144926315120445",
+      "total_sell_usdt": "20027.101945812774646861",
+      "realized_pnl_usdt": null,
+      "matched_sells": 0,
+      "history_state": "retry_wait",
+      "retained_events": 474
+    },
+    "storage": {
+      "profile_version": 4,
+      "stored_separately": 1,
+      "inline_reconstruction_version": 1,
+      "detail_reconstruction_version": 1,
+      "inline_characters": 1976,
+      "detail_characters": 87777
+    }
+  },
+  "signed_in_desktop_bnb": {
+    "profile_visible": true,
+    "period": "30D",
+    "buys": 106,
+    "sells": 159,
+    "total_buy_usdt": "20079.082144926315120445",
+    "total_sell_usdt": "20027.101945812774646861",
+    "unit": "USDT (Binance-Peg)",
+    "realized_profit_display": "Not reconstructed",
+    "matched_sells": 0,
+    "history_display": "History update delayed",
+    "balance_observation_time_preserved": "Sep 10, 12:11 PM",
+    "viewport_width": 1525,
+    "document_width": 1510
+  },
+  "scheduled_ingestion": {
+    "cycles": [
+      {
+        "event": "wallet_history_ingestion",
+        "worker_version_id": "b80e6349-457c-4399-ad8a-91438e469d88",
+        "event_at": 1789062931939,
+        "outcome": "ok",
+        "totals": {
+          "jobs_leased": 4,
+          "jobs_completed": 0,
+          "jobs_bounded": 0,
+          "jobs_retried": 0,
+          "jobs_dead_lettered": 0,
+          "pages_completed": 0,
+          "pages_partial": 0,
+          "signatures_seen": 0,
+          "transactions_decoded": 0,
+          "decode_failures": 0,
+          "jobs_budget_deferred": 4
+        },
+        "profiles_refreshed": 3,
+        "profile_refresh_failures": 0,
+        "state": null,
+        "event_at_utc": "2026-09-10T17:55:31.939000+00:00"
+      },
+      {
+        "event": "wallet_history_ingestion",
+        "worker_version_id": "b80e6349-457c-4399-ad8a-91438e469d88",
+        "event_at": 1789062991935,
+        "outcome": "ok",
+        "totals": {
+          "jobs_leased": 4,
+          "jobs_completed": 0,
+          "jobs_bounded": 0,
+          "jobs_retried": 0,
+          "jobs_dead_lettered": 0,
+          "pages_completed": 0,
+          "pages_partial": 0,
+          "signatures_seen": 0,
+          "transactions_decoded": 0,
+          "decode_failures": 0,
+          "jobs_budget_deferred": 4
+        },
+        "profiles_refreshed": 3,
+        "profile_refresh_failures": 0,
+        "state": null,
+        "event_at_utc": "2026-09-10T17:56:31.935000+00:00"
+      },
+      {
+        "tail_complete": true,
+        "matching_cycles": 2
+      }
+    ],
+    "history_pages_completed": 0,
+    "profiles_refreshed": 6,
+    "profile_refresh_failures": 0,
+    "limit": "Both observed runs deferred provider history work under existing budgets. Retained profiles still rebuilt; these are not newly completed histories."
+  },
+  "version4_profiles_at_snapshot": [
+    {
+      "chain": "base",
+      "profile_version": 4,
+      "profiles": 12,
+      "trading_profiles": 0,
+      "matched_profiles": 0
+    },
+    {
+      "chain": "bsc",
+      "profile_version": 4,
+      "profiles": 8,
+      "trading_profiles": 1,
+      "matched_profiles": 0
+    },
+    {
+      "chain": "ethereum",
+      "profile_version": 4,
+      "profiles": 1,
+      "trading_profiles": 1,
+      "matched_profiles": 0
+    },
+    {
+      "chain": "robinhood",
+      "profile_version": 4,
+      "profiles": 8,
+      "trading_profiles": 1,
+      "matched_profiles": 0
+    }
+  ],
+  "base_followup": {
+    "address": "0x98a8e6d5049a85b4f59499d31fca4096116e0404",
+    "status": "Open: starting a refresh clears previous matched results while the retained event count and block window stay unchanged.",
+    "evidence": "2026-09-10-wallet-history-rollover-baseline-proof.json",
+    "signed_in_desktop_observation": {
+      "buys": 1,
+      "sells": 7,
+      "matched_sells": 0,
+      "realized_profit_display": "Not reconstructed",
+      "history_display": "History update delayed",
+      "viewport_width": 1525,
+      "document_width": 1510
+    }
+  },
+  "wallet_group_feature_enabled": false,
+  "qualified_category_counts_measured": false,
+  "live_category_rotation_verified": false,
+  "migrations_applied": false,
+  "provider_limits_changed": false,
+  "execution_flags_changed": false,
+  "transactions_submitted": 0,
+  "personal_alerts_created": 0,
+  "full_roadmap_packages_signed_off": 0,
+  "final_signed_in_desktop_mobile_audit_completed": false,
+  "goal_complete": false
+}
