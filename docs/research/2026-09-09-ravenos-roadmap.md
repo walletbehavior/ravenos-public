@@ -48,13 +48,15 @@ Work:
 - Normalize buys, sells, transfers, fees, token accounts, position balances, partial exits, and historical prices. Retain unknown incoming basis rather than counting it as zero cost.
 - Prioritize known KOL/smart-money lists, top holders, and top traders. Follow with market-derived active wallets. Share cached analyses across visitors and enforce collection budgets.
 - Fill cards with age lower bound, P&L evidence, transaction counts for 1/7/30 days, activity freshness, win rate, hold time, and coverage. Full addresses remain visible and copyable.
-- Build the requested top-50 lists per category per chain using analyzed profiles. If fewer than 50 qualify, show the true qualified count and the ingestion backlog rather than padding weak or invented results.
+- Build daily selections of 10–50 currently qualified wallets per category across all chains, then grow the same depth on each supported chain. Fifty is the display ceiling and coverage target; ten is the minimum for a ready category. Below ten, treat the group as building coverage rather than displaying a finished list with one or two members. Prioritize qualified intake against measured category/chain shortfalls; do not pad with weak or historical matches.
+- Rotate these lists continuously as qualification changes. Admit new matches, remove decayed/expired members even when publishing is delayed, and preserve the category/page a person is browsing. Re-evaluation and delivery must not renew source evidence or extend an existing validity deadline. Keep ranking, qualification and decay methods private.
 
 Done when:
 
 - Sampled stored and new wallet inspections on all five chains open a usable profile or a precise progress state; no silent or generic 503 dead ends.
 - Solana and EVM profiles reconcile known test histories, including partial closes and external transfers.
-- At least 50 **qualified** profiles exist in each publicly promised category/chain; categories without enough evidence are clearly identified before release.
+- Every publicly promised daily category contains 10–50 **currently qualified** profiles overall; each chain-specific category meets the same minimum before being presented as ready. Continue growing toward fifty per category/chain and record remaining coverage gaps.
+- Production evidence shows repeatable additions, removals and deadline-based expiry over successive publication cycles. A delayed or failed publisher cannot leave expired wallets in a current list; count targets cannot be met by refreshing old timestamps.
 - Depth, cost-basis coverage, collection latency, and cost per newly analyzed wallet are recorded. Provider calls do not scale with each browser visit.
 
 ## 3. Complete the market-data layer behind Discover and Terminal

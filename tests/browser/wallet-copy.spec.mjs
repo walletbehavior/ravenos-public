@@ -1740,25 +1740,27 @@ test('Copy uses the shared named strategy and pins each wallet until explicitly 
  expect(applied[0].policy.exit_strategy.version).toBe(2);expect(shared.requests.some(r=>/execute|sign|submit/.test(r.path))).toBe(false);
 });
 
-function groupSnapshot() {
-  const cards=Array.from({length:14},(_,i)=>({schema_version:1,profile_id:`wallet_patient_${i}`,chain:'solana',
+function groupSnapshot(now=Date.now()) {
+  const cards=Array.from({length:14},(_,i)=>({schema_version:2,expires_at:new Date(now+3600000).toISOString(),profile_id:`wallet_patient_${i}`,chain:'solana',
     address:i===0?WALLET:'2'.repeat(31)+'123456789ABCDEFG'[i],display_name:`Wallet ${i}`,categories:['Patient top holders'],summary:'PRIVATE_SUMMARY_NOT_FOR_BROWSER',
     data_status:i===13?'historical':'recent',actions:['view_profile','open_copy_setup']}));
-  cards.push({schema_version:1,profile_id:'wallet_base',chain:'base',address:EVM_WALLET,display_name:'Base wallet',categories:['Regular trading'],summary:'PRIVATE_SUMMARY_NOT_FOR_BROWSER',data_status:'current',actions:['view_profile']});
-  return {schema_version:PUBLIC_WALLET_SNAPSHOT_SCHEMA,generated_at:new Date(Date.now()-1000).toISOString(),cards,
+  cards.push(...Array.from({length:10},(_,i)=>({schema_version:2,expires_at:new Date(now+3600000).toISOString(),profile_id:`wallet_base_${i}`,chain:'base',address:i===0?EVM_WALLET:`0x${String(i).padStart(40,'0')}`,display_name:'Base wallet',categories:['Regular trading'],summary:'PRIVATE_SUMMARY_NOT_FOR_BROWSER',data_status:'current',actions:['view_profile']})));
+  return {schema_version:PUBLIC_WALLET_SNAPSHOT_SCHEMA,generated_at:new Date(now).toISOString(),cards,
     groups:[{group_id:'group_patient_sol',title:'Patient top holders',chain:'solana',profile_ids:cards.filter(c=>c.chain==='solana').map(c=>c.profile_id)},
-      {group_id:'group_regular_base',title:'Regular trading',chain:'base',profile_ids:['wallet_base']}]};
+      {group_id:'group_regular_base',title:'Regular trading',chain:'base',profile_ids:cards.filter(c=>c.chain==='base').map(c=>c.profile_id)},
+      {group_id:'group_patient_all',title:'Patient top holders',chain:'all',profile_ids:cards.filter(c=>c.chain==='solana').map(c=>c.profile_id)},
+      {group_id:'group_regular_all',title:'Regular trading',chain:'all',profile_ids:cards.filter(c=>c.chain==='base').map(c=>c.profile_id)}]};
 }
-async function installGroups(page,shared,{empty=false,fail=false}={}) {
+async function installGroups(page,shared,{empty=false,fail=false,snapshot:makeSnapshot=groupSnapshot,now:readNow=()=>Date.now()}={}) {
   await install(page,shared,{walletGroups:true});
   await page.route('**/api/v1/wallet-copy/groups?*',async route=>{
     const url=new URL(route.request().url());shared.requests.push({method:'GET',path:url.pathname,search:url.search});
-    if(fail)return route.fulfill({status:503,json:{ok:false,error:'wallet_groups_unavailable'}});
-    const snapshot=groupSnapshot();if(empty){snapshot.cards=[];snapshot.groups=[];}
-    const {cards,...paged}=publicWalletGroupPage(snapshot,normalizeWalletGroupQuery(url.searchParams),{copySetup:true});
+    if(typeof fail==='function'?fail():fail)return route.fulfill({status:503,json:{ok:false,error:'wallet_groups_unavailable'}});
+    const now=readNow(),snapshot=makeSnapshot(now);if(empty){snapshot.cards=[];snapshot.groups=[];}
+    const {cards,...paged}=publicWalletGroupPage(snapshot,normalizeWalletGroupQuery(url.searchParams),{copySetup:true,now});
     const rows=cards.map(card=>({source_wallet_id:card.address===WALLET?SOURCE_ID:normalizeSourceWalletChainIdentity({chain:card.chain,network:'mainnet',address:card.address}).source_wallet_id,
       source_wallet:{chain:card.chain,network:'mainnet',address:card.address},public_summary:card}));
-    return route.fulfill({status:200,contentType:'application/json',body:publicPayload({...paged,rows})});
+    return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(publicWalletResponse({...paged,rows},{copySetup:true,now}))});
   });
 }
 for(const width of [390,1440])test(`Wallet groups show qualified styles and chain-specific cards at ${width}px`,async({page},info)=>{
@@ -1766,7 +1768,7 @@ for(const width of [390,1440])test(`Wallet groups show qualified styles and chai
   await page.goto('/account/copy/?chain=all');
   await expect(page.locator('#copyGroupPanel')).toBeVisible();await expect(page.locator('#copyScreenerCount')).toHaveText('13 wallets');
   await expect(page.locator('#copyScreenerResults .copy-screener-card')).toHaveCount(12);
-  await expect(page.locator('#copyGroupChoices')).toContainText('Patient top holders · Solana (13)');
+  await expect(page.locator('#copyGroupChoices')).toContainText('Patient top holders · All chains (13)');
   await expect(page.locator('#copyScreenerResults')).not.toContainText('PRIVATE_SUMMARY');
   expect(shared.requests.filter(r=>r.method==='POST')).toEqual([]);
   await page.locator('#copyScreenNext').click();await expect(page.locator('#copyScreenerResults .copy-screener-card')).toHaveCount(1);
@@ -1774,7 +1776,7 @@ for(const width of [390,1440])test(`Wallet groups show qualified styles and chai
   await page.screenshot({path:info.outputPath(`wallet-groups-${width}.png`)});
   await page.locator('#copyScreenerResults .copy-screener-card').first().getByRole('button',{name:'View wallet',exact:true}).click();
   await expect(page.locator('#copyProfile')).toBeVisible();await expect(page.locator('#copyProfile')).toContainText('Patient top holders');
-  await page.locator('[data-screen-chain="base"]').click();await expect(page.locator('#copyScreenerCount')).toHaveText('1 wallets');
+  await page.locator('[data-screen-chain="base"]').click();await expect(page.locator('#copyScreenerCount')).toHaveText('10 wallets');
   await expect(page.locator('#copyScreenerResults')).toContainText('Regular trading');await expect(page.locator('#copyScreenerResults').getByRole('button',{name:'Copy',exact:true})).toHaveCount(0);
   expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
   expect(shared.requests.some(r=>/watches|sign|execute|broadcast/.test(r.path)&&r.method==='POST')).toBe(false);
@@ -1789,6 +1791,68 @@ test('Wallet groups provider failure offers a retry and does not display stale m
   const shared={watch:null,decision:null,position:null,requests:[]};await installGroups(page,shared,{fail:true});
   await page.goto('/account/copy/?wallets=groups');await expect(page.getByRole('button',{name:'Retry wallet groups'})).toBeVisible();
   await expect(page.locator('#copyScreenerResults .copy-screener-card')).toHaveCount(0);expect(shared.requests.filter(r=>r.method==='POST')).toEqual([]);
+});
+
+test('Wallet groups rotate on the next refresh while preserving category, page and unsaved research text',async({page})=>{
+  await page.clock.install();
+  let now=Date.now();const snapshot=groupSnapshot(now),shared={watch:null,decision:null,position:null,requests:[]};
+  await installGroups(page,shared,{snapshot:()=>snapshot,now:()=>now});await page.goto('/account/copy/?chain=all&wallets=groups');
+  await expect(page.locator('#copyScreenerCount')).toHaveText('13 wallets');
+  await page.locator('#copyScreenNext').click();await expect(page.locator('#copyScreenPage')).toHaveText('Page 2 of 2');
+  await page.locator('#copySaveListName').fill('My unsaved research label');
+  const next=snapshot.cards[13];next.data_status='recent';
+  snapshot.groups.find(g=>g.group_id==='group_patient_all').profile_ids=snapshot.groups.find(g=>g.group_id==='group_patient_all').profile_ids.filter(id=>id!=='wallet_patient_0');
+  now+=60_001;snapshot.generated_at=new Date(now).toISOString();await page.clock.fastForward(60_001);
+  await expect(page.locator('#copyScreenerResults')).toContainText(next.address);
+  await expect(page.locator('#copyScreenerCount')).toHaveText('13 wallets');await expect(page.locator('#copyScreenPage')).toHaveText('Page 2 of 2');
+  await expect(page.locator('#copyGroupChoices button[aria-pressed="true"]')).toContainText('Patient top holders');
+  await expect(page.locator('#copySaveListName')).toHaveValue('My unsaved research label');
+  expect(shared.requests.some(r=>r.method==='POST'&&/watches|sign|execute|broadcast/.test(r.path))).toBe(false);
+});
+
+test('Wallet groups expire without a successful refresh and rebuild the same selection when new members qualify',async({page})=>{
+  await page.clock.install();
+  let now=Date.now(),fail=false;const snapshot=groupSnapshot(now),shared={watch:null,decision:null,position:null,requests:[]};
+  const group=snapshot.groups.find(g=>g.group_id==='group_patient_all');group.profile_ids=group.profile_ids.slice(0,10);
+  snapshot.cards[0].expires_at=new Date(now+2000).toISOString();
+  await installGroups(page,shared,{snapshot:()=>snapshot,now:()=>now,fail:()=>fail});await page.goto('/account/copy/?chain=all&wallets=groups');
+  await expect(page.locator('#copyScreenerCount')).toHaveText('10 wallets');
+  now+=2100;fail=true;await page.clock.fastForward(2100);
+  await expect(page.getByRole('button',{name:'Retry wallet groups'})).toBeVisible();
+  await expect(page.locator('#copyScreenerResults .copy-screener-card')).toHaveCount(0);
+  fail=false;await page.getByRole('button',{name:'Retry wallet groups'}).click();
+  await expect(page.locator('#copyScreenerCount')).toHaveText('Building coverage');
+  await expect(page.locator('#copyScreenerStatus')).toContainText('Patient top holders is building coverage');
+  await expect(page.locator('#copyGroupChoices button[aria-pressed="true"]')).toHaveCount(0);
+  const next=snapshot.cards[13];next.data_status='recent';group.profile_ids=group.profile_ids.filter(id=>id!=='wallet_patient_0');group.profile_ids.push(next.profile_id);
+  now+=60_001;snapshot.generated_at=new Date(now).toISOString();await page.clock.fastForward(60_001);
+  await expect(page.locator('#copyScreenerCount')).toHaveText('10 wallets');
+  await expect(page.locator('#copyScreenerResults')).toContainText(next.address);
+  await expect(page.locator('#copyScreenerResults')).not.toContainText(snapshot.cards[0].address);
+  await expect(page.locator('#copyGroupChoices button[aria-pressed="true"]')).toContainText('Patient top holders');
+  expect(shared.requests.some(r=>r.method==='POST'&&/watches|sign|execute|broadcast/.test(r.path))).toBe(false);
+});
+
+test('Wallet groups stop showing current members when publication is older than five minutes',async({page})=>{
+  await page.clock.install();let now=Date.now();const snapshot=groupSnapshot(now),shared={watch:null,decision:null,position:null,requests:[]};
+  await installGroups(page,shared,{snapshot:()=>snapshot,now:()=>now});await page.goto('/account/copy/?chain=all&wallets=groups');
+  await expect(page.locator('#copyScreenerCount')).toHaveText('13 wallets');now+=300_001;await page.clock.fastForward(300_001);
+  await expect(page.locator('#copyScreenerStatus')).toContainText('waiting for a fresh update');
+  await expect(page.locator('#copyScreenerResults .copy-screener-card')).toHaveCount(0);
+  expect(shared.requests.filter(r=>r.path==='/api/v1/wallet-copy/groups').length).toBeLessThanOrEqual(4);
+});
+
+test('Wallet groups recover from a hanging refresh without leaving a perpetual loading state',async({page})=>{
+  await page.clock.install();const shared={watch:null,decision:null,position:null,requests:[]};await installGroups(page,shared);
+  await page.goto('/account/copy/?chain=all&wallets=groups');await expect(page.locator('#copyScreenerCount')).toHaveText('13 wallets');
+  let release,started=false;const paused=new Promise(resolve=>{release=resolve;});
+  await page.route('**/api/v1/wallet-copy/groups?*',async route=>{started=true;await paused;await route.abort().catch(()=>{});});
+  try {
+    await page.clock.fastForward(60_001);await expect.poll(()=>started).toBe(true);
+    await page.clock.fastForward(15_001);
+    await expect(page.getByRole('button',{name:'Retry wallet groups'})).toBeVisible();
+    await expect(page.locator('#copyScreenerResults .copy-screener-card')).toHaveCount(0);
+  } finally {release();}
 });
 
 test('wallet overlay loads versioned production styles, fits a phone and preserves the chart draft',async({page},info)=>{

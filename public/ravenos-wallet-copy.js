@@ -45,7 +45,7 @@ const state = {
   saved: [],
   screener_request: 0,
   screener: { chain: getPreference("walletChain", "all"), page: 1, total_pages: 0, total: 0, wallets: [], preset: null, view: null },
-  groups: { selected: null, cards: new Map() },
+  groups: { selected: null, cards: new Map(), refresh_timer: null, expiry_timer: null, deadline: 0, loading: false, last_read: 0, abort: null },
   robinhood_intelligence: { activity: [] },
 };
 
@@ -271,6 +271,8 @@ function recoverWalletSession() {
   state.session_expired = true;
   state.screener_request += 1;
   state.groups.cards.clear();
+  clearTimeout(state.groups.refresh_timer); clearTimeout(state.groups.expiry_timer); state.groups.deadline = 0;
+  state.groups.abort?.abort(); state.groups.loading = false;
   state.csrf = "";
   state.deep_poll_token += 1;
   clearTimeout(state.deep_poll_timer);
@@ -714,6 +716,21 @@ function renderWalletRecord() {
   setText("copyTokenScope", record ? `${tokenRows.length} shown · ${record.token_count} tokens with decoded trading activity. All retained time; period control above applies to the overview. Transfers and unknown starting inventory are excluded from profit. ${record.tokens_truncated ? "Limited to the 100 most recently traded tokens." : ""}` : "This snapshot does not contain per-token cost records. Refresh analysis to use retained history where available.");
 }
 
+function renderProfileThesis(profile) {
+  const groupCard = state.groups.cards.get(`${profile.source_wallet?.chain}:${profile.source_wallet?.address}`);
+  const summary = groupCard?.card || profile.public_summary;
+  const expired = groupCard && groupCard.deadline <= performance.now();
+  const thesisNode = document.getElementById('copyProfileThesis');
+  thesisNode.hidden = !summary;
+  if (!summary) return;
+  setText('copyThesisState', expired ? 'Historical' : {current:'Current',recent:'Recent',historical:'Historical',limited:'Limited history'}[summary.data_status] || 'Limited history');
+  setText('copyThesisHeadline', summary.categories.join(' · ') || 'Wallet profile');
+  setText('copyThesisSummary', expired ? `Historical profile: ${summary.summary.replace(/^Historical profile: /,'')}` : summary.summary);
+  for (const id of ['copyThesisStrengths','copyThesisWatchouts','copyThesisNext']) {
+    const node = document.getElementById(id); if (node) { node.replaceChildren(); node.parentElement.hidden = true; }
+  }
+}
+
 function renderProfile(payload, { scroll = true, from_poll: fromPoll = false } = {}) {
   if (state.session_expired) return;
   if (!fromPoll) {
@@ -782,18 +799,7 @@ function renderProfile(payload, { scroll = true, from_poll: fromPoll = false } =
   const transactionLabel = reportedTransactions != null ? `${reportedTransactions} tx reported` : profile.schema_version === "ravenos.evm_wallet_basic_profile.v2" ? `${profile.coverage.token_transfers_observed ?? "Unknown"} transfers observed` : `${profile.coverage.transactions_observed ?? "Unknown"} tx observed`;
   const tradeLabel = profile.coverage.trade_events === null || profile.coverage.trade_events === undefined ? "trades not decoded" : `${profile.coverage.trade_events} trades`;
   setText("copyProfileCoverage", `${transactionLabel} · ${tradeLabel} · ${historyLabel}`);
-  const groupCard = state.groups.cards.get(`${profile.source_wallet?.chain}:${profile.source_wallet?.address}`);
-  const summary = groupCard && Date.now()-groupCard.received_at<120000 ? groupCard.card : profile.public_summary;
-  const thesisNode = document.getElementById('copyProfileThesis');
-  thesisNode.hidden = !summary;
-  if (summary) {
-    setText('copyThesisState', {current:'Current',recent:'Recent',historical:'Historical',limited:'Limited history'}[summary.data_status] || 'Limited history');
-    setText('copyThesisHeadline', summary.categories.join(' · ') || 'Wallet profile');
-    setText('copyThesisSummary', summary.summary);
-    for (const id of ['copyThesisStrengths','copyThesisWatchouts','copyThesisNext']) {
-      const node = document.getElementById(id); if (node) { node.replaceChildren(); node.parentElement.hidden = true; }
-    }
-  }
+  renderProfileThesis(profile);
   const performance = profile.source_performance;
   setText("copySourcePnl", profile.trading_record ? recordPnl(performance.realized_pnl_by_basis || {usdc:performance.realized_pnl_usdc,sol:performance.realized_pnl_sol}) : realizedPerformance(performance));
   const sourceMetrics = document.getElementById("copySourceMetrics");
@@ -964,6 +970,7 @@ function switchView(view) {
     button.tabIndex = active ? 0 : -1;
   });
   document.querySelectorAll("[data-copy-panel]").forEach((panel) => { panel.hidden = panel.dataset.copyPanel !== view; });
+  if (view === 'find') void refreshWalletGroups();
 }
 
 function watchCard(watch) {
@@ -1649,28 +1656,70 @@ function renderScreener(payload) {
   document.getElementById("copyScreenNext").disabled = state.screener.page >= state.screener.total_pages;
 }
 
-async function loadScreener() {
+function scheduleWalletGroupRefresh() {
+  clearTimeout(state.groups.refresh_timer);
+  if (!state.activation.wallet_groups || state.session_expired) return;
+  state.groups.refresh_timer = setTimeout(()=>void refreshWalletGroups(),60_000);
+}
+
+function expireWalletGroups() {
+  if (!state.groups.deadline || performance.now() < state.groups.deadline) return;
+  state.groups.deadline = 0;
+  if (state.profile) renderProfileThesis(state.profile);
+  if (state.screener.view === 'groups') {
+    document.getElementById('copyScreenerResults').replaceChildren();
+    document.getElementById('copyGroupChoices').replaceChildren();
+    document.getElementById('copyScreenerPages').hidden = true;
+    setText('copyScreenerCount','Updating');
+    setText('copyScreenerStatus','Updating current wallet groups…');
+  }
+  void refreshWalletGroups({force:true});
+}
+
+async function refreshWalletGroups({force=false}={}) {
+  if (!state.activation.wallet_groups || state.session_expired) return;
+  if (document.hidden || (page.dataset.embedded === 'true' && !embeddedActive) || page.dataset.copyState !== 'active'
+    || document.querySelector('[data-copy-panel="find"]').hidden || state.groups.loading
+    || (!force && performance.now()-state.groups.last_read<60_000)) { scheduleWalletGroupRefresh(); return; }
+  await loadScreener({background:true});
+}
+
+async function loadScreener({background=false}={}) {
   if (!state.activation.wallet_screener) return;
   const requestId = ++state.screener_request;
   if (state.activation.wallet_groups) {
-    setText('copyScreenerCount','Loading');setText('copyScreenerStatus','Loading wallet groups…');
-    document.getElementById('copyScreenerResults').replaceChildren();
-    document.getElementById('copyGroupPanel').hidden=true;
-    document.getElementById('copySeenWallets').hidden=true;
-    document.getElementById('copyScreenerPages').hidden=true;
+    if (!background) {
+      setText('copyScreenerCount','Loading');setText('copyScreenerStatus','Loading wallet groups…');
+      document.getElementById('copyScreenerResults').replaceChildren();
+      document.getElementById('copyGroupPanel').hidden=true;
+      document.getElementById('copySeenWallets').hidden=true;
+      document.getElementById('copyScreenerPages').hidden=true;
+    }
     const params = new URLSearchParams({chain:state.screener.chain,page:String(state.screener.view === 'groups' ? state.screener.page : 1),page_size:'12',history:document.getElementById('copyGroupHistory').value});
     if (state.groups.selected && state.screener.view === 'groups') params.set('group_id',state.groups.selected);
-    const grouped = await api(`${API}/groups?${params}`);
+    const started = performance.now(); state.groups.loading = requestId;
+    state.groups.abort?.abort(); const controller = new AbortController(); state.groups.abort = controller;
+    const timeout = setTimeout(()=>controller.abort(),15_000);
+    let grouped;
+    try { grouped = await api(`${API}/groups?${params}`,{signal:controller.signal}); }
+    finally {
+      clearTimeout(timeout);
+      if (state.groups.loading === requestId) { state.groups.loading = false; state.groups.abort = null; }
+      scheduleWalletGroupRefresh();
+    }
     if (requestId !== state.screener_request) return;
+    state.groups.last_read = performance.now();
     const populated = grouped.response.ok && grouped.payload?.groups?.length > 0;
     document.getElementById('copyWalletGroupsTab').hidden = !populated && state.screener.view !== 'groups';
-    if (populated && (!state.screener.view || state.screener.view === 'groups')) {
-      state.screener.view = 'groups'; renderWalletGroupPage(grouped.payload); return;
+    if (grouped.response.ok && ((populated && !state.screener.view) || (state.screener.view === 'groups' && (populated || state.groups.selected)))) {
+      state.screener.view = 'groups'; renderWalletGroupPage(grouped.payload,{started}); return;
     }
     if (state.screener.view === 'groups' && !grouped.response.ok) {
       setText('copyScreenerCount','Unavailable');
       setText('copyScreenerStatus','Wallet groups could not refresh. Retry or browse wallet history.');
       document.getElementById('copyScreenerResults').replaceChildren();
+      state.groups.cards.clear(); clearTimeout(state.groups.expiry_timer); state.groups.deadline=0;
+      if (state.profile) renderProfileThesis(state.profile);
       document.getElementById('copyScreenerResults').hidden=false;
       document.getElementById('copyScreenerFilters').hidden=true;
       document.getElementById('copyPresetRail').hidden=true;
@@ -1679,6 +1728,7 @@ async function loadScreener() {
       retry.addEventListener('click',()=>void loadScreener());document.getElementById('copyScreenerResults').append(retry);
       return;
     }
+    if (background) return;
     if (state.screener.view === 'groups') { state.screener.view = null;state.screener.page = 1;state.groups.selected = null;document.getElementById('copyWalletGroupsTab').hidden = true; }
   } else {
     document.getElementById('copyWalletGroupsTab').hidden=true;
@@ -1711,22 +1761,30 @@ async function loadScreener() {
   renderScreener(result.payload);
 }
 
-function renderWalletGroupPage(payload) {
-  const groups=payload.groups, selected=groups.find(group=>group.group_id===payload.selected_group_id);
-  state.groups.selected=selected?.group_id || null;
+function renderWalletGroupPage(payload,{started=performance.now()}={}) {
+  const groups=payload.groups, selected=payload.selected_group || groups.find(group=>group.group_id===payload.selected_group_id);
+  const groupChainLabel=chain=>chain==='all'?'All chains':chainLabel(chain);
+  state.groups.selected=payload.selected_group_id || null;
   state.groups.cards.clear();
-  for (const row of payload.rows || []) state.groups.cards.set(`${row.source_wallet.chain}:${row.source_wallet.address}`,{card:row.public_summary,received_at:Date.now()});
+  const serverTime=Date.parse(payload.as_of), validity=Date.parse(payload.valid_until);
+  const current=document.getElementById('copyGroupHistory').value==='recent';
+  clearTimeout(state.groups.expiry_timer);
+  state.groups.deadline=current && Number.isFinite(validity) && Number.isFinite(serverTime) ? started+Math.max(0,validity-serverTime) : 0;
+  for (const row of payload.rows || []) state.groups.cards.set(`${row.source_wallet.chain}:${row.source_wallet.address}`,{
+    card:row.public_summary,deadline:started+Math.max(0,Math.min(Date.parse(row.public_summary.expires_at),Date.parse(payload.generated_at)+300_000)-serverTime)});
   state.screener.page=payload.pagination.page;state.screener.total_pages=payload.pagination.total_pages;state.screener.total=payload.pagination.total;
   document.querySelectorAll('[data-wallet-view]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.walletView==='groups')));
   document.getElementById('copyGroupPanel').hidden=false;
   for(const id of ['copyScreenerFilters','copyPresetRail','copySeenWallets']) document.getElementById(id).hidden=true;
   const host=document.getElementById('copyScreenerResults');host.hidden=false;
-  setText('copyScreenerCount',`${payload.pagination.total.toLocaleString()} wallets`);
-  setText('copyScreenerCoverage','Explore wallets by trading style. Open a wallet for its trading history or choose Copy to set up your own rules.');
-  setText('copyScreenerStatus',selected ? `${selected.title} · ${chainLabel(selected.chain)}` : 'This group changed. Choose an available group.');
+  setText('copyScreenerCount',payload.pagination.total ? `${payload.pagination.total.toLocaleString()} wallets` : payload.state==='stale' ? 'Updating' : 'Building coverage');
+  setText('copyScreenerCoverage',current ? 'Daily lists refresh automatically as wallets qualify and older matches expire.' : 'Includes historical profiles. Expired wallets no longer qualify for a daily list.');
+  setText('copyScreenerStatus',payload.pagination.total ? `${selected.title} · ${groupChainLabel(selected.chain)}`
+    : payload.state==='stale' ? 'Current lists are waiting for a fresh update. You can still browse wallet history.'
+    : selected ? `${selected.title} is building coverage. Choose another group or browse wallet history.` : 'This group changed. Choose an available group or browse wallet history.');
   const buttons=groups.map(group=>{
     const button=document.createElement('button');button.type='button';
-    button.textContent=`${group.title} · ${chainLabel(group.chain)} (${group.count.toLocaleString()})`;
+    button.textContent=`${group.title} · ${groupChainLabel(group.chain)} (${group.count.toLocaleString()})`;
     button.setAttribute('aria-pressed',String(group.group_id===state.groups.selected));
     button.addEventListener('click',()=>{state.groups.selected=group.group_id;state.screener.page=1;void loadScreener();});return button;
   });
@@ -1736,6 +1794,9 @@ function renderWalletGroupPage(payload) {
   setText('copyScreenPage',`Page ${payload.pagination.page} of ${Math.max(1,payload.pagination.total_pages)}`);
   document.getElementById('copyScreenPrevious').disabled=!payload.pagination.has_previous;
   document.getElementById('copyScreenNext').disabled=!payload.pagination.has_next;
+  if (state.profile) renderProfileThesis(state.profile);
+  if (state.groups.deadline>performance.now()) state.groups.expiry_timer=setTimeout(expireWalletGroups,state.groups.deadline-performance.now());
+  else if (current && payload.pagination.total) expireWalletGroups();
 }
 
 function renderCollections() {
@@ -2068,6 +2129,8 @@ export async function openEmbeddedIntelligence(href) {
     state.session_expired = false; signIn.hidden = true; unavailable.hidden = true;
     walletBootPromise = startWalletWorkspace(session); await walletBootPromise; return;
   }
+  expireWalletGroups();
+  await refreshWalletGroups({force:true});
   const request = new URL(href), wallet = request.searchParams.get('wallet');
   const chain = request.searchParams.get('inspect_chain') || request.searchParams.get('chain') || 'solana';
   if (wallet && new Set(['solana','robinhood','bsc','base','ethereum']).has(chain)) {
@@ -2078,7 +2141,14 @@ export async function openEmbeddedIntelligence(href) {
 }
 export function suspendEmbeddedIntelligence() {
   embeddedActive = false; clearTimeout(state.deep_poll_timer); state.deep_poll_token += 1;
+  clearTimeout(state.groups.refresh_timer); clearTimeout(state.groups.expiry_timer);
 }
+
+document.addEventListener('visibilitychange',()=>{
+  if (document.hidden) return;
+  expireWalletGroups(); void refreshWalletGroups({force:true});
+});
+window.addEventListener('focus',()=>{expireWalletGroups();void refreshWalletGroups();});
 
 window.RavenOSWalletCopy = Object.freeze({
   schemaVersion: "ravenos.wallet_copy_surface.v1",
