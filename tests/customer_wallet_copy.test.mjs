@@ -11,6 +11,7 @@ import {
 } from "../lib/customer_trade/solana_wallet_intelligence.mjs";
 import { createSourceWalletBackfillJob } from "../lib/customer_trade/source_wallet_backfill.mjs";
 import { createSourceWalletId } from "../lib/customer_trade/source_wallet_chain_identity.mjs";
+import { PUBLIC_WALLET_SNAPSHOT_SCHEMA } from '../lib/customer_trade/wallet_public_cards.mjs';
 import { applyShadowCopyExitHistory } from "../lib/customer_trade/wallet_copy.mjs";
 import { walletUsdTradingRecord } from '../lib/customer_trade/wallet_historical_prices.mjs';
 import {
@@ -1235,4 +1236,29 @@ test('Copy applies an owned saved strategy version and library edits cannot sile
   const unchanged=await json(await routeCustomerWalletCopy(request('/api/v1/wallet-copy/watches'),env(),d));
   assert.equal(unchanged.watches[0].policy.exit_strategy.version,2);
   assert.equal(unchanged.watches[0].policy.execution_boundary.live_copy_available,false);
+});
+
+test('wallet groups join only exact cached identities and never initiate observation or copying',async()=>{
+  const source={chain:'solana',network:'mainnet',address:WALLET},id=createSourceWalletId(source),store=memoryStore();
+  const card={schema_version:1,profile_id:'wallet_patient',chain:'solana',address:WALLET,display_name:'Wallet',categories:['Patient top holders'],summary:'PRIVATE_SUMMARY',data_status:'historical',actions:['view_profile','open_copy_setup']};
+  const snapshot={schema_version:PUBLIC_WALLET_SNAPSHOT_SCHEMA,generated_at:new Date(NOW*1000).toISOString(),cards:[card],groups:[{group_id:'group_patient',title:'Patient top holders',chain:'solana',profile_ids:[card.profile_id]}]};
+  store.sources.set(id,{source_wallet_id:id,address:WALLET,chain:'solana',network:'mainnet',profile_json:JSON.stringify({source_wallet:source,behavior:{trade_count:7,last_trade_at:new Date(NOW*1000).toISOString(),lineage:'PRIVATE_INPUT'},source_performance:{win_rate_pct:60},research_thesis:{private:'PRIVATE_INPUT'}})});
+  let reads=0;
+  const dependencies={...deps(store,{getWalletHistory(){throw Error('must not look up history');}}),walletCardsFetch:async()=>{reads++;return new Response(JSON.stringify(snapshot),{headers:{'content-type':'application/json'}});}};
+  const environment=env({RAVENOS_WALLET_SCREENER_ENABLED:'1',RAVENOS_WALLET_GROUPS_ENABLED:'1',RAVENOS_PUBLIC_ORIGIN_TOKEN:'unit-token',RAVENOS_PUBLIC_ORIGIN_URL:'https://origin.example/public/ravenos'});
+  const response=await routeCustomerWalletCopy(request('/api/v1/wallet-copy/groups?history=all'),environment,dependencies);
+  assert.equal(response.status,200);assert.match(response.headers.get('cache-control'),/private.*no-store/);
+  const body=await json(response);assert.equal(body.rows[0].source_wallet_id,id);assert.equal(body.rows[0].behavior.trade_count,7);
+  assert.equal(body.rows[0].public_summary.data_status,'historical');assert.deepEqual(body.rows[0].public_summary.categories,['Patient top holders']);
+  assert.equal(body.groups[0].count,1);assert.ok(!JSON.stringify(body).includes('PRIVATE_'));
+  assert.equal(store.watches.size,0);assert.equal(store.events.size,0);assert.equal(store.profiles.size,0);assert.equal(reads,1);
+  const fresh=await json(await routeCustomerWalletCopy(request('/api/v1/wallet-copy/groups'),environment,dependencies));
+  assert.equal(fresh.state,'empty');assert.deepEqual(fresh.groups,[]);assert.equal(reads,1);
+  store.sources.get(id).profile_json=JSON.stringify({source_wallet:{chain:'base',network:'mainnet',address:`0x${'1'.repeat(40)}`},behavior:{trade_count:999}});
+  const noWrongJoin=await json(await routeCustomerWalletCopy(request('/api/v1/wallet-copy/groups?history=all'),environment,dependencies));
+  assert.equal(noWrongJoin.rows[0].behavior,undefined);
+  assert.equal((await routeCustomerWalletCopy(request('/api/v1/wallet-copy/groups?lineage=private'),environment,dependencies)).status,400);
+  assert.equal((await routeCustomerWalletCopy(request('/api/v1/wallet-copy/groups',{origin:'https://ravenos.xyz'}),environment,dependencies)).status,403);
+  assert.equal((await routeCustomerWalletCopy(request('/api/v1/wallet-copy/groups'),{...environment,RAVENOS_WALLET_GROUPS_ENABLED:'0'},dependencies)).status,503);
+  assert.equal(reads,1);
 });

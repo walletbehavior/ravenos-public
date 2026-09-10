@@ -9,6 +9,9 @@ for(const width of [390,1440]) {
   const saved=await mockTradingSettings(page), mutations=[];
   page.on('request',r=>{if(r.method()==='POST'&&/\/api\/trade\/live\/(prepare|execute|sign|submit)/.test(r.url())) mutations.push(r.url());});
   await page.goto(URL);await waitForTerminalLive(page,{lane:'spot'});
+  const shortcut=page.locator('#terminalSpotStrategyShortcut');
+  await expect(shortcut).toHaveText('TP/SL not set');
+  expect(await shortcut.evaluate(node=>node.scrollWidth<=node.clientWidth)).toBe(true);
   await page.locator('#terminalSpotEditAmounts').click();
   const drawer=page.getByRole('dialog',{name:'Trading settings'});await expect(drawer).toBeVisible();
   const box=await drawer.boundingBox();expect(box.height).toBeLessThan(844*.7);

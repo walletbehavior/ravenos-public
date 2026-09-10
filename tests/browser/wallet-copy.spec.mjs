@@ -1,9 +1,12 @@
 const publicPayload = value => JSON.stringify(publicWalletResponse(value, { copySetup: true }));
 import { publicWalletResponse } from '../../lib/customer_trade/wallet_public_delivery.mjs';
+import { PUBLIC_WALLET_SNAPSHOT_SCHEMA, publicWalletGroupPage, normalizeWalletGroupQuery } from '../../lib/customer_trade/wallet_public_cards.mjs';
 import { mockTradingSettings } from './trading-settings-fixtures.mjs';
 import { defaultTradingSettings } from '../../ravenos-trading-strategy.js';
 import { expect, test } from "@playwright/test";
 import { join } from "node:path";
+import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { normalizeSourceWalletChainIdentity } from "../../lib/customer_trade/source_wallet_chain_identity.mjs";
 import { mockTerminalLiveApis, waitForTerminalLive } from './terminal-live-fixtures.mjs';
 import { projectWalletProfileDelivery, walletHoldingsPage } from '../../lib/customer_trade/wallet_profile_delivery.mjs';
@@ -590,7 +593,7 @@ function position() {
   };
 }
 
-async function install(page, shared, { authenticated = true, entitled = true, marketEvidence = false } = {}) {
+async function install(page, shared, { authenticated = true, entitled = true, marketEvidence = false, walletGroups = false } = {}) {
   await page.route("**/api/v1/auth/session", (route) => route.fulfill({
     status: 200,
     contentType: "application/json",
@@ -611,7 +614,7 @@ async function install(page, shared, { authenticated = true, entitled = true, ma
           state: "available",
           copy_product: { standard_execution_fee_bps: 100, pro_execution_fee_bps: 100, pro_cashback_percent: 30, copy_additional_fee_bps: 0 },
           access: { tier: entitled ? "pro" : "free", advanced_wallet_intelligence: entitled, basic_wallet_lookup: true, basic_wallet_screener: true, raven_copy_subscription_required: false },
-          activation: { wallet_intelligence: true, wallet_screener: true, wallet_market_evidence: marketEvidence, shadow_copy: true, live_copy: false },
+          activation: { wallet_intelligence: true, wallet_screener: true, wallet_groups: walletGroups, wallet_market_evidence: marketEvidence, shadow_copy: true, live_copy: false },
           execution_boundary: { signing: false, broadcasting: false, custody: false, live_copy: false, fee_collection: false },
         }),
       });
@@ -1488,12 +1491,11 @@ test('wallet cards surface cached age, P&L and 1/7/30d unique transaction counts
   expect(shared.requests.some(row=>row.path.endsWith('/inspect'))).toBe(false);
 });
 
-test('unindexed metrics remain unknown while a retained zero count and zero P&L stay visible',async({page})=>{
+test('unindexed wallets omit empty metric blocks while retained zero counts and zero P&L stay visible',async({page})=>{
   const shared={requests:[]};await install(page,shared);await installCardPage(page,null);
   await page.goto('/account/copy/?wallets=observed');
-  await expect(page.locator('.copy-card-metrics')).toContainText('Not indexed');
-  await expect(page.locator('.copy-card-metrics')).toContainText('Insufficient evidence');
-  await expect(page.locator('.copy-card-metrics')).not.toContainText('0 seen');
+  await expect(page.locator('.copy-card-metrics')).toHaveCount(0);
+  await expect(page.locator('.copy-seen-wallet')).toBeVisible();
   await installCardPage(page,cardSummary({transactions:{d1:0,d7:0,d30:1},pnl:{usdc:'0',sol:null}}));
   await page.reload();await expect(page.locator('.copy-card-metrics')).toContainText('0 seen');
   await expect(page.locator('.copy-card-metrics')).toContainText('+$0.00');
@@ -1736,4 +1738,87 @@ test('Copy uses the shared named strategy and pins each wallet until explicitly 
  await page.getByRole('button',{name:'Apply strategy',exact:true}).click();
  await expect(page.locator('#copyWatches')).toContainText('Revised exits · v2');expect(applied).toHaveLength(1);
  expect(applied[0].policy.exit_strategy.version).toBe(2);expect(shared.requests.some(r=>/execute|sign|submit/.test(r.path))).toBe(false);
+});
+
+function groupSnapshot() {
+  const cards=Array.from({length:14},(_,i)=>({schema_version:1,profile_id:`wallet_patient_${i}`,chain:'solana',
+    address:i===0?WALLET:'2'.repeat(31)+'123456789ABCDEFG'[i],display_name:`Wallet ${i}`,categories:['Patient top holders'],summary:'PRIVATE_SUMMARY_NOT_FOR_BROWSER',
+    data_status:i===13?'historical':'recent',actions:['view_profile','open_copy_setup']}));
+  cards.push({schema_version:1,profile_id:'wallet_base',chain:'base',address:EVM_WALLET,display_name:'Base wallet',categories:['Regular trading'],summary:'PRIVATE_SUMMARY_NOT_FOR_BROWSER',data_status:'current',actions:['view_profile']});
+  return {schema_version:PUBLIC_WALLET_SNAPSHOT_SCHEMA,generated_at:new Date(Date.now()-1000).toISOString(),cards,
+    groups:[{group_id:'group_patient_sol',title:'Patient top holders',chain:'solana',profile_ids:cards.filter(c=>c.chain==='solana').map(c=>c.profile_id)},
+      {group_id:'group_regular_base',title:'Regular trading',chain:'base',profile_ids:['wallet_base']}]};
+}
+async function installGroups(page,shared,{empty=false,fail=false}={}) {
+  await install(page,shared,{walletGroups:true});
+  await page.route('**/api/v1/wallet-copy/groups?*',async route=>{
+    const url=new URL(route.request().url());shared.requests.push({method:'GET',path:url.pathname,search:url.search});
+    if(fail)return route.fulfill({status:503,json:{ok:false,error:'wallet_groups_unavailable'}});
+    const snapshot=groupSnapshot();if(empty){snapshot.cards=[];snapshot.groups=[];}
+    const {cards,...paged}=publicWalletGroupPage(snapshot,normalizeWalletGroupQuery(url.searchParams),{copySetup:true});
+    const rows=cards.map(card=>({source_wallet_id:card.address===WALLET?SOURCE_ID:normalizeSourceWalletChainIdentity({chain:card.chain,network:'mainnet',address:card.address}).source_wallet_id,
+      source_wallet:{chain:card.chain,network:'mainnet',address:card.address},public_summary:card}));
+    return route.fulfill({status:200,contentType:'application/json',body:publicPayload({...paged,rows})});
+  });
+}
+for(const width of [390,1440])test(`Wallet groups show qualified styles and chain-specific cards at ${width}px`,async({page},info)=>{
+  await page.setViewportSize({width,height:844});const shared={watch:null,decision:null,position:null,requests:[]};await installGroups(page,shared);
+  await page.goto('/account/copy/?chain=all');
+  await expect(page.locator('#copyGroupPanel')).toBeVisible();await expect(page.locator('#copyScreenerCount')).toHaveText('13 wallets');
+  await expect(page.locator('#copyScreenerResults .copy-screener-card')).toHaveCount(12);
+  await expect(page.locator('#copyGroupChoices')).toContainText('Patient top holders · Solana (13)');
+  await expect(page.locator('#copyScreenerResults')).not.toContainText('PRIVATE_SUMMARY');
+  expect(shared.requests.filter(r=>r.method==='POST')).toEqual([]);
+  await page.locator('#copyScreenNext').click();await expect(page.locator('#copyScreenerResults .copy-screener-card')).toHaveCount(1);
+  await page.locator('#copyGroupHistory').selectOption('all');await expect(page.locator('#copyScreenerCount')).toHaveText('14 wallets');
+  await page.screenshot({path:info.outputPath(`wallet-groups-${width}.png`)});
+  await page.locator('#copyScreenerResults .copy-screener-card').first().getByRole('button',{name:'View wallet',exact:true}).click();
+  await expect(page.locator('#copyProfile')).toBeVisible();await expect(page.locator('#copyProfile')).toContainText('Patient top holders');
+  await page.locator('[data-screen-chain="base"]').click();await expect(page.locator('#copyScreenerCount')).toHaveText('1 wallets');
+  await expect(page.locator('#copyScreenerResults')).toContainText('Regular trading');await expect(page.locator('#copyScreenerResults').getByRole('button',{name:'Copy',exact:true})).toHaveCount(0);
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+  expect(shared.requests.some(r=>/watches|sign|execute|broadcast/.test(r.path)&&r.method==='POST')).toBe(false);
+});
+test('Wallet groups with no admitted members fall back to populated wallet history without an empty tab',async({page})=>{
+  const shared={watch:null,decision:null,position:null,requests:[]};await installGroups(page,shared,{empty:true});
+  await page.goto('/account/copy/?wallets=groups');
+  await expect(page.locator('#copyWalletGroupsTab')).toBeHidden();await expect(page.locator('#copyGroupPanel')).toBeHidden();
+  await expect(page.locator('#copyScreenerResults .copy-screener-card')).toHaveCount(1);
+});
+test('Wallet groups provider failure offers a retry and does not display stale members',async({page})=>{
+  const shared={watch:null,decision:null,position:null,requests:[]};await installGroups(page,shared,{fail:true});
+  await page.goto('/account/copy/?wallets=groups');await expect(page.getByRole('button',{name:'Retry wallet groups'})).toBeVisible();
+  await expect(page.locator('#copyScreenerResults .copy-screener-card')).toHaveCount(0);expect(shared.requests.filter(r=>r.method==='POST')).toEqual([]);
+});
+
+test('wallet overlay loads versioned production styles, fits a phone and preserves the chart draft',async({page},info)=>{
+  await page.setViewportSize({width:390,height:844});await mockTerminalLiveApis(page,{spotQuotePreview:true});
+  const shared={watch:null,decision:null,position:null,requests:[]};await install(page,shared);
+  const css=readFileSync(join(process.cwd(),'ravenos-wallet-copy.css'),'utf8');
+  const hashed=`/assets/ravenos-wallet-copy.${createHash('sha256').update(css).digest('hex').slice(0,16)}.css`;
+  const bare=[];
+  await page.route('**/ravenos-wallet-copy.css',route=>{bare.push(route.request().url());return route.fulfill({status:404,body:'not found'});});
+  await page.route(`**${hashed}`,route=>route.fulfill({contentType:'text/css',body:css}));
+  await page.route('**/account/copy/',async route=>{const response=await route.fetch();const html=(await response.text()).replace('href="/ravenos-wallet-copy.css"',`href="${hashed}"`);await route.fulfill({response,body:html});});
+  await page.goto('/terminal/?instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&token_address=fixture-token-address&quote_address=fixture-quote-address&panel=chart');
+  await waitForTerminalLive(page,{lane:'spot'});await page.locator('#terminalSpotAmount').fill('42');
+  const original=page.url();await page.locator('#rosCommandTrigger').click();await page.locator('#rosCommandInput').fill(WALLET);await page.locator('.ros-command-result.wallet').click();
+  await expect(page.locator('.ros-intelligence-layer #copyProfile')).toBeVisible();await page.getByRole('button',{name:'Wallets & Copy',exact:true}).click();
+  const cards=page.locator('.ros-intelligence-layer .copy-screener-card');await expect(cards).toHaveCount(1);
+  const measurements=await page.evaluate(()=>{
+    const layer=document.querySelector('.ros-layer-body'),card=layer.querySelector('.copy-screener-card');
+    return {bodyWidth:layer.clientWidth,scrollWidth:layer.scrollWidth,cardDisplay:getComputedStyle(card).display,fontSize:parseFloat(getComputedStyle(card.querySelector('.copy-screener-thesis p')).fontSize)};
+  });
+  expect(measurements.cardDisplay).toBe('grid');expect(measurements.fontSize).toBeGreaterThanOrEqual(13);expect(measurements.scrollWidth).toBeLessThanOrEqual(measurements.bodyWidth+1);expect(bare).toEqual([]);
+  await cards.first().scrollIntoViewIfNeeded();await page.screenshot({path:info.outputPath('wallet-overlay-versioned-css-390.png')});
+  await page.locator('.ros-layer-close').click();await expect(page).toHaveURL(original);await expect(page.locator('#terminalSpotAmount')).toHaveValue('42');
+  expect(shared.requests.some(r=>r.method==='POST'&&/watches|sign|execute|broadcast/.test(r.path))).toBe(false);
+});
+
+test('wallet browsing starts with analyzed profiles when raw observations also exist',async({page})=>{
+  const shared={requests:[]};await install(page,shared);
+  await page.route('**/api/v1/wallet-copy/screener',route=>route.fulfill({status:200,contentType:'application/json',body:publicPayload({ok:true,schema_version:'ravenos.wallet_screener.v1',rows:[screenedWallet()],scope:{chain:'all'},
+    pagination:{page:1,page_size:12,total:1,total_pages:1},seen_wallets:{total:38278,rows:[{source_wallet_id:SOURCE_ID,source_wallet:{chain:'solana',address:WALLET},history_available:false}]}})}));
+  await page.goto('/account/copy/');await expect(page.locator('[data-wallet-view="analyzed"]')).toHaveAttribute('aria-pressed','true');
+  await expect(page.locator('#copyScreenerResults .copy-screener-card')).toHaveCount(1);await expect(page.locator('#copySeenWallets')).toBeHidden();
 });

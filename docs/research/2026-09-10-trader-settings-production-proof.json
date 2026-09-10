@@ -1,0 +1,37 @@
+{
+  "schema_version": "ravenos.trader_settings.production_proof.v1",
+  "recorded_at": "2026-09-10",
+  "release_id": "ravenos-ae964e9d6130-058415214e4d19e9",
+  "source_commit": "ae964e9d6130e3690260ae29383d970c87ae00f3",
+  "worker_version_id": "81d3d26a-122a-4217-8f62-f50c68bb81aa",
+  "archive_sha256": "3052dd8fe8d55d90afc2f83a9c4efbf451f8c2c31ef221dbeca4d47d4c59b8e9",
+  "content_sha256": "d4c6c39498a22c286d0e4fed546a05a927580aaf68f53002ce01e3a4ceba1cf1",
+  "preview_verified_at": "2026-09-10T14:47:56.749Z",
+  "production_checks": { "ok": true, "checks": 66, "verified_assets": 39, "authenticated_workspaces": 11, "transactions_submitted": 0 },
+  "migration": {
+    "name": "0053_customer_trading_settings.sql",
+    "applied_at": "2026-09-10T14:38:16.491Z",
+    "sha256": "55c14d2025b27b278b614721adae031071521931d5cb0d7574465d942358c247",
+    "ledger_recorded": true,
+    "postflight": { "settings": 0, "users": 3, "watches": 0, "execution_intents": 0, "foreign_key_violations": 0 }
+  },
+  "qualification": { "settings_backend": 102, "chromium": 69, "webkit": 69, "packaged_module_and_release_checks": 22, "worker_response_checks": 41 },
+  "signed_in_browser": {
+    "viewport": [1525, 857],
+    "quick_amounts_loaded": true,
+    "saved_strategy_drawer_opened": true,
+    "slippage_preference_loaded": true,
+    "chart_and_tape_preserved": true,
+    "standalone_copy_public_summaries_visible": true,
+    "personal_settings_changed": false,
+    "live_mobile_certified": false
+  },
+  "followup_defects": [
+    "Wallet intelligence overlay requested an obsolete unhashed stylesheet path; the standalone page loaded the correct versioned file.",
+    "Narrow Terminal ticket squeezed the TP/SL shortcut label."
+  ],
+  "core_groups_populated": false,
+  "saved_strategies_are_armed_orders": false,
+  "transactions_submitted": 0,
+  "parent_goal_complete": false
+}

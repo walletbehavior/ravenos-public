@@ -4,9 +4,31 @@ let active = null;
 // Reuse the existing account surfaces and entitlement checks. These paths and
 // modules are fixed first-party resources; no remote scripts or iframe access.
 const templates = {
-  '/account/copy/': { title: 'Wallet intelligence', selector: '.copy-page', css: '/ravenos-wallet-copy.css', load: () => import('./ravenos-wallet-copy.js') },
-  '/account/intelligence/': { title: 'Pro intelligence', selector: '.pro-intelligence-page', css: '/ravenos-pro-intelligence.css', load: () => import('./ravenos-pro-intelligence.js') },
+  '/account/copy/': { title: 'Wallet intelligence', selector: '.copy-page', styles: ['/ravenos-wallet-copy.css','/ravenos-trading-settings.css'], load: () => import('./ravenos-wallet-copy.js') },
+  '/account/intelligence/': { title: 'Pro intelligence', selector: '.pro-intelligence-page', styles: ['/ravenos-pro-intelligence.css'], load: () => import('./ravenos-pro-intelligence.js') },
 };
+const styles = new Map();
+function loadStyles(parsed, spec) {
+  return Promise.all(spec.styles.map(logical=>{
+    const base=logical.slice(1,-4), links=[...parsed.querySelectorAll('head link[rel="stylesheet"]')];
+    const href=links.map(link=>new URL(link.getAttribute('href'),location.origin)).find(url=>url.origin===location.origin
+      && (url.pathname===logical || new RegExp(`^/assets/${base}\\.[a-f0-9]{16,64}\\.css$`).test(url.pathname)));
+    if (!href) throw Error('view_styles_unavailable');
+    const url=href.href;
+    const existing=[...document.querySelectorAll('link[rel="stylesheet"]')].find(link=>link.href===url);
+    if (existing?.sheet) return Promise.resolve();
+    if (styles.has(url)) return styles.get(url);
+    const promise=new Promise((resolve,reject)=>{
+      const link=existing || document.createElement('link');
+      const finish=error=>{clearTimeout(timer);link.removeEventListener('load',loaded);link.removeEventListener('error',failed);
+        if(error){link.remove();reject(Error('view_styles_unavailable'));}else resolve();};
+      const loaded=()=>finish(false),failed=()=>finish(true),timer=setTimeout(failed,8000);
+      link.addEventListener('load',loaded,{once:true});link.addEventListener('error',failed,{once:true});
+      if(!existing){link.rel='stylesheet';link.href=url;document.head.append(link);}
+    }).catch(error=>{styles.delete(url);throw error;});
+    styles.set(url,promise);return promise;
+  }));
+}
 async function loadView(path, url) {
   const spec = templates[path];
   if (!views.has(path)) views.set(path, (async () => {
@@ -21,8 +43,10 @@ async function loadView(path, url) {
     const holder = document.createElement('div'); holder.hidden = true; holder.dataset.workspaceIntelligenceCache = path;
     main.dataset.embedded = 'true'; main.dataset.embeddedUrl = url.href;
     holder.append(main); document.body.append(holder);
-    if (!document.querySelector(`link[href="${spec.css}"]`)) { const link = document.createElement('link'); link.rel = 'stylesheet'; link.href = spec.css; document.head.append(link); }
-    try { return { main, module: await spec.load() }; } catch (error) { holder.remove(); throw error; }
+    // Use the stylesheet URLs from this release's HTML. Logical CSS paths are
+    // absent in production, which serves only fingerprinted asset names.
+    try { await loadStyles(parsed,spec); return { main, module: await spec.load() }; }
+    catch (error) { holder.remove(); throw error; }
   })().catch(error => { views.delete(path); throw error; }));
   return views.get(path);
 }

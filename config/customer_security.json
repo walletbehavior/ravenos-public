@@ -390,6 +390,7 @@
     "production_activation_completed": false
   },
   "wallet_copy": {
+    "core_public_groups_release_enabled": false,
     "implementation_status": "authenticated_free_basics_and_pro_advanced_candidate",
     "surface": "https://app.ravenos.xyz/account/copy/",
     "advanced_intelligence_capability": "wallet.copy",
@@ -397,6 +398,7 @@
       "GET /api/v1/wallet-copy",
       "POST /api/v1/wallet-copy/inspect",
       "POST /api/v1/wallet-copy/screener",
+      "GET /api/v1/wallet-copy/groups",
       "GET /api/v1/wallet-copy/wallets/:source_wallet_id",
       "GET /api/v1/wallet-copy/wallets/:source_wallet_id/events",
       "GET /api/v1/wallet-copy/watches",

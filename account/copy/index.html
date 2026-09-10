@@ -101,7 +101,12 @@
           <div class="copy-universe-views copy-chain-rail" role="group" aria-label="Wallet view">
             <button type="button" data-wallet-view="observed" aria-pressed="false">Observed wallets</button>
             <button type="button" data-wallet-view="analyzed" aria-pressed="false">Analyzed profiles</button>
+            <button type="button" data-wallet-view="groups" id="copyWalletGroupsTab" aria-pressed="false" hidden>Wallet groups</button>
           </div>
+          <section id="copyGroupPanel" class="copy-group-panel" aria-label="Wallet groups" hidden>
+            <div class="copy-group-toolbar"><strong>Wallet groups</strong><label>Profile age <select id="copyGroupHistory"><option value="recent">Current and recent</option><option value="all">Include historical</option></select></label></div>
+            <div id="copyGroupChoices" class="copy-chain-rail" role="group" aria-label="Choose wallet group"></div>
+          </section>
           <div class="copy-preset-rail copy-pro-only" id="copyPresetRail" aria-label="Wallet lists">
             <button type="button" data-screen-preset="trading_history">Trading history</button>
             <button type="button" data-screen-preset="recorded_profits">Recorded profits</button>

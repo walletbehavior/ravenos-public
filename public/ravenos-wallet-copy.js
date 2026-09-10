@@ -45,6 +45,7 @@ const state = {
   saved: [],
   screener_request: 0,
   screener: { chain: getPreference("walletChain", "all"), page: 1, total_pages: 0, total: 0, wallets: [], preset: null, view: null },
+  groups: { selected: null, cards: new Map() },
   robinhood_intelligence: { activity: [] },
 };
 
@@ -268,6 +269,8 @@ function recoverWalletSession() {
   document.querySelectorAll('input[name="return_to"]').forEach(input => { input.value = walletReturnTo(); });
   if (state.session_expired) return;
   state.session_expired = true;
+  state.screener_request += 1;
+  state.groups.cards.clear();
   state.csrf = "";
   state.deep_poll_token += 1;
   clearTimeout(state.deep_poll_timer);
@@ -727,7 +730,10 @@ function renderProfile(payload, { scroll = true, from_poll: fromPoll = false } =
   if (payload.cached_summary && state.source_wallet_id) {
     for (const card of document.querySelectorAll(".copy-seen-wallet[data-source-wallet-id]")) {
       if (card.dataset.sourceWalletId !== state.source_wallet_id) continue;
-      card.querySelector(".copy-card-metrics")?.replaceWith(observedCardMetrics(payload.cached_summary));
+      const previousMetrics = card.querySelector(".copy-card-metrics");
+      const nextMetrics = observedCardMetrics(payload.cached_summary);
+      if (previousMetrics) previousMetrics.replaceWith(nextMetrics);
+      else if (!nextMetrics.hidden) card.append(nextMetrics);
       const status = card.querySelector(".copy-card-status");
       if (status) status.textContent = "Cached analysis updated.";
       const open = card.querySelector(".copy-seen-actions button:last-child");
@@ -776,7 +782,8 @@ function renderProfile(payload, { scroll = true, from_poll: fromPoll = false } =
   const transactionLabel = reportedTransactions != null ? `${reportedTransactions} tx reported` : profile.schema_version === "ravenos.evm_wallet_basic_profile.v2" ? `${profile.coverage.token_transfers_observed ?? "Unknown"} transfers observed` : `${profile.coverage.transactions_observed ?? "Unknown"} tx observed`;
   const tradeLabel = profile.coverage.trade_events === null || profile.coverage.trade_events === undefined ? "trades not decoded" : `${profile.coverage.trade_events} trades`;
   setText("copyProfileCoverage", `${transactionLabel} · ${tradeLabel} · ${historyLabel}`);
-  const summary = profile.public_summary;
+  const groupCard = state.groups.cards.get(`${profile.source_wallet?.chain}:${profile.source_wallet?.address}`);
+  const summary = groupCard && Date.now()-groupCard.received_at<120000 ? groupCard.card : profile.public_summary;
   const thesisNode = document.getElementById('copyProfileThesis');
   thesisNode.hidden = !summary;
   if (summary) {
@@ -1239,7 +1246,7 @@ function syncScreenerUrl() {
 function hydrateScreenerFromUrl() {
   const params = new URL(walletLocationHref()).searchParams;
   const view = params.get("wallets");
-  if (["observed", "analyzed"].includes(view)) state.screener.view = view;
+  if (["observed", "analyzed", "groups"].includes(view)) state.screener.view = view;
   else if (params.has("screen") || params.has("sort") || [...params.keys()].some(key => key.startsWith("df_"))) state.screener.view = "analyzed";
   for (const [key, id] of Object.entries({obs_signal:"copyObservedSignal",obs_history:"copyObservedHistory",obs_active:"copyObservedActive",obs_sort:"copyObservedSort",obs_source:"copyObservedSource"})) {
     const value = params.get(key), input = document.getElementById(id);
@@ -1460,19 +1467,22 @@ async function loadRobinhoodIntelligence() {
   renderRobinhoodIntelligence();
 }
 
-function screenerCard(wallet) {
+function screenerCard(wallet, { groupMember = false } = {}) {
   const card = document.createElement('article'); card.className = 'copy-screener-card';
   const identity = document.createElement('div'), address = document.createElement('strong'), observed = document.createElement('p');
   const summary = wallet.public_summary;
   address.textContent = `${walletAddress(wallet.source_wallet.address)} · ${chainLabel(wallet.source_wallet.chain)}`;
-  observed.textContent = `Last trade ${when(wallet.behavior?.last_trade_at)}`;
+  address.title = wallet.source_wallet.address;
+  observed.textContent = wallet.behavior?.last_trade_at ? `Last trade ${when(wallet.behavior.last_trade_at)}` : 'Open wallet for its latest trading history.';
   identity.append(address, observed);
   const metrics = document.createElement('dl');
-  metrics.append(...walletActivityFacts(wallet.cached_summary),
-    fact('Realized P&L', realizedPerformance({realized_pnl_usdc:wallet.source_performance?.realized_pnl?.usdc, realized_pnl_sol:wallet.source_performance?.realized_pnl?.sol}, {precise:true})),
-    fact('Win rate', pct(wallet.source_performance?.win_rate_pct)),
-    fact('Trades', wallet.behavior?.trade_count ?? 'Unavailable'),
-    fact('Median hold', humanDuration(wallet.behavior?.median_hold_seconds)));
+  metrics.append(...walletActivityFacts(wallet.cached_summary));
+  const pnl = realizedPerformance({realized_pnl_usdc:wallet.source_performance?.realized_pnl?.usdc, realized_pnl_sol:wallet.source_performance?.realized_pnl?.sol}, {precise:true});
+  if (pnl !== 'Insufficient evidence') metrics.append(fact('Realized P&L', pnl));
+  if (wallet.source_performance?.win_rate_pct != null) metrics.append(fact('Win rate', pct(wallet.source_performance.win_rate_pct)));
+  if (wallet.behavior?.trade_count != null) metrics.append(fact('Trades', wallet.behavior.trade_count));
+  if (wallet.behavior?.median_hold_seconds != null) metrics.append(fact('Median hold', humanDuration(wallet.behavior.median_hold_seconds)));
+  metrics.hidden = !metrics.childElementCount;
   const description = document.createElement('div'); description.className = 'copy-screener-thesis';
   const labels = document.createElement('strong'), detail = document.createElement('p'), freshness = document.createElement('span');
   labels.textContent = summary?.categories?.join(' · ') || 'Wallet profile';
@@ -1485,7 +1495,12 @@ function screenerCard(wallet) {
   const inspect = async button => {
     state.address = wallet.source_wallet.address; document.getElementById('copyWalletAddress').value = state.address;
     setInspectChain(wallet.source_wallet.chain, {announce:false});
-    return loadStoredWallet(wallet.source_wallet_id, button);
+    const loaded = await loadStoredWallet(wallet.source_wallet_id, button);
+    if (loaded === false && groupMember) {
+      await inspectWalletAddress(wallet.source_wallet.address,button);
+      if (!profileNode.hidden) profileNode.scrollIntoView({behavior:'smooth',block:'start'});
+    }
+    return loaded;
   };
   open.addEventListener('click', () => inspect(open));
   save.addEventListener('click', () => saveResearchWallet(wallet.source_wallet_id,walletAddress(wallet.source_wallet.address),save));
@@ -1494,8 +1509,10 @@ function screenerCard(wallet) {
     try { await inspect(copy); if (state.profile?.source_wallet?.address === wallet.source_wallet.address && state.profile?.source_wallet?.chain === wallet.source_wallet.chain) document.getElementById('copyStartSetup').click(); }
     finally { copy.disabled = false; copy.textContent = 'Copy'; }
   });
-  actions.append(open, save);
-  if (wallet.source_wallet.chain === 'solana' && state.activation.shadow_copy) actions.append(copy);
+  actions.append(open);
+  if (!groupMember) actions.append(save);
+  if (wallet.source_wallet.chain === 'solana' && state.activation.shadow_copy && summary?.actions?.includes('open_copy_setup')) actions.append(copy);
+  if (groupMember && !wallet.behavior) metrics.hidden = true;
   card.append(identity, metrics, description, actions); return card;
 }
 
@@ -1514,7 +1531,7 @@ function walletActivityFacts(summary) {
   const ageFact = fact("Wallet age", age);
   ageFact.title = knownAge ? `Activity observed since ${when(summary.age.first_observed_at)}. Lower bound; wallet creation date is not known.`
     : "No retained on-chain activity date yet. The date Raven discovered this address is not wallet age.";
-  return [ageFact, ...[["1d", "d1"], ["7d", "d7"], ["30d", "d30"]].map(([label,key]) => {
+  return [...(knownAge ? [ageFact] : []), ...[["1d", "d1"], ["7d", "d7"], ["30d", "d30"]].filter(([,key]) => Number.isSafeInteger(summary?.transactions?.[key]) && summary.transactions[key] >= 0).map(([label,key]) => {
     const count = summary?.transactions?.[key];
     const row = fact(`Transactions · ${label}`, Number.isSafeInteger(count) && count >= 0 ? `${count.toLocaleString()} seen` : "Not indexed");
     row.title = `Unique retained transactions in the last ${label}, including failures. Partial history; not a count of trades or a complete chain total.${summary?.as_of ? ` As of ${when(summary.as_of)}.` : ""}`;
@@ -1525,9 +1542,13 @@ function walletActivityFacts(summary) {
 function observedCardMetrics(summary) {
   const metrics = document.createElement("dl");
   metrics.className = "copy-observed-facts copy-card-metrics";
-  const pnl = fact("Realized P&L", realizedPerformance({ realized_pnl_usdc: summary?.pnl?.usdc, realized_pnl_sol: summary?.pnl?.sol }, { precise: true }));
+  const pnlValue = realizedPerformance({ realized_pnl_usdc: summary?.pnl?.usdc, realized_pnl_sol: summary?.pnl?.sol }, { precise: true });
+  const pnl = fact("Realized P&L", pnlValue);
   pnl.title = `Reconstructed closed positions with known cost basis. USDC and SOL are separate.${summary?.pnl?.as_of ? ` Analysis ${when(summary.pnl.as_of)}.` : ""} Partial history is not lifetime P&L.`;
-  metrics.append(...walletActivityFacts(summary), pnl, fact("Latest transaction", summary?.transactions?.last_observed_at ? when(summary.transactions.last_observed_at) : "Not indexed"));
+  metrics.append(...walletActivityFacts(summary));
+  if (pnlValue !== "Insufficient evidence") metrics.append(pnl);
+  if (summary?.transactions?.last_observed_at) metrics.append(fact("Latest transaction", when(summary.transactions.last_observed_at)));
+  if (!metrics.childElementCount) { metrics.hidden = true; return metrics; }
   const coverage = fact("Coverage", "Cached history · age is a lower bound · counts and P&L cover retained activity.");
   coverage.className = "copy-card-coverage";
   metrics.append(coverage);
@@ -1558,16 +1579,19 @@ function seenWalletCard(wallet) {
   });
   actions.append(save, inspect);
   card.dataset.sourceWalletId = wallet.source_wallet_id;
-  card.append(identity, actions, observedCardMetrics(wallet.cached_summary));
+  card.append(identity, actions);
+  const summary=wallet.cached_summary;
+  if (summary?.age?.seconds_lower_bound != null || summary?.transactions?.d30 != null || summary?.pnl?.usdc != null || summary?.pnl?.sol != null) card.append(observedCardMetrics(summary));
   return card;
 }
 
 function renderScreener(payload) {
+  document.getElementById('copyGroupPanel').hidden = true;
   const wallets = Array.isArray(payload.rows) ? payload.rows : Array.isArray(payload.wallets) ? payload.wallets : Array.isArray(payload.results) ? payload.results : [];
   const seenWallets = payload.seen_wallets?.rows || [];
   const seenTotal = Number(payload.seen_wallets?.total || 0);
   const pageSize = Number(payload.pagination?.page_size || 12);
-  const view = state.screener.view || (seenTotal > 0 ? "observed" : "analyzed");
+  const view = state.screener.view || (wallets.length ? "analyzed" : seenTotal > 0 ? "observed" : "analyzed");
   const observed = view === "observed";
   state.screener = {
     chain: payload.scope?.chain || state.screener.chain,
@@ -1628,6 +1652,38 @@ function renderScreener(payload) {
 async function loadScreener() {
   if (!state.activation.wallet_screener) return;
   const requestId = ++state.screener_request;
+  if (state.activation.wallet_groups) {
+    setText('copyScreenerCount','Loading');setText('copyScreenerStatus','Loading wallet groups…');
+    document.getElementById('copyScreenerResults').replaceChildren();
+    document.getElementById('copyGroupPanel').hidden=true;
+    document.getElementById('copySeenWallets').hidden=true;
+    document.getElementById('copyScreenerPages').hidden=true;
+    const params = new URLSearchParams({chain:state.screener.chain,page:String(state.screener.view === 'groups' ? state.screener.page : 1),page_size:'12',history:document.getElementById('copyGroupHistory').value});
+    if (state.groups.selected && state.screener.view === 'groups') params.set('group_id',state.groups.selected);
+    const grouped = await api(`${API}/groups?${params}`);
+    if (requestId !== state.screener_request) return;
+    const populated = grouped.response.ok && grouped.payload?.groups?.length > 0;
+    document.getElementById('copyWalletGroupsTab').hidden = !populated && state.screener.view !== 'groups';
+    if (populated && (!state.screener.view || state.screener.view === 'groups')) {
+      state.screener.view = 'groups'; renderWalletGroupPage(grouped.payload); return;
+    }
+    if (state.screener.view === 'groups' && !grouped.response.ok) {
+      setText('copyScreenerCount','Unavailable');
+      setText('copyScreenerStatus','Wallet groups could not refresh. Retry or browse wallet history.');
+      document.getElementById('copyScreenerResults').replaceChildren();
+      document.getElementById('copyScreenerResults').hidden=false;
+      document.getElementById('copyScreenerFilters').hidden=true;
+      document.getElementById('copyPresetRail').hidden=true;
+      document.getElementById('copyScreenerPages').hidden = true;
+      const retry=document.createElement('button');retry.type='button';retry.textContent='Retry wallet groups';
+      retry.addEventListener('click',()=>void loadScreener());document.getElementById('copyScreenerResults').append(retry);
+      return;
+    }
+    if (state.screener.view === 'groups') { state.screener.view = null;state.screener.page = 1;state.groups.selected = null;document.getElementById('copyWalletGroupsTab').hidden = true; }
+  } else {
+    document.getElementById('copyWalletGroupsTab').hidden=true;
+    if (state.screener.view === 'groups') state.screener.view = null;
+  }
   const scopeLabel = chainLabel(state.screener.chain);
   setText("copyScreenerStatus", `Screening ${scopeLabel}…`);
   setText("copyScreenerCount", "Loading");
@@ -1653,6 +1709,33 @@ async function loadScreener() {
     return;
   }
   renderScreener(result.payload);
+}
+
+function renderWalletGroupPage(payload) {
+  const groups=payload.groups, selected=groups.find(group=>group.group_id===payload.selected_group_id);
+  state.groups.selected=selected?.group_id || null;
+  state.groups.cards.clear();
+  for (const row of payload.rows || []) state.groups.cards.set(`${row.source_wallet.chain}:${row.source_wallet.address}`,{card:row.public_summary,received_at:Date.now()});
+  state.screener.page=payload.pagination.page;state.screener.total_pages=payload.pagination.total_pages;state.screener.total=payload.pagination.total;
+  document.querySelectorAll('[data-wallet-view]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.walletView==='groups')));
+  document.getElementById('copyGroupPanel').hidden=false;
+  for(const id of ['copyScreenerFilters','copyPresetRail','copySeenWallets']) document.getElementById(id).hidden=true;
+  const host=document.getElementById('copyScreenerResults');host.hidden=false;
+  setText('copyScreenerCount',`${payload.pagination.total.toLocaleString()} wallets`);
+  setText('copyScreenerCoverage','Explore wallets by trading style. Open a wallet for its trading history or choose Copy to set up your own rules.');
+  setText('copyScreenerStatus',selected ? `${selected.title} · ${chainLabel(selected.chain)}` : 'This group changed. Choose an available group.');
+  const buttons=groups.map(group=>{
+    const button=document.createElement('button');button.type='button';
+    button.textContent=`${group.title} · ${chainLabel(group.chain)} (${group.count.toLocaleString()})`;
+    button.setAttribute('aria-pressed',String(group.group_id===state.groups.selected));
+    button.addEventListener('click',()=>{state.groups.selected=group.group_id;state.screener.page=1;void loadScreener();});return button;
+  });
+  document.getElementById('copyGroupChoices').replaceChildren(...buttons);
+  host.replaceChildren(...(payload.rows || []).map(row=>screenerCard(row,{groupMember:true})));
+  document.getElementById('copyScreenerPages').hidden=payload.pagination.total_pages<=1;
+  setText('copyScreenPage',`Page ${payload.pagination.page} of ${Math.max(1,payload.pagination.total_pages)}`);
+  document.getElementById('copyScreenPrevious').disabled=!payload.pagination.has_previous;
+  document.getElementById('copyScreenNext').disabled=!payload.pagination.has_next;
 }
 
 function renderCollections() {
@@ -1941,12 +2024,14 @@ document.querySelectorAll("[data-screen-chain]").forEach((button) => button.addE
   const chain = button.dataset.screenChain;
   if (!new Set(["all", "solana", "robinhood", "base", "ethereum", "bsc"]).has(chain) || chain === state.screener.chain) return;
   state.screener.chain = chain;
+  state.groups.selected = null;
   setPreference("walletChain", chain);
   state.screener.page = 1;
   document.querySelectorAll("[data-screen-chain]").forEach((candidate) => candidate.setAttribute("aria-pressed", String(candidate.dataset.screenChain === chain)));
   syncScreenerUrl();
   await Promise.all([loadScreener(), loadRobinhoodIntelligence()]);
 }));
+document.getElementById('copyGroupHistory').addEventListener('change',()=>{state.groups.selected=null;state.screener.page=1;void loadScreener();});
 document.getElementById("copyScreenPrevious").addEventListener("click", async () => {
   state.screener.page = Math.max(1, state.screener.page - 1);
   await loadScreener();
