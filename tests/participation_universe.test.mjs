@@ -4,7 +4,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { readFileSync } from 'node:fs';
 import { collectParticipationUniverse, createParticipationSnapshotStore, refreshParticipationSnapshot } from '../lib/participation_universe.mjs';
 import { buildParticipationMap } from '../ravenos-participation-map.js';
-import worker from '../worker.mjs';
+import worker, { collectRavenParticipation } from '../worker.mjs';
 
 const NOW = Date.parse('2026-09-09T18:00:00Z');
 const addr = n => '0x' + n.toString(16).padStart(40, '0');
@@ -17,26 +17,31 @@ const readPairs = async (chain, addresses) => ({ observed_at: new Date(NOW).toIS
 function database() {
   const raw = new DatabaseSync(':memory:');
   raw.exec(readFileSync('customer-migrations/0048_participation_snapshot.sql', 'utf8'));
+  raw.exec(readFileSync('customer-migrations/0049_market_discovery_frontier.sql', 'utf8'));
   raw.exec('CREATE TABLE ravenos_wallet_universe_markets (market_id TEXT, identity_json TEXT, last_seen_at INTEGER)');
-  return { raw, prepare(sql) { return { bind(...args) { return {
+  return { raw, async batch(statements) {
+    raw.exec('BEGIN');
+    try { const result = []; for (const statement of statements) result.push(await statement.run()); raw.exec('COMMIT'); return result; }
+    catch (error) { raw.exec('ROLLBACK'); throw error; }
+  }, prepare(sql) { return { bind(...args) { return {
     async first() { return raw.prepare(sql).get(...args); }, async all() { return { results: raw.prepare(sql).all(...args) }; },
     async run() { return { meta: { changes: Number(raw.prepare(sql).run(...args).changes) } }; },
   }; } }; } };
 }
 
-test('participation pages each chain and cap band independently of Discovery', async () => {
+test('participation advances provider pages independently of visible Discovery rows', async () => {
   const calls = [];
   const result = await collectParticipationUniverse({ now: () => NOW, readPairs,
     discoverTokens: async query => {
       calls.push(query);
-      return { rows: [{ chain: query.chains[0], address: addr(query.min_market_cap_usd + (query.cursor ? 2 : 1)) }], next_cursor: query.cursor ? null : 'next' };
+      return { rows: [{ chain: query.chains[0], address: addr(query.cursor ? 2 : 1) }], next_cursor: query.cursor ? null : 'next' };
     },
   });
-  assert.equal(calls.length, 20);
-  assert.equal(calls.filter(q => q.cursor === 'next').length, 10);
-  assert(calls.every(q => q.min_age_minutes === 360 && q.limit === 100 && q.chains.length === 1));
-  assert.equal(result.rows.length, 20);
-  assert.equal(buildParticipationMap(result.rows, { now: NOW }).cells.every(cell => cell.state === 'rewarding'), true);
+  assert.equal(calls.length, 4);
+  assert.equal(calls.filter(q => q.cursor === 'next').length, 2);
+  assert(calls.every(q => q.min_liquidity_usd === 5000 && q.min_holders === 10 && q.limit === 100 && q.chains.length === 1));
+  assert.equal(result.rows.length, 4);
+  assert.equal(result.coverage.indexed_tokens, 4);
 });
 
 test('retained markets populate Base and Ethereum without a fresh market-discovery or wallet RPC', async () => {
@@ -61,11 +66,11 @@ test('mismatched chain/token replies and nonfinite market facts cannot manufactu
 test('cursor replay and provider failures remain bounded and other groups survive', async () => {
   let calls = 0;
   const result = await collectParticipationUniverse({ now: () => NOW, readPairs,
-    discoverTokens: async query => { calls += 1; if (query.chains[0] === 'bsc') throw new Error('offline'); return { rows: [{ chain: 'robinhood', address: addr(query.min_market_cap_usd + 1) }], next_cursor: 'repeat' }; },
+    discoverTokens: async query => { calls += 1; if (query.chains[0] === 'bsc') throw new Error('offline'); return { rows: [{ chain: 'robinhood', address: addr(1) }], next_cursor: 'repeat' }; },
   });
-  assert.equal(calls, 15);
+  assert.equal(calls, 3);
   assert(result.rows.length > 0);
-  assert.equal(result.coverage.failed_lanes.length, 10);
+  assert.equal(result.coverage.failed_lanes.length, 2);
 });
 
 test('one durable lease serves concurrent visitors and failed refresh preserves original evidence time', async () => {
@@ -88,6 +93,21 @@ test('expired lease cannot overwrite a newer snapshot', async () => {
   await store.finish('new', { ok: true, rows: [{ version: 2 }] }, 192);
   await store.finish('old', { ok: true, rows: [{ version: 1 }] }, 193);
   assert.equal((await store.read()).payload.rows[0].version, 2);
+  db.raw.close();
+});
+
+test('frontier and snapshot commit atomically under the same lease without exposing cursor records publicly', async () => {
+  const db = database(), store = createParticipationSnapshotStore(db);
+  const frontier = { solana: { tokens: [['A'.repeat(40), NOW, 0, 0, 0, null, 0]], verified_catalog_at: NOW } };
+  await store.claim('old', 100); await store.claim('new', 191);
+  await store.finish('new', { ok: true, rows: [{ version: 2 }], frontier }, 192);
+  await store.finish('old', { ok: true, rows: [{ version: 1 }], frontier: { solana: { tokens: [] } } }, 193);
+  assert.equal((await store.frontier()).solana.tokens.length, 1);
+  assert.equal((await store.read()).payload.frontier, undefined);
+  assert.equal((await store.read()).payload.rows[0].version, 2);
+  // A confirmed all-empty provider result must not leave the last good prices.
+  await store.claim('empty', 252); await store.finish('empty', { ok: false, rows: [], frontier }, 253);
+  assert.equal((await store.read()).payload.rows.length, 0);
   db.raw.close();
 });
 
@@ -159,6 +179,19 @@ test('participation cadence does not enter wallet ingestion, billing or executio
   await worker.scheduled({ cron: '*/2 * * * *' }, env, {});
 });
 
+test('minute schedule refreshes markets and still schedules wallet ingestion independently', async () => {
+  const db = database(), store = createParticipationSnapshotStore(db), now = Math.floor(Date.now() / 1000);
+  await store.claim('seed', now); await store.finish('seed', { ok: true, rows: [{ observed_at: new Date().toISOString() }] }, now);
+  const work = [];
+  await worker.scheduled({ cron: '* * * * *' }, {
+    RAVENOS_PARTICIPATION_UNIVERSE_ENABLED: '1', RAVENOS_WALLET_INGESTION_ENABLED: '1', RAVENOS_CUSTOMER_DB: db,
+  }, { waitUntil: promise => work.push(promise) });
+  assert.equal(work.length, 2, 'neither service short-circuits the other');
+  await Promise.all(work);
+  assert.equal((await store.read()).payload.rows.length, 1);
+  db.raw.close();
+});
+
 test('Discover reads hundreds of qualified cached tokens before the old 240-row cut, without provider calls', async () => {
   const db = database(), store = createParticipationSnapshotStore(db), now = Math.floor(Date.now() / 1000);
   const data = await collectParticipationUniverse({ dexchEnabled: false,
@@ -184,4 +217,36 @@ test('Discover reads hundreds of qualified cached tokens before the old 240-row 
     assert.equal(body.rows.some(row => row.market.holder_count === 1 || row.market.liquidity_usd < 5000), false);
     assert.equal(requests, 0);
   } finally { globalThis.fetch = previousFetch; db.raw.close(); }
+});
+
+test('documented Jupiter catalog seeds more than a top-100 list without leaking the existing credential', async () => {
+  const originalFetch = globalThis.fetch, secret = 'test-only-catalog-key';
+  const mints = Array.from({ length: 1000 }, (_, i) => ('A' + (i + 1).toString(9).replaceAll('0', 'B')).padEnd(40, 'C'));
+  let catalogRequests = 0;
+  globalThis.fetch = async (input, init) => {
+    const url = new URL(input);
+    let body = [];
+    if (url.hostname === 'api.jup.ag') {
+      assert.equal(init.headers['x-api-key'], secret);
+      if (url.pathname.endsWith('/tag')) {
+        catalogRequests += 1;
+        body = mints.map(id => ({ id, name: 'Example meme', symbol: 'MEME', holderCount: 100, stats24h: { buyVolume: 20000, sellVolume: 10000 } }));
+        body.push({ id: 'Z'.repeat(40), symbol: 'ZEC', name: 'Zcash' });
+      }
+    } else if (url.pathname.startsWith('/tokens/v1/solana/')) {
+      body = url.pathname.split('/').pop().split(',').map(token => ({ chainId: 'solana', pairAddress: 'D' + token.slice(1),
+        baseToken: { address: token, symbol: 'MEME' }, quoteToken: { address: 'So11111111111111111111111111111111111111112', symbol: 'SOL' },
+        priceUsd: '1', liquidity: { usd: 10000 }, volume: { h24: 10000 }, txns: { h24: { buys: 30, sells: 20 } } }));
+    }
+    return new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } });
+  };
+  try {
+    const result = await collectRavenParticipation({ JUPITER_API_KEY: secret });
+    assert.equal(catalogRequests, 1);
+    assert.equal(result.frontier.solana.tokens.length, 1000);
+    assert.equal(result.coverage.solana_verified_catalog.candidate_tokens, 1000);
+    assert.equal(result.rows.length, 1000);
+    assert(result.rows.every(row => row.market.holder_count === 100));
+    assert.equal(JSON.stringify(result).includes(secret), false);
+  } finally { globalThis.fetch = originalFetch; }
 });

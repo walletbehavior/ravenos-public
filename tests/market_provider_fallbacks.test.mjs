@@ -23,6 +23,17 @@ test('shared provider reads coalesce, preserve observation time, and refresh exp
   assert.equal((await reader.read(url)).value, 2); assert.equal(calls, 2);
 });
 
+test('public provider memory is bounded by bytes as market batches grow', () => {
+  const reader = new MarketProviderReader();
+  for (let i = 0; i < 30; i++) reader.remember(String(i), { value: { data: 'x'.repeat(1024 * 1024) } });
+  assert(reader.memoryBytes <= MarketProviderPolicy.cache_bytes);
+  assert(reader.memory.size < 30);
+  assert(reader.memory.has('29'));
+  const before = reader.memoryBytes;
+  reader.remember('29', { value: { data: 'small replacement' } });
+  assert(reader.memoryBytes < before, 'replacing an entry releases its prior byte reservation');
+});
+
 test('public cache serves another isolate but never stores authorization or API keys', async () => {
   const rows = new Map(); let calls = 0;
   const cache = { match: async key => rows.get(key.url)?.clone(), put: async (key,res) => rows.set(key.url,res) };

@@ -861,7 +861,7 @@ function renderDeskBrief({ brief = null, markets = [], spotRows = [], opportunit
   document.getElementById("discoverDeskFreshness").textContent = Number.isNaN(observedAt.getTime())
     ? "Live composite"
     : when(frame.observed_at);
-  section.hidden = false;
+  section.hidden = activeDiscoverView() !== 'signals';
 }
 
 function renderAttentionBenchmark(census = null) {
@@ -1180,7 +1180,8 @@ function updateSpotResultState(visibleCount, exactTokenCount, exactMarketCount) 
   const start = state.spotPage * 100 + 1, end = Math.min((state.spotPage + 1) * 100, visibleCount);
   output.textContent = `${start}–${end} of ${visibleCount.toLocaleString()} qualifying tokens`
     + (visibleCount < exactTokenCount ? ` · ${exactTokenCount} exact contracts` : '')
-    + (state.spotUniverse?.sampled_tokens ? ` · ${state.spotUniverse.sampled_tokens.toLocaleString()} in shared market sample` : '');
+    + (state.spotUniverse?.sampled_tokens ? ` · ${state.spotUniverse.sampled_tokens.toLocaleString()} in shared market sample` : '')
+    + (state.spotUniverse?.delivery_limited ? ` · ${state.spotUniverse.qualified_tokens.toLocaleString()} qualify across the requested chains; narrow by chain for more` : '');
 }
 
 function spotTokenFingerprint(value) {
@@ -2601,6 +2602,7 @@ function renderSpotTokenTape({ forceOrder = false } = {}) {
       reset.type = "button";
       reset.addEventListener("click", () => {
         state.spotChain = "all";
+        void refresh({ manual: true });
         setPreference("discoverChain", "all");
         renderSpotPulse(state.spotRows, { forceOrder: true });
       });
@@ -3697,7 +3699,9 @@ async function refresh({ manual = false } = {}) {
     return;
   }
   if (state.paused && !manual) return;
-  const requestedTimeframe = state.spotTimeframe;
+  const requestedTimeframe = state.spotTimeframe, requestedChain = state.spotChain;
+  const requestedChains = ['solana', 'robinhood', 'base', 'bsc', 'ethereum'].includes(requestedChain)
+    ? requestedChain : 'solana,robinhood,base,bsc,ethereum';
   void loadParticipationBoards();
   state.loading = true;
   document.getElementById("discoverRefresh").textContent = "Refreshing…";
@@ -3707,9 +3711,14 @@ async function refresh({ manual = false } = {}) {
     json("/api/hyperliquid/perps"),
     json("/api/atlas"),
     shouldRefreshFeatured ? json("/api/atlas/featured?limit=40") : Promise.resolve(null),
-    json(`/api/onchain/trending?chains=solana,robinhood,base,bsc,ethereum&duration=${encodeURIComponent(requestedTimeframe)}`),
+    json(`/api/onchain/trending?chains=${requestedChains}&duration=${encodeURIComponent(requestedTimeframe)}`),
     json("/api/brief"),
   ]);
+  if (requestedChain !== state.spotChain || requestedTimeframe !== state.spotTimeframe) {
+    state.loading = false; state.refreshQueued = false;
+    void refresh({ manual: true });
+    return;
+  }
 
   if (shouldRefreshFeatured) {
     if (featured.status === "fulfilled" && featured.value?.response?.ok) {
@@ -3804,7 +3813,12 @@ async function refresh({ manual = false } = {}) {
     state.spotFeedState = "refreshing";
   }
   const tokenRows = mergeSpotRadarRows(registryRadarRows, marketPulseRows);
-  renderSpotPulse(tokenRows);
+  // A requested chain/timeframe refresh replaces the prior slice immediately.
+  // Otherwise a retained display order can claim the new count but show old
+  // page-one rows again on page two.
+  const newMarketSample = requestedChain !== state.spotLoadedChain || requestedTimeframe !== state.spotLoadedTimeframe;
+  renderSpotPulse(tokenRows, { forceOrder: newMarketSample });
+  state.spotLoadedChain = requestedChain; state.spotLoadedTimeframe = requestedTimeframe;
 
   let briefData = null;
   if (brief.status === "fulfilled" && brief.value.response.ok) {
@@ -4000,6 +4014,8 @@ function bind() {
     state.spotChain = button.dataset.spotChain;
     setPreference("discoverChain", state.spotChain);
     renderSpotPulse(state.spotRows, { forceOrder: true });
+    // Query the whole retained chain sample, not just its slice of the All page.
+    void refresh({ manual: true });
   }));
   document.querySelectorAll("[data-spot-lane]").forEach((button) => button.addEventListener("click", () => {
     state.spotLane = button.dataset.spotLane;

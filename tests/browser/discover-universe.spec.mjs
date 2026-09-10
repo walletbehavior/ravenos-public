@@ -19,11 +19,15 @@ for (const width of [390, 1440]) test(`${width}px: broad Discovery paginates qua
   rows.push({ ...rows[0], instrument_id: 'base:pool:oneholder', pool_address: 'oneholder', token_address: 'bad-holder', symbol: 'ONEHOLDER', market: { ...rows[0].market, holder_count: 1 } });
   rows.push({ ...rows[0], instrument_id: 'base:pool:dust', pool_address: 'dust', token_address: 'dust', symbol: 'DUST', market: { ...rows[0].market, liquidity_usd: 1 } });
   const radar = buildDiscoverRadarProjection(rows, { nowMs: now, generatedAt: observed, maxRows: 4000 });
-  await page.route('**/api/onchain/trending?**', route => route.fulfill({ json: {
+  const requestedChains = [];
+  await page.route('**/api/onchain/trending?**', route => {
+    const chain = new URL(route.request().url()).searchParams.get('chains'); requestedChains.push(chain);
+    const selected = chain === 'base' || chain === 'ethereum' ? radar.rows.filter(row => row.chain_id === chain) : radar.rows.slice(0, 150);
+    return route.fulfill({ json: {
     ok: true, safe_public: true, schema_version: 'ravenos.onchain_market_pulse.v1', state: 'current', freshness: { state: 'current' },
-    rows: radar.rows, discovery_radar: radar, universe: { sampled_tokens: 1900 }, provenance: { role: 'exact_pool_market_activity', raven_signal: false },
+    rows: selected, discovery_radar: { ...radar, rows: selected, row_count: selected.length }, universe: { sampled_tokens: 1900 }, provenance: { role: 'exact_pool_market_activity', raven_signal: false },
     execution_boundary: { research_only: true, signing_available: false, submission_available: false },
-  } }));
+  } }); });
   await page.goto('/discover/?market_scope=memecoins');
   await page.locator('[data-spot-chain="base"]').click();
   const coins = page.locator('#discoverTokenTapeList .discover-token-row');
@@ -43,6 +47,8 @@ for (const width of [390, 1440]) test(`${width}px: broad Discovery paginates qua
   await page.locator('[data-spot-chain="ethereum"]').click();
   await expect(coins).toHaveCount(70);
   await expect(page.locator('#discoverSpotResultState')).toContainText('1–70 of 70');
+  expect(requestedChains).toContain('base');
+  expect(requestedChains).toContain('ethereum');
   await expect(page.locator('#discoverSpotPagination')).toBeHidden();
   await expect(page.locator('[data-token-address="bad-holder"], [data-token-address="dust"]')).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);

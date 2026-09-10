@@ -164,7 +164,7 @@ import { MarketProviderReader, MarketProviderPolicy, normalizeDexScreenerActivit
 import { buildDexchChart } from './lib/dexch_chart.mjs';
 import { collectParticipationUniverse, createParticipationSnapshotStore, refreshParticipationSnapshot, PARTICIPATION_UNIVERSE_POLICY } from './lib/participation_universe.mjs';
 import { buildParticipationMap, rankParticipationMarkets, PARTICIPATION_BANDS } from './ravenos-participation-map.js';
-import { matchesMarketScope, isTokenizedEquity } from './ravenos-market-scope.js';
+import { matchesMarketScope, isTokenizedEquity, isZcashAsset } from './ravenos-market-scope.js';
 import { EVM_CHAIN_PROFILES } from './lib/customer_trade/evm_chain_profiles.mjs';
 import {
   ONCHAIN_HOLDER_SCHEMA,
@@ -3665,16 +3665,20 @@ async function dexchPulseDiscovery({ env = {}, chains = [], duration = "5m", fet
 
 export async function collectRavenParticipation(env = {}, previous = null) {
   const store = env.RAVENOS_CUSTOMER_DB?.prepare ? createParticipationSnapshotStore(env.RAVENOS_CUSTOMER_DB) : null;
-  return collectParticipationUniverse({
+  const frontier = store ? await store.frontier().catch(() => ({})) : {};
+  let verifiedCatalogAt = Number(frontier.solana?.verified_catalog_at) || 0;
+  let verifiedCatalogTokens = Number(frontier.solana?.verified_catalog_tokens) || 0;
+  const result = await collectParticipationUniverse({
+    savedFrontier: frontier, previousRows: previous?.rows || [],
     dexchEnabled: resolveDexchDiscoveryRuntime(env).runtime_allowed,
     discoverTokens: filters => dexchDiscoveryProvider.discovery(filters),
-    readPairs: (chain, addresses) => marketProviderReader.snapshot(`${DEXSCREENER_BASE_URL}/tokens/v1/${chain}/${addresses.join(',')}`, { ttlMs: 60_000 }),
+    readPairs: (chain, addresses) => marketProviderReader.snapshot(`${DEXSCREENER_BASE_URL}/tokens/v1/${chain}/${addresses.join(',')}`, { ttlMs: 30_000, maxBytes: 3 * 1024 * 1024 }),
     readKnownMarkets: async () => {
       const [known, registry] = await Promise.allSettled([
         store ? store.knownMarkets() : Promise.resolve([]),
         discoverRegistryHistory(env, new Request('https://ravenos.xyz/api/onchain/participation')),
       ]);
-      return [...(previous?.rows || []), ...(known.status === 'fulfilled' ? known.value : []), ...(registry.status === 'fulfilled' ? [...registry.value.values()] : [])];
+      return [...(known.status === 'fulfilled' ? known.value : []), ...(registry.status === 'fulfilled' ? [...registry.value.values()] : [])];
     },
     readSeedTokens: async () => {
       const seeds = collectDexScreenerDiscoverySeeds((url, options) => marketProviderReader.read(url, options));
@@ -3683,12 +3687,29 @@ export async function collectRavenParticipation(env = {}, previous = null) {
       if (key) for (const [category, interval] of [['toptraded', '6h'], ['toptraded', '24h'], ['toporganicscore', '6h'], ['toptrending', '6h']]) {
         jobs.push(boundedProviderJson(`${JUPITER_TOKENS_BASE_URL}/${category}/${interval}?limit=100`, {
           headers: { 'x-api-key': key }, maxBytes: 1024 * 1024, timeoutMs: 5_000, errorPrefix: 'jupiter_tokens',
-        }).then(rows => (Array.isArray(rows) ? rows : []).filter(row => !isTokenizedEquity(row)).map(row => ({ chain: 'solana', token_address: row.id, name: row.name }))));
+        }).then(rows => (Array.isArray(rows) ? rows : []).filter(row => !isTokenizedEquity(row) && !isZcashAsset(row)).map(row => ({ chain: 'solana', token_address: row.id, name: row.name,
+          market: { holder_count: row.holderCount, volume_usd_24h: Number(row.stats24h?.buyVolume || 0) + Number(row.stats24h?.sellVolume || 0) } }))));
       }
+      // The documented tag endpoint returns the complete verified mint array.
+      // Once per hour, seed its identities; verification is not a Raven signal.
+      if (key && Date.now() - verifiedCatalogAt >= 3_600_000) jobs.push(boundedProviderJson(`${JUPITER_TOKENS_BASE_URL}/tag?query=verified`, {
+        headers: { 'x-api-key': key }, maxBytes: 16 * 1024 * 1024, timeoutMs: 6_000, errorPrefix: 'jupiter_tokens',
+      }).then(rows => {
+        if (!Array.isArray(rows)) throw new Error('jupiter_catalog_invalid');
+        verifiedCatalogAt = Date.now();
+        const candidates = rows.slice(0, 10_000).filter(row => !isTokenizedEquity(row) && !isZcashAsset(row));
+        verifiedCatalogTokens = candidates.length;
+        return candidates.map(row => ({ chain: 'solana', token_address: row.id, name: row.name,
+          market: { holder_count: row.holderCount, volume_usd_24h: Number(row.stats24h?.buyVolume || 0) + Number(row.stats24h?.sellVolume || 0) } }));
+      }));
       const [results, additional] = await Promise.all([Promise.allSettled(jobs), seeds]);
       return { rows: [...additional.rows, ...results.flatMap(result => result.status === 'fulfilled' ? result.value : [])], request_count: jobs.length + additional.request_count };
     },
   });
+  result.frontier.solana.verified_catalog_at = verifiedCatalogAt;
+  result.frontier.solana.verified_catalog_tokens = verifiedCatalogTokens;
+  result.coverage.solana_verified_catalog = { observed_at: verifiedCatalogAt ? new Date(verifiedCatalogAt).toISOString() : null, candidate_tokens: verifiedCatalogTokens };
+  return result;
 }
 
 async function participationSnapshot(env, executionContext, { refreshOnly = false } = {}) {
@@ -4483,6 +4504,8 @@ async function onchainMarketPulse({ env = {}, request = null, chains = [], durat
       delivered_tokens: rows.length,
       delivery_limited: rows.length < bestExactSpotMarketPerToken(qualifiedRows, { timeframe: duration }).length,
       sampled_tokens: participation?.payload?.coverage?.tracked || 0,
+      retained_index_tokens: participation?.payload?.coverage?.indexed_tokens || 0,
+      retained_index_by_chain: participation?.payload?.coverage?.indexed_by_chain || null,
       shared_snapshot_at: participation?.payload?.generated_at || null,
       excluded_candidates: indexedRows.length - qualifiedRows.length,
       quality_policy: DISCOVER_MARKET_QUALITY,
@@ -12141,6 +12164,11 @@ export default {
       return;
     }
     if(_controller?.cron===WalletIngestionPolicy.cron) {
+      // Minute cadence keeps the public 120-second freshness contract useful.
+      // It shares the durable collection lease with the two-minute cron and
+      // visitor refreshes; wallet ingestion still runs independently below.
+      const refresh = participationSnapshot(env, context, { refreshOnly: true }).catch(() => null);
+      if(context?.waitUntil)context.waitUntil(refresh);else await refresh;
       if(env.RAVENOS_WALLET_INGESTION_ENABLED!=='1')return;
       const work=runWalletHistoryIngestion(env).then(run=>{
         console.log(JSON.stringify({event:'wallet_history_ingestion',totals:run.totals,
