@@ -1,0 +1,55 @@
+{
+  "schema_version": "ravenos.monitor_navigation_production_proof.v1",
+  "release_id": "ravenos-79e510745946-ca344f04a253d62d",
+  "source_commit": "79e5107459462c2bbec52e6f07f3bbb87602d47e",
+  "worker_version_id": "8166088f-c59f-49a9-914e-838cacac3ae8",
+  "traffic_percent": 100,
+  "domains": ["ravenos.xyz", "app.ravenos.xyz"],
+  "archive_sha256": "8f23bf9c8247333a921e18ce7cd2994b50e05579b7cde50405e8ccf74ca0d2f3",
+  "package_content_sha256": "58d30aa2d689d758989fd1c456f16f8d0bc8c021b2b228cd41b55ba36ccb8880",
+  "source_delta_sha256": "eec41f0d3d54f8a33d6ed79f6483e0eb1edd07db7df95971749bac5800dcdd55",
+  "staging": {"verified": true, "verified_at": "2026-09-10T10:15:03.899Z"},
+  "validation": {
+    "chromium_monitor_portfolio_cases": 45,
+    "webkit_monitor_portfolio_cases": 45,
+    "chromium_navigation_cases": 8,
+    "webkit_navigation_cases": 8,
+    "monitor_layout_widths": [390, 1440],
+    "portfolio_history_layout_widths": [360, 390, 1440],
+    "build_security_passed": true,
+    "worker_response_leak_checks": 39,
+    "production_checks_passed": 57,
+    "verified_assets": 36,
+    "workspace_entrypoints": 11,
+    "initial_probe_observed_prior_release_during_propagation": true,
+    "read_only_verifier_retry_passed": true
+  },
+  "production_ui": {
+    "observed_at": "2026-09-10T10:22:30.802Z",
+    "viewport_width": 1525,
+    "monitor": {
+      "account": "authenticated",
+      "workspace_visible": true,
+      "saved_markets": 0,
+      "saved_market_limit": 100,
+      "alerts_status": "Raven alerts are not enabled yet.",
+      "reload_alerts_completed": true,
+      "reload_enabled": true,
+      "active_destination": "More"
+    },
+    "portfolio": {
+      "account": "authenticated",
+      "capital_visible": true,
+      "capital_status": "Wallet view updated.",
+      "history_rows": 0,
+      "history_status": "No Raven trades yet. Your submitted trades and receipts will appear here.",
+      "active_destination": "Portfolio"
+    }
+  },
+  "personal_alert_rules_created": 0,
+  "outbound_delivery_enabled": false,
+  "real_transactions_submitted": 0,
+  "wallet_signatures_created": 0,
+  "account_permissions_changed": false,
+  "entire_roadmap_complete": false
+}
