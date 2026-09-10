@@ -1646,10 +1646,11 @@ for (const width of [360, 390, 1440]) test(`readable transaction tape scrolls to
 for (const retained of [false, true]) test(`Mobula exact-pool amounts and attribution remain readable${retained ? ' during a delayed refresh' : ''}`, async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.addInitScript(() => { window.mobulaTapeEvents = []; document.addEventListener('ravenos:charttape', e => window.mobulaTapeEvents.push(e.detail)); });
-  await mockTerminalLiveApis(page, { spotMobulaState: retained ? 'retained' : 'current', spotTradePrice: 9.9, spotSmallTradeAmounts: true });
+  await mockTerminalLiveApis(page, { spotMobulaState: retained ? 'retained' : 'current', spotTradePrice: 9.9, spotSmallTradeAmounts: true, spotTradeRowCount: 120 });
   await page.goto('/terminal/?instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&token_address=fixture-token-address&quote_address=fixture-quote-address&panel=activity');
   const rows=page.locator('#terminalSpotTradeRows .terminal-spot-trade-row');
-  await expect(rows).toHaveCount(36);
+  await expect(rows).toHaveCount(120);
+  await expect(page.locator('#terminalActivityTradeCount')).toHaveText('120 swaps');
   await expect(page.locator('#terminalSpotTradeCredit')).toHaveText('Mobula');
   await expect(page.locator('#terminalSpotTradeCredit')).toHaveAttribute('href','https://mobula.io');
   await expect(page.locator('#terminalSpotActivityScope')).toHaveText('Exact pool');

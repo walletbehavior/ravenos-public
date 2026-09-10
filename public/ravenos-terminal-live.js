@@ -97,7 +97,6 @@ function rememberAnnouncedEvmWallet(event) {
 globalThis.addEventListener?.("eip6963:announceProvider", rememberAnnouncedEvmWallet);
 globalThis.dispatchEvent?.(new Event("eip6963:requestProvider"));
 const SPOT_TRADE_REFRESH_MS = 5_000;
-const SPOT_TRADE_RENDER_LIMIT = 60;
 const state = {
   lane: "perps",
   markets: [],
@@ -4537,7 +4536,7 @@ function filteredSpotTrades(payload) {
     || row.side === state.spotTradeFilter
     || (state.spotTradeFilter === "large" && row.sample_size_tier === "largest_10_pct")
     || (state.spotTradeFilter === "repeat" && repeatAddresses.has(row.trader_address))
-  )).slice(0, SPOT_TRADE_RENDER_LIMIT);
+  ));
 }
 
 function appendSpotTradeLink(host, { href, label, title = "" } = {}) {

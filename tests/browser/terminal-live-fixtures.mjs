@@ -444,6 +444,7 @@ export async function mockTerminalLiveApis(page, {
   chartEnrichmentDelayMs = 0,
   spotTradePrice = null,
   spotSmallTradeAmounts = false,
+  spotTradeRowCount = 36,
   spotTokenTrades = false,
   spotTradeTokenMismatch = false,
   spotTradeDelayMs = 0,
@@ -634,10 +635,10 @@ export async function mockTerminalLiveApis(page, {
       "Vote111111111111111111111111111111111111111",
       "SysvarRent111111111111111111111111111111111",
     ];
-    const trades = Array.from({ length: 36 }, (_, index) => {
+    const trades = Array.from({ length: spotTradeRowCount }, (_, index) => {
       const trader = traderAddresses[index % traderAddresses.length];
       const side = index % 3 === 1 ? "sell" : "buy";
-      const volume = 120 + (36 - index) * 95;
+      const volume = 120 + (spotTradeRowCount - index) * 95;
       const transaction = evm
         ? `0x${(index + 1).toString(16).padStart(64, "0")}`
         : `${"3".repeat(80)}${String(index + 1).padStart(4, "3")}`;
