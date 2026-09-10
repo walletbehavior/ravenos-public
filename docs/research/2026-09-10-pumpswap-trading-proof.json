@@ -1,0 +1,96 @@
+{
+  "release_id": "ravenos-9d796f87284a-14d3aac9a630a461",
+  "source_commit": "9d796f87284ab90cf90503dbdc89abe15c35ae81",
+  "worker_version_id": "4a300767-7722-4f84-82de-05c0465b22f4",
+  "archive_sha256": "a02195213425c456881d4105eaf3dadbbaec711fa001ca53b86e1da423347484",
+  "staging_verified_at": "2026-09-10T20:38:00.978Z",
+  "production_verification": {
+    "ok": true,
+    "checks": 66,
+    "asset_digests": 39,
+    "access_gates": 11,
+    "signed_in_journeys_certified_by_verifier": false
+  },
+  "unsigned_squire_preparation": {
+    "checked_at": "2026-09-10T20:39:19.735Z",
+    "status": 200,
+    "ok": true,
+    "state": "awaiting_wallet_signature",
+    "ticket_id": "lex_aDr7zYX0emgeldt2h0dNiRC-",
+    "pool_address": "4CPVihvjKUUsXq3HFrS8wniUKffbpDqz2h6jHKjeXoYD",
+    "token_address": "EN2nnxrg8uUi6x2sJkzNPd2eT6rB9rdSoQNNaENA4RZA",
+    "input_lamports": "10100000",
+    "notional_usdc": 1.009661,
+    "slippage_bps": 50,
+    "expected_output_base_units": "1482493216",
+    "minimum_output_base_units": "1475080749",
+    "gross_fee_lamports": "101000",
+    "minimum_collector_credit_lamports": "80800",
+    "signing_requested": false,
+    "submission_requested": false
+  },
+  "leading_decimal_bonk_quote": {
+    "checked_at": "2026-09-10T20:39:52.159Z",
+    "entered_amount": ".02",
+    "status": 200,
+    "input_lamports": "20000000",
+    "notional_usdc": 1.999948,
+    "exit_verified": true,
+    "fee_charged": false,
+    "wallet_sol_balance": "0.05164987"
+  },
+  "owner_ledger": {
+    "checked_at": "2026-09-10T20:39:54.092Z",
+    "rows_written": 0,
+    "intents": [
+      {
+        "execution_id": "lex_aDr7zYX0emgeldt2h0dNiRC-",
+        "chain_namespace": "solana",
+        "side": "buy",
+        "notional_usdc": 1.009661,
+        "state": "awaiting_wallet_signature",
+        "fee_collection_status": "expected",
+        "expected_raven_fee_amount_base_units": "80800",
+        "observed_raven_fee_usdc": null,
+        "created_at": "2026-09-10 20:39:16",
+        "updated_at": "2026-09-10 20:39:16"
+      },
+      {
+        "execution_id": "lex_7fruA79do7Gi1aMumRck9OH0",
+        "chain_namespace": "solana",
+        "side": "buy",
+        "notional_usdc": 1.007383,
+        "state": "awaiting_wallet_signature",
+        "fee_collection_status": "expected",
+        "expected_raven_fee_amount_base_units": "80800",
+        "observed_raven_fee_usdc": null,
+        "created_at": "2026-09-10 19:08:42",
+        "updated_at": "2026-09-10 19:08:42"
+      }
+    ],
+    "events": [
+      {
+        "execution_id": "lex_aDr7zYX0emgeldt2h0dNiRC-",
+        "state": "awaiting_wallet_signature",
+        "observed_at": "2026-09-10 20:39:16"
+      },
+      {
+        "execution_id": "lex_7fruA79do7Gi1aMumRck9OH0",
+        "state": "awaiting_wallet_signature",
+        "observed_at": "2026-09-10 19:08:42"
+      }
+    ]
+  },
+  "validation": {
+    "affected_unit_integration_tests_passed": 185,
+    "mobile_desktop_browser_tests_passed_for_amount_fix": 7,
+    "build_security_no_leak_passed": true
+  },
+  "open_items": [
+    "The exact PUMPCAT URL or contract has not been supplied; ticker matches several contracts.",
+    "Owner-confirmed execution, settlement, actual fee-account credit and cashback remain unverified.",
+    "PumpSwap review is restricted to selected base mint, SOL/USDC quote mints and reviewed instructions; existing volume-account closure is rejected."
+  ],
+  "transactions_signed_by_assistant": 0,
+  "transactions_submitted_by_assistant": 0
+}
