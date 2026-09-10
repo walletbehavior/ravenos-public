@@ -4,6 +4,13 @@ import { readFileSync } from 'node:fs';
 import worker from '../worker.mjs';
 import { RELEASE_FLAGS_BINDING, packReleaseFlags, resolveReleaseFlags, assertReleaseBindingPreservation } from '../lib/runtime_release_flags.mjs';
 
+test('each independent alert release flag is packed and can be disabled separately', () => {
+  const flags = Object.fromEntries(['RAVENOS_RESEARCH_ALERTS_ENABLE', 'RAVENOS_RESEARCH_ALERT_RULE_ROUTES_ENABLE', 'RAVENOS_RESEARCH_ALERT_EVALUATION_ENABLE', 'RAVENOS_NOTIFICATION_HISTORY_ENABLE'].map(name => [name, '1']));
+  const packed = packReleaseFlags(flags);
+  assert.deepEqual(packed[RELEASE_FLAGS_BINDING], flags);
+  for (const name of Object.keys(flags)) assert.equal(resolveReleaseFlags({ ...packed, [name]: '0' })[name], '0');
+});
+
 test('packing preserves all configured values and leaves release enforcement separate', () => {
   const vars = { ...JSON.parse(readFileSync('wrangler.jsonc', 'utf8')).vars, RAVENOS_RELEASE_ENFORCE: '1', LIVE_SHIELDED_EXECUTION_ENABLED: '0' };
   const packed = packReleaseFlags(vars);

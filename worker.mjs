@@ -166,6 +166,7 @@ import { buildParticipationPayoffProjection } from "./lib/participation_payoff.m
 import { MarketProviderReader, MarketProviderPolicy, normalizeDexScreenerActivity, dexchWalletCandidates } from "./lib/market_provider_fallbacks.mjs";
 import { buildDexchChart } from './lib/dexch_chart.mjs';
 import { collectParticipationUniverse, createParticipationSnapshotStore, refreshParticipationSnapshot, PARTICIPATION_UNIVERSE_POLICY } from './lib/participation_universe.mjs';
+import { buildOnchainMonitorEvidence, onchainMonitorInstrumentIds } from './lib/customer_monitor_evidence.mjs';
 import { buildParticipationMap, rankParticipationMarkets, PARTICIPATION_BANDS } from './ravenos-participation-map.js';
 import { matchesMarketScope, isTokenizedEquity, isZcashAsset } from './ravenos-market-scope.js';
 import { EVM_CHAIN_PROFILES } from './lib/customer_trade/evm_chain_profiles.mjs';
@@ -895,12 +896,20 @@ function monitorPerpsRows(payload) {
   return output;
 }
 
-async function loadMonitorEvidenceBatch(env, request, instrumentIds = []) {
+export async function loadMonitorEvidenceBatch(env, request, instrumentIds = []) {
   const ids = [...new Set(instrumentIds.map((value) => String(value || "").trim()).filter((value) => value.length <= 220))];
   const evidence = {};
   let sourceCalls = 0;
+  const onchainIds = onchainMonitorInstrumentIds(ids);
+  if (onchainIds.length && env.RAVENOS_PARTICIPATION_UNIVERSE_ENABLED === '1' && env.RAVENOS_CUSTOMER_DB?.prepare) {
+    sourceCalls += 1;
+    try {
+      const snapshot = await createParticipationSnapshotStore(env.RAVENOS_CUSTOMER_DB).read();
+      Object.assign(evidence, buildOnchainMonitorEvidence(snapshot.payload, onchainIds));
+    } catch { /* A failed shared read is not a market-availability transition. */ }
+  }
   const perpIds = ids.filter((value) => /^hyperliquid:perp:[A-Z0-9._-]{1,40}$/.test(value));
-  if (!perpIds.length) return { source_calls: 0, evidence };
+  if (!perpIds.length) return { source_calls: sourceCalls, evidence };
 
   let perpsProjection = null;
   try {

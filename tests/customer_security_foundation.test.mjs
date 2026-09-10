@@ -99,7 +99,8 @@ test("Stage A activates only managed accounts and revocable sessions", () => {
   assert.equal(security.saved_monitor.execution_available, false);
   assert.equal(security.saved_monitor.production_activation_completed, false);
   assert(security.blocked_capabilities.includes("saved_monitor_production_activation"));
-  assert.equal(security.raven_monitor.implementation_status, "local_dormant_candidate_not_deployed");
+  assert.equal(security.raven_monitor.implementation_status, "in_app_activation_candidate");
+  assert.equal(security.raven_monitor.release_activation_enabled, true);
   assert.equal(security.raven_monitor.authenticated_origin_only, true);
   assert.equal(security.raven_monitor.csrf_required_for_mutations, true);
   assert.equal(security.raven_monitor.exact_market_identity_only, true);

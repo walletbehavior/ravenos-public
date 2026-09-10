@@ -63,11 +63,18 @@ async function install(page, baseURL, shared) {
   await page.route("**/api/v1/auth/config", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, available: true, on_authenticated_origin: true, canonical_origin: baseURL }) }));
   await page.route("**/api/v1/auth/session", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, authenticated: true, csrf_token: "csrf_monitor_alerts" }) }));
   await page.route("**/api/v1/entitlements", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, state: "available", capabilities: [{ capability: "research.alerts", implementation_state: "implemented_dormant", available: true, state: "active", route: "/api/v1/monitor-alerts" }] }) }));
-  await page.route("**/api/v1/research-state**", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, state: "available", items: [item()], limits: { maximum_saved_markets: 100 } }) }));
+  await page.route("**/api/v1/research-state**", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, state: "available", items: [shared.item || item()], limits: { maximum_saved_markets: 100 } }) }));
   await page.route("**/api/v1/monitor-alerts**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
     shared.requests.push({ method: request.method(), path: url.pathname, body: request.postData(), headers: request.headers() });
+    if (url.pathname === `/api/v1/monitor-alerts/evidence/${WATCH_ID}` && request.method() === 'GET') {
+      return route.fulfill({ status: shared.evidenceStatus || 200, contentType: 'application/json', body: JSON.stringify(shared.evidence || {
+        ok: true, schema_version: 'ravenos.monitor_evidence.v1', state: 'available',
+        instrument_id: shared.item?.market?.instrument_id || INSTRUMENT_ID,
+        source_timestamp: new Date().toISOString(), supported_event_types: ['pressure_regime_changed', 'funding_regime_changed', 'exact_market_availability_changed'],
+      }) });
+    }
     if (url.pathname === "/api/v1/monitor-alerts" && request.method() === "GET") return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, state: "available", capability: "research.alerts" }) });
     if (url.pathname.endsWith("/rules") && request.method() === "GET") return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, state: shared.rule ? "available" : "empty", rules: shared.rule ? [shared.rule] : [] }) });
     if (url.pathname.endsWith("/rules") && request.method() === "POST") {
@@ -142,8 +149,47 @@ test("unentitled and dormant states never render fake locked evidence", async ({
   await page.route("**/api/v1/research-state**", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, state: "available", items: [item()] }) }));
   await page.route("**/api/v1/entitlements", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, state: "no_active_capabilities", capabilities: [{ capability: "research.alerts", implementation_state: "implemented_dormant", available: false, state: "not_granted" }] }) }));
   await page.goto("/monitor/");
-  await expect(page.getByText("Raven alerts aren’t available yet")).toBeVisible();
-  await expect(page.getByText("Your saved markets still work normally. Alert controls will appear here when they’re ready for your account.")).toBeVisible();
+  await expect(page.locator('#monitorAlertSummary')).toHaveText('Your account does not currently have alert access.');
+  await expect(page.getByText('Your account does not currently have alert access. Your saved markets remain available.')).toBeVisible();
   await expect(page.locator(".monitor-notification")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Turn on Raven alerts" })).toHaveCount(0);
+});
+
+test('onchain alert editor offers only supported current market changes on mobile', async ({ page, baseURL }) => {
+  const selected = item();
+  selected.market = { ...selected.market, instrument_id: 'base:pool:0x' + '1'.repeat(40), instrument_type: 'exact_pool', identity_scope: 'exact_pool', chain: 'base', venue: 'onchain', market: 'spot', display_label: 'TEST / USDC', base_symbol: 'TEST', quote_symbol: 'USDC' };
+  const shared = { item: selected, rule: null, notification: null, requests: [], evidence: {
+    ok: true, schema_version: 'ravenos.monitor_evidence.v1', state: 'available', instrument_id: selected.market.instrument_id,
+    source_timestamp: new Date().toISOString(), supported_event_types: ['pressure_regime_changed', 'exact_market_availability_changed'],
+  } };
+  await page.setViewportSize({ width: 390, height: 844 });
+  await install(page, baseURL, shared); await page.goto('/monitor/');
+  await page.getByText('Choose changes').click();
+  await expect(page.getByRole('checkbox', { name: 'Buy / sell flow · 1h' })).toBeChecked();
+  await expect(page.locator('.monitor-event-grid input')).toHaveCount(2);
+  await expect(page.getByRole('checkbox', { name: 'Launch lifecycle' })).toHaveCount(0);
+  await expect(page.getByRole('checkbox', { name: 'Funding regime' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Turn on Raven alerts' })).toBeEnabled();
+  expect(shared.requests.filter(r => r.method === 'POST')).toHaveLength(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.locator('.monitor-rule-editor').scrollIntoViewIfNeeded();
+  await page.screenshot({ path: `/tmp/raven-monitor-evidence-${test.info().project.name || 'chromium'}-390.png` });
+});
+
+test('unavailable or mismatched evidence keeps creation disabled and can recover', async ({ page, baseURL }) => {
+  const shared = { rule: null, notification: null, requests: [], evidenceStatus: 503 };
+  await install(page, baseURL, shared); await page.goto('/monitor/');
+  await page.getByText('Choose changes').click();
+  await expect(page.getByText('Current evidence for this exact market is unavailable. Reload to check again.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Turn on Raven alerts' })).toBeDisabled();
+  shared.evidenceStatus = 200;
+  shared.evidence = { ok: true, schema_version: 'ravenos.monitor_evidence.v1', state: 'available', instrument_id: 'hyperliquid:perp:BTC', supported_event_types: ['funding_regime_changed'] };
+  await page.getByRole('button', { name: 'Reload available changes' }).click();
+  await expect(page.getByRole('button', { name: 'Reload available changes' })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Turn on Raven alerts' })).toBeDisabled();
+  delete shared.evidence;
+  await page.getByRole('button', { name: 'Reload available changes' }).click();
+  await expect(page.getByRole('button', { name: 'Turn on Raven alerts' })).toBeEnabled();
+  await expect(page.locator('.monitor-event-grid input')).toHaveCount(3);
+  expect(shared.requests.filter(r => r.method === 'POST')).toHaveLength(0);
 });

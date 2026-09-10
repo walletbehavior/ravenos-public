@@ -1,14 +1,14 @@
 # Raven Monitor and In-App Alerts v1
 
-Status: local, operator-granted candidate; dormant by default; not deployed.
+Status: in-app activation candidate. See `docs/research/2026-09-10-monitor-evidence-activation.md` for release evidence. Runtime controls default off unless explicitly enabled by the packaged release.
 
 Raven Monitor v1 is customer-owned research continuity. It is not position monitoring, order monitoring, investment discretion, or execution. A customer first saves one canonical exact market through Saved Exact Market. A monitor rule then references that owned saved-market record and a bounded set of public event categories. A symbol, label, or customer-supplied provider identifier can never select the monitored market.
 
 ## Authority and activation
 
-Access requires an authenticated `app.ravenos.xyz` host-only session, an active owner-matched `research.alerts` grant, and coordinated server controls. Entitlement resolution, customer rule routes, evaluation, notification history, and the capability flag are independent and default off. The evaluator requires all controls, so no isolated flag activates the complete system. There is no customer grant mutation route, checkout, billing path, public enrollment, Desk membership, or shared-domain cookie.
+Access requires an authenticated `app.ravenos.xyz` host-only session, an active owner-matched `research.alerts` grant (including a current product trial or funded subscription), and coordinated server controls. Entitlement resolution, customer rule routes, evaluation, notification history, and the capability flag are independent and default off. The evaluator requires all controls, so no isolated flag activates the complete system. There is no customer grant mutation route, checkout, billing path, public enrollment, Desk membership, or shared-domain cookie.
 
-Every mutation requires RavenOS CSRF validation. Reads enforce exact origin and Fetch Metadata boundaries. Responses are `private, no-store`, owner-scoped, bounded, and unsuitable for shared caches. A customer cannot select an owner, entitlement, provider, source, cadence, arbitrary condition identifier, polling interval, plan price, or executable rule expression.
+Every mutation requires RavenOS CSRF validation. Reads enforce exact origin and Fetch Metadata boundaries. Responses are `no-store`, owner-scoped, bounded, and unsuitable for shared caches. A customer cannot select an owner, entitlement, provider, source, cadence, arbitrary condition identifier, polling interval, plan price, or executable rule expression.
 
 ## Stored research state
 
@@ -22,13 +22,13 @@ The active product never persists raw provider responses, Raven actor or cohort 
 
 Only normalized, current, public-safe evidence with an exact instrument lineage may be compared. Stale, fallback, malformed, empty, out-of-order, or identity-mismatched evidence is skipped. Missing membership in a ranking is not treated as proof that a market disappeared. An unavailable or superseded exact market requires qualified exact-availability evidence.
 
-Supported event categories are setup state, evidence strengthened or weakened, evidence invalid or unavailable, pressure/crowding regime, funding regime, liquidity quality, attention state, launch lifecycle, and exact-market availability. A category is offered for a rule only when the current exact evidence contains the necessary normalized classification. v1 production evidence is strongest for exact Hyperliquid perpetuals; unsupported spot or listed-market structures remain explicitly unavailable rather than inferred.
+Supported event categories are setup state, evidence strengthened or weakened, evidence invalid or unavailable, pressure/crowding regime, funding regime, liquidity quality, attention state, launch lifecycle, and exact-market availability. A category is offered for a rule only when the current exact evidence contains the necessary normalized classification. Exact Hyperliquid perpetuals use qualified Raven/venue observations. Onchain pool availability and one-hour buy/sell transaction-count flow use only the existing fresh shared pool snapshot. At least ten transactions are needed for flow: buy share at least 60% is buy-led, at most 40% is sell-led, and the middle is balanced. This is not wallet profit, net dollar flow, execution readiness or a qualified Discovery classifier. The editor reads `/evidence/:watch_id` when opened and offers only categories supported by that owned market’s current evidence. Unmeasured lifecycle, attention and listed-market structures remain unavailable.
 
 The evaluator compares classification changes, not ordinary numeric ticks. The same immutable inputs yield the same transition. Dedupe keys bind rule, exact instrument, event type, before state, after state, and qualified source timestamp. Older observations are ignored. Identical observations create no notification. Cooldowns suppress repeated event categories without replaying stale state.
 
 ## Batching and concurrency
 
-A bounded scheduled evaluator contract exists, but no cron trigger is configured. It acquires a short database lease and cursor, selects at most 100 due active rules whose owners still possess current grants, deduplicates exact instrument IDs, and loads each qualified source snapshot once for the batch. Raven never makes one provider request per customer. Database uniqueness and optimistic source-timestamp commits provide a second dedupe boundary if execution overlaps.
+The existing five-minute cron invokes a bounded evaluator when every activation control is enabled. It acquires a short database lease and cursor, selects at most 100 due active rules whose owners remain active and have current grants, trial access or funded paid access, deduplicates exact instrument IDs, and loads each qualified source snapshot once for the batch. Raven never makes one provider request per customer. Database uniqueness and optimistic source-timestamp/revision checks provide a second dedupe boundary. Notifications and the new baseline commit atomically; a failed write remains retryable. Pause, edit, account restrictions and expired/revoked access are rechecked at persistence. A classification-method change rebaselines measurements while separately qualified exact-availability facts remain comparable.
 
 Evaluator output contains only aggregate audit-safe totals: rules considered, qualified sources loaded, transitions, notifications created, and skip categories. It does not log customer identity, balances, market contents, or provider payloads.
 

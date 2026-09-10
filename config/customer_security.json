@@ -287,11 +287,13 @@
     "production_activation_completed": false
   },
   "raven_monitor": {
-    "implementation_status": "local_dormant_candidate_not_deployed",
+    "implementation_status": "in_app_activation_candidate",
     "surface": "https://app.ravenos.xyz/monitor/",
+    "release_activation_enabled": true,
     "capability": "research.alerts",
     "routes": [
       "GET /api/v1/monitor-alerts",
+      "GET /api/v1/monitor-alerts/evidence/:watch_id",
       "DELETE /api/v1/monitor-alerts",
       "GET /api/v1/monitor-alerts/rules",
       "POST /api/v1/monitor-alerts/rules",

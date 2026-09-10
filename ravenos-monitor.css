@@ -91,10 +91,14 @@ button { font: inherit; }
 .monitor-rule-summary p, .monitor-rule-note { margin: 0; color: var(--monitor-muted); font-size: 11px; line-height: 1.5; }
 .monitor-rule-actions { display: flex; flex-wrap: wrap; gap: 7px; }
 .monitor-rule-editor { display: grid; gap: 10px; border: 1px solid var(--monitor-line); border-radius: 6px; padding: 12px; background: rgba(255,255,255,.012); }
-.monitor-rule-editor summary { cursor: pointer; color: var(--monitor-muted); font-size: 11px; font-weight: 720; }
+.monitor-rule-editor summary { cursor: pointer; color: var(--monitor-muted); font-size: 14px; font-weight: 720; min-height: 32px; }
+.monitor-rule-editor > p { color: var(--monitor-muted); font-size: 13px; line-height: 1.5; }
+.monitor-rule-editor > button { width: 100%; min-height: 44px; margin-top: 8px; border: 1px solid var(--monitor-line); border-radius: 6px; background: transparent; color: var(--monitor-muted); font: inherit; font-size: 14px; cursor: pointer; }
+.monitor-rule-editor > .monitor-primary { color: var(--monitor-positive); background: rgba(99,197,148,.12); border-color: var(--monitor-positive); font-weight: 720; }
+.monitor-rule-editor > button:disabled { opacity: .5; cursor: default; }
 .monitor-event-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
-.monitor-event-grid label { min-width: 0; display: flex; align-items: flex-start; gap: 7px; border: 1px solid var(--monitor-line); border-radius: 5px; padding: 9px; color: var(--monitor-muted); font-size: 10px; line-height: 1.4; }
-.monitor-event-grid input { margin: 1px 0 0; accent-color: var(--monitor-positive); }
+.monitor-event-grid label { min-width: 0; min-height: 44px; display: flex; align-items: center; gap: 9px; border: 1px solid var(--monitor-line); border-radius: 5px; padding: 9px; color: var(--monitor-muted); font-size: 14px; line-height: 1.4; }
+.monitor-event-grid input { width: 18px; height: 18px; flex: 0 0 18px; margin: 0; accent-color: var(--monitor-positive); }
 
 .monitor-alert-boundary { display: flex; align-items: center; justify-content: space-between; gap: 18px; border-bottom: 1px solid var(--monitor-line); padding: 13px 17px; background: rgba(212, 170, 93, .025); }
 .monitor-alert-boundary strong { color: var(--monitor-warning); font: 720 10px var(--monitor-mono); text-transform: uppercase; }

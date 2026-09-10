@@ -30,6 +30,7 @@ const publicEvmHolderListsActive = customerSecurity.public_holder_lists?.evm_can
 const communityActive = customerSecurity.community?.release_activation_enabled === true;
 const referralsActive = customerSecurity.referrals?.release_activation_enabled === true;
 const entitlementResolutionActive = customerSecurity.entitlement_foundation?.resolution_release_enabled === true;
+const monitorAlertsActive = entitlementResolutionActive && customerSecurity.raven_monitor?.release_activation_enabled === true;
 const proIntelligenceActive = entitlementResolutionActive && customerSecurity.entitlement_foundation?.intelligence_release_enabled === true;
 const proPaperAgentsActive = entitlementResolutionActive && customerSecurity.entitlement_foundation?.paper_agents_release_enabled === true;
 const walletIntelligenceActive = customerSecurity.wallet_copy?.read_only_intelligence_release_enabled === true;
@@ -192,6 +193,10 @@ const releaseWrangler = {
     RAVENOS_REFERRALS_ENABLED: referralsActive ? "1" : "0",
     RAVENOS_REFERRAL_BILLING_RECONCILIATION_ENABLED: "0",
     RAVENOS_ENTITLEMENT_RESOLUTION_ENABLE: entitlementResolutionActive ? "1" : "0",
+    RAVENOS_RESEARCH_ALERTS_ENABLE: monitorAlertsActive ? "1" : "0",
+    RAVENOS_RESEARCH_ALERT_RULE_ROUTES_ENABLE: monitorAlertsActive ? "1" : "0",
+    RAVENOS_RESEARCH_ALERT_EVALUATION_ENABLE: monitorAlertsActive ? "1" : "0",
+    RAVENOS_NOTIFICATION_HISTORY_ENABLE: monitorAlertsActive ? "1" : "0",
     RAVENOS_PRO_INTELLIGENCE_ROUTES_ENABLE: proIntelligenceActive ? "1" : "0",
     RAVENOS_PUBLIC_PROJECTION_SPLIT_ENABLE: proIntelligenceActive ? "1" : "0",
     RAVENOS_PRO_PERPS_ADVANCED_ENABLE: proIntelligenceActive ? "1" : "0",

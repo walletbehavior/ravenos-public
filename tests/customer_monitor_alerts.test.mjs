@@ -154,6 +154,12 @@ class MemoryStore {
   async notificationCount(userId, now) { return this.notifications.filter((row) => row.user_id === userId && row.retention_expires_at > now).length; }
   async insertNotification(record) { if (this.notifications.some((row) => row.dedupe_key === record.dedupe_key)) return false; this.notifications.push({ ...record, before_state_json: JSON.stringify(record.before_state), after_state_json: JSON.stringify(record.after_state), limitations_json: JSON.stringify(record.limitations), deep_link_context_json: JSON.stringify(record.deep_link_context), read_at: null }); return true; }
   async commitEvaluation(ruleId, previous, sourceEvidence, now) { const row = this.rules.find((item) => item.rule_id === ruleId); if (!row || !this.commitAllowed || Number(row.last_source_timestamp) !== Number(previous)) return false; row.last_source_timestamp = sourceEvidence.source_timestamp; row.last_evidence_json = JSON.stringify(sourceEvidence); row.updated_at = now; return true; }
+  async commitEvaluationAndNotifications(rule, previous, sourceEvidence, now, records) {
+    if (!await this.commitEvaluation(rule.rule_id, previous, sourceEvidence, now, rule.revision)) return { committed: false, notifications_created: 0 };
+    let created = 0;
+    for (const record of records) if (await this.insertNotification(record)) created++;
+    return { committed: true, notifications_created: created };
+  }
   async releaseLease() { this.lease = null; }
 }
 
@@ -248,6 +254,24 @@ test("authenticated create is exact, idempotent, owner-scoped, and refuses unsup
   assert.equal(crossAccount.status, 404);
 });
 
+test('read-only alert choices come from the owned exact market and its current qualified evidence', async () => {
+  const store = new MemoryStore(), path = `${CUSTOMER_MONITOR_ALERTS_ROUTE}/evidence/${watch().watch_id}`;
+  const current = evidence(undefined, { classifications: { pressure_regime: 'balanced', availability_state: 'available' } });
+  const response = await routeCustomerMonitorAlerts(request(path), env(), routeDeps(store, { resolveEvidence: current }));
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get('cache-control'), /no-store/);
+  const payload = await json(response);
+  assert.equal(payload.instrument_id, watch().instrument_id);
+  assert.deepEqual(payload.supported_event_types, ['pressure_regime_changed', 'exact_market_availability_changed']);
+  assert.equal(payload.source_timestamp, new Date(current.source_timestamp * 1000).toISOString());
+  assert.equal(store.rules.length, 0);
+  assert.equal((await routeCustomerMonitorAlerts(request(path), env(), routeDeps(store, { userId: USER_B, grants: [grant({ user_id: USER_B })] }))).status, 404);
+  assert.equal((await routeCustomerMonitorAlerts(request(path), env(), routeDeps(store, { resolveEvidence: evidence('hyperliquid:perp:ETH') }))).status, 503);
+  assert.equal((await routeCustomerMonitorAlerts(request(path), env(), routeDeps(store, { resolveEvidence: evidence(undefined, { source_timestamp: NOW - 86400 }) }))).status, 503);
+  assert.equal((await routeCustomerMonitorAlerts(request(path, { method: 'POST', body: {} }), env(), routeDeps(store))).status, 405);
+  assert.equal((await routeCustomerMonitorAlerts(request(`${path}?watch_id=other`), env(), routeDeps(store))).status, 403);
+});
+
 test("same-symbol pools remain independent exact identities", async () => {
   const a = watch({ watch_id: `wat_${"a".repeat(18)}`, instrument_id: "solana:pool:11111111111111111111111111111111", instrument_type: "exact_pool", identity_scope: "exact_pool", chain_id: "solana", venue_id: "onchain", market_type: "spot", base_symbol: null, quote_symbol: null, display_label: "SAME / USDC" });
   const b = watch({ watch_id: `wat_${"b".repeat(18)}`, instrument_id: "solana:pool:So11111111111111111111111111111111111111112", instrument_type: "exact_pool", identity_scope: "exact_pool", chain_id: "solana", venue_id: "onchain", market_type: "spot", base_symbol: null, quote_symbol: null, display_label: "SAME / USDC" });
@@ -284,8 +308,8 @@ test("expired, revoked, suspended, absent, and partial activation fail closed", 
   assert.equal((await routeCustomerMonitorAlerts(request(`${CUSTOMER_MONITOR_ALERTS_ROUTE}/notifications`), env({ RAVENOS_NOTIFICATION_HISTORY_ENABLE: "0" }), routeDeps(new MemoryStore()))).status, 503);
   const moduleSource = readFileSync("lib/customer_monitor_alerts.mjs", "utf8");
   assert.match(moduleSource, /g\.capability_key = 'research\.alerts' AND g\.state = 'active'/);
-  assert.match(moduleSource, /g\.activation_at IS NULL OR g\.activation_at <= \?/);
-  assert.match(moduleSource, /g\.expires_at IS NULL OR g\.expires_at > \?/);
+  assert.match(moduleSource, /g\.activation_at IS NULL OR g\.activation_at <= \(SELECT now FROM monitor_clock\)/);
+  assert.match(moduleSource, /g\.expires_at IS NULL OR g\.expires_at > \(SELECT now FROM monitor_clock\)/);
 });
 
 test("qualified transition creates one notification; repeated, older, stale, and malformed evidence create none", async () => {
@@ -461,7 +485,7 @@ test("no storage or delivery surface includes plan prices, wallets, provider pay
   assert.equal(CustomerMonitorAlertContract.execution_data_stored, false);
 });
 
-test("worker keeps Monitor dormant even when the shared shadow-evidence scheduler is active", () => {
+test("Monitor activation stays in explicit release flags rather than bypassing independent runtime gates", () => {
   const worker = readFileSync("worker.mjs", "utf8");
   assert.match(worker, /routeCustomerMonitorAlerts/);
   assert.match(worker, /runCustomerMonitorEvaluator/);
@@ -470,6 +494,10 @@ test("worker keeps Monitor dormant even when the shared shadow-evidence schedule
   assert(!/RAVENOS_RESEARCH_ALERTS_ENABLE.*[=:]\s*["']1["']/i.test(worker));
   const wrangler = readFileSync("wrangler.jsonc", "utf8");
   for (const flag of Object.values(CustomerMonitorAlertContract.activation_flags)) assert(!wrangler.includes(flag), flag);
+  const packageSource = readFileSync('scripts/package-release.mjs', 'utf8');
+  assert(packageSource.includes('customerSecurity.raven_monitor?.release_activation_enabled === true'));
+  for (const flag of Object.values(CustomerMonitorAlertContract.activation_flags).filter(flag => flag !== 'RAVENOS_ENTITLEMENT_RESOLUTION_ENABLE')) assert(packageSource.includes(`${flag}: monitorAlertsActive ? "1" : "0"`), flag);
+  assert.equal(resolveMonitorAlertActivation({}).evaluator, false);
   assert.match(wrangler, /"crons"\s*:\s*\[\s*"\*\/5 \* \* \* \*"/);
   assert.match(wrangler, /"RAVENOS_SHADOW_LEDGER_ENABLED"\s*:\s*"1"/);
 });

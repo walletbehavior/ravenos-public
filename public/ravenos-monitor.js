@@ -21,7 +21,7 @@ const EVENT_LABELS = Object.freeze({
   exact_market_availability_changed: "Exact-market availability",
 });
 const DEFAULT_PERP_EVENTS = ["evidence_strengthened", "evidence_weakened", "evidence_invalid_or_unavailable", "pressure_regime_changed", "funding_regime_changed", "liquidity_quality_changed", "exact_market_availability_changed"];
-const DEFAULT_EXACT_EVENTS = ["evidence_strengthened", "evidence_weakened", "evidence_invalid_or_unavailable", "exact_market_availability_changed"];
+const DEFAULT_EXACT_EVENTS = ["pressure_regime_changed", "exact_market_availability_changed"];
 
 const page = document.querySelector(".monitor-page");
 const auth = document.getElementById("monitorAuth");
@@ -154,19 +154,11 @@ function eventEditor(item, rule = null) {
   summary.textContent = rule ? "Edit alert settings" : "Choose changes";
   const grid = document.createElement("div");
   grid.className = "monitor-event-grid";
-  const selected = new Set(rule?.event_types || defaultEvents(item));
-  for (const [eventType, label] of Object.entries(EVENT_LABELS)) {
-    const control = document.createElement("label");
-    const input = document.createElement("input");
-    const copy = document.createElement("span");
-    input.type = "checkbox";
-    input.value = eventType;
-    input.checked = selected.has(eventType);
-    copy.textContent = label;
-    control.append(input, copy);
-    grid.append(control);
-  }
-  const action = button(rule ? "Update alerts" : "Turn on Raven alerts", "", async (node) => {
+  const status = document.createElement('p');
+  status.setAttribute('role', 'status');
+  let loaded = false, requestVersion = 0;
+  const action = button(rule ? "Update alerts" : "Turn on Raven alerts", "monitor-primary", async (node) => {
+    if (!loaded) return;
     const eventTypes = [...grid.querySelectorAll('input[type="checkbox"]:checked')].map((input) => input.value);
     if (!eventTypes.length) return setText("monitorAlertSummary", "Select at least one change.");
     node.disabled = true;
@@ -174,11 +166,53 @@ function eventEditor(item, rule = null) {
       ? await api(`${ALERT_ROUTE}/rules/${encodeURIComponent(rule.rule_id)}`, { method: "PATCH", body: JSON.stringify({ state: rule.state, event_types: eventTypes, expected_revision: rule.revision }) })
       : await api(`${ALERT_ROUTE}/rules`, { method: "POST", body: JSON.stringify({ watch_id: item.watch_id, event_types: eventTypes }) });
     node.disabled = false;
-    if (!result.response.ok) return setText("monitorAlertSummary", "This alert could not be saved. Please try again.");
+    if (!result.response.ok) {
+      if (['monitor_event_type_unsupported', 'monitor_evidence_unavailable'].includes(result.payload?.error)) {
+        loaded = false;
+        await loadChoices();
+        status.textContent = 'Market evidence changed. Review the available changes and try again.';
+      } else status.textContent = 'This alert could not be saved. Please try again.';
+      return;
+    }
     setText("monitorAlertSummary", rule ? "Alert settings updated." : "Raven alerts are on for this exact market.");
     await loadRules();
   });
-  details.append(summary, grid, action);
+  action.disabled = true;
+  const reload = button('Reload available changes', 'monitor-secondary', () => loadChoices());
+  async function loadChoices() {
+    const version = ++requestVersion;
+    loaded = false;
+    grid.replaceChildren();
+    action.disabled = true;
+    reload.disabled = true;
+    status.textContent = 'Checking this market’s available changes…';
+    const { response, payload } = await api(`${ALERT_ROUTE}/evidence/${encodeURIComponent(item.watch_id)}`);
+    if (version !== requestVersion || !details.isConnected) return;
+    reload.disabled = false;
+    const supported = response.ok && payload?.schema_version === 'ravenos.monitor_evidence.v1'
+      && payload.state === 'available' && payload.instrument_id === item.market?.instrument_id
+      && Array.isArray(payload.supported_event_types)
+      ? [...new Set(payload.supported_event_types.filter(value => Object.hasOwn(EVENT_LABELS, value)))] : [];
+    if (!supported.length) {
+      status.textContent = 'Current evidence for this exact market is unavailable. Reload to check again.';
+      return;
+    }
+    const selected = new Set(rule?.event_types || defaultEvents(item));
+    for (const eventType of supported) {
+      const control = document.createElement('label'), input = document.createElement('input'), copy = document.createElement('span');
+      input.type = 'checkbox'; input.value = eventType; input.checked = selected.has(eventType);
+      copy.textContent = eventType === 'pressure_regime_changed' && item.market?.instrument_type === 'exact_pool'
+        ? 'Buy / sell flow · 1h' : EVENT_LABELS[eventType];
+      control.append(input, copy); grid.append(control);
+    }
+    loaded = true;
+    action.disabled = false;
+    status.textContent = `Available changes · observed ${formatWhen(payload.source_timestamp)}.`;
+  }
+  details.addEventListener('toggle', safely(() => {
+    if (details.open && !loaded && !reload.disabled) return loadChoices();
+  }));
+  details.append(summary, status, grid, reload, action);
   return details;
 }
 

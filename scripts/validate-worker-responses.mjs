@@ -109,6 +109,7 @@ const checks = [
   }],
   ["GET", "/api/access"],
   ["GET", "/api/v1/portfolio/trades"],
+  ["GET", "/api/v1/monitor-alerts/evidence/wat_verification000001"],
   ["GET", "/api/not-a-route"],
   ["POST", "/api/trade/quote", {}],
   ["POST", "/api/trade/inspect", {}],
