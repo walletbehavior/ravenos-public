@@ -22,6 +22,34 @@ function changeData(fixture, index, mutate) {
   const row = instruction(fixture, index);
   const data = Buffer.from(bs58.decode(row.data)); mutate(data); row.data = bs58.encode(data);
 }
+function rpcSimulationFormat(fixture) {
+  for (const row of fixture.innerInstructions[0].instructions) {
+    row.programId = fixture.programs.account_keys[row.programIdIndex].address;
+    row.accounts = row.accounts.map(index => fixture.programs.account_keys[index].address);
+    delete row.programIdIndex;
+  }
+  return fixture;
+}
+test("current simulation RPC address records and parsed built-ins preserve the same swap checks", () => {
+  for (const method of ["buy", "buy_exact_quote_in", "sell"]) {
+    const fixture = rpcSimulationFormat(pumpSwapFixture(method));
+    fixture.innerInstructions[0].instructions.splice(2, 0, {
+      programId: fixture.mint.token_program, stackHeight: 3,
+      parsed: { type: "transfer", info: {} }, program: "spl-token",
+    });
+    assert.equal(reviewPumpSwapCpis(fixture).reviewed, true);
+  }
+});
+test("simulation addresses must resolve to the actual transaction, and Pump bytes cannot be replaced by parsed text", () => {
+  const unresolved = rpcSimulationFormat(pumpSwapFixture());
+  instruction(unresolved, 0).accounts[0] = "unresolved";
+  assert.throws(() => reviewPumpSwapCpis(unresolved), /inner_account_unresolved/);
+  const parsed = rpcSimulationFormat(pumpSwapFixture());
+  instruction(parsed, 0).parsed = { type: "buy" }; delete instruction(parsed, 0).data;
+  assert.throws(() => reviewPumpSwapCpis(parsed), /inner_data_invalid/);
+  const mismatch = pumpSwapFixture(); instruction(mismatch, 0).programId = pump.fee_program;
+  assert.throws(() => reviewPumpSwapCpis(mismatch), /inner_program_mismatch/);
+});
 const cases = [
   ["top-level PumpSwap", f => f.programs.program_ids.push(pump.amm_program), /top_level_not_allowed/],
   ["top-level fee program", f => f.programs.program_ids.push(pump.fee_program), /top_level_not_allowed/],
