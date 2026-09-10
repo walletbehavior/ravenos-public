@@ -1,6 +1,6 @@
 {
-  "recorded_at": "2026-09-10T09:05:43.027989+00:00",
-  "state": "scheduler_fix_qualified_pending_deployment",
+  "recorded_at": "2026-09-10T09:15:06.162367+00:00",
+  "state": "deployed_with_bounded_production_verification",
   "diagnostic_release": {
     "release_id": "ravenos-5a900732b3a3-5b1f1211be79f795",
     "source_commit": "5a900732b3a3cb79da4e0e0ff92b64b6da815147",
@@ -269,18 +269,432 @@
     "chain_fairness_lease_budget_behavior_passed": true,
     "database_migrations": 0,
     "rows_written_by_probes": 0,
-    "real_transactions_submitted": 0
+    "real_transactions_submitted": 0,
+    "account_reader_identity_tests": 54,
+    "build_security_public_no_leak": true,
+    "worker_response_checks": 38
   },
   "browser": {
+    "actual_width": 1525,
     "new_live_mobile_claim": false,
-    "portfolio_authenticated": true,
-    "portfolio_wallet_count": 1,
-    "portfolio_holding_count": 1,
-    "community_following_recovered_automatically": true,
-    "community_following_empty": true
+    "portfolio": {
+      "authenticated": true,
+      "wallets": 1,
+      "holdings": 1,
+      "populated": true
+    },
+    "account": {
+      "authenticated": true,
+      "status": "Signed in securely",
+      "login_controls_visible": false
+    },
+    "monitor": {
+      "authenticated_workspace_visible": true,
+      "auth_gate_visible": false,
+      "saved_markets": 0,
+      "alerts_available": false
+    },
+    "community": {
+      "authenticated": true,
+      "following_empty": true,
+      "manual_retry_needed": false
+    },
+    "pro": {
+      "authenticated": true,
+      "views_ready": 2,
+      "perps_table_rows": 20,
+      "participant_table_rows": 95
+    },
+    "new_login_or_wallet_creation": false
   },
   "remaining": [
-    "Deploy scheduler fix and measure signed-in account checks through subsequent ingestion cycles.",
-    "No real settlement or complete roadmap claim."
-  ]
+    "This is a bounded postflight, not a guarantee of permanent availability. Diagnostics remain available for subsequent failures.",
+    "Account-scoped receipt journal, native settlement evidence and non-USDC fee valuation remain open.",
+    "Monitor shell/alerts, Agent Radar, qualified profile depth, real authorized settlement and the other roadmap gates remain unfinished."
+  ],
+  "scheduler_release": {
+    "release_id": "ravenos-c5097115e343-e0443e304d1b3d6e",
+    "source_commit": "c5097115e343613344683bba99d89bddaf2d237e",
+    "worker_version_id": "63adbb79-f33f-4fbd-ad74-978c9e30deeb",
+    "traffic_percent": 100,
+    "domains": [
+      "ravenos.xyz",
+      "app.ravenos.xyz"
+    ],
+    "staging_verified_at": "2026-09-10T09:08:04.736Z",
+    "archive_sha256": "4ba0af7d1b265221f2118d7ca31062d797c3b253e250274eab2a115a9b882e5f",
+    "package_content_sha256": "1e415276d2401e2dbd55e346c42cdc21ed92cf3d0812ad5d3310fe7bc0460344",
+    "production_checks": 53,
+    "verified_assets": 34,
+    "workspace_entrypoints": 11
+  },
+  "after_trace": [
+    {
+      "time": 1789031369189,
+      "path": "/api/v1/auth/session",
+      "status": 200,
+      "outcome": "ok",
+      "cpu_ms": 4,
+      "wall_ms": 101,
+      "diagnostics": []
+    },
+    {
+      "time": 1789031368664,
+      "path": "/api/v1/wallets/balances",
+      "status": 200,
+      "outcome": "ok",
+      "cpu_ms": 9,
+      "wall_ms": 388,
+      "diagnostics": []
+    },
+    {
+      "time": 1789031369400,
+      "path": "/api/v1/portfolio/preview",
+      "status": 200,
+      "outcome": "ok",
+      "cpu_ms": 5,
+      "wall_ms": 173,
+      "diagnostics": []
+    },
+    {
+      "time": 1789031369144,
+      "path": "/api/v1/auth/config",
+      "status": 200,
+      "outcome": "ok",
+      "cpu_ms": 4,
+      "wall_ms": 21,
+      "diagnostics": []
+    },
+    {
+      "time": 1789031369621,
+      "path": "/api/v1/auth/config",
+      "status": 200,
+      "outcome": "ok",
+      "cpu_ms": 1,
+      "wall_ms": 9,
+      "diagnostics": []
+    },
+    {
+      "time": 1789031369185,
+      "path": "/api/v1/wallets/balances",
+      "status": 200,
+      "outcome": "ok",
+      "cpu_ms": 9,
+      "wall_ms": 457,
+      "diagnostics": []
+    },
+    {
+      "time": 1789031369685,
+      "path": "/api/v1/auth/session",
+      "status": 200,
+      "outcome": "ok",
+      "cpu_ms": 1,
+      "wall_ms": 62,
+      "diagnostics": []
+    },
+    {
+      "time": 1789031369789,
+      "path": "/api/v1/research-state",
+      "status": 200,
+      "outcome": "ok",
+      "cpu_ms": 4,
+      "wall_ms": 252,
+      "diagnostics": []
+    },
+    {
+      "time": 1789031399153,
+      "path": "/api/v1/wallets/balances",
+      "status": 200,
+      "outcome": "ok",
+      "cpu_ms": 2,
+      "wall_ms": 260,
+      "diagnostics": []
+    },
+    {
+      "time": 1789031409317,
+      "path": "/api/v1/auth/config",
+      "status": 200,
+      "outcome": "ok",
+      "cpu_ms": 0,
+      "wall_ms": 15,
+      "diagnostics": []
+    },
+    {
+      "time": 1789031409382,
+      "path": "/api/v1/auth/session",
+      "status": 200,
+      "outcome": "ok",
+      "cpu_ms": 1,
+      "wall_ms": 74,
+      "diagnostics": []
+    },
+    {
+      "time": 1789031409569,
+      "path": "/api/v1/auth/config",
+      "status": 200,
+      "outcome": "ok",
+      "cpu_ms": 0,
+      "wall_ms": 10,
+      "diagnostics": []
+    },
+    {
+      "time": 1789031409213,
+      "path": "/api/v1/wallets/balances",
+      "status": 200,
+      "outcome": "ok",
+      "cpu_ms": 4,
+      "wall_ms": 397,
+      "diagnostics": []
+    },
+    {
+      "time": 1789031409673,
+      "path": "/api/v1/auth/session",
+      "status": 200,
+      "outcome": "ok",
+      "cpu_ms": 1,
+      "wall_ms": 64,
+      "diagnostics": []
+    },
+    {
+      "time": 1789031409570,
+      "path": "/api/v1/wallets/balances",
+      "status": 200,
+      "outcome": "ok",
+      "cpu_ms": 2,
+      "wall_ms": 233,
+      "diagnostics": []
+    },
+    {
+      "time": 1789031409797,
+      "path": "/api/v1/wallets/balances",
+      "status": 200,
+      "outcome": "ok",
+      "cpu_ms": 2,
+      "wall_ms": 287,
+      "diagnostics": []
+    },
+    {
+      "time": 1789031409801,
+      "path": "/api/v1/portfolio/preview",
+      "status": 200,
+      "outcome": "ok",
+      "cpu_ms": 2,
+      "wall_ms": 290,
+      "diagnostics": []
+    },
+    {
+      "time": 1789031410137,
+      "path": "/api/v1/wallets/balances",
+      "status": 200,
+      "outcome": "ok",
+      "cpu_ms": 2,
+      "wall_ms": 183,
+      "diagnostics": []
+    },
+    {
+      "tail_complete": true,
+      "code": null,
+      "signal": "SIGTERM"
+    },
+    {
+      "time": 1789031459150,
+      "path": "/api/v1/wallets/balances",
+      "status": 200,
+      "outcome": "ok",
+      "cpu_ms": 10,
+      "wall_ms": 480,
+      "diagnostics": []
+    },
+    {
+      "time": 1789031469578,
+      "path": "/api/v1/wallets/balances",
+      "status": 200,
+      "outcome": "ok",
+      "cpu_ms": 3,
+      "wall_ms": 195,
+      "diagnostics": []
+    },
+    {
+      "time": 1789031489156,
+      "path": "/api/v1/wallets/balances",
+      "status": 200,
+      "outcome": "ok",
+      "cpu_ms": 2,
+      "wall_ms": 176,
+      "diagnostics": []
+    },
+    {
+      "time": 1789031492633,
+      "path": "/api/v1/auth/session",
+      "status": 200,
+      "outcome": "ok",
+      "cpu_ms": 1,
+      "wall_ms": 68,
+      "diagnostics": []
+    },
+    {
+      "time": 1789031492754,
+      "path": "/api/v1/community/following",
+      "status": 200,
+      "outcome": "ok",
+      "cpu_ms": 2,
+      "wall_ms": 169,
+      "diagnostics": []
+    },
+    {
+      "time": 1789031499592,
+      "path": "/api/v1/wallets/balances",
+      "status": 200,
+      "outcome": "ok",
+      "cpu_ms": 7,
+      "wall_ms": 439,
+      "diagnostics": []
+    },
+    {
+      "time": 1789031519150,
+      "path": "/api/v1/wallets/balances",
+      "status": 200,
+      "outcome": "ok",
+      "cpu_ms": 2,
+      "wall_ms": 267,
+      "diagnostics": []
+    },
+    {
+      "tail_complete": true,
+      "code": null,
+      "signal": "SIGTERM"
+    },
+    {
+      "time": 1789031549959,
+      "path": "/api/v1/auth/config",
+      "status": 200,
+      "outcome": "ok",
+      "cpu_ms": 4,
+      "wall_ms": 17,
+      "diagnostics": []
+    },
+    {
+      "time": 1789031550163,
+      "path": "/api/v1/auth/config",
+      "status": 200,
+      "outcome": "ok",
+      "cpu_ms": 1,
+      "wall_ms": 12,
+      "diagnostics": []
+    },
+    {
+      "time": 1789031549228,
+      "path": "/api/v1/wallets/balances",
+      "status": 200,
+      "outcome": "ok",
+      "cpu_ms": 24,
+      "wall_ms": 467,
+      "diagnostics": []
+    },
+    {
+      "time": 1789031550178,
+      "path": "/api/v1/auth/session",
+      "status": 200,
+      "outcome": "ok",
+      "cpu_ms": 4,
+      "wall_ms": 68,
+      "diagnostics": []
+    },
+    {
+      "time": 1789031542917,
+      "cron": "* * * * *",
+      "event": "wallet_history_ingestion",
+      "totals": {
+        "jobs_leased": 4,
+        "jobs_completed": 0,
+        "jobs_bounded": 0,
+        "jobs_retried": 0,
+        "jobs_dead_lettered": 0,
+        "pages_completed": 4,
+        "pages_partial": 0,
+        "signatures_seen": 548,
+        "transactions_decoded": 548,
+        "decode_failures": 0,
+        "jobs_budget_deferred": 0
+      },
+      "profiles_refreshed": 4,
+      "profile_refresh_failures": 0
+    },
+    {
+      "time": 1789031559579,
+      "path": "/api/v1/wallets/balances",
+      "status": 200,
+      "outcome": "ok",
+      "cpu_ms": 8,
+      "wall_ms": 415,
+      "diagnostics": []
+    },
+    {
+      "time": 1789031579155,
+      "path": "/api/v1/wallets/balances",
+      "status": 200,
+      "outcome": "ok",
+      "cpu_ms": 3,
+      "wall_ms": 259,
+      "diagnostics": []
+    },
+    {
+      "time": 1789031589575,
+      "path": "/api/v1/wallets/balances",
+      "status": 200,
+      "outcome": "ok",
+      "cpu_ms": 2,
+      "wall_ms": 176,
+      "diagnostics": []
+    },
+    {
+      "tail_complete": true,
+      "code": null,
+      "signal": "SIGTERM"
+    }
+  ],
+  "after_summary": {
+    "session_checks": 6,
+    "session_statuses": [
+      200,
+      200,
+      200,
+      200,
+      200,
+      200
+    ],
+    "session_wall_ms": [
+      101,
+      62,
+      74,
+      64,
+      68,
+      68
+    ],
+    "account_busy_diagnostics": 0,
+    "ingestion_cycles": [
+      {
+        "time": 1789031542917,
+        "cron": "* * * * *",
+        "event": "wallet_history_ingestion",
+        "totals": {
+          "jobs_leased": 4,
+          "jobs_completed": 0,
+          "jobs_bounded": 0,
+          "jobs_retried": 0,
+          "jobs_dead_lettered": 0,
+          "pages_completed": 4,
+          "pages_partial": 0,
+          "signatures_seen": 548,
+          "transactions_decoded": 548,
+          "decode_failures": 0,
+          "jobs_budget_deferred": 0
+        },
+        "profiles_refreshed": 4,
+        "profile_refresh_failures": 0
+      }
+    ],
+    "ingestion_enabled": true,
+    "evm_history_requests_per_hour": 6000
+  }
 }
