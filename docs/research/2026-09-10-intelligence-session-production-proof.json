@@ -83,7 +83,9 @@
       "public_profile_enabled": false,
       "qualified_public_board_rows": 0,
       "following_recheck_unavailable": true,
-      "manual_retry_started": true
+      "manual_retry_started": true,
+      "manual_retry_recovered": true,
+      "following_empty": true
     },
     "agents": {
       "workspace_ready": true,

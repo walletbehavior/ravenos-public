@@ -91,3 +91,16 @@ test('subscribers receive no credentials, can unsubscribe, and never replay a ca
     stopLate();unsubscribe();await readAccountSession();assert.equal(results.length,2);assert.equal(late.length,1);
   } finally { unsubscribe();invalidateAccountSession();globalThis.fetch=originalFetch; }
 });
+
+test('unavailable diagnostics render as bounded JSON without the response or credentials',async()=>{
+  const originalFetch=globalThis.fetch,originalWarn=console.warn,logs=[];
+  try {
+    globalThis.fetch=async()=>Response.json({ok:false,secret:'private response detail'},{status:503,headers:{'retry-after':'120'}});
+    console.warn=(...args)=>logs.push(args);
+    assert.equal((await readAccountSession()).state,'unavailable');
+    assert.equal(logs.length,1);assert.equal(logs[0][0],'ravenos.account_check_unavailable');
+    assert.equal(typeof logs[0][1],'string');
+    assert.deepEqual(JSON.parse(logs[0][1]),{reason:'service_error',attempts:1,http_status:503,retry_after_ms:120000});
+    assert.doesNotMatch(logs[0][1],/secret|private|csrf|token/);
+  } finally { invalidateAccountSession();globalThis.fetch=originalFetch;console.warn=originalWarn; }
+});

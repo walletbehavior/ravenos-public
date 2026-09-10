@@ -88,7 +88,7 @@ const subscribers = new Set();
 const sessionReader = createAccountSessionReader({ onResult: result => {
   const summary = { state: result.state, username: result.payload?.account?.username || '' };
   for (const listener of subscribers) { try { listener(summary); } catch {} }
-  if (result.state === 'unavailable') console.warn('ravenos.account_check_unavailable', result.diagnostic);
+  if (result.state === 'unavailable') console.warn('ravenos.account_check_unavailable', JSON.stringify(result.diagnostic));
 } });
 export function subscribeAccountSession(listener) { subscribers.add(listener); return () => subscribers.delete(listener); }
 export const readAccountSession = options => sessionReader.read(options);

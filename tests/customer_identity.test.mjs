@@ -56,6 +56,44 @@ test("database quota failures stay inside auth boundaries without leaking errors
   }
 });
 
+for (const stage of ['lookup','refresh','expiry','response']) test(`session ${stage} failure logs only its fixed stage and category`,async()=>{
+  const store=new MemoryIdentityStore(), callback=await finishFlow(store,await startJsonFlow(store,{rememberDevice:true}));
+  const cookies=sessionCookies(callback),row=[...store.sessions.values()][0],reports=[];
+  const fail=async()=>{throw new Error('D1_ERROR: quota exceeded; private account and SQL details');};
+  let nowMs=NOW_MS+2000;
+  if(stage==='lookup')store.findSession=fail;
+  if(stage==='refresh'){store.touchSession=fail;nowMs=NOW_MS+120000;}
+  if(stage==='expiry'){row.idle_expires_at=NOW_MS/1000;store.revokeSession=fail;}
+  if(stage==='response')row.authentication_methods='private account details that are not JSON';
+  const response=await routeCustomerIdentity(request('/api/v1/auth/session',{headers:{cookie:`__Host-ravenos_session=${cookies.session}; __Host-ravenos_csrf=${cookies.csrf}`}}),configuredEnv(),{store,nowMs,onSessionFailure:d=>reports.push(d)});
+  assert.equal(response.status,503);assert.equal(response.headers.get('set-cookie'),null);
+  assert.deepEqual(await response.json(),{ok:false,error:'account_service_unavailable'});
+  assert.deepEqual(reports,[{surface:'session',stage,reason:stage==='response'?'invalid_session_record':'database_quota'}]);
+  for(const secret of [cookies.session,cookies.csrf,row.user_id,'private account','SQL','session_verifier'])assert(!JSON.stringify(reports).includes(secret));
+});
+
+for(const [message,reason] of [
+  ['database is locked','database_busy'],['no such column: private_column','database_schema'],
+  ['UNIQUE constraint failed: private_table','database_constraint'],['request timed out','timeout'],
+  ['fetch failed; private endpoint','transport'],['D1_ERROR: internal failure','database_error'],['sensitive unexpected error','internal_error'],
+])test(`session diagnostics classify ${reason} without copying the error`,async()=>{
+  const reports=[];
+  const response=await routeCustomerIdentity(request('/api/v1/auth/session',{headers:{cookie:`__Host-ravenos_session=ses_${'a'.repeat(48)}`}}),configuredEnv(),{
+    store:{async findSession(){throw new Error(message);}},nowMs:NOW_MS,onSessionFailure:d=>reports.push(d),
+  });
+  assert.equal(response.status,503);assert.deepEqual(reports,[{surface:'session',stage:'lookup',reason}]);
+  assert(!JSON.stringify(reports).includes(message));
+});
+
+test('a failed diagnostic sink cannot change the private API authentication boundary',async()=>{
+  const response=await authorizeCustomerApiRequest(request('/api/v1/account',{headers:{cookie:`__Host-ravenos_session=ses_${'a'.repeat(48)}`}}),configuredEnv(),{
+    store:{async findSession(){throw new Error('database is locked');}},nowMs:NOW_MS,
+    onSessionFailure:d=>{assert.deepEqual(d,{surface:'authorization',stage:'lookup',reason:'database_busy'});throw new Error('sink unavailable');},
+  });
+  assert.equal(response.principal,undefined);assert.equal(response.response.status,503);
+  assert.equal(response.response.headers.get('set-cookie'),null);
+});
+
 class MemoryIdentityStore {
   constructor() {
     this.authStates = new Map();
