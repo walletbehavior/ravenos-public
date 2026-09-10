@@ -1,0 +1,234 @@
+{
+  "schema_version": "ravenos.shared_market_reader_proof.v1",
+  "release": {
+    "release_id": "ravenos-70730c563210-727a74cc38d42988",
+    "source_commit": "70730c5632105517a8beb2f90c60850b162ab371",
+    "worker_version_id": "e145652d-ef1a-470b-9ad9-d2b27f4f8aa0",
+    "package_content_sha256": "c6064707203acae71c9752c866b3b8ad387fec32871b9946a4f587df96423d6d",
+    "verified_at": "2026-09-10T11:32:06.653Z"
+  },
+  "production_traffic_percent": 100,
+  "archive_sha256": "623b7223f355560535e3098f24bbc83fbfba4d643da15050a2b30b35d16b0cb1",
+  "source_delta_sha256": "0bdc327577f20026a94f9ae99a2d670fb0878051404024c1da9146a8d62cb8f2",
+  "production_checks": {
+    "ok": true,
+    "release_id": "ravenos-70730c563210-727a74cc38d42988",
+    "checks": 62,
+    "verified_assets": 36,
+    "authenticated_workspaces": 11,
+    "transactions_submitted": 0
+  },
+  "targeted_tests": 102,
+  "worker_public_response_checks": 40,
+  "signed_in_browser": {
+    "viewport_width": 1525,
+    "monitor": {
+      "account_state": "authenticated",
+      "summary": "0 active alerts \u00b7 0 unread notifications.",
+      "reload_enabled": true
+    },
+    "portfolio": {
+      "account_state": "authenticated",
+      "wallet_view": "updated",
+      "trade_history": "actual_empty"
+    },
+    "new_production_mobile_claim": false
+  },
+  "source_observations": [
+    {
+      "observed_at": "2026-09-10T11:34:18.000Z",
+      "snapshot_generated_at": "2026-09-10T11:32:25.347Z",
+      "collector": {
+        "next_refresh_at": "2026-09-10T11:33:26.000Z",
+        "market_retry_at": "2026-09-10T11:33:25.347Z",
+        "failed_pair_batches": 4,
+        "incomplete_batches": 86,
+        "pair_failure_codes": {
+          "market_provider_http_429": 4
+        },
+        "pair_backoff_causes": {},
+        "logical_provider_read_attempts": 20,
+        "collection_ms": 2009
+      },
+      "source": "existing_shared_participation_snapshot",
+      "by_chain": {
+        "solana": {
+          "retained_markets": 2426,
+          "current_markets": 0,
+          "sampled_markets": 0,
+          "observation_age_seconds": {
+            "newest": 649,
+            "median": 3711,
+            "oldest": 15952
+          },
+          "qualified_pool_snapshots": 0,
+          "qualified_flow_measurements": 0
+        },
+        "base": {
+          "retained_markets": 87,
+          "current_markets": 0,
+          "sampled_markets": 0,
+          "observation_age_seconds": {
+            "newest": 651,
+            "median": 651,
+            "oldest": 651
+          },
+          "qualified_pool_snapshots": 0,
+          "qualified_flow_measurements": 0
+        },
+        "ethereum": {
+          "retained_markets": 105,
+          "current_markets": 0,
+          "sampled_markets": 0,
+          "observation_age_seconds": {
+            "newest": 651,
+            "median": 651,
+            "oldest": 651
+          },
+          "qualified_pool_snapshots": 0,
+          "qualified_flow_measurements": 0
+        },
+        "bsc": {
+          "retained_markets": 792,
+          "current_markets": 0,
+          "sampled_markets": 0,
+          "observation_age_seconds": {
+            "newest": 649,
+            "median": 650,
+            "oldest": 1671
+          },
+          "qualified_pool_snapshots": 0,
+          "qualified_flow_measurements": 0
+        },
+        "robinhood": {
+          "retained_markets": 992,
+          "current_markets": 0,
+          "sampled_markets": 0,
+          "observation_age_seconds": {
+            "newest": 649,
+            "median": 650,
+            "oldest": 3411
+          },
+          "qualified_pool_snapshots": 0,
+          "qualified_flow_measurements": 0
+        }
+      },
+      "existing_alert_totals": {
+        "rules": 0,
+        "active_rules": 0,
+        "notifications": 0,
+        "last_evaluator_cycle_at": 1789039823,
+        "evaluator_lease_held": 0
+      },
+      "due_rule_query_rows": 0,
+      "database_reads": 3,
+      "database_rows_written": 0,
+      "market_provider_calls": 0,
+      "personal_rules_created": 0,
+      "notifications_created": 0,
+      "evaluator_invoked": false
+    },
+    {
+      "observed_at": "2026-09-10T11:35:57.000Z",
+      "snapshot_generated_at": "2026-09-10T11:34:26.173Z",
+      "collector": {
+        "next_refresh_at": "2026-09-10T11:35:27.000Z",
+        "market_retry_at": "2026-09-10T11:35:26.173Z",
+        "failed_pair_batches": 4,
+        "incomplete_batches": 86,
+        "pair_failure_codes": {
+          "market_provider_http_429": 4
+        },
+        "pair_backoff_causes": {},
+        "logical_provider_read_attempts": 17,
+        "collection_ms": 2923
+      },
+      "source": "existing_shared_participation_snapshot",
+      "by_chain": {
+        "solana": {
+          "retained_markets": 2426,
+          "current_markets": 0,
+          "sampled_markets": 0,
+          "observation_age_seconds": {
+            "newest": 748,
+            "median": 3810,
+            "oldest": 16051
+          },
+          "qualified_pool_snapshots": 0,
+          "qualified_flow_measurements": 0
+        },
+        "base": {
+          "retained_markets": 87,
+          "current_markets": 0,
+          "sampled_markets": 0,
+          "observation_age_seconds": {
+            "newest": 750,
+            "median": 750,
+            "oldest": 750
+          },
+          "qualified_pool_snapshots": 0,
+          "qualified_flow_measurements": 0
+        },
+        "ethereum": {
+          "retained_markets": 105,
+          "current_markets": 0,
+          "sampled_markets": 0,
+          "observation_age_seconds": {
+            "newest": 750,
+            "median": 750,
+            "oldest": 750
+          },
+          "qualified_pool_snapshots": 0,
+          "qualified_flow_measurements": 0
+        },
+        "bsc": {
+          "retained_markets": 792,
+          "current_markets": 0,
+          "sampled_markets": 0,
+          "observation_age_seconds": {
+            "newest": 748,
+            "median": 749,
+            "oldest": 1770
+          },
+          "qualified_pool_snapshots": 0,
+          "qualified_flow_measurements": 0
+        },
+        "robinhood": {
+          "retained_markets": 992,
+          "current_markets": 0,
+          "sampled_markets": 0,
+          "observation_age_seconds": {
+            "newest": 748,
+            "median": 749,
+            "oldest": 3510
+          },
+          "qualified_pool_snapshots": 0,
+          "qualified_flow_measurements": 0
+        }
+      },
+      "existing_alert_totals": {
+        "rules": 0,
+        "active_rules": 0,
+        "notifications": 0,
+        "last_evaluator_cycle_at": 1789040122,
+        "evaluator_lease_held": 0
+      },
+      "due_rule_query_rows": 0,
+      "database_reads": 3,
+      "database_rows_written": 0,
+      "market_provider_calls": 0,
+      "personal_rules_created": 0,
+      "notifications_created": 0,
+      "evaluator_invoked": false
+    }
+  ],
+  "boundaries": {
+    "new_provider_budget": false,
+    "provider_freshness_recovered": false,
+    "personal_rules_created": 0,
+    "notifications_created_by_test": 0,
+    "trades_submitted": 0,
+    "outbound_delivery_enabled": false,
+    "goal_complete": false
+  }
+}
