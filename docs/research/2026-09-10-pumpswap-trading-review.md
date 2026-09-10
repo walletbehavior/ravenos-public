@@ -25,3 +25,11 @@ All 174 affected tests pass: PumpSwap instruction review; operator/customer pref
 The broader run also exposed stale recorded-transaction tests that omitted the selected-mint context now required by the fee verifier. Those fixtures now supply their recorded USDC-to-BONK SPL context. Missing or mismatched context produces a validation error and remains rejected.
 
 Deployment and mainnet unsigned results will be recorded below when observed. A successful unsigned result does not establish settlement, collected fees or cashback.
+
+## Owner's mobile buy failure: leading decimal notation
+
+While preparing the release, the owner supplied PUMPCAT screenshots showing `.015` and `.02` SOL and the generic unavailable-route message. Production independently reproduced `.015` on the already supported BONK/Orca market at `2026-09-10T19:41:12.494Z`: HTTP 400, `buy_display_amount_invalid`, release `ravenos-be231eca4f73-fa9011bdff9dd170`. This establishes an amount-input defect independent of venue support. PUMPCAT's exact pool is still awaiting the owner's URL/address; the symbol alone resolves to several different contracts.
+
+The frontend and server now normalize a leading decimal point by adding `0` as text. No floating-point conversion or rounding is involved. Solana preview/preparation and EVM base-unit conversion accept the same notation; invalid, zero, negative and excessive-precision values remain rejected. Invalid amount errors also have a specific user-facing message. All 177 affected unit/integration tests and seven browser tests pass, including `.015` and `.02` request bodies at 390px and 1440px with no execution requests. Build, security and no-leak checks pass.
+
+The intermediate PumpSwap-only candidate at source `864331f66ad4` was packaged and copied to the release host, but not staged or promoted. The combined fix supersedes it.

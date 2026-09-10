@@ -508,7 +508,7 @@ test("Worker proves a same-chain Solana USDC entry and reverse USDC exit without
     assert.doesNotMatch(JSON.stringify(body), /serializedTransaction|swapTransaction|privateKey|secretKey/);
     assert.equal(providerCalls.filter((row) => row === "api.jup.ag/swap/v2/order").length, 2);
 
-    const nativeRequest = { ...requestBody, funding_preference: "native", display_amount: "0.5" };
+    const nativeRequest = { ...requestBody, funding_preference: "native", display_amount: ".5" };
     const nativeResponse = await worker.fetch(new Request("https://ravenos.xyz/api/trade/spot-quote-preview", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -520,6 +520,7 @@ test("Worker proves a same-chain Solana USDC entry and reverse USDC exit without
     assert.equal(nativeBody.asset_preference.selected, "native");
     assert.equal(nativeBody.intent.economic_flow, "native_sol_to_selected_token");
     assert.equal(nativeBody.intent.amount.exact_input_amount_base_units, "500000000");
+    assert.equal(nativeBody.intent.amount.display_amount, "0.5");
     assert.equal(nativeBody.intent.input_mint, quote);
     assert.equal(nativeBody.shadow_execution.request.source_amount_usdc, 75);
     assert.equal(nativeBody.shadow_execution.request.funding_selection, "chain_local_native");

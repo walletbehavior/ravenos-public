@@ -1,7 +1,28 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { DEFAULT_SPOT_SLIPPAGE_BPS, spotPriceWarnings } from "../ravenos-spot-trade-policy.js";
+import { DEFAULT_SPOT_SLIPPAGE_BPS, spotPriceWarnings, normalizeSpotAmountText } from "../ravenos-spot-trade-policy.js";
+import fs from "node:fs";
+import vm from "node:vm";
 import { estimateEvmPriceImpact } from "../lib/customer_trade/price_impact.mjs";
+
+test("mobile decimal notation preserves exact Solana and EVM amounts and precision checks", () => {
+  const source = fs.readFileSync(new URL("../worker.mjs", import.meta.url), "utf8");
+  const decimal = vm.runInNewContext(`(${source.match(/function decimalText\(value, maximumFractionDigits = 18\) \{[\s\S]*?\n\}/)[0]})`, { normalizeSpotAmountText });
+  const units = vm.runInNewContext(`(${source.match(/function exactDisplayToBaseUnits\(value, decimals, field\) \{[\s\S]*?\n\}/)[0]})`, { normalizeSpotAmountText });
+  for (const [input, normalized, expected] of [[".015", "0.015", "15000000"], [".02", "0.02", "20000000"], [" .005 ", "0.005", "5000000"]]) {
+    assert.equal(normalizeSpotAmountText(input), normalized);
+    assert.equal(decimal(input, 9), normalized);
+    assert.equal(units(input, 9, "display_amount"), expected);
+  }
+  assert.equal(units(".000000000000000001", 18, "amount"), "1");
+  assert.equal(units("9007199254740993.000000000000000001", 18, "amount"), "9007199254740993000000000000000001");
+  for (const invalid of [".", "..015", ".01.5", "1e-3", "-0.01", "0", ".000", "NaN"]) {
+    assert.equal(decimal(invalid, 9), null);
+    assert.throws(() => units(invalid, 9, "amount"), /amount_invalid/);
+  }
+  assert.equal(decimal(".0000000001", 9), null);
+  assert.throws(() => units(".0000000001", 9, "amount"), /precision_invalid/);
+});
 
 test("spot defaults to 3%; warnings start strictly above 5% and unknown impact is not zero evidence", () => {
   assert.equal(DEFAULT_SPOT_SLIPPAGE_BPS, 300);

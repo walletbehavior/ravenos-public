@@ -1,4 +1,4 @@
-import { DEFAULT_SPOT_SLIPPAGE_BPS, MIN_SPOT_SLIPPAGE_BPS, MAX_SPOT_SLIPPAGE_BPS, spotPriceWarnings } from "./ravenos-spot-trade-policy.js";
+import { DEFAULT_SPOT_SLIPPAGE_BPS, MIN_SPOT_SLIPPAGE_BPS, MAX_SPOT_SLIPPAGE_BPS, spotPriceWarnings, normalizeSpotAmountText } from "./ravenos-spot-trade-policy.js";
 import { mountWalletBalances } from "./ravenos-wallet-balances.js";
 import { readAccountSession } from './ravenos-account-session.js';
 import { currentTradingSettings, loadTradingSettings, subscribeTradingSettings, openTradingSettings } from './ravenos-trading-settings.js';
@@ -7167,7 +7167,7 @@ function spotTicketSnapshot() {
     side: state.spotTicketSide,
     funding_preference: activeSpotAssetPreference("buy"),
     settlement_preference: activeSpotAssetPreference("sell"),
-    display_amount: state.spotSellPercent ? null : String(amount || ""),
+    display_amount: state.spotSellPercent ? null : normalizeSpotAmountText(amount),
     sell_percent: state.spotTicketSide === "sell" ? state.spotSellPercent : null,
     wallet_address: wallet.connected ? wallet.address : null,
     slippage_bps: slippageBps,
@@ -7533,6 +7533,9 @@ function spotQuoteReason(reason) {
     quote_provider_unavailable: "A current route is temporarily unavailable. No stale quote was shown.",
     amount_below_minimum: "Increase the amount before requesting a route.",
     amount_above_maximum: "Reduce the amount before requesting a route.",
+    buy_display_amount_invalid: "Enter a positive amount using digits and a decimal point.",
+    display_amount_invalid: "Enter a positive amount using digits and a decimal point.",
+    display_amount_precision_invalid: "The amount has more decimal places than this asset supports.",
     live_notional_out_of_bounds: "Orders must be at least $1 and within the current order limit. Nothing was sent.",
     jupiter_order_http_400: "The route provider could not prepare this order. Nothing was signed or sent.",
     sell_balance_required: "Connect a wallet for percentage sizing or enter an exact token amount.",

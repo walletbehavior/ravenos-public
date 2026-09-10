@@ -3,6 +3,20 @@ import { mockTerminalLiveApis, waitForTerminalLive } from './terminal-live-fixtu
 import { mockTradingSettings } from './trading-settings-fixtures.mjs';
 const URL='/terminal/?instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&token_address=fixture-token-address&quote_address=fixture-quote-address&panel=chart';
 for(const width of [390,1440]) {
+ test(`fractional mobile buy amounts are quoted exactly at ${width}px`,async({page})=>{
+  await page.setViewportSize({width,height:844});
+  await mockTerminalLiveApis(page,{spotQuotePreview:true});await mockTradingSettings(page);
+  const executions=[];
+  page.on('request',r=>{if(r.method()==='POST'&&r.url().includes('/api/trade/live/')) executions.push(r.url());});
+  await page.goto(URL);await waitForTerminalLive(page,{lane:'spot'});
+  for(const [typed,expected] of [['.015','0.015'],['.02','0.02']]) {
+   const quote=page.waitForRequest(r=>r.method()==='POST'&&r.url().endsWith('/api/trade/spot-quote-preview')&&r.postDataJSON()?.display_amount===expected);
+   await page.locator('#terminalSpotAmount').fill(typed);
+   const request=await quote;
+   expect(request.postDataJSON().display_amount).toBe(expected);
+  }
+  expect(executions).toEqual([]);
+ });
  test(`account quick amounts, slippage and multi-leg profiles remain on the Terminal screen at ${width}px`,async({page},info)=>{
   await page.setViewportSize({width,height:844});
   await mockTerminalLiveApis(page,{spotQuotePreview:true});

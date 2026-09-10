@@ -1,7 +1,7 @@
 import { onchainMarketPages, validOnchainMarketCursor } from './lib/onchain_market_pages.mjs';
 import { buildOnchainRavenReads } from './lib/onchain_raven_reads.mjs';
 import { estimateEvmPriceImpact } from "./lib/customer_trade/price_impact.mjs";
-import { DEFAULT_SPOT_SLIPPAGE_BPS, MIN_SPOT_SLIPPAGE_BPS, MAX_SPOT_SLIPPAGE_BPS } from "./ravenos-spot-trade-policy.js";
+import { DEFAULT_SPOT_SLIPPAGE_BPS, MIN_SPOT_SLIPPAGE_BPS, MAX_SPOT_SLIPPAGE_BPS, normalizeSpotAmountText } from "./ravenos-spot-trade-policy.js";
 import { dexscreenerChartSurface } from './ravenos-chart-data-plane.js';
 import { resolveReleaseFlags } from './lib/runtime_release_flags.mjs';
 import { readExecutionStatusContext } from "./lib/customer_trade/live_execution_status.mjs";
@@ -6130,7 +6130,7 @@ function displayBaseUnits(value, decimals) {
 }
 
 function decimalText(value, maximumFractionDigits = 18) {
-  const raw = String(value ?? "").trim();
+  const raw = normalizeSpotAmountText(value);
   if (!new RegExp(`^(?:0|[1-9][0-9]{0,19})(?:\\.[0-9]{1,${maximumFractionDigits}})?$`).test(raw)) return null;
   if (/^0(?:\.0+)?$/.test(raw)) return null;
   return raw;
@@ -8290,7 +8290,7 @@ function normalizedEvmAddress(value, field) {
 }
 
 function exactDisplayToBaseUnits(value, decimals, field) {
-  const raw = String(value ?? "").trim();
+  const raw = normalizeSpotAmountText(value);
   if (!/^(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$/.test(raw)) {
     throw Object.assign(new Error(`${field}_invalid`), { code: `${field}_invalid` });
   }

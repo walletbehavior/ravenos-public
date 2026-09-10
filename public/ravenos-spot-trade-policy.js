@@ -4,6 +4,13 @@ export const MIN_SPOT_SLIPPAGE_BPS = 5;
 export const MAX_SPOT_SLIPPAGE_BPS = 1_000;
 export const SPOT_PRICE_WARNING_BPS = 500;
 
+// Mobile number inputs preserve a leading decimal point. Normalize notation
+// as text so a user's exact amount is never rounded through a JS Number.
+export function normalizeSpotAmountText(value) {
+  const text = String(value ?? "").trim();
+  return /^\.[0-9]+$/.test(text) ? `0${text}` : text;
+}
+
 export function spotPriceWarnings({ slippageBps, priceImpactBps } = {}) {
   const warnings = [];
   if (Number.isFinite(slippageBps) && slippageBps > SPOT_PRICE_WARNING_BPS) {
