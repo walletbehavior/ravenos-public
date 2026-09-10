@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { decodeEvmWalletReceipt, evmSettlementBases, evmAnalyticalSettlementEvent, WALLET_SWAP_FACTORIES, WALLET_SWAP_TOPICS } from '../lib/customer_trade/evm_wallet_swaps.mjs';
 import { applyEvmTradingRecord, EVM_WALLET_TRADING_PROFILE_VERSION } from '../lib/customer_trade/evm_wallet_trading_record.mjs';
 import { walletUsdTradingRecord } from '../lib/customer_trade/wallet_historical_prices.mjs';
+import { loadEvmWalletBackfillPage } from '../lib/customer_trade/evm_wallet_backfill.mjs';
+import { normalizeSourceWalletChainIdentity } from '../lib/customer_trade/source_wallet_chain_identity.mjs';
 
 const NOW=Date.parse('2026-09-10T04:00:00Z');
 const W='0x'+'11'.repeat(20), TOKEN='0x'+'22'.repeat(20), POOL='0x'+'33'.repeat(20), ROUTER='0x'+'44'.repeat(20);
@@ -116,4 +118,41 @@ test('retained multi-pool settlement reuses verified graph evidence and rejects 
   assert.equal(evmAnalyticalSettlementEvent(broken).wallet_accounting.trade,null);
   const cyclic=structuredClone(event);cyclic.wallet_accounting.route.pools.push({...route,pool:'0x'+'88'.repeat(20),token0:TOKEN,token1:USDT,input:TOKEN,output:USDT});
   assert.equal(evmAnalyticalSettlementEvent(cyclic).wallet_accounting.trade,null);
+});
+
+test('retained USDT swaps participate in bounded archive-inventory checks without re-fetching receipts',async()=>{
+  const identity=normalizeSourceWalletChainIdentity({chain:'ethereum',network:'mainnet',address:W});
+  const event=await swap('ethereum');event.source_wallet_id=identity.source_wallet_id;event.decode_version=102;
+  event.classification={...event.classification,kind:'AMBIGUOUS',ambiguous:true};event.wallet_accounting.trade=null;
+  const original=JSON.stringify(event),headHash='0x'+word(999),chainTime=event.chain_evidence.block_time;
+  const env={RAVENOS_EVM_WALLET_BACKFILL_ENABLED:'1',RAVENOS_EVM_WALLET_RECONSTRUCTION_ENABLED:'1',
+    RAVENOS_ALCHEMY_WALLET_HISTORY_ENABLED:'1',ALCHEMY_ETH_RPC_URL:'https://eth-mainnet.g.alchemy.com/v2/fixture-key'};
+  for(const state of ['zero','unavailable','already_retained']) {
+    const calls=[],cursor={version:1,head:'0x100',head_hash:headHash,from_block:'0x64',seek_block:'0x100',direction:'in',
+      pending:[{hash:event.chain_evidence.transaction_reference,blockNum:'0x65',metadata:{blockTimestamp:chainTime}}],
+      coverage_start_at:new Date(NOW-86400000).toISOString(),opening_balances:state==='already_retained'?{[TOKEN]:'0'}:{},
+      direction_finished:true,provider_exhausted:{in:true,out:false}};
+    const fetchImpl=async(_url,options)=>{
+      const {method,params}=JSON.parse(options.body);calls.push({method,params});let result;
+      if(method==='eth_chainId')result='0x1';
+      else if(method==='eth_getBlockByNumber')result={number:params[0],hash:params[0]==='0x100'?headHash:event.chain_evidence.block_hash,
+        timestamp:hex(params[0]==='0x100'?NOW/1000:Date.parse(chainTime)/1000)};
+      else if(method==='eth_call') {
+        assert.equal(params[0].to,TOKEN);assert.equal(params[1],'0x63');
+        if(state==='unavailable')throw Error('archive_unavailable');
+        assert.equal(state,'zero'); result='0x'+word(0);
+      } else assert.fail(`Unexpected provider request: ${method}`);
+      return Response.json({jsonrpc:'2.0',id:1,result});
+    };
+    const page=await loadEvmWalletBackfillPage(env,{source_wallet:identity,source_wallet_id:identity.source_wallet_id,provider_cursor:cursor},
+      {now:NOW,fetchImpl,existingTransaction:async(source,reference,blockHash)=>{
+        assert.equal(source,identity.source_wallet_id);assert.equal(reference,event.chain_evidence.transaction_reference);
+        assert.equal(blockHash,event.chain_evidence.block_hash);return event;
+      }});
+    assert.equal(page.decoded_count,1);assert.equal(page.events.length,0);
+    assert.equal(page.cursor.opening_balances[TOKEN],state==='unavailable'?undefined:'0');
+    assert.equal(calls.filter(call=>call.method==='eth_call').length,state==='already_retained'?0:1);
+    assert.equal(page.request_count,state==='already_retained'?3:4);
+    assert.equal(JSON.stringify(event),original);
+  }
 });
