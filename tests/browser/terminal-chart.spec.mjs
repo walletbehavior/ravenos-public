@@ -1643,6 +1643,27 @@ for (const width of [360, 390, 1440]) test(`readable transaction tape scrolls to
   if (width === 390) await page.screenshot({ path: '/tmp/raven-readable-combined-mobile.png', fullPage: true });
 });
 
+for (const retained of [false, true]) test(`Mobula exact-pool amounts and attribution remain readable${retained ? ' during a delayed refresh' : ''}`, async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.addInitScript(() => { window.mobulaTapeEvents = []; document.addEventListener('ravenos:charttape', e => window.mobulaTapeEvents.push(e.detail)); });
+  await mockTerminalLiveApis(page, { spotMobulaState: retained ? 'retained' : 'current', spotTradePrice: 9.9 });
+  await page.goto('/terminal/?instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&token_address=fixture-token-address&quote_address=fixture-quote-address&panel=activity');
+  const rows=page.locator('#terminalSpotTradeRows .terminal-spot-trade-row');
+  await expect(rows).toHaveCount(36);
+  await expect(page.locator('#terminalSpotTradeCredit')).toHaveText('Mobula');
+  await expect(page.locator('#terminalSpotTradeCredit')).toHaveAttribute('href','https://mobula.io');
+  await expect(page.locator('#terminalSpotActivityScope')).toHaveText('Exact pool');
+  await expect(rows.first().locator('.terminal-spot-quote-amount')).not.toHaveText('—');
+  await page.locator('#terminalSpotTapeScroll').evaluate(el=>{el.scrollLeft=el.scrollWidth;});
+  await expect(rows.first().locator('.terminal-spot-trade-wallet')).toHaveText('Stake11111111111111111111111111111111111111');
+  await expect(rows.first().locator('.terminal-spot-transaction-link a')).toHaveAttribute('href',/solscan.io\/tx\//);
+  if (retained) {
+    await expect(page.locator('#terminalSpotActivityState')).toContainText('Snapshot');
+    await expect(page.locator('#terminalSpotTradeCoverage')).toContainText('updated');
+    expect(await page.evaluate(()=>window.mobulaTapeEvents)).toEqual([]);
+  }
+});
+
 test('token activity for another contract is rejected before rendering', async ({ page }) => {
   await mockTerminalLiveApis(page, { spotTokenTrades: true, spotTradeTokenMismatch: true });
   await page.goto(`/terminal/?instrument_id=${encodeURIComponent(`robinhood:pool:${ROBINHOOD_POOL}`)}&lane=spot&market=spot&instrument_type=exact_pool&token_address=${ROBINHOOD_CONTRACT}&quote_address=${ROBINHOOD_QUOTE}&panel=activity`);

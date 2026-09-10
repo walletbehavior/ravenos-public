@@ -446,6 +446,7 @@ export async function mockTerminalLiveApis(page, {
   spotTokenTrades = false,
   spotTradeTokenMismatch = false,
   spotTradeDelayMs = 0,
+  spotMobulaState = null,
   spotLateOlderPrice = null,
   spotChartCurrent = false,
   spotChartPrice = null,
@@ -615,7 +616,7 @@ export async function mockTerminalLiveApis(page, {
     tradeCalls.push({ chain, poolAddress, tokenAddress, quoteAddress });
     const tradeRequestNumber = tradeCalls.length;
     if (spotTradeDelayMs > 0) await new Promise((resolve) => setTimeout(resolve, spotTradeDelayMs));
-    const observedAt = new Date();
+    const observedAt = new Date(Date.now() - (spotMobulaState === 'retained' ? 180000 : 0));
     const evm = chain !== "solana";
     const evmExplorer = {
       robinhood: "https://robinhoodchain.blockscout.com",
@@ -700,7 +701,8 @@ export async function mockTerminalLiveApis(page, {
         },
         trades,
         active_traders: activeTraders,
-        source: spotTokenTrades ? { label: "Dexch", attribution_url: "https://dexch.art" } : { label: "Data provided by CoinGecko", attribution_url: "https://www.coingecko.com/en/api" },
+        source: spotMobulaState ? { label: 'Mobula', attribution_url: 'https://mobula.io' } : spotTokenTrades ? { label: "Dexch", attribution_url: "https://dexch.art" } : { label: "Data provided by CoinGecko", attribution_url: "https://www.coingecko.com/en/api" },
+        ...(spotMobulaState ? { delivery: { state: spotMobulaState, source_observed_at: observedAt.toISOString(), refresh_after: new Date(Date.now()+60000).toISOString() } } : {}),
         limitations: ["This is a bounded exact-pool tape, not complete lifetime history."],
         privacy: { public_chain_addresses_only: true, customer_account_joined: false, private_labels_included: false },
         execution_boundary: { research_only: true, signing_available: false, submission_available: false },

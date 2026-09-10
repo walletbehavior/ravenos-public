@@ -186,6 +186,7 @@ import {
   normalizeOnchainTradeIdentity,
   publicOnchainTradeUnavailable,
 } from "./lib/onchain_trade_projection.mjs";
+import { loadMobulaMarketTrades, mobulaMarketEnabled } from './lib/mobula_market_cache.mjs';
 import { buildMarketControlRiskProjection } from "./lib/market_control_risk.mjs";
 import {
   DISCOVER_CLASSIFIER_VERSION,
@@ -4646,6 +4647,9 @@ async function fetchOnchainMarketTrades(args = {}) {
   const { env = {}, chain, pairAddress, tokenAddress, quoteAddress } = args;
   const identity = normalizeOnchainTradeIdentity({ chain, pool_address: pairAddress, token_address: tokenAddress, quote_token_address: quoteAddress });
   if (!identity) throw new Error('onchain_trade_identity_invalid');
+  if (['solana','base','ethereum'].includes(identity.chain) && mobulaMarketEnabled(env)) {
+    return loadMobulaMarketTrades(identity, { env });
+  }
   // Preserve exact-pool evidence when its configured provider is available.
   if (onchainProviderRuntime('coingecko_onchain', env).runtime_allowed) {
     try { const exact = await fetchGeckoPoolTrades(args); if (exact.ok) return exact; } catch { /* Try an explicitly scoped alternative. */ }
@@ -12225,7 +12229,7 @@ export default {
             return results.flatMap(result=>result.status==='fulfilled'?dexchWalletCandidates(result.value,id):[]);
           },
           loadRetainedHolders:(id)=>holderEdgeCacheRead([id.chain,id.pool_address,id.token_address,id.quote_token_address].join(':')),
-          loadTrades: (id) => fetchGeckoPoolTrades({env,chain:id.chain,pairAddress:id.pool_address,tokenAddress:id.token_address,quoteAddress:id.quote_token_address}) });
+          loadTrades: (id) => fetchOnchainMarketTrades({env,chain:id.chain,pairAddress:id.pool_address,tokenAddress:id.token_address,quoteAddress:id.quote_token_address}) });
       })().catch(() => console.error(JSON.stringify({event:"wallet_universe_cycle",state:"unavailable"})));
       if (context?.waitUntil) context.waitUntil(universeWork); else await universeWork;
       const rewardMaintenance = Promise.allSettled([expireProTrials(env.RAVENOS_CUSTOMER_DB), sweepExecutionRewards(env), runRewardPayoutDispatcher(env)]);

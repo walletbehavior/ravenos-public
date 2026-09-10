@@ -4411,7 +4411,10 @@ function spotTradeSurfaceActive() {
 function scheduleSpotTradeRefresh() {
   clearSpotTradeRefresh();
   if (!spotTradeSurfaceActive()) return;
-  state.spotTradeRefreshTimer = setTimeout(() => void loadSpotTrades({ force: true }), SPOT_TRADE_REFRESH_MS);
+  const payload = state.spotTradeCache.get(currentProjectIdentity()?.key)?.payload;
+  const nextRefresh = payload?.source?.attribution_url === 'https://mobula.io' ? Date.parse(payload.delivery?.refresh_after || '') : NaN;
+  const delay = Number.isFinite(nextRefresh) ? Math.max(SPOT_TRADE_REFRESH_MS, Math.min(60000, nextRefresh-Date.now())) : SPOT_TRADE_REFRESH_MS;
+  state.spotTradeRefreshTimer = setTimeout(() => void loadSpotTrades({ force: true }), delay);
 }
 
 function safeSpotTradeLink(value) {
@@ -4758,11 +4761,12 @@ function renderActiveTraders(payload) {
 
 function renderSpotTradeProjection(payload) {
   const tokenScope = payload.schema_version === SPOT_TOKEN_TRADE_SCHEMA;
+  const retained = payload?.delivery?.state === 'retained';
   setText('terminalSpotActivityScope', tokenScope ? 'Across token markets' : 'Exact pool');
   setText('terminalActiveWalletScope', tokenScope ? 'Across token markets' : 'Exact-pool sample');
   setText('terminalSpotTokenColumn', state.selected?.symbol || 'Tokens');
   setText('terminalSpotQuoteColumn', tokenScope ? 'Quote amount' : state.selected?.quoteSymbol || 'Quote amount');
-  const tapeUpdate = tokenScope ? null : state.workspace?.ingestExactPoolTrades?.(payload);
+  const tapeUpdate = tokenScope || retained ? null : state.workspace?.ingestExactPoolTrades?.(payload);
   // The workspace owns the exact-pool clock and emits the one canonical price
   // event used by both the forming candle and the header. A rejected or older
   // tape response must never update the header independently.
@@ -4773,13 +4777,13 @@ function renderSpotTradeProjection(payload) {
   setText("terminalActivityTradeCount", `${payload.trades.length} swaps`);
   setText("terminalActivityWalletCount", `${payload.active_traders.length} wallet${payload.active_traders.length === 1 ? "" : "s"}`);
   const latestAge = Math.max(0, (Date.now() - Date.parse(payload?.freshness?.latest_trade_at || payload.observed_at)) / 1_000);
-  setText("terminalSpotActivityState", `${payload.freshness.state === "live" ? "Live" : "Recent"} · ${durationLabel(latestAge)}`);
+  setText("terminalSpotActivityState", `${retained ? 'Snapshot' : payload.freshness.state === "live" ? "Live" : "Recent"} · ${durationLabel(latestAge)}`);
   setTerminalPaneStatus("activity", `${payload.trades.length} swaps`, payload.trades.length ? "positive" : "neutral");
-  setText("terminalSpotTradeCoverage", `${payload.trades.length} recent swaps · ${tokenScope ? 'across token markets' : 'exact pool'} · bounded 24h sample`);
+  setText("terminalSpotTradeCoverage", `${payload.trades.length} recent swaps · ${tokenScope ? 'across token markets' : 'exact pool'} · ${retained ? `updated ${timestamp(payload.observed_at)}` : 'bounded 24h sample'}`);
   const credit = document.getElementById("terminalSpotTradeCredit");
   const creditUrl = String(payload?.source?.attribution_url || "");
-  if (credit) credit.hidden = !["https://www.coingecko.com/en/api", "https://dexch.art"].includes(creditUrl);
-  if (credit && ["https://www.coingecko.com/en/api", "https://dexch.art"].includes(creditUrl)) {
+  if (credit) credit.hidden = !["https://www.coingecko.com/en/api", "https://dexch.art", "https://mobula.io"].includes(creditUrl);
+  if (credit && ["https://www.coingecko.com/en/api", "https://dexch.art", "https://mobula.io"].includes(creditUrl)) {
     credit.href = creditUrl;
     credit.textContent = payload?.source?.label || "Market data";
   }
@@ -4859,12 +4863,14 @@ async function loadSpotTrades({ force = false } = {}) {
     const verified = response.ok ? verifiedSpotTradeProjection(payload, identity) : null;
     if (!verified) {
       if (retainPriorTape()) return;
-      setText("terminalSpotActivityState", "Unavailable");
-      setTerminalPaneStatus("activity", "Unavailable", "warning");
+      const pending = payload?.error === 'onchain_trade_refresh_pending';
+      setText("terminalSpotActivityState", pending ? 'Updating' : "Unavailable");
+      setTerminalPaneStatus("activity", pending ? 'Updating' : "Unavailable", pending ? 'neutral' : "warning");
       document.getElementById("terminalSpotFlow").hidden = true;
       setText("terminalActiveTraderState", "Unavailable");
       renderActiveWalletMessage("Recent traders are unavailable for this market. You can still inspect its holders.");
-      renderSpotTradeMessage(payload?.error === 'onchain_trade_not_indexed'
+      renderSpotTradeMessage(pending ? 'Recent transactions are being refreshed. This view updates automatically.'
+        : payload?.error === 'onchain_trade_budget_limited' ? 'Transaction updates are paused for now. The chart is still available.' : payload?.error === 'onchain_trade_not_indexed'
         ? 'Transaction history is not indexed for this token yet. Its chart is still available.'
         : payload?.error === 'onchain_trade_coverage_unavailable'
           ? 'Transaction history is not available for this chain yet. Its chart is still available.'
