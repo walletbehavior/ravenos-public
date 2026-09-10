@@ -1,0 +1,59 @@
+{
+  "schema_version": "ravenos.evm_net_receipt_production_proof.v1",
+  "checked_at": "2026-09-10T06:33:12.940607+00:00",
+  "release_id": "ravenos-be56fb56c047-f023b6397fe6619c",
+  "source_commit": "be56fb56c047b62486ff1df01d38e85079f06d99",
+  "worker_version_id": "0e1f7a01-7666-468d-be17-2753e8847089",
+  "archive_sha256": "14b855cb050a386b665ca4ec3bab999609f0b6201d6a39ac886d06433b3aafac",
+  "content_sha256": "1855fb9c1c470af2fe7cf645050e4a213c32a26c0b98f60685e832bd730b210b",
+  "production_origins": [
+    "https://ravenos.xyz",
+    "https://app.ravenos.xyz"
+  ],
+  "stage_verified_at": "2026-09-10T06:30:19.055Z",
+  "production_traffic_percent": 100,
+  "release_checks": 40,
+  "verified_assets": 25,
+  "authenticated_workspaces": 7,
+  "transactions_submitted": 0,
+  "tests": {
+    "evm_suite": {
+      "passed": 140,
+      "failed": 0
+    },
+    "rewards_and_solana": {
+      "passed": 120,
+      "failed": 0
+    },
+    "new_regressions_reproduced_before_fix": 14
+  },
+  "regression_scenarios_per_adapter": [
+    "input refund reduces receipt cost",
+    "outgoing output invalidates received minimum",
+    "self transfers cancel",
+    "input above reviewed maximum unresolved",
+    "fully refunded input not verified",
+    "returned collector fee not collected",
+    "collector net debit leaves collected amount unknown"
+  ],
+  "evidence_scope": {
+    "erc20": "net_transfer_logs",
+    "native_input": "transaction_value_only",
+    "native_refunds_proven": false,
+    "new_provider_calls": 0,
+    "new_signing_or_submission_authority": false,
+    "production_customer_intents_available_for_replay": 0,
+    "real_trade_reconciliation_proven": false
+  },
+  "signed_in_portfolio_postflight": {
+    "release_matches": true,
+    "automatic_wallet_results_visible": true,
+    "status": "Wallet view updated.",
+    "unquoted_exit_value": "Unavailable",
+    "temporary_targets_blank": true,
+    "page_overflow": false,
+    "desktop_width": 1525
+  },
+  "deployment_note": "Initial upload needed the existing dependency-directory link in the new release bundle. No production traffic changed during that failed upload; subsequent complete staging qualification passed before promotion.",
+  "goal_complete": false
+}
