@@ -1,6 +1,6 @@
 # Completed wallet accounting disappears during refresh
 
-Status: implemented and locally verified; production deployment pending. This is the next wallet-depth continuity correction under roadmap package 2. [Authoritative database observations](2026-09-10-wallet-history-rollover-baseline-proof.json) were read without changing any production record.
+Status: first release deployed; compatibility follow-up for already-running legacy extensions is locally verified and awaits deployment. This is the next wallet-depth continuity correction under roadmap package 2. [Authoritative database observations](2026-09-10-wallet-history-rollover-baseline-proof.json) were read without changing any production record.
 
 The Base wallet `0x98a8e6d5049a85b4f59499d31fca4096116e0404` had 13 retained events, eight decoded trades and seven matched sell observations in the completed block window 49,817,746–51,113,682. The version-3 snapshot at 17:09:36 recorded realized `0.826661679888576546` ETH, excluding network fees. The version-4 snapshot at 17:57:28 preserved the same result and one opening-balance entry.
 
@@ -27,3 +27,11 @@ The durable receipt retry ledger now distinguishes gaps after the old verified b
 All 188 targeted wallet/storage/history/delivery tests pass. The four added regressions exercise queued and failed extensions, budget deferral, process restart, balance refresh, newly observed activity outside the verified prefix, extension completion, older and unlocatable receipt gaps, reorgs, changed bounds, truncation and corrected receipts. Two accounting regressions first reproduced unavailable profit with the prior implementation.
 
 The [frozen production-event replay](2026-09-10-wallet-history-rollover-replay-proof.json) uses the same 13 Base events and one archive opening entry. The prior source yields seven matched sells and `0.826661679888576546` ETH while complete, then zero matches and unavailable profit while queued or retrying. The candidate preserves all seven matches and the same exact result in all three states. Its coverage stays at block 51,137,002 (18:02:31 UTC), and complete-wallet-history remains false. This replay made zero provider requests or production writes and left the source events unchanged.
+
+## Deployment compatibility follow-up
+
+Source `001ff0031e0fa66ab9c49b914167bd44b9904242` deployed as `ravenos-001ff0031e0f-e968db7df23c6fe2`, Worker `a2da44c0-edb7-4c62-b2b3-fa4cb5f5a5b4`. The first staging verification received an Atlas EIA series 503. The exact staging and production endpoint subsequently returned 200; rerunning the complete staging verification reused the same uploaded Worker and passed before promotion. The production verifier passed 66 checks, 39 asset digests and 11 HTML/asset/API-access-gate workspaces, with zero transactions. Those eleven are not signed-in journey certifications.
+
+The production read at 18:29:11 UTC exposed a legacy cursor already in an extension: scan head 51,137,722, prior verified head 51,137,002, outbound direction pending, and no duplicate start marker. The first compatibility check accepted only legacy completed heads. Version 6 also accepts a legacy version-1 extension starting exactly one block after its verified prefix, with no unresolved receipts. This uses the old cursor's immutable from-block; missing bounds, noncontiguous scans and unresolved references still fail closed. The new start marker is persisted on the next successful scan.
+
+The original catch-up test now reproduces this deployed upgrade state and passes with the correction. All 188 affected wallet/history/storage/delivery tests pass again. The signed-in Base page has not yet been certified on this compatibility follow-up.

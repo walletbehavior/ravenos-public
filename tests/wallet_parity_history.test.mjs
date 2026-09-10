@@ -153,6 +153,12 @@ test('completed histories catch up from the last verified head instead of scanni
   const next=await loadEvmWalletBackfillPage(env,{...job,provider_cursor:{...result.cursor,advance_from_head:true}},{fetchImpl,now:NOW+600000});
   assert.equal(calls.find(c=>c.method==='alchemy_getAssetTransfers').params[0].fromBlock,hex(137));
   assert.equal(next.cursor.head,hex(146));assert.equal(next.cursor.verified_through_block,hex(136));
+  // The preceding release may already have advanced this immutable v1 window
+  // before the deployment that introduces verified_from_block.
+  const legacy=structuredClone(next.cursor);delete legacy.verified_from_block;
+  assert.equal(evmBackfillAccountingHistory(legacy).verified_window.through_block,136);
+  assert.equal(evmBackfillAccountingHistory({...legacy,unresolved_references:1}).verified_window,null);
+  assert.equal(evmBackfillAccountingHistory({...legacy,scan_from_block:hex(138)}).verified_window,null);
 });
 
 test('completed EVM accounting boundaries survive budget deferral, extension receipt retries and restart',async t=>{
