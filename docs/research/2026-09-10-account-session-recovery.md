@@ -21,3 +21,11 @@ The cause of the original production service interruption is still unconfirmed. 
 - Five additional transaction-tape cases pass in each engine: 360/390/1440-pixel scrolling, readable price/wallet/transaction columns, combined filters, wallet overlays, retained provider responses and Mobula exact-pool amounts.
 - Build, security architecture and public no-leak/38 Worker-response checks pass. Generated import dependencies point at the same content-hashed account reader.
 - Fixture transactions only; no real wallet signature, transfer or trade was requested. Production promotion and the signed-in postflight follow this source qualification.
+
+## Production result and remaining reliability work
+
+Source `03289b1180cc` is live at 100% as `ravenos-03289b1180cc-5f028ca3c95526de`, Worker `b68c4eec-0dfa-4407-bd0a-1a44c053ec0e`, on both domains. Full staging and 41 production checks pass, including 26 asset hashes and seven authenticated entrypoints. Account displayed Signed in securely and hid login actions. Perps kept its chart and signed-in state visible.
+
+Portfolio's first post-promotion load still ended in account-check unavailable. It did **not** falsely display Sign in. Its existing Refresh wallet action succeeded, but the shell badge stayed pending until reload. A subsequent traced reload restored the account, one wallet/holding, consistent SOL/USDC buying power (after normalizing trailing decimal zeros), an unavailable exit estimate and three blank targets without a new login. The actual browser width was 1525 pixels; this is not new live mobile evidence.
+
+The short sanitized Worker trace captured successful session reads (71/164 ms), successful wallet-list reads (188/190 ms), and two balance reads canceled at approximately 10,026/10,027 ms. It did not capture the failed initial account request. Do not infer its cause from the later balance cancellations or count intermittent account availability as solved. Next: propagate successful account rechecks to the shell, apply the same handling to intelligence overlays, and diagnose the remaining request timeouts. Then continue the receipt journal and remaining roadmap. See [production proof](2026-09-10-account-session-production-proof.json).

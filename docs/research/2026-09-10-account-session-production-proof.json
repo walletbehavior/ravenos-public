@@ -1,0 +1,275 @@
+{
+  "recorded_at": "2026-09-10T08:02:01.401688+00:00",
+  "release_id": "ravenos-03289b1180cc-5f028ca3c95526de",
+  "source_commit": "03289b1180cc692d646c74f8caeb2b9773fd88b2",
+  "worker_version_id": "b68c4eec-0dfa-4407-bd0a-1a44c053ec0e",
+  "traffic_percent": 100,
+  "domains": [
+    "ravenos.xyz",
+    "app.ravenos.xyz"
+  ],
+  "archive_sha256": "c9be3a7607f3d879390a821c5cae53b25cfa5efe6f7de081ec5c4d5eedebfff0",
+  "package_content_sha256": "32bae242835fb4a24a03fad7108d239323a45407e5c80648123be12f9ff97eda",
+  "staging_verified_at": "2026-09-10T07:50:58.537Z",
+  "validation": {
+    "node_account_identity": 37,
+    "chromium": 91,
+    "webkit": 91,
+    "tape_chromium": 5,
+    "tape_webkit": 5,
+    "build_security_no_leak": true,
+    "production_checks": 41,
+    "verified_assets": 26,
+    "authenticated_entrypoints": 7,
+    "real_transactions_submitted": 0
+  },
+  "shared_asset": {
+    "url": "/assets/ravenos-account-session.46bd5e9f68535665.js",
+    "all_five_importers_share_same_module": true
+  },
+  "browser": {
+    "actual_width": 1525,
+    "live_mobile_reverified": false,
+    "account": {
+      "authenticated": true,
+      "login_actions_hidden": true,
+      "document_width": 1510
+    },
+    "perps": {
+      "authenticated_header": true,
+      "state": "Review first",
+      "sign_in_link_hidden": true,
+      "chart_canvases": 7,
+      "document_width": 1525
+    },
+    "portfolio_first_load": {
+      "state": "Wallet access could not be checked. Refresh to try again.",
+      "results_visible": false,
+      "header_state": "pending",
+      "incorrect_sign_in_prompt": false,
+      "failed_request_status_not_captured": true
+    },
+    "portfolio_manual_retry": {
+      "results_visible": true,
+      "wallet_count": 1,
+      "holding_count": 1,
+      "header_state": "pending"
+    },
+    "portfolio_subsequent_reload": {
+      "status": "Wallet view updated.",
+      "authenticated_header": true,
+      "results_visible": true,
+      "wallet_count": 1,
+      "holding_count": 1,
+      "sol_buying_power_matches": true,
+      "usdc_buying_power_matches": true,
+      "comparison_ignores_display_trailing_zeros": true,
+      "exit_estimate_unavailable": true,
+      "blank_target_count": 3,
+      "document_width": 1510,
+      "new_login_or_wallet_creation": false
+    }
+  },
+  "sanitized_worker_trace": [
+    {
+      "time": 1789026953870,
+      "path": "/api/v1/wallets/balances",
+      "status": 200,
+      "outcome": "ok",
+      "cpuTime": 7,
+      "wallTime": 403,
+      "exceptions": []
+    },
+    {
+      "time": 1789026979576,
+      "path": "/api/v1/auth/session",
+      "status": 200,
+      "outcome": "ok",
+      "cpuTime": 2,
+      "wallTime": 164,
+      "exceptions": []
+    },
+    {
+      "time": 1789026979792,
+      "path": "/api/v1/portfolio/preview",
+      "status": 200,
+      "outcome": "ok",
+      "cpuTime": 4,
+      "wallTime": 190,
+      "exceptions": []
+    },
+    {
+      "time": 1789026983834,
+      "path": "/api/v1/wallets/balances",
+      "outcome": "canceled",
+      "cpuTime": 3,
+      "wallTime": 10026,
+      "exceptions": []
+    },
+    {
+      "time": 1789026988227,
+      "path": "/api/v1/wallets/balances",
+      "outcome": "canceled",
+      "cpuTime": 2,
+      "wallTime": 10027,
+      "exceptions": []
+    },
+    {
+      "time": 1789027018231,
+      "path": "/api/v1/wallets/balances",
+      "status": 200,
+      "outcome": "ok",
+      "cpuTime": 6,
+      "wallTime": 455,
+      "exceptions": []
+    },
+    {
+      "time": 1789027032722,
+      "path": "/api/v1/auth/config",
+      "status": 200,
+      "outcome": "ok",
+      "cpuTime": 1,
+      "wallTime": 17,
+      "exceptions": []
+    },
+    {
+      "time": 1789027032793,
+      "path": "/api/v1/auth/session",
+      "status": 200,
+      "outcome": "ok",
+      "cpuTime": 2,
+      "wallTime": 71,
+      "exceptions": []
+    },
+    {
+      "time": 1789027032762,
+      "path": "/api/v1/wallets/balances",
+      "status": 200,
+      "outcome": "ok",
+      "cpuTime": 2,
+      "wallTime": 193,
+      "exceptions": []
+    },
+    {
+      "time": 1789027032914,
+      "path": "/api/v1/portfolio/preview",
+      "status": 200,
+      "outcome": "ok",
+      "cpuTime": 3,
+      "wallTime": 188,
+      "exceptions": []
+    },
+    {
+      "time": 1789027043827,
+      "path": "/api/v1/wallets/balances",
+      "outcome": "canceled",
+      "cpuTime": 2,
+      "wallTime": 10008,
+      "exceptions": []
+    },
+    {
+      "time": 1789027062538,
+      "path": "/api/v1/wallets/balances",
+      "status": 503,
+      "outcome": "ok",
+      "cpuTime": 1,
+      "wallTime": 71,
+      "exceptions": []
+    },
+    {
+      "time": 1789027092543,
+      "path": "/api/v1/wallets/balances",
+      "status": 200,
+      "outcome": "ok",
+      "cpuTime": 6,
+      "wallTime": 432,
+      "exceptions": []
+    },
+    {
+      "time": 1789027103856,
+      "path": "/api/v1/wallets/balances",
+      "outcome": "canceled",
+      "cpuTime": 1,
+      "wallTime": 9970,
+      "exceptions": []
+    },
+    {
+      "time": 1789027122538,
+      "path": "/api/v1/wallets/balances",
+      "status": 503,
+      "outcome": "ok",
+      "cpuTime": 2,
+      "wallTime": 73,
+      "exceptions": []
+    },
+    {
+      "time": 1789027152684,
+      "path": "/api/v1/wallets/balances",
+      "status": 200,
+      "outcome": "ok",
+      "cpuTime": 6,
+      "wallTime": 434,
+      "exceptions": []
+    },
+    {
+      "time": 1789027163839,
+      "path": "/api/v1/wallets/balances",
+      "outcome": "canceled",
+      "cpuTime": 2,
+      "wallTime": 9979,
+      "exceptions": []
+    },
+    {
+      "time": 1789027182530,
+      "path": "/api/v1/wallets/balances",
+      "status": 503,
+      "outcome": "ok",
+      "cpuTime": 1,
+      "wallTime": 78,
+      "exceptions": []
+    },
+    {
+      "time": 1789027193838,
+      "path": "/api/v1/wallets/balances",
+      "status": 200,
+      "outcome": "ok",
+      "cpuTime": 7,
+      "wallTime": 435,
+      "exceptions": []
+    },
+    {
+      "time": 1789027212533,
+      "path": "/api/v1/wallets/balances",
+      "status": 200,
+      "outcome": "ok",
+      "cpuTime": 3,
+      "wallTime": 194,
+      "exceptions": []
+    },
+    {
+      "time": 1789027223838,
+      "path": "/api/v1/wallets/balances",
+      "status": 200,
+      "outcome": "ok",
+      "cpuTime": 7,
+      "wallTime": 633,
+      "exceptions": []
+    },
+    {
+      "time": 1789027242531,
+      "path": "/api/v1/wallets/balances",
+      "status": 503,
+      "outcome": "ok",
+      "cpuTime": 2,
+      "wallTime": 76,
+      "exceptions": []
+    }
+  ],
+  "remaining": [
+    "Original failed account request was not traced; underlying transient availability is unresolved.",
+    "Two observed balance reads were canceled after approximately ten seconds.",
+    "A successful manual Portfolio retry did not update a previously pending shell badge until reload.",
+    "Other intelligence-workspace account checks need the same treatment.",
+    "Real buy/sell, settled-position accounting and final roadmap audit are not verified by this record."
+  ]
+}

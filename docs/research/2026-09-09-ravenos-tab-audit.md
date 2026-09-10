@@ -147,3 +147,8 @@ The subsequent `ravenos-be56fb56c047-f023b6397fe6619c` release also passes all 4
 ### September 10: background receipt recovery release
 
 Release `ravenos-9fc1f55acb6b-9efe8c2036be712f` passes 40 production release checks, with 25 manifest assets and seven authenticated workspace entry points. Its scheduled read-only EVM recovery cycle ran with zero errors and zero RPC calls for the empty submission queue. No real trade was placed. The signed-in desktop Portfolio eventually restored its own wallet/holding, matching buying power and the unavailable exit estimate, without another login. Its first reload briefly showed signed-out wording; session reliability remains open pending transient-read handling. This check used the actual 1525-pixel viewport and does not replace the earlier mobile tape proof or the required final full tab audit. Evidence: `2026-09-10-evm-finality-production-proof.json`.
+
+
+### 10 September: account recovery follow-up
+
+`ravenos-03289b1180cc-5f028ca3c95526de` is live on both domains. The focused production audit verified Account signed in, Perps chart plus account access, and Portfolio restored to its own wallet on a traced reload. Initial Portfolio access still failed temporarily, with accurate unavailable wording; manual refresh recovered its data but the header remained pending until reload. Two balance reads hit approximately ten-second cancellations in a bounded metadata-only trace. This is a partial reliability improvement, not completion of the tab audit or the returning-user trading gate. Controlled Chromium/WebKit coverage passes 192 browser cases and 37 reader/identity tests; actual production viewport was 1525 pixels. [Proof and remaining issues](2026-09-10-account-session-production-proof.json).
