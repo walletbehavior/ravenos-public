@@ -13,7 +13,7 @@ async function setup(t) {
   const db=sqliteStore();t.after(()=>db.raw.close());
   const wallets=createD1CustomerWalletCopyStore(db);
   const backfill=createD1SourceWalletBackfillStore(db,{record_events:wallets.recordEvents});
-  async function add(n,{chain='base',profile=false,demand='indexed_research'}={}) {
+  async function add(n,{chain='base',profile=false,trades=0,demand='indexed_research'}={}) {
     const address='0x'+n.toString(16).padStart(40,'0');
     const id=normalizeSourceWalletChainIdentity({chain,network:'mainnet',address});
     await wallets.upsertSourceWallet({...id,now:NOW/1000,state:'requested',provider_scope:'history'});
@@ -27,6 +27,7 @@ async function setup(t) {
         (source_wallet_id,profile_snapshot_id,profile_version,generated_at,trade_count,active_days,token_count,performance_state,closed_lots,profile_hash,updated_at)
         VALUES (?,?,1,?,0,0,0,'insufficient_evidence',0,?,?)`).run(id.source_wallet_id,snapshot,at,'a'.repeat(40),at);
       db.raw.prepare('UPDATE ravenos_source_wallet_backfill_jobs SET signatures_seen=8,page_count=1 WHERE job_id=?').run(job.job_id);
+      if(trades)db.raw.prepare('UPDATE ravenos_source_wallet_current_profiles SET trade_count=? WHERE source_wallet_id=?').run(trades,id.source_wallet_id);
     }
     return job;
   }
@@ -45,6 +46,54 @@ test('new profiles, background depth and customer demand all receive capacity',a
   const again=await backfill.leaseJobs({worker_id:'concurrent_ingestion',now:NOW+1000,limit:4,lease_seconds:180,breadth_slots:2,depth_slots:1});
   assert(!again.some(job=>batch.some(previous=>previous.job_id===job.job_id)));
   assert.equal(db.raw.prepare("SELECT COUNT(*) n FROM ravenos_source_wallet_backfill_jobs WHERE state='leased'").get().n,5);
+});
+
+test('the production allocation finishes trading histories while discovery and ordinary depth keep capacity',async t=>{
+  const {db,backfill,add}=await setup(t),policy=walletIngestionPolicy({});
+  const fresh=await add(1),ordinary=await add(2,{profile:true});
+  const trading=await add(3,{profile:true,trades:6});
+  const urgent=await add(4,{profile:true,demand:'customer_watch'});
+  for(let n=5;n<15;n++)await add(n,{profile:true});
+  db.raw.prepare('UPDATE ravenos_source_wallet_backfill_jobs SET next_attempt_at=? WHERE job_id=?').run(NOW/1000-1,ordinary.job_id);
+  db.raw.prepare('UPDATE ravenos_source_wallet_backfill_jobs SET next_attempt_at=? WHERE job_id=?').run(NOW/1000+1,trading.job_id);
+  const batch=await backfill.leaseJobs({worker_id:'trading_depth',now:NOW+2000,limit:policy.jobs_per_run,
+    lease_seconds:180,breadth_slots:policy.breadth_slots,depth_slots:policy.depth_slots,trading_depth_slots:policy.trading_depth_slots});
+  assert.deepEqual(new Set(batch.map(job=>job.job_id)),new Set([fresh,ordinary,trading,urgent].map(job=>job.job_id)));
+  assert.equal(policy.jobs_per_run,4);assert.equal(policy.breadth_slots,1);assert.equal(policy.depth_slots,2);
+  assert.equal(policy.trading_depth_slots,1);assert.equal(policy.evm_requests_per_hour,6000);
+});
+
+test('trading depth prefers finishing a pinned EVM window and preserves an ordinary-depth slot',async t=>{
+  const {db,backfill,add}=await setup(t);
+  const ordinary=await add(1,{profile:true}),long=await add(2,{profile:true,trades:10}),finish=await add(3,{profile:true,trades:6});
+  const cursor={version:1,direction:'out',direction_states:{in:{completed:true},out:{completed:false}}};
+  db.raw.prepare('UPDATE ravenos_source_wallet_backfill_jobs SET provider_cursor_json=?,next_attempt_at=? WHERE job_id=?')
+    .run(JSON.stringify(cursor),NOW/1000+1,finish.job_id);
+  const leased=await backfill.leaseJobs({worker_id:'finish_window',now:NOW+2000,limit:3,lease_seconds:180,depth_slots:2,trading_depth_slots:1});
+  assert.equal(leased[0].job_id,finish.job_id);assert.equal(leased[1].job_id,ordinary.job_id);
+  assert.equal(leased[2].job_id,long.job_id);assert.equal(new Set(leased.map(job=>job.job_id)).size,3);
+});
+
+test('trading depth lends empty capacity, honors cooldowns and does not change qualification',async t=>{
+  const {db,backfill,add}=await setup(t);
+  const ordinary=[await add(1,{profile:true}),await add(2,{profile:true}),await add(3,{profile:true})];
+  const cooling=await add(4,{profile:true,trades:6});
+  db.raw.prepare("UPDATE ravenos_source_wallet_backfill_jobs SET state='retry_wait',next_attempt_at=? WHERE job_id=?").run(NOW/1000+600,cooling.job_id);
+  const before=db.raw.prepare('SELECT source_wallet_id,trade_count,closed_lots,performance_state FROM ravenos_source_wallet_current_profiles ORDER BY source_wallet_id').all();
+  const leased=await backfill.leaseJobs({worker_id:'lend_trading_depth',now:NOW+1000,limit:3,lease_seconds:180,depth_slots:2,trading_depth_slots:1});
+  assert.deepEqual(new Set(leased.map(job=>job.job_id)),new Set(ordinary.map(job=>job.job_id)));
+  assert.deepEqual(db.raw.prepare('SELECT source_wallet_id,trade_count,closed_lots,performance_state FROM ravenos_source_wallet_current_profiles ORDER BY source_wallet_id').all(),before);
+});
+
+test('trading-depth priority retains service fairness between EVM chains',async t=>{
+  const {db,backfill,add}=await setup(t);
+  const base=await add(1,{chain:'base',profile:true,trades:20});
+  const eth=await add(2,{chain:'ethereum',profile:true,trades:4});
+  const serviced=await add(3,{chain:'base',profile:true});
+  db.raw.prepare("UPDATE ravenos_source_wallet_backfill_jobs SET state='complete',updated_at=? WHERE job_id=?").run(NOW/1000+100,serviced.job_id);
+  const leased=await backfill.leaseJobs({worker_id:'fair_trading_depth',now:NOW+101000,limit:2,lease_seconds:180,depth_slots:1,trading_depth_slots:1});
+  assert.equal(leased[0].job_id,eth.job_id,'A larger trade count must not overrule chain service fairness.');
+  assert.equal(leased[1].job_id,base.job_id);
 });
 
 test('first profile publication cannot starve behind repeated saved-wallet refreshes',async t=>{
@@ -68,17 +117,21 @@ test('unused reserved lanes lend their capacity and retry cooldowns remain intac
 
 test('reserved history lanes do not rescan every job for every candidate',async t=>{
   const {db,backfill,add}=await setup(t);
-  await add(1); await add(2,{chain:'ethereum',profile:true});
+  await add(1); await add(2,{chain:'ethereum',profile:true});await add(3,{chain:'base',profile:true,trades:6});
   const plans=[];
   const prepare=db.prepare.bind(db);
   db.prepare=sql=>{
-    if(sql.includes('PARTITION BY s.chain ORDER BY j.next_attempt_at')) {
-      plans.push(db.raw.prepare('EXPLAIN QUERY PLAN '+sql).all(NOW/1000,NOW/1000,1));
+    const statement=prepare(sql);
+    if(sql.includes('FROM ranked ORDER BY chain_rank,last_served_at')) {
+      return {...statement,bind(...args){
+        plans.push(db.raw.prepare('EXPLAIN QUERY PLAN '+sql).all(...args));
+        return statement.bind(...args);
+      }};
     }
-    return prepare(sql);
+    return statement;
   };
-  await backfill.leaseJobs({worker_id:'query_plan',now:NOW,limit:4,lease_seconds:180,breadth_slots:2,depth_slots:1});
-  assert.equal(plans.length,2);
+  await backfill.leaseJobs({worker_id:'query_plan',now:NOW,limit:4,lease_seconds:180,breadth_slots:1,depth_slots:2,trading_depth_slots:1});
+  assert.equal(plans.length,3);
   for(const plan of plans) assert(!plan.some(row=>/CORRELATED/.test(row.detail)),
     'Chain service history must be grouped once, not rescanned for each eligible wallet.');
 });

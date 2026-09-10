@@ -4,15 +4,17 @@ Tracks the [approved roadmap](2026-09-09-ravenos-roadmap.md) against the [produc
 
 | Package | Status | Current evidence / next gate |
 | --- | --- | --- |
-| 1. Everyday trading | In progress | Holder fix deployed and verified on its failing production example. EVM readiness/estimate fix deployed; 39 release checks pass. Specific signed-in provider preview verification remains pending after a browser-policy rejection. Actual settlement, fees and reconciliation remain open. |
-| 2. Wallet intelligence | In progress | Solana analysis reaches 10,000 retained events, and the two stopped histories advanced to 11,500 each. Split-route v9 accounting is live; the sampled wallet now shows 18 buys. Exact USDT accounting is deployed; the Ethereum production sample shows 14 buys/eight sells and six token records. Deep inventory reconciliation and qualified categories remain incomplete. |
-| 3. Market data | In progress, prioritized | About 5,600 identities, 4,100 quotes and 2,936 qualifying measured. Latest two cycles have zero failed pair batches. Robinhood/BNB token-scoped Txns and the mobile readable/swipeable table are deployed. Discover independent loading and retained refreshes are deployed in d064. Solana/Base/Ethereum Mobula exact-pool tape deployed and verified in 1110. Participation, holder breadth and native OHLC coverage remain incomplete. |
-| 4. Portfolio | In progress | Account-bound Solana capital helper and private trade history are deployed. The signed-in wallet and actual empty history load, with 57 production checks passing on 77b4001. SOL/USDC agree with buying power; target/buffer/concentration proposals work. Real settled-trade and closed-position reconciliation remain open. |
-| 5. Pro intelligence | Pending | Sourced wallet families and prospective outcomes remain required. |
-| 6. Copy / Agents | Pending | Enforced policy and shadow outcomes must precede an expressly authorized controlled live beta. |
-| 7. Shielded Reserve | Pending | Quotes exist; user-controlled signer/recovery and a verified shielded round trip do not. No Raven reserve movement fee. |
-| 8. Commercial readiness | Pending | Test commercial-event reconciliation, alerts, onboarding and plan states. |
+| 1. Everyday trading | In progress | Account/holder recovery, economic-preview preservation, editable quick amounts and named multi-leg exit templates are deployed. Receipt and finality recovery are implemented. Per-chain real buy/sell, settlement, fee and cashback validation remain open; do not retry the rejected quote path. |
+| 2. Wallet intelligence | In progress, current focus | Solana retains and analyzes deeper history; EVM swaps, settlement currencies and styled cards are deployed. Rotation support is live behind a disabled group flag. Complete usable EVM histories, publish qualified groups of 10–50 and verify real rotation; current counts remain unmeasured. |
+| 3. Market data | In progress | The latest bounded API proof delivered about 3,100 qualifying tokens across seven pages per window, and Onchain Reads populated. Readable/swipeable transactions and exact-pool activity are deployed. Holder breadth, freshness, native OHLC coverage and complete per-chain verification remain open. |
+| 4. Portfolio | In progress | Account-bound capital helper and private trade history are deployed; balances agree across the tested surfaces. Targets, gas buffers and concentration proposals work. Real settled-trade and closed-position reconciliation remain open. |
+| 5. Pro intelligence | In progress | Research views and the public wallet-group consumer are implemented. The private source publisher is deferred during Core repairs. Sourced wallet families, analyzed members and prospective follow-through remain required. |
+| 6. Copy / Agents | In progress | Shared named strategy templates and version pinning are deployed; research/shadow foundations exist. Full policy enforcement and attributable shadow outcomes must precede an expressly authorized controlled live beta. |
+| 7. Shielded Reserve | In progress | Quotes exist; user-controlled signer/recovery and a verified shielded round trip remain required. No Raven reserve movement fee. |
+| 8. Commercial readiness | In progress | Account restoration and in-app Monitor access/evidence are deployed. Test real alert delivery, commercial-event reconciliation, refunds, rewards, onboarding and all plan states. |
 | Final production audit | Pending | Repeat every workspace, tab, filter and overlay on desktop/mobile after implementation; fix and retest regressions. |
+
+Full package sign-off remains **0 of 8** as of 10 September, 16:30 UTC. Deployed feature milestones above do not substitute for the original end-to-end gates.
 
 ## Holder inspection: response overflow
 

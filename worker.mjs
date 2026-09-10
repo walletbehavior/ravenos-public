@@ -12201,6 +12201,7 @@ export async function runWalletHistoryIngestion(env) {
             worker_id: `backfill_worker_${Date.now().toString(36)}`,
             maximum_jobs: policy.jobs_per_run,
             breadth_slots: policy.breadth_slots, depth_slots: policy.depth_slots,
+            trading_depth_slots: policy.trading_depth_slots,
             maximum_pages_per_job: 1,
             solana_page_size:heliusWalletHistoryRuntime(env).enabled?heliusBackfillPolicy(env).page_size:100,
             concurrency: 8,

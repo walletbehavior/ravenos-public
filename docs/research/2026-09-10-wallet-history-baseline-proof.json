@@ -1,0 +1,119 @@
+{
+  "schema_version": "ravenos.wallet_history_completion.baseline.v1",
+  "captured_at": "2026-09-10T16:20:42.871313+00:00",
+  "source_commit": "5152df1ae4eb15abd61d66aea45c5036139e6218",
+  "queries": [
+    {
+      "success": true,
+      "results": [
+        {
+          "chain": "base",
+          "jobs": 281,
+          "unfinished": 260,
+          "complete": 21,
+          "bounded_partial": 0,
+          "dead_letter": 0,
+          "profiled": 262,
+          "trading_profiles": 29,
+          "matched_profiles": 0,
+          "unfinished_profiled": 260,
+          "unfinished_trading": 29,
+          "due_trading": 29,
+          "oldest_trading_update": "2026-09-10 04:00:53"
+        },
+        {
+          "chain": "bsc",
+          "jobs": 2686,
+          "unfinished": 2683,
+          "complete": 0,
+          "bounded_partial": 0,
+          "dead_letter": 0,
+          "profiled": 264,
+          "trading_profiles": 24,
+          "matched_profiles": 0,
+          "unfinished_profiled": 262,
+          "unfinished_trading": 24,
+          "due_trading": 24,
+          "oldest_trading_update": "2026-09-10 03:50:52"
+        },
+        {
+          "chain": "ethereum",
+          "jobs": 178,
+          "unfinished": 142,
+          "complete": 32,
+          "bounded_partial": 0,
+          "dead_letter": 3,
+          "profiled": 162,
+          "trading_profiles": 58,
+          "matched_profiles": 0,
+          "unfinished_profiled": 142,
+          "unfinished_trading": 55,
+          "due_trading": 55,
+          "oldest_trading_update": "2026-09-10 06:21:23"
+        },
+        {
+          "chain": "robinhood",
+          "jobs": 3088,
+          "unfinished": 3082,
+          "complete": 5,
+          "bounded_partial": 0,
+          "dead_letter": 0,
+          "profiled": 457,
+          "trading_profiles": 53,
+          "matched_profiles": 0,
+          "unfinished_profiled": 452,
+          "unfinished_trading": 52,
+          "due_trading": 52,
+          "oldest_trading_update": "2026-09-10 00:49:50"
+        },
+        {
+          "chain": "solana",
+          "jobs": 618,
+          "unfinished": 575,
+          "complete": 10,
+          "bounded_partial": 30,
+          "dead_letter": 2,
+          "profiled": 235,
+          "trading_profiles": 197,
+          "matched_profiles": 152,
+          "unfinished_profiled": 197,
+          "unfinished_trading": 166,
+          "due_trading": 165,
+          "oldest_trading_update": "2026-09-10 06:11:23"
+        }
+      ],
+      "rows_read": 46795,
+      "rows_written": 0,
+      "duration_ms": 40.0403
+    },
+    {
+      "success": true,
+      "results": [
+        {
+          "hour": "2026-09-10 16:00:00",
+          "reserved_requests": 3460,
+          "unsettled_reservations": 1,
+          "reservations": 59
+        },
+        {
+          "hour": "2026-09-10 15:00:00",
+          "reserved_requests": 5956,
+          "unsettled_reservations": 1,
+          "reservations": 164
+        },
+        {
+          "hour": "2026-09-10 14:00:00",
+          "reserved_requests": 2194,
+          "unsettled_reservations": 0,
+          "reservations": 179
+        }
+      ],
+      "rows_read": 403,
+      "rows_written": 0,
+      "duration_ms": 1.2148
+    }
+  ],
+  "counts_are_qualified_categories": false,
+  "provider_limit_changed": false,
+  "transactions_submitted": 0
+}
