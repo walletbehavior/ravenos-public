@@ -87,6 +87,23 @@ test('one durable lease serves concurrent visitors and failed refresh preserves 
   db.raw.close();
 });
 
+test('a market rate limit stops the batch and survives the collector restart deadline', async () => {
+  const db = database(), store = createParticipationSnapshotStore(db); let reads = 0;
+  const now = Math.floor(NOW / 1000);
+  const collected = await collectParticipationUniverse({ dexchEnabled: false, now: () => NOW,
+    readKnownMarkets: async () => Array.from({ length: 300 }, (_, i) => ({ chain: 'base', token_address: addr(i + 1) })),
+    readPairs: async () => { reads++; throw Object.assign(new Error('rate limit'), { code: 'market_provider_http_429', retry_after_ms: 120000 }); },
+  });
+  assert(reads <= 4, 'only the in-flight batch can finish after a shared market rate limit');
+  assert(collected.coverage.incomplete_batches > 0);
+  assert.equal(collected.coverage.market_retry_at, new Date(NOW + 120000).toISOString());
+  assert.equal(await store.claim('fixture', now), true);
+  await store.finish('fixture', collected, now);
+  assert.equal(await store.claim('too-early', now + 61), false);
+  assert.equal(await store.claim('after-cooldown', now + 121), true);
+  db.raw.close();
+});
+
 test('collector records bounded backoff causes without retaining provider error bodies', async () => {
   const result = await collectParticipationUniverse({ dexchEnabled: false, now: () => NOW,
     readKnownMarkets: async () => [{ chain: 'base', token_address: addr(1) }],

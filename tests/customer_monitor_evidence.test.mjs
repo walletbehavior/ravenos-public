@@ -4,6 +4,7 @@ import { normalizeDexScreenerActivity } from '../lib/market_provider_fallbacks.m
 import { buildOnchainMonitorEvidence, onchainMonitorInstrumentIds } from '../lib/customer_monitor_evidence.mjs';
 import { normalizeMonitorEvidence, compareMonitorEvidence } from '../lib/customer_monitor_alerts.mjs';
 import { loadMonitorEvidenceBatch } from '../worker.mjs';
+import { collectParticipationUniverse } from '../lib/participation_universe.mjs';
 
 const NOW = Math.floor(Date.now() / 1000);
 const addr = n => '0x' + n.toString(16).padStart(40, '0');
@@ -28,6 +29,18 @@ test('all five chains use their exact fresh pool, never a paired token or anothe
     assert.equal(normalizeMonitorEvidence(result[r.instrument_id], { expected_instrument_id: r.instrument_id, now: NOW }).qualified, true);
   }
   assert.deepEqual(buildOnchainMonitorEvidence(snapshot(rows), [`base:pool:${addr(99)}`], { now: NOW }), {});
+});
+
+test('the real collector compact snapshot remains usable as onchain alert evidence', async () => {
+  const value = await collectParticipationUniverse({ dexchEnabled: false, now: () => NOW * 1000,
+    readKnownMarkets: async () => [{ chain: 'base', token_address: addr(2) }],
+    readPairs: async () => ({ observed_at: new Date(NOW * 1000).toISOString(), value: [{ chainId: 'base', pairAddress: addr(1),
+      baseToken: { address: addr(2), symbol: 'TEST' }, quoteToken: { address: addr(3), symbol: 'ETH' },
+      priceUsd: '1', liquidity: { usd: 100000 }, txns: { h1: { buys: 80, sells: 20 } } }] }),
+  });
+  assert.equal(value.rows.length, 1);
+  const result = buildOnchainMonitorEvidence(value, value.rows.map(row => row.instrument_id), { now: NOW });
+  assert.equal(result[value.rows[0].instrument_id]?.classifications.pressure_regime, '1h buy-led');
 });
 
 test('thin or missing counts omit flow; measured zero is distinct from missing data', () => {

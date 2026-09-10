@@ -10,6 +10,34 @@ const pair = (overrides = {}) => ({ chainId: 'base', pairAddress: address(1), ba
   priceUsd: '2.50', liquidity: { usd: 125000 }, volume: { m5: 8000 }, txns: { m5: { buys: 5, sells: 3 } }, priceChange: { m5: 2 }, pairCreatedAt: NOW - 86400000, ...overrides });
 const token = chain => ({ chain, address: address(2), name: 'Token', symbol: 'TOKEN', priceUsd: 2, liquidityUsd: 10000 });
 
+test('a provider cooldown survives a cold reader without blocking separately limited discovery', async () => {
+  const rows = new Map(); let now = NOW, calls = 0;
+  const cache = { match: async key => rows.get(key.url)?.clone(), put: async (key, response) => rows.set(key.url, response) };
+  const options = { now: () => now, cache: () => cache, fetchFn: async url => {
+    calls++;
+    return url.includes('/tokens/v1/') && now < NOW + 120000 ? new Response('', { status: 429, headers: { 'retry-after': '120' } }) : json({ ok: true });
+  } };
+  await assert.rejects(new MarketProviderReader(options).read('https://api.dexscreener.com/tokens/v1/base/0xaaa'), /429/);
+  now += 45000;
+  await assert.rejects(new MarketProviderReader(options).read('https://api.dexscreener.com/latest/dex/pairs/ethereum/0xbbb'), error => error.code === 'market_provider_backoff' && error.retry_after_ms === 75000);
+  assert.equal(calls, 1);
+  assert.equal((await new MarketProviderReader(options).read('https://api.dexscreener.com/token-profiles/latest/v1')).ok, true);
+  now = NOW + 120001;
+  assert.equal((await new MarketProviderReader(options).read('https://api.dexscreener.com/tokens/v1/base/0xaaa')).ok, true);
+  assert.equal(calls, 3);
+});
+
+test('cache failures cannot clear an existing provider cooldown', async () => {
+  let calls = 0;
+  const reader = new MarketProviderReader({ now: () => NOW,
+    cache: () => ({ match: async () => { throw new Error('cache unavailable'); }, put: async () => { throw new Error('cache unavailable'); } }),
+    fetchFn: async () => { calls++; return new Response('', { status: 429 }); },
+  });
+  await assert.rejects(reader.read('https://api.dexscreener.com/tokens/v1/base/0xaaa'), /429/);
+  await assert.rejects(reader.read('https://api.dexscreener.com/latest/dex/pairs/base/0xbbb'), error => error.code === 'market_provider_backoff' && error.retry_after_ms === 60000);
+  assert.equal(calls, 1);
+});
+
 test('shared provider reads coalesce, preserve observation time, and refresh expired snapshots', async () => {
   let now = NOW, calls = 0;
   const reader = new MarketProviderReader({ now: () => now, cache: () => null, fetchFn: async (_, init) => { calls++; assert.equal(init.redirect, 'manual'); return json({ value: calls }); } });
