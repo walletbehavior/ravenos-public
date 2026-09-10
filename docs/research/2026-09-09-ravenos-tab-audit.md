@@ -133,3 +133,10 @@ The corresponding EVM follow-up recognizes exact Ethereum USDT and BNB Binance-P
 
 
 Final mobile tape release `ravenos-7a12d194f93d-c945a123bfa33899` uses compact mobile wallet labels so price, wallet and Tx fit at the right edge. Full addresses remain in accessible link names, desktop rows, expanded details and wallet intelligence. A stable scrollbar gutter keeps expanded details aligned in a native browser window. The signed-in 390 px postflight displays 120 rows; the table scrolls within the page, and details fit the complete 330 px visible area. Chromium and WebKit checks at 360/390/1440 px pass, as do all 39 production release checks. See [mobile production proof](2026-09-09-mobile-tape-production-proof.json).
+
+
+## September 10 follow-up: account-bound Portfolio capital helper
+
+Release `ravenos-4f9f63d5b7d0-a4a5576b16de06e0` replaces the baseline unavailable account Governor path with an active read-only helper bound to the authenticated embedded Solana wallet. Signed-in Portfolio automatically populated one observed holding; usable SOL/USDC agreed with buying power. Draft working-USDC, SOL-buffer and concentration comparisons produced supported results and cleared after reload. A small unquoted asset displays an unavailable exit value rather than $0. No signing, trading, funding, wallet creation or policy activation occurred.
+
+All 40 release checks pass (25 assets, seven authenticated entry points). Final helper browser coverage passes nine Chromium and nine WebKit cases, including controlled mobile layout. This live pass was desktop at 1,525 pixels because the viewport control did not change the real browser dimensions. Actual closed positions and settlement accounting remain open. See [production proof](2026-09-10-portfolio-capital-production-proof.json).

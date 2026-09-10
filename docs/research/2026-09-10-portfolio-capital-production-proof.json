@@ -1,0 +1,83 @@
+{
+  "schema_version": "ravenos.portfolio_capital_production_proof.v1",
+  "checked_at": "2026-09-10T06:20:06.844368+00:00",
+  "release_id": "ravenos-4f9f63d5b7d0-a4a5576b16de06e0",
+  "source_commit": "4f9f63d5b7d0e2e25adeccc437d876aeed66e641",
+  "worker_version_id": "72ca41f8-4424-4e0b-a365-2e3b939fca9d",
+  "archive_sha256": "ca6e2601734e499e721eed4df914623601cae9cda78f5d8d1cb2491e63f65b68",
+  "production_origins": [
+    "https://ravenos.xyz",
+    "https://app.ravenos.xyz"
+  ],
+  "qualification": {
+    "staged": true,
+    "stage_verified_at": "2026-09-10T06:15:26.600Z",
+    "production_traffic_percent": 100,
+    "release_checks": 40,
+    "verified_assets": 25,
+    "authenticated_workspaces": 7,
+    "transactions_submitted": 0
+  },
+  "signed_in_account": {
+    "automatic_wallet_loading": true,
+    "active_sol_wallet_count": 1,
+    "observed_holding_count": 1,
+    "positive_small_native_balance_visible": true,
+    "sol_matches_buying_power": true,
+    "usdc_matches_buying_power": true,
+    "marked_holdings_state": "Current marks",
+    "unquoted_exit_value": "Unavailable",
+    "temporary_draft_checks": [
+      "USDC target comparison",
+      "SOL buffer comparison",
+      "concentration comparison"
+    ],
+    "targets_persisted": false,
+    "drafts_cleared_by_reload": true,
+    "extra_wallet_connection_required": false,
+    "private_balances_or_addresses_in_proof": false
+  },
+  "browser_coverage": {
+    "production_desktop_width": 1525,
+    "horizontal_page_overflow": false,
+    "production_mobile_in_this_pass": false,
+    "production_mobile_limitation": "Documented viewport setting did not change the browser viewport in this session. No claim of a live phone check for this release.",
+    "controlled_chromium_helper_cases": 9,
+    "controlled_webkit_helper_cases": 9,
+    "controlled_widths": [
+      390,
+      1440
+    ],
+    "broader_affected_chromium_cases": 50
+  },
+  "backend_qualification": {
+    "final_portfolio_and_privy_cases": 91,
+    "passed": 91,
+    "failed": 0,
+    "small_unquoted_position_regression_reproduced_before_fix": true
+  },
+  "atlas_incident": {
+    "initial_staging_failure": "FRED history returned HTTP 503 on staged and production Workers",
+    "recovered": true,
+    "source_change_made": false,
+    "root_cause_confirmed": false,
+    "recovery_source": "current_public_origin",
+    "recovery_observations": 116,
+    "recovery_provider_timestamp": "2026-09-08",
+    "recovery_marked_stale": false,
+    "expired_historical_cache_substituted": false,
+    "staging_checks_weakened": false
+  },
+  "remaining_package_gates": [
+    "Actual settled trade balance consistency",
+    "Real closed-position history and duplicate-capital reconciliation",
+    "Multichain capital coverage"
+  ],
+  "goal_complete": false,
+  "existing_execution_evidence": {
+    "production_intent_count": 0,
+    "query_read_only": true,
+    "rows_written": 0,
+    "settled_trade_gate_passed": false
+  }
+}
