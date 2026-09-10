@@ -3,6 +3,7 @@ import { calculateCapitalPlan, unitsLabel } from './ravenos-capital-plan.js';
 const endpoint = '/api/v1/portfolio/preview';
 const integer = value => /^-?\d+$/.test(String(value ?? ''));
 const money = value => integer(value) ? '$' + unitsLabel(value, 6) : 'Unavailable';
+const coveredMoney = (value, complete, scope) => complete ? money(value) : integer(value) && BigInt(value) > 0n ? `${money(value)} ${scope}` : 'Unavailable';
 const text = (root, id, value) => { const el = root.querySelector('#' + id); if (el) el.textContent = value; };
 const observed = value => Number.isFinite(Date.parse(value)) ? new Date(value).toLocaleString() : 'Unknown time';
 
@@ -40,9 +41,9 @@ export function mountCapitalHelper(root) {
       text(root, 'capitalBalance' + symbol, asset?.spendable_before_network_fees ?? 'Unavailable');
       text(root, 'capitalTotal' + symbol, asset?.amount !== null && asset?.amount !== asset?.spendable_before_network_fees ? `Total ${asset.amount} · usable shown` : 'Before network costs');
     }
-    text(root, 'capitalMarked', money(value.summary?.marked_portfolio_value_minor));
+    text(root, 'capitalMarked', coveredMoney(value.summary?.marked_portfolio_value_minor,value.summary?.marked_value_state === 'current' && value.diagnostics?.observation_state === 'complete','valued portion'));
     text(root, 'capitalMarkedState', value.diagnostics?.observation_state !== 'complete' ? 'Partial wallet observation' : value.freshness?.stale_value_present ? 'Some marks need an update' : value.summary?.marked_value_state === 'current' ? 'Current marks' : 'Some values unavailable');
-    text(root, 'capitalExitValue', money(value.summary?.executable_value_minor));
+    text(root, 'capitalExitValue', coveredMoney(value.summary?.executable_value_minor,value.summary?.executable_value_state === 'current' && value.diagnostics?.observation_state === 'complete','quoted portion'));
     text(root, 'capitalObserved', `Wallet observed ${observed(value.buying_power.observed_at)}. Marked value and exit estimates cover this Solana wallet.`);
     const rows = value.holdings?.rows || [];
     text(root, 'capitalHoldingCount', `${rows.length} shown · ${value.holdings?.observed_position_count ?? rows.length} observed positions`);

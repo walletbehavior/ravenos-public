@@ -15,6 +15,7 @@ async function fixture(page,{authenticated=true}={}) {
     if(state.mode==='failed')return r.fulfill({status:503,json:{ok:false}});
     const body=result();if(state.mode==='wrong_wallet')body.wallet.wallet_reference='wpr_other_wallet_999';
     if(state.mode==='expired')body.buying_power.observed_at=new Date(Date.now()-121000).toISOString();
+    if(state.mode==='no_values') {body.state='partial';body.summary.marked_portfolio_value_minor='0';body.summary.marked_value_state='partial';body.summary.executable_value_minor='0';body.summary.executable_value_state='partial';for(const row of body.holdings.rows){row.marked_value_minor=null;row.executable_value_minor=null;}}
     await r.fulfill({json:body}).catch(()=>{});
   });
   return state;
@@ -52,4 +53,9 @@ test('sign-out clears private values and defeats a pending analysis response',as
 });
 test('signed-out Portfolio does not start wallet analysis',async({page})=>{
  const state=await fixture(page,{authenticated:false});await page.goto('/portfolio/');await expect(page.locator('#capitalStatus')).toContainText('Sign in');expect(state.calls).toEqual([]);
+});
+test('unavailable valuation aggregates are not displayed as a zero-dollar wallet or exit',async({page})=>{
+ const state=await fixture(page);state.mode='no_values';await page.goto('/portfolio/');await expect(page.locator('#capitalResults')).toBeVisible();
+ await expect(page.locator('#capitalMarked')).toHaveText('Unavailable');await expect(page.locator('#capitalExitValue')).toHaveText('Unavailable');
+ await expect(page.locator('#capitalBalanceSOL')).toHaveText('1.234567890');
 });

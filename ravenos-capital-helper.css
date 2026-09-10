@@ -1,4 +1,4 @@
-.capital-helper { margin: 0 0 24px; padding: 24px; background: #0e1620; border: 1px solid #283443; border-radius: 12px; color: #e8edf4; }
+.capital-helper { margin: 0 0 24px; padding: 24px; background: #0e1620; border: 1px solid #283443; border-radius: 12px; color: #e8edf4; scroll-margin-top: calc(var(--ros-topbar-height, 94px) + 12px); }
 .capital-helper > header, .capital-helper .capital-controls { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .capital-helper h2 { margin: 4px 0; font-size: 24px; }
 .capital-helper h3 { margin: 18px 0 10px; font-size: 17px; }
@@ -12,7 +12,7 @@
 .capital-helper .capital-metrics strong { display: block; margin: 8px 0; font-size: 22px; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
 .capital-helper label { display: grid; gap: 8px; font-size: 14px; color: #c5d1df; }
 .capital-helper input { width: 100%; min-width: 0; }
-.capital-helper #capitalPlan { display: grid; gap: 8px; margin: 14px 0; }
+.capital-helper #capitalPlan { display: grid; gap: 8px; margin: 14px 0; overflow-wrap: anywhere; }
 .capital-helper #capitalPlan p { margin-bottom: 0; }
 .capital-helper details { margin-top: 18px; border-top: 1px solid #283443; padding-top: 10px; }
 .capital-helper summary { padding: 12px 0; cursor: pointer; font-size: 15px; }
