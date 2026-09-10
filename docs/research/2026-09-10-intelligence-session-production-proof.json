@@ -1,0 +1,104 @@
+{
+  "recorded_at": "2026-09-10T08:44:02.487110+00:00",
+  "release_id": "ravenos-16e02d452b07-632d72315539b98b",
+  "source_commit": "16e02d452b07da9a17031d7c68e177ff995f6851",
+  "worker_version_id": "d55197a7-2412-469a-bb6e-a11ed80a5c46",
+  "traffic_percent": 100,
+  "domains": [
+    "ravenos.xyz",
+    "app.ravenos.xyz"
+  ],
+  "archive_sha256": "691a888de78ebf0f9f1037ab3397c4891a60f6682d8b59e7f57f3eed590325a7",
+  "package_content_sha256": "d088ff50117af287860839aeee58237bc36c74f633fd847452922a5aa835601e",
+  "staging_verified_at": "2026-09-10T08:32:56.523Z",
+  "qualification": {
+    "node_reader_identity": 41,
+    "chromium": 184,
+    "webkit": 184,
+    "final_button_checks": 10,
+    "build_security_no_leak": true,
+    "production_checks": 53,
+    "verified_assets": 34,
+    "workspace_entrypoints": 11,
+    "real_transactions_submitted": 0,
+    "shared_account_reader_importers": 10,
+    "shared_asset": "/assets/ravenos-account-session.748d9775cb5bc9cd.js"
+  },
+  "staging_retry": {
+    "initial_failure": "Atlas FRED DGS10 history returned HTTP 503",
+    "production_baseline_http_status": 200,
+    "same_candidate_probe_http_status": 200,
+    "same_candidate_observations": 116,
+    "full_original_checks_passed_on_retry": true,
+    "requirements_relaxed": false
+  },
+  "browser": {
+    "actual_width": 1525,
+    "new_live_mobile_evidence": false,
+    "portfolio": {
+      "initial_retry_visible": true,
+      "recovered_automatically": true,
+      "authenticated_header_after_recovery": true,
+      "wallet_count": 1,
+      "holding_count": 1,
+      "results_visible": true,
+      "new_login_or_wallet_creation": false
+    },
+    "account": {
+      "authenticated": true,
+      "status": "Signed in securely",
+      "login_controls_visible": false
+    },
+    "pro": {
+      "authenticated": true,
+      "views_ready": 2,
+      "perps_table_rows": 20,
+      "participant_table_rows": 94,
+      "behavior_lab_selected": true,
+      "account_gate_visible": false,
+      "document_width": 1510
+    },
+    "wallet_intelligence": {
+      "state": "active",
+      "advanced_access_ready": true,
+      "sign_in_visible": false,
+      "selected_chain": "base",
+      "observed_wallet_count": 4477,
+      "current_page_cards": 12,
+      "observations_are_not_qualified_profiles": true,
+      "copied_wallet_count": 0,
+      "shadow_feed_empty": true,
+      "shadow_positions_empty": true
+    },
+    "monitor": {
+      "first_account_check_unavailable": true,
+      "retry_restored_authenticated_workspace": true,
+      "new_login": false,
+      "saved_market_count": 0,
+      "alerts_available_to_account": false,
+      "shell_mounted": false
+    },
+    "community": {
+      "private_profile_controls_visible": true,
+      "public_profile_enabled": false,
+      "qualified_public_board_rows": 0,
+      "following_recheck_unavailable": true,
+      "manual_retry_started": true
+    },
+    "agents": {
+      "workspace_ready": true,
+      "paper_agents_empty": true,
+      "live_execution_disabled": true,
+      "radar_view_opened": true,
+      "radar_state": "Radar disabled"
+    }
+  },
+  "remaining": [
+    "Intermittent server account-check failure is still reproducible; source operation/error category not yet captured.",
+    "The browser log renders the diagnostic object as Object; serialize the fixed diagnostic fields and add bounded server-stage diagnostics.",
+    "Monitor has no shared navigation shell; alerts remain unavailable for this account.",
+    "Agent Radar is disabled; no live/paper agent population was fabricated.",
+    "Community has no qualified public board entries.",
+    "Receipt journal, native settlement/refunds, non-USDC valuation, actual authorized settlement and the other roadmap gates remain open."
+  ]
+}

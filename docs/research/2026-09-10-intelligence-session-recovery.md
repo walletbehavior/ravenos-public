@@ -17,3 +17,11 @@ The browser checks exposed a Pro CSS rule that overrode the hidden attribute on 
 - No real transaction, wallet creation, signature, funding, public-profile publication or autonomous execution was performed. Mutations exercised in browser tests use controlled fixtures only.
 
 The exact cause of the intermittent production account-read interruption remains unconfirmed. The diagnostic addition makes the next failed check distinguishable without logging account data; it is not proof that provider or transport availability is fixed. Actual settlement, the account-scoped receipt journal, native refund/output evidence, non-USDC fee valuation and the remaining roadmap gates stay open. The readable horizontally scrolling transaction tape remains in place.
+
+## Production verification
+
+Source `16e02d452b07` is live at 100% as `ravenos-16e02d452b07-632d72315539b98b`, Worker `d55197a7-2412-469a-bb6e-a11ed80a5c46`. Full staging and 53 production checks pass, including 34 asset hashes and eleven entrypoints. The first staging pass encountered an Atlas FRED history 503; an isolated request returned 116 observations and the complete unmodified checks then passed.
+
+The signed-in audit verified automatic Portfolio recovery with the account badge updated, populated Pro views and Wallet Intelligence, private Community controls, and an empty paper Agents workspace. Monitor and Community still reproduced intermittent account service failures. Monitor's manual retry recovered without login; alerts remain unavailable, Monitor lacks the shared navigation shell, and Agent Radar is disabled. Community has no qualified public board rows. These are recorded gaps rather than readiness claims. No real trade occurred. Actual live browser width was 1525 pixels; mobile evidence comes from the controlled Chromium/WebKit checks. See [production proof](2026-09-10-intelligence-session-production-proof.json).
+
+Next, serialize the fixed client diagnostic fields (the browser log rendered the object as `Object`) and add bounded operation/reason logging at the server session boundary. Trace the failing database/session operation without logging credentials or changing authentication semantics.
