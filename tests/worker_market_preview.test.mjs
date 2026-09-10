@@ -399,6 +399,7 @@ test("Worker proves a same-chain Solana USDC entry and reverse USDC exit without
   const usdc = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
   const providerCalls = [];
   let returnForbiddenMaterial = false;
+  const jupiterUrls = [];
   let reverseQuoteTtlMs = 20_000;
   globalThis.fetch = async (input, init = {}) => {
     const url = new URL(input instanceof URL ? input.toString() : typeof input === "string" ? input : input.url);
@@ -428,19 +429,25 @@ test("Worker proves a same-chain Solana USDC entry and reverse USDC exit without
       return jsonResponse({ jsonrpc: "2.0", id: rpc.id, result: { value: [] } });
     }
     if (url.hostname === "api.jup.ag") {
+      jupiterUrls.push(url);
       const inputMint = url.searchParams.get("inputMint");
       const outputMint = url.searchParams.get("outputMint");
       const reverse = inputMint === token && outputMint === usdc;
       const nativeExit = inputMint === token && outputMint === quote;
       const nativeValuation = inputMint === quote && outputMint === usdc;
       const now = new Date();
+      const referralAccount = url.searchParams.get("referralAccount");
+      const net = amount => referralAccount ? (BigInt(amount) * 99n / 100n).toString() : amount;
       return jsonResponse({
         quoteId: reverse ? "reverse-proof" : nativeExit ? "native-exit" : nativeValuation ? "native-valuation" : "entry-proof",
         inputMint,
         outputMint,
         inAmount: url.searchParams.get("amount"),
-        outAmount: reverse ? "487610000" : nativeExit ? "420000000" : nativeValuation ? "75000000" : "100000000000",
-        otherAmountThreshold: reverse ? "480000000" : nativeExit ? "415000000" : nativeValuation ? "74000000" : "99000000000",
+        outAmount: net(reverse ? "487610000" : nativeExit ? "420000000" : nativeValuation ? "75000000" : "100000000000"),
+        otherAmountThreshold: net(reverse ? "480000000" : nativeExit ? "415000000" : nativeValuation ? "74000000" : "99000000000"),
+        ...(referralAccount ? { referralAccount, router: "metis", feeBps: 100,
+          feeMint: [inputMint, outputMint].includes(quote) ? quote : usdc,
+          platformFee: { feeBps: 100 } } : {}),
         priceImpactPct: reverse ? "0.007" : "0.006",
         quoteTimestamp: now.toISOString(),
         expireAt: new Date(now.getTime() + (reverse ? reverseQuoteTtlMs : 20_000)).toISOString(),
@@ -558,6 +565,32 @@ test("Worker proves a same-chain Solana USDC entry and reverse USDC exit without
     assert.equal(shorterExitBody.timing.expires_at, shorterExitBody.shadow_execution.exit_route.expires_at);
     assert.ok(Date.parse(shorterExitBody.timing.expires_at) < Date.parse(shorterExitBody.shadow_execution.entry_route.expires_at));
     assert.equal(shorterExitBody.shadow_execution.round_trip.exit_verified, true);
+
+    const feeEnvironment = { ...environment, RAVENOS_SOLANA_FEE_COLLECTOR_ADDRESS: "CEACkaNKdHVupnaiEMLGppw8RthjCdoMj8kdxJeg3MfV",
+      RAVENOS_SOLANA_JUPITER_REFERRAL_ACCOUNT: "CAhs68qUBmRVg4i8kh6L6VzDqAWsMtNrE8acoTo3K3Vd", RAVENOS_SOLANA_JUPITER_FEE_ENABLE: "1" };
+    jupiterUrls.length = 0;
+    const feeResponse = await worker.fetch(new Request("https://ravenos.xyz/api/trade/spot-quote-preview", {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(nativeRequest),
+    }), feeEnvironment);
+    const feeBody = await feeResponse.json();
+    assert.equal(feeResponse.status, 200, JSON.stringify(feeBody));
+    assert.equal(feeBody.quote.expected_output_amount_base_units, "99000000000");
+    assert.equal(feeBody.quote.minimum_output_amount_base_units, "98010000000");
+    assert.equal(feeBody.fee_disclosure.estimated.fee_bps, 100);
+    assert.equal(feeBody.fee_disclosure.estimated.amount_base_units, "5000000");
+    assert.equal(feeBody.fee_disclosure.estimated.included_in_output, true);
+    assert.equal(feeBody.fee_disclosure.actual.charged, false);
+    assert.equal(feeBody.fee_policy.actual_fee_bps, 0);
+    assert.equal(feeBody.execution_boundary.transaction_material_available, false);
+    assert.equal(feeBody.shadow_execution.round_trip.current_executable_liquidation_usdc, 482.7339);
+    assert.equal(feeBody.shadow_execution.request.source_amount_usdc, 75);
+    assert.equal(jupiterUrls.length, 3);
+    for (const url of jupiterUrls) {
+      assert.equal(url.searchParams.has("taker"), false);
+      const valuation = url.searchParams.get("inputMint") === quote && url.searchParams.get("outputMint") === usdc;
+      assert.equal(url.searchParams.get("referralFee"), valuation ? null : "100");
+      assert.equal(url.searchParams.get("excludeRouters"), valuation ? null : "jupiterz,dflow,okx");
+    }
 
     returnForbiddenMaterial = true;
     const forbiddenResponse = await worker.fetch(new Request("https://ravenos.xyz/api/trade/spot-quote-preview", {

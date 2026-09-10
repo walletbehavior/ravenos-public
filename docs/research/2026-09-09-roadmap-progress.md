@@ -7,7 +7,7 @@ Tracks the [approved roadmap](2026-09-09-ravenos-roadmap.md) against the [produc
 | Package | Status | Current evidence / next gate |
 | --- | --- | --- |
 | 1. Everyday trading | In progress, current priority | Account/holder recovery, economic-preview preservation, editable quick amounts and named multi-leg exit templates are deployed. Receipt and finality recovery are implemented. Per-chain real buy/sell, settlement, fee and cashback validation remain open; do not retry the rejected quote path. |
-| 2. Wallet intelligence | In progress | Styled cards, deeper history, settlement display and EVM accounting fixes are deployed. The sampled BNB page now shows its 106 buys and 159 sells. Next preserve completed accounting during a pending refresh, finish usable history depth, and populate qualified groups of 10–50 with verified rotation. Group delivery remains behind a disabled flag; current category counts are unmeasured. |
+| 2. Wallet intelligence | In progress | Styled cards, deeper history, settlement display and EVM accounting fixes are deployed. The sampled BNB page shows its 106 buys and 159 sells, and the Base page again preserves seven matched sells during a queued history refresh. Finish usable history depth and populate qualified groups of 10–50 with verified rotation. Group delivery remains behind a disabled flag; current category counts are unmeasured. |
 | 3. Market data | In progress | The latest bounded API proof delivered about 3,100 qualifying tokens across seven pages per window. Onchain Reads populated, and one exact-pool handoff to a Current Terminal Read now passes live. Readable/swipeable transactions are deployed. Holder breadth, freshness, native OHLC coverage and complete per-chain verification remain open. |
 | 4. Portfolio | In progress | Account-bound capital helper and private trade history are deployed; balances agree across the tested surfaces. Targets, gas buffers and concentration proposals work. Real settled-trade and closed-position reconciliation remain open. |
 | 5. Pro intelligence | In progress | Research views and the public wallet-group consumer are implemented. The private source publisher is deferred during Core repairs. Sourced wallet families, analyzed members and prospective follow-through remain required. |
@@ -16,7 +16,7 @@ Tracks the [approved roadmap](2026-09-09-ravenos-roadmap.md) against the [produc
 | 8. Commercial readiness | In progress | Account restoration and in-app Monitor access/evidence are deployed. Test real alert delivery, commercial-event reconciliation, refunds, rewards, onboarding and all plan states. |
 | Final production audit | Pending | Repeat every workspace, tab, filter and overlay on desktop/mobile after implementation; fix and retest regressions. |
 
-Full package sign-off remains **0 of 8** after release `ravenos-2045dcde5c73-1627e8be94d1cce7` on 10 September. Deployed feature milestones above do not substitute for the original end-to-end gates.
+Full package sign-off remains **0 of 8** after release `ravenos-b3dd9992b54e-430a8fa26cfe3046` on 10 September. Deployed feature milestones above do not substitute for the original end-to-end gates. The next [trading correction and authorized approximately $1 test](2026-09-10-solana-trading-fee-preview.md) address the Solana estimate/live fee mismatch and actual fee collection.
 
 ## Holder inspection: response overflow
 

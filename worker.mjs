@@ -35,6 +35,7 @@ import { createSolanaWalletProfileReads } from "./lib/customer_trade/solana_wall
 import { rememberSeenWalletTokenMarks } from "./lib/customer_trade/wallet_token_marks.mjs";
 const solanaWalletTokenMetadataCache = new Map();
 import { RAVEN_JUPITER_REFERRAL } from "./lib/customer_trade/jupiter_referral.mjs";
+import { solanaPreviewFeeEvidence } from "./lib/customer_trade/solana_preview_fee.mjs";
 import { jupiterDiscoveryLifecycle, jupiterDiscoveryAge } from "./lib/jupiter_discovery_lifecycle.mjs";
 import { normalizeHyperliquidPerps } from "./lib/ravenos_perps_intelligence.mjs";
 import {
@@ -6214,13 +6215,18 @@ function assertQuotePayloadContainsNoTransactionMaterial(payload) {
   }
 }
 
-async function fetchJupiterExactSpotQuote({ env = {}, inputMint, outputMint, amountBaseUnits, slippageBps }) {
+async function fetchJupiterExactSpotQuote({ env = {}, inputMint, outputMint, amountBaseUnits, slippageBps, feePolicy = null }) {
   const url = new URL("https://api.jup.ag/swap/v2/order");
   url.searchParams.set("inputMint", inputMint);
   url.searchParams.set("outputMint", outputMint);
   url.searchParams.set("amount", amountBaseUnits);
   url.searchParams.set("slippageBps", String(slippageBps));
   url.searchParams.set("swapMode", "ExactIn");
+  if (feePolicy) url.searchParams.set("excludeRouters", "jupiterz,dflow,okx");
+  if (feePolicy?.enabled) {
+    url.searchParams.set("referralAccount", feePolicy.fee_recipient);
+    url.searchParams.set("referralFee", String(feePolicy.fee_bps));
+  }
   const apiKey = String(env.JUPITER_API_KEY || "").trim();
   const requestedAt = new Date().toISOString();
   const payload = await boundedProviderJson(url, {
@@ -6231,6 +6237,7 @@ async function fetchJupiterExactSpotQuote({ env = {}, inputMint, outputMint, amo
   });
   const receivedAt = new Date().toISOString();
   assertQuotePayloadContainsNoTransactionMaterial(payload);
+  const estimatedFee = solanaPreviewFeeEvidence(payload, { policy: feePolicy, inputMint, outputMint, amountBaseUnits });
   if (String(payload.inAmount || amountBaseUnits) !== amountBaseUnits) throw new Error("quote_input_amount_mismatch");
   if (payload.inputMint && String(payload.inputMint) !== inputMint) throw new Error("quote_input_mint_mismatch");
   if (payload.outputMint && String(payload.outputMint) !== outputMint) throw new Error("quote_output_mint_mismatch");
@@ -6261,6 +6268,7 @@ async function fetchJupiterExactSpotQuote({ env = {}, inputMint, outputMint, amo
     received_at: receivedAt,
     expires_at: expiresAt,
     route_rows: routeRows,
+    estimated_fee: estimatedFee,
   };
 }
 
@@ -7771,16 +7779,18 @@ async function handleTradeSpotQuotePreview(request, env = {}, executionContext =
       };
       const validatedControls = createSolanaSpotAdvancedControls(contractInput.advanced_controls);
       const intent = createExactSolanaSpotIntent(contractInput, marketAuthority);
+      const previewFeePolicy = solanaLiveFeePolicy(env);
       const requestedAt = new Date().toISOString();
       const providerResult = await runProviderOperation({
         component: "solana_spot_quote_preview",
-        operation_key: `${intent.input_mint}:${intent.output_mint}:${intent.amount.exact_input_amount_base_units}:${validatedControls.slippage_bps}`,
+        operation_key: `${intent.input_mint}:${intent.output_mint}:${intent.amount.exact_input_amount_base_units}:${validatedControls.slippage_bps}:fee-${previewFeePolicy.fee_bps}`,
         fn: () => fetchJupiterExactSpotQuote({
           env,
           inputMint: intent.input_mint,
           outputMint: intent.output_mint,
           amountBaseUnits: intent.amount.exact_input_amount_base_units,
           slippageBps: validatedControls.slippage_bps,
+          feePolicy: previewFeePolicy,
         }),
       });
       const provider = providerResult.payload;
@@ -7808,13 +7818,14 @@ async function handleTradeSpotQuotePreview(request, env = {}, executionContext =
         const [reverseResult, sourceValuationResult] = await Promise.all([
           runProviderOperation({
             component: "solana_spot_quote_preview",
-            operation_key: `${tokenAddress}:${SOLANA_CANONICAL_USDC_MINT}:${String(provider.outAmount)}:${validatedControls.slippage_bps}:reverse`,
+            operation_key: `${tokenAddress}:${SOLANA_CANONICAL_USDC_MINT}:${String(provider.outAmount)}:${validatedControls.slippage_bps}:reverse:fee-${previewFeePolicy.fee_bps}`,
             fn: () => fetchJupiterExactSpotQuote({
               env,
               inputMint: tokenAddress,
               outputMint: SOLANA_CANONICAL_USDC_MINT,
               amountBaseUnits: String(provider.outAmount),
               slippageBps: validatedControls.slippage_bps,
+              feePolicy: previewFeePolicy,
             }),
           }).catch(() => null),
           nativeFunding
@@ -7875,7 +7886,7 @@ async function handleTradeSpotQuotePreview(request, env = {}, executionContext =
           destination_asset_id: destinationAssetId,
           expected_output: Number(displayBaseUnits(provider.outAmount, tokenDecimals)),
           minimum_output: Number(displayBaseUnits(provider.otherAmountThreshold, tokenDecimals)),
-          costs_usdc: { network: null, bridge: 0, provider: 0, raven: 0 },
+          costs_usdc: { network: null, bridge: 0, provider: 0, raven: previewFeePolicy.enabled ? null : 0 },
           price_impact_bps: publicQuote.price_impact_bps,
           estimated_settlement_ms: null,
           transaction_count: 1,
@@ -7897,7 +7908,7 @@ async function handleTradeSpotQuotePreview(request, env = {}, executionContext =
               destination_asset_id: settlementAssetId,
               expected_output: Number(displayBaseUnits(exitProvider.outAmount, 6)),
               minimum_output: Number(displayBaseUnits(exitProvider.otherAmountThreshold, 6)),
-              costs_usdc: { network: null, bridge: 0, provider: 0, raven: 0 },
+              costs_usdc: { network: null, bridge: 0, provider: 0, raven: previewFeePolicy.enabled ? null : 0 },
               price_impact_bps: Math.max(0, Math.min(10_000, Math.round((optionalFiniteNumber(exitProvider.priceImpactPct) || 0) * 100))),
               estimated_settlement_ms: null,
               transaction_count: 1,
@@ -7981,11 +7992,13 @@ async function handleTradeSpotQuotePreview(request, env = {}, executionContext =
           expires_at: shadowExecution?.round_trip?.expires_at || providerResult.expires_at,
         },
         fee_disclosure: {
-          configured_enabled: false,
-          configuration_ready: false,
+          configured_enabled: previewFeePolicy.enabled,
+          configuration_ready: previewFeePolicy.configuration_ready,
           configured_fee_bps: freeFee.configured_fee_bps,
+          recipient: previewFeePolicy.fee_recipient || null,
           actual_fee_bps: 0,
           actual_fee_amount_base_units: "0",
+          estimated: providerResult.estimated_fee,
         },
       });
       const ravenReference = body?.plan?.source === "raven_exact_market" ? {
@@ -8019,8 +8032,9 @@ async function handleTradeSpotQuotePreview(request, env = {}, executionContext =
           free_fee_bps: freeFee.configured_fee_bps,
           pro_fee_bps: proFee.configured_fee_bps,
           discount_from_free_pct: proFee.discount_from_free_pct,
-          enabled: false,
-          disclosure_string: freeFee.disclosure_string,
+          enabled: previewFeePolicy.enabled,
+          estimated_fee_bps: providerResult.estimated_fee?.fee_bps ?? 0,
+          disclosure_string: providerResult.estimated_fee ? "Raven fee: 1.00% included in the estimate. Requesting a quote is free." : freeFee.disclosure_string,
         },
         provider_latency_ms: review.timing.provider_latency_ms,
         shadow_execution: shadowExecution,
@@ -8924,6 +8938,7 @@ async function loadCurrentSolanaLivePreparation(body = {}, env = {}, { access_ti
       outputMint: SOLANA_CANONICAL_USDC_MINT,
       amountBaseUnits: preflight.quote.expected_output_amount_base_units,
       slippageBps: controls.slippage_bps,
+      feePolicy,
     });
     exitProof = {
       verified: true,
