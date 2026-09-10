@@ -1,0 +1,50 @@
+{
+  "schema_version": "ravenos.wallet_overlay.production_proof.v1",
+  "recorded_at": "2026-09-10T15:33:19Z",
+  "release_id": "ravenos-fde032c13953-76676a7123b8ce8d",
+  "source_commit": "fde032c1395362423c22398055612dc3dec0687e",
+  "worker_version_id": "804b600d-5aed-45ae-8530-5503c9e138a2",
+  "production_traffic_percent": 100,
+  "archive_sha256": "4a23f0c1ac2872a8a458391ae0d32a4e0876d3d24a511af8d0926d16747f7e0c",
+  "content_sha256": "55cbf6a3ed594aaf3b1e1c30919388a434986625bbaa09df153d7221c0a022ee",
+  "staged_at": "2026-09-10T15:25:12.232Z",
+  "stage_verified_at": "2026-09-10T15:25:53.615Z",
+  "production_checks": { "ok": true, "checks": 66, "verified_assets": 39, "authenticated_workspaces": 11, "transactions_submitted": 0 },
+  "qualification": { "backend": 133, "chromium": 75, "webkit": 75, "worker_response_checks": 41 },
+  "signed_in_browser": {
+    "viewport": [1525, 857],
+    "account_restored": true,
+    "wallet_overlay_visually_styled": true,
+    "wallet_stylesheet_dom_url": "/assets/ravenos-wallet-copy.c76a8752f6f41397.css",
+    "analyzed_profiles_selected": true,
+    "robinhood_observed_wallets": 16319,
+    "robinhood_analyzed_profiles": 457,
+    "current_filter_matches": 54,
+    "displayed_cards": 12,
+    "stored_card_profile_opened": true,
+    "returned_to_same_terminal_market": true,
+    "amount_input_remained_visible": true,
+    "full_tp_sl_shortcut_visually_visible": true,
+    "tp_sl_drawer_chart_context_retained": true,
+    "personal_settings_changed": false,
+    "live_mobile_certified": false
+  },
+  "mobile_qualification": {
+    "controlled_viewport_width": 390,
+    "hashed_css_only_overlay_regression_passed": true,
+    "minimum_description_font_px": 13,
+    "horizontal_containment_passed": true,
+    "chart_url_and_amount_draft_preserved": true
+  },
+  "core_wallet_groups_release_enabled": false,
+  "core_groups_populated": false,
+  "limits": [
+    "The Core public writer and operational route are pending; group fixtures do not establish live category population.",
+    "Many analyzed EVM profiles still contain limited trading history and incomplete cost basis.",
+    "Saved exit templates are not armed orders; no personal settings, watches or execution were activated.",
+    "The full signed-in mobile and desktop tab audit and remaining parent-roadmap gates remain open."
+  ],
+  "migration_rerun": false,
+  "transactions_submitted": 0,
+  "parent_goal_complete": false
+}
