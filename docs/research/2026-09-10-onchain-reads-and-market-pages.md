@@ -18,6 +18,12 @@ At 12:27 UTC, `/api/opportunity` reported a current Onchain producer but had onl
 
 ## Qualification
 
+### Terminal refresh follow-up
+
+The first signed-in production audit found a PCC Read in the exact-pool endpoint while Terminal retained its initial empty result. Opening Raven now rechecks the selected pool, then refreshes at most every 45 seconds while the overlay remains open. Requests are bounded to six seconds, coalesced, and guarded against selection changes and older response sequences. Quote-driven replacement of the selected row cannot discard a same-market Read. Reads older than two minutes expire. All potentially populated sections move into the overlay with their visibility state preserved, so newly arriving content appears inside it and survives closing it. Refreshing does not reset an existing plan preview when current evidence remains available.
+
+Seven Chromium and fifteen WebKit affected browser checks pass, including 390px/1440px empty-to-current recovery and retained content after closing. These are controlled browser tests; the signed-in live viewport is desktop. Production deployment and postflight are recorded in the companion proof.
+
 118 targeted backend/runtime cases pass, including all five Read chains, stale/future/repeated observations, identity changes, thin pools, window distinctions, exact selection and a 2,301-token paged Worker response with zero additional provider calls. Chromium passes 21 affected UI cases; WebKit passes 13. Both engines verify 390px/1440px Reads, complete paged loading, retained source timestamps, chain switching and the affected Discovery behavior. Terminal uses the selected pool's actual Read. Build, security and 41 public-response checks pass.
 
 Production release and signed-in postflight evidence will be recorded after promotion. Source freshness under repeated provider throttling, broader discovery depth, wallet history, qualified behavior families and forward outcomes remain open.

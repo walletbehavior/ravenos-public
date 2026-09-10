@@ -3,7 +3,7 @@
 const stack = [];
 export function intelligenceLayerOpen(kind) { return stack.some(layer => !kind || layer.kind === kind); }
 export function closeIntelligenceLayers() { while (stack.length) stack.at(-1).close(); }
-export function openIntelligenceLayer({ title, kind = 'intelligence', nodes = [], content, parent = document.body, onClose } = {}) {
+export function openIntelligenceLayer({ title, kind = 'intelligence', nodes = [], content, parent = document.body, onClose, preserveNodeVisibility = false } = {}) {
   const focus = document.activeElement, scroll = { x: window.scrollX, y: window.scrollY };
   const dialog = document.createElement('dialog'); dialog.className = 'ros-intelligence-layer'; dialog.dataset.layerKind = kind;
   const header = document.createElement('header'); header.className = 'ros-layer-header';
@@ -14,8 +14,8 @@ export function openIntelligenceLayer({ title, kind = 'intelligence', nodes = []
   header.append(heading, close); dialog.append(header, body);
   const restored = nodes.filter(Boolean).map(node => {
     const marker = document.createComment('intelligence-layer-return'); node.before(marker);
-    const hidden = node.hidden; node.hidden = false; body.append(node);
-    return () => { marker.replaceWith(node); node.hidden = hidden; };
+    const hidden = node.hidden; if (!preserveNodeVisibility) node.hidden = false; body.append(node);
+    return () => { marker.replaceWith(node); if (!preserveNodeVisibility) node.hidden = hidden; };
   });
   if (content) body.append(content);
   parent.append(dialog);

@@ -74,3 +74,31 @@ test('Terminal requests the same exact pool Read and displays its measured press
   await expect(page.locator('#terminalReadSummary')).toContainText('1h price');
   expect(requested).toContain(`robinhood:pool:${ROBINHOOD_POOL}`);
 });
+
+for (const width of [390, 1440]) test(`${width}px: opening Raven recovers a newly available Read inside the overlay`, async ({ page }) => {
+  await page.setViewportSize({ width, height: 900 });
+  await mockTerminalLiveApis(page);
+  let ready = false, requests = 0;
+  await page.route('**/api/onchain/reads?**', route => {
+    requests++;
+    const payload = reads('robinhood', '1h');
+    if (!ready) payload.discovery_radar = { ...payload.discovery_radar, rows: [], row_count: 0 };
+    payload.selected_discovery_market = ready ? payload.discovery_radar.rows[0] : null;
+    return route.fulfill({ json: payload });
+  });
+  await page.goto('/terminal/?' + new URLSearchParams({ market_scope: 'memecoins', market: 'spot', chain: 'robinhood', instrument_id: `robinhood:pool:${ROBINHOOD_POOL}`, pair_address: ROBINHOOD_POOL, token_address: ROBINHOOD_CONTRACT, quote_address: ROBINHOOD_QUOTE, asset: 'RUNNER/WETH' }));
+  await expect(page.locator('#terminalInstrument')).toHaveText('RUNNER/WETH');
+  await expect.poll(() => requests).toBeGreaterThan(0);
+  await expect(page.locator('#terminalContextSection')).toHaveAttribute('hidden');
+  await expect(page.locator('#terminalReadHeadline')).not.toContainText('Buy activity with rising price');
+  ready = true;
+  await page.locator('[data-terminal-pane-button="raven"]').click();
+  const overlay = page.locator('dialog[data-layer-kind="terminal-raven"]');
+  await expect(overlay.locator('#terminalReadHeadline')).toContainText('Buy activity with rising price');
+  await expect(overlay.locator('#terminalReadHeadline')).toBeVisible();
+  await expect(overlay.locator('#terminalRavenEmptySection')).toBeHidden();
+  expect(requests).toBeGreaterThan(1);
+  await overlay.getByRole('button', { name: 'Close', exact: true }).click();
+  await expect(page.locator('#terminalReadHeadline')).toContainText('Buy activity with rising price');
+  await expect(page.locator('#terminalContextSection')).not.toHaveAttribute('hidden');
+});
