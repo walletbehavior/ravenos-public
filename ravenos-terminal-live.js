@@ -26,7 +26,7 @@ const SAVED_RAVEN_OVERLAYS = new Set(["structure", "pressure", "participation", 
 const DEFAULT_RAVEN_OVERLAYS = Object.freeze(["technical-macd", "technical-accumulation"]);
 const SAVED_DENSITIES = new Set(["compact", "comfortable"]);
 const SAVED_PANELS = new Set(["chart", "raven", "book", "trade", "account"]);
-const TERMINAL_PANELS = new Set(["chart", "activity", "holders", "raven", "book", "trade", "account"]);
+const TERMINAL_PANELS = new Set(["chart", "chart_activity", "activity", "holders", "raven", "book", "trade", "account"]);
 const SPOT_ACTIVITY_VIEWS = new Set(["trades", "wallets"]);
 const PLAN_OVERLAY_TYPES = new Set(["plan-entry", "plan-target", "plan-risk"]);
 const SPOT_TICKET_STORAGE_KEY = "ravenos.universal_shadow_ticket_preferences.v1";
@@ -155,6 +155,7 @@ const state = {
   spotTradeCache: new Map(),
   spotTradeLoadingKey: "",
   spotTradeFilter: "all",
+  spotTradeMinimum: 0,
   spotActivityView: "trades",
   spotWalletFilter: "all",
   spotTradeRefreshTimer: null,
@@ -865,7 +866,7 @@ function syncTerminalPaneUrl(pane) {
   const url = new URL(window.location.href);
   if (pane === "chart") url.searchParams.delete("panel");
   else url.searchParams.set("panel", pane);
-  if (pane === "activity" && state.spotActivityView === "wallets") url.searchParams.set("activity_view", "wallets");
+  if (["activity", "chart_activity"].includes(pane) && state.spotActivityView === "wallets") url.searchParams.set("activity_view", "wallets");
   else url.searchParams.delete("activity_view");
   const next = `${url.pathname}${url.search}${url.hash}`;
   if (next !== `${window.location.pathname}${window.location.search}${window.location.hash}`) {
@@ -888,12 +889,12 @@ function setTerminalPane(pane = "chart", { restoreScroll = true, focusId = "" } 
   }
   syncSpotActivityView();
   afterTerminalPaneVisible(() => {
-    if (next === "chart") {
+    if (["chart", "chart_activity"].includes(next)) {
       state.workspace?.chartHandle?.resize?.();
       if (state.lane === "spot") void loadSpotTrades();
     }
     if (next === "activity") void loadSpotTrades();
-    if (!["chart", "activity", "trade"].includes(next)) clearSpotTradeRefresh();
+    if (!["chart", "chart_activity", "activity", "trade"].includes(next)) clearSpotTradeRefresh();
     if (next === "holders") {
       const holderList = document.getElementById("terminalHolderList");
       if (holderList) holderList.open = true;
@@ -903,7 +904,7 @@ function setTerminalPane(pane = "chart", { restoreScroll = true, focusId = "" } 
     if (mobile && restoreScroll) {
       const fallback = document.querySelector(`[data-terminal-pane-button="${next}"]`)?.getBoundingClientRect?.().top + (window.scrollY || 0);
       const saved = state.paneScrollPositions[next];
-      const top = next === "chart" ? 0 : Number.isFinite(saved) ? saved : Number.isFinite(fallback) ? Math.max(0, fallback - 8) : 0;
+      const top = ["chart", "chart_activity"].includes(next) ? 0 : Number.isFinite(saved) ? saved : Number.isFinite(fallback) ? Math.max(0, fallback - 8) : 0;
       window.scrollTo({ top, behavior: "auto" });
     }
     if (focusId) document.getElementById(focusId)?.focus?.({ preventScroll: true });
@@ -917,6 +918,7 @@ function setTerminalPane(pane = "chart", { restoreScroll = true, focusId = "" } 
 function terminalPaneSurface(pane) {
   const targets = {
     chart: ".terminal-chart-panel",
+    chart_activity: "#terminalSpotActivitySection",
     activity: "#terminalSpotActivitySection",
     holders: "#terminalAnatomySection",
     trade: state.lane === "spot" ? "#terminalSpotTicketSection" : "#terminalTradeReviewSection",
@@ -1040,6 +1042,8 @@ function updateTerminalPaneAvailability() {
   if (holdersButton) holdersButton.hidden = !spot;
   const activityButton = document.querySelector('[data-terminal-pane-button="activity"]');
   const spotActivityAvailable = spot && Boolean(currentProjectIdentity());
+  const combinedButton = document.querySelector('[data-terminal-pane-button="chart_activity"]');
+  if (combinedButton) combinedButton.hidden = !spotActivityAvailable;
   if (activityButton) {
     // The spot-market activity surface is always Txns. Do not reuse the
     // Hyperliquid order-book label when pane state changes on mobile.
@@ -4401,7 +4405,7 @@ function clearSpotTradeRefresh() {
 function spotTradeSurfaceActive() {
   if (document.hidden || state.lane !== "spot" || !currentProjectIdentity()) return false;
   if (!terminalUsesPaneNavigation()) return true;
-  return ["chart", "activity", "trade"].includes(document.querySelector(".terminal-live")?.dataset.terminalPane || "chart");
+  return ["chart", "chart_activity", "activity", "trade"].includes(document.querySelector(".terminal-live")?.dataset.terminalPane || "chart");
 }
 
 function scheduleSpotTradeRefresh() {
@@ -4515,7 +4519,7 @@ function renderSpotTradeSummary(payload) {
 
 function filteredSpotTrades(payload) {
   const repeatAddresses = new Set(payload.active_traders.filter((row) => row.recurrence === "repeat").map((row) => row.trader_address));
-  return payload.trades.filter((row) => (
+  return payload.trades.filter((row) => row.volume_usd >= state.spotTradeMinimum && (
     state.spotTradeFilter === "all"
     || row.side === state.spotTradeFilter
     || (state.spotTradeFilter === "large" && row.sample_size_tier === "largest_10_pct")
@@ -4539,6 +4543,9 @@ function appendSpotTradeLink(host, { href, label, title = "" } = {}) {
 function renderSpotTradeRows(payload) {
   const host = document.getElementById("terminalSpotTradeRows");
   if (!host) return;
+  const openIds = new Set([...host.querySelectorAll('details[open]')].map(item => item.dataset.eventId));
+  const focusedId = host.contains(document.activeElement) ? document.activeElement.closest('[data-event-id]')?.dataset.eventId : null;
+  const scrollTop = host.scrollTop;
   host.replaceChildren();
   const rows = filteredSpotTrades(payload);
   if (!rows.length) {
@@ -4546,22 +4553,62 @@ function renderSpotTradeRows(payload) {
     return;
   }
   for (const row of rows) {
-    const item = document.createElement("article");
+    const item = document.createElement("details");
     item.className = "terminal-spot-trade-row";
     item.dataset.sizeTier = row.sample_size_tier;
+    item.dataset.eventId = row.event_id;
+    item.dataset.side = row.side;
+    item.open = openIds.has(row.event_id);
+    const line = document.createElement('summary');
+    line.className = 'terminal-spot-trade-line';
     const observed = document.createElement("time");
     observed.dateTime = row.observed_at;
-    observed.textContent = durationLabel((Date.now() - Date.parse(row.observed_at)) / 1_000);
+    observed.textContent = durationLabel(Math.max(0, (Date.now() - Date.parse(row.observed_at)) / 1_000)).replace(/\s+ago$/, '');
     observed.title = timestamp(row.observed_at);
     const side = document.createElement("span");
     side.className = "terminal-spot-side";
     side.dataset.side = row.side;
-    side.textContent = row.side;
+    side.textContent = row.side === 'buy' ? 'Buy' : 'Sell';
     const volume = document.createElement("strong");
     volume.textContent = compact(row.volume_usd, { currency: true });
     volume.title = `$${Number(row.volume_usd).toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
-    const price = document.createElement("span");
+    const amount = document.createElement('span');
+    amount.className = 'terminal-spot-token-amount';
+    const tokenAmount = finite(row.token_amount);
+    amount.textContent = tokenAmount !== null && tokenAmount > 0 ? compact(tokenAmount) : '—';
+    const quote = document.createElement('span');
+    quote.className = 'terminal-spot-quote-amount';
+    const quoteAmount = payload.schema_version === SPOT_TOKEN_TRADE_SCHEMA ? null : finite(row.quote_amount);
+    quote.textContent = quoteAmount !== null && quoteAmount > 0 ? compact(quoteAmount) : '—';
+    quote.title = quoteAmount !== null && quoteAmount > 0
+      ? `${quoteAmount.toLocaleString('en-US', { maximumFractionDigits: 20 })} ${state.selected?.quoteSymbol || 'quote asset'}`
+      : 'Quote denomination not supplied by this feed';
+    const price = document.createElement('span');
+    price.className = 'terminal-spot-trade-price';
     price.textContent = formatPrice(row.price_usd);
+    const rowWallet = document.createElement(row.trader_address ? 'a' : 'span');
+    rowWallet.className = 'terminal-spot-trade-wallet';
+    rowWallet.textContent = row.trader_address || 'Not listed';
+    if (row.trader_address) {
+      rowWallet.href = `https://app.ravenos.xyz/account/copy/?wallet=${encodeURIComponent(row.trader_address)}&chain=${encodeURIComponent(payload.identity.chain)}`;
+      rowWallet.title = 'Inspect this wallet in Raven';
+    }
+    const transaction = document.createElement('span');
+    transaction.className = 'terminal-spot-transaction-link';
+    appendSpotTradeLink(transaction, { href: row.transaction_explorer_url, label: '↗', title: 'Open public transaction' });
+    transaction.querySelector('a')?.setAttribute('aria-label', 'Open public transaction');
+    line.append(observed, side, volume, amount, quote, price, rowWallet, transaction);
+    const detail = document.createElement('div');
+    detail.className = 'terminal-spot-trade-detail';
+    const metrics = document.createElement('dl');
+    for (const [label, value] of [
+      ['Price', formatPrice(row.price_usd)],
+      ['Reported tokens', tokenAmount !== null && tokenAmount > 0 ? tokenAmount.toLocaleString('en-US', { maximumFractionDigits: 20 }) : 'Not reported'],
+      ['Value', volume.title], ['Time', timestamp(row.observed_at)],
+    ]) {
+      const term = document.createElement('dt'), valueNode = document.createElement('dd');
+      term.textContent = label; valueNode.textContent = value; metrics.append(term, valueNode);
+    }
     const trader = document.createElement("div");
     trader.className = "terminal-spot-trader";
     if (row.trader_address) {
@@ -4571,10 +4618,15 @@ function renderSpotTradeRows(payload) {
       unavailable.textContent = "Not listed";
       trader.append(unavailable);
     }
-    appendSpotTradeLink(trader, { href: row.transaction_explorer_url, label: "Tx", title: "Open public transaction" });
-    item.append(observed, side, volume, price, trader);
+    const walletLabel = document.createElement('span');
+    walletLabel.textContent = 'Wallet';
+    detail.append(metrics, walletLabel, trader);
+    appendSpotTradeLink(detail, { href: row.transaction_explorer_url, label: "View transaction ↗", title: "Open public transaction" });
+    item.append(line, detail);
     host.append(item);
+    if (focusedId === row.event_id) line.focus({ preventScroll: true });
   }
+  host.scrollTop = scrollTop;
 }
 
 function renderActiveWalletMessage(message) {
@@ -4640,18 +4692,18 @@ function renderActiveTraders(payload) {
   renderActiveWalletFilters(payload, holderMap);
   const rows = filteredActiveWallets(payload, holderMap);
   if (!payload.active_traders.length) {
-    renderActiveWalletMessage("No wallet addresses were available in this returned exact-pool sample.");
+    renderActiveWalletMessage("No wallet addresses were available in this returned sample.");
     setText("terminalActiveTraderState", "No wallet rows");
     return;
   }
   if (!rows.length) {
     const emptyMessages = {
-      repeat: "No repeat wallet appears in this returned exact-pool sample.",
-      buy: "No buy-heavy wallet appears in this returned exact-pool sample.",
-      sell: "No sell-heavy wallet appears in this returned exact-pool sample.",
+      repeat: "No repeat wallet appears in this returned sample.",
+      buy: "No buy-heavy wallet appears in this returned sample.",
+      sell: "No sell-heavy wallet appears in this returned sample.",
       holders: "No active wallet in this returned sample also appears in the current listed-holder rows.",
     };
-    renderActiveWalletMessage(emptyMessages[state.spotWalletFilter] || "No wallet matches this filter in the returned exact-pool sample.");
+    renderActiveWalletMessage(emptyMessages[state.spotWalletFilter] || "No wallet matches this filter in the returned sample.");
     setText("terminalActiveTraderState", "No matches");
     return;
   }
@@ -4664,7 +4716,11 @@ function renderActiveTraders(payload) {
     rank.textContent = `#${row.rank}`;
     const identity = document.createElement("div");
     identity.className = "terminal-active-wallet-identity";
-    appendSpotTradeLink(identity, { href: row.explorer_url, label: String(row.trader_address), title: row.trader_address });
+    const walletLink = document.createElement('a');
+    walletLink.href = `https://app.ravenos.xyz/account/copy/?wallet=${encodeURIComponent(row.trader_address)}&chain=${encodeURIComponent(payload.identity.chain)}`;
+    walletLink.textContent = String(row.trader_address);
+    walletLink.title = 'Inspect this wallet in Raven';
+    identity.append(walletLink);
     const description = document.createElement("small");
     const direction = row.direction === "buy_dominant" ? "Buy-heavy" : row.direction === "sell_dominant" ? "Sell-heavy" : "Mixed flow";
     const lastSeenAge = Math.max(0, (Date.now() - Date.parse(row.last_seen_at)) / 1_000);
@@ -4702,6 +4758,10 @@ function renderActiveTraders(payload) {
 
 function renderSpotTradeProjection(payload) {
   const tokenScope = payload.schema_version === SPOT_TOKEN_TRADE_SCHEMA;
+  setText('terminalSpotActivityScope', tokenScope ? 'Across token markets' : 'Exact pool');
+  setText('terminalActiveWalletScope', tokenScope ? 'Across token markets' : 'Exact-pool sample');
+  setText('terminalSpotTokenColumn', state.selected?.symbol || 'Tokens');
+  setText('terminalSpotQuoteColumn', tokenScope ? 'Quote amount' : state.selected?.quoteSymbol || 'Quote amount');
   const tapeUpdate = tokenScope ? null : state.workspace?.ingestExactPoolTrades?.(payload);
   // The workspace owns the exact-pool clock and emits the one canonical price
   // event used by both the forming candle and the header. A rejected or older
@@ -4724,6 +4784,9 @@ function renderSpotTradeProjection(payload) {
   }
   for (const button of document.querySelectorAll("[data-spot-trade-filter]")) {
     button.setAttribute("aria-pressed", String(button.dataset.spotTradeFilter === state.spotTradeFilter));
+  }
+  for (const button of document.querySelectorAll('[data-spot-trade-min]')) {
+    button.setAttribute('aria-pressed', String(Number(button.dataset.spotTradeMin) === state.spotTradeMinimum));
   }
   const holderSurface = document.getElementById("terminalHolderList");
   const holderPaneActive = !terminalUsesPaneNavigation() || document.querySelector(".terminal-live")?.dataset.terminalPane === "holders";
@@ -4767,6 +4830,15 @@ async function loadSpotTrades({ force = false } = {}) {
   }
   const generation = ++state.spotTradeGeneration;
   state.spotTradeLoadingKey = identity.key;
+  const refreshButton = document.getElementById('terminalSpotTradeRefresh');
+  if (refreshButton) refreshButton.disabled = true;
+  const retainPriorTape = () => {
+    if (!cached?.payload) return false;
+    setText('terminalSpotActivityState', 'Update delayed');
+    setTerminalPaneStatus('activity', 'Update delayed', 'warning');
+    setText('terminalSpotTradeCoverage', `${cached.payload.trades.length} retained swaps · ${cached.payload.schema_version === SPOT_TOKEN_TRADE_SCHEMA ? 'across token markets' : 'exact pool'} · loaded ${timestamp(cached.loadedAt)}`);
+    return true;
+  };
   if (!cached?.payload) renderSpotTradeSurface();
   else {
     setText("terminalSpotActivityState", "Refreshing");
@@ -4783,6 +4855,7 @@ async function loadSpotTrades({ force = false } = {}) {
     if (generation !== state.spotTradeGeneration || currentProjectIdentity()?.key !== identity.key) return;
     const verified = response.ok ? verifiedSpotTradeProjection(payload, identity) : null;
     if (!verified) {
+      if (retainPriorTape()) return;
       setText("terminalSpotActivityState", "Unavailable");
       setTerminalPaneStatus("activity", "Unavailable", "warning");
       document.getElementById("terminalSpotFlow").hidden = true;
@@ -4796,6 +4869,7 @@ async function loadSpotTrades({ force = false } = {}) {
     renderSpotTradeProjection(verified);
   } catch {
     if (generation !== state.spotTradeGeneration || currentProjectIdentity()?.key !== identity.key) return;
+    if (retainPriorTape()) return;
     setText("terminalSpotActivityState", "Unavailable");
     setTerminalPaneStatus("activity", "Unavailable", "warning");
     document.getElementById("terminalSpotFlow").hidden = true;
@@ -4803,7 +4877,10 @@ async function loadSpotTrades({ force = false } = {}) {
     renderActiveWalletMessage("Recent traders couldn’t be loaded. You can still inspect its holders.");
     renderSpotTradeMessage("Recent swaps couldn’t be loaded. Refresh to try again.");
   } finally {
-    if (state.spotTradeLoadingKey === identity.key) state.spotTradeLoadingKey = "";
+    if (state.spotTradeLoadingKey === identity.key) {
+      state.spotTradeLoadingKey = "";
+      if (refreshButton) refreshButton.disabled = false;
+    }
     scheduleSpotTradeRefresh();
   }
 }
@@ -4811,6 +4888,14 @@ async function loadSpotTrades({ force = false } = {}) {
 function setSpotTradeFilter(filter) {
   if (!new Set(["all", "buy", "sell", "large", "repeat"]).has(filter)) return;
   state.spotTradeFilter = filter;
+  const payload = state.spotTradeCache.get(currentProjectIdentity()?.key)?.payload;
+  if (payload) renderSpotTradeProjection(payload);
+}
+
+function setSpotTradeMinimum(value) {
+  const minimum = Number(value);
+  if (![0, 100, 1000, 10000].includes(minimum)) return;
+  state.spotTradeMinimum = minimum;
   const payload = state.spotTradeCache.get(currentProjectIdentity()?.key)?.payload;
   if (payload) renderSpotTradeProjection(payload);
 }
@@ -4825,8 +4910,9 @@ function syncSpotActivityView({ updateUrl = false } = {}) {
   for (const button of document.querySelectorAll("[data-spot-activity-view]")) {
     button.setAttribute("aria-pressed", String(button.dataset.spotActivityView === view));
   }
-  if (updateUrl && (document.querySelector(".terminal-live")?.dataset.terminalPane || "chart") === "activity") {
-    syncTerminalPaneUrl("activity");
+  const pane = document.querySelector(".terminal-live")?.dataset.terminalPane || "chart";
+  if (updateUrl && ["activity", "chart_activity"].includes(pane)) {
+    syncTerminalPaneUrl(pane);
   }
 }
 
@@ -8930,6 +9016,7 @@ async function selectSpot(row, { updateUrl = true } = {}) {
   state.context = null;
   state.opportunityEvidence = null;
   state.spotTradeFilter = "all";
+  state.spotTradeMinimum = 0;
   state.spotWalletFilter = "all";
   state.holderListFilter = "all";
   state.holderListExpandedKey = "";
@@ -9633,6 +9720,10 @@ function bindControls() {
   for (const button of document.querySelectorAll("[data-spot-trade-filter]")) {
     button.addEventListener("click", () => setSpotTradeFilter(button.dataset.spotTradeFilter));
   }
+  for (const button of document.querySelectorAll('[data-spot-trade-min]')) {
+    button.addEventListener('click', () => setSpotTradeMinimum(button.dataset.spotTradeMin));
+  }
+  document.getElementById('terminalSpotTradeRefresh')?.addEventListener('click', () => void loadSpotTrades({ force: true }));
   for (const button of document.querySelectorAll("[data-spot-activity-view]")) {
     button.addEventListener("click", () => setSpotActivityView(button.dataset.spotActivityView));
   }
@@ -9959,7 +10050,7 @@ async function boot() {
     : [...DEFAULT_RAVEN_OVERLAYS];
   state.density = SAVED_DENSITIES.has(params.get("density")) ? params.get("density") : "comfortable";
   state.requestedPanel = TERMINAL_PANELS.has(params.get("panel")) ? params.get("panel") : "chart";
-  state.spotActivityView = state.requestedPanel === "activity" && SPOT_ACTIVITY_VIEWS.has(params.get("activity_view")) ? params.get("activity_view") : "trades";
+  state.spotActivityView = ["activity", "chart_activity"].includes(state.requestedPanel) && SPOT_ACTIVITY_VIEWS.has(params.get("activity_view")) ? params.get("activity_view") : "trades";
   document.documentElement.dataset.density = state.density;
   document.body.dataset.density = state.density;
   state.timeframe = TIMEFRAMES.has(params.get("timeframe")) ? params.get("timeframe") : TIMEFRAMES.has(ravenOSContext.getState().timeframe) ? ravenOSContext.getState().timeframe : "1h";

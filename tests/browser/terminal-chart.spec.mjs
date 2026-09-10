@@ -1340,7 +1340,7 @@ test("free top-holder rows have a dedicated, readable 390px Terminal pane", asyn
   const { holderCalls, tradeCalls } = await mockTerminalLiveApis(page, { holderRowCount: 50 });
   await page.goto("/terminal/?instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&token_address=fixture-token-address&quote_address=fixture-quote-address&panel=holders");
   await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1h" });
-  await expect(page.locator("[data-terminal-pane-button]:visible")).toHaveText(["Chart", "Txns", "Holders", "Trade", "Raven"]);
+  await expect(page.locator("[data-terminal-pane-button]:visible")).toHaveText(["Chart", "Chart + Txns", "Txns", "Holders", "Trade", "Raven"]);
   await expect(page.locator("#terminalDeepLink")).toHaveText("Holders & safety");
   await expect(page.locator(".terminal-live")).toHaveAttribute("data-terminal-pane", "holders");
   expect(new URL(page.url()).searchParams.get("panel")).toBe("holders");
@@ -1441,7 +1441,7 @@ test("Robinhood exact-token holders and valuation follow the live exact-pool tap
   await waitForTerminalLive(page, { lane: "spot", instrument: "RUNNER/WETH", timeframe: "1h" });
 
   await page.locator('[data-terminal-pane-button="holders"]').click();
-  await expect(page.locator("[data-terminal-pane-button]:visible")).toHaveText(["Chart", "Txns", "Holders", "Trade", "Raven"]);
+  await expect(page.locator("[data-terminal-pane-button]:visible")).toHaveText(["Chart", "Chart + Txns", "Txns", "Holders", "Trade", "Raven"]);
   await expect.poll(() => holderCalls.length).toBe(1);
   await expect.poll(() => tradeCalls.length).toBeGreaterThan(0);
   await expect.poll(() => page.evaluate(() => window.__RAVENOS_TERMINAL__?.getState?.().diagnostics?.exact_pool_tape?.applied_trades || 0)).toBeGreaterThan(0);
@@ -1482,7 +1482,7 @@ test("recent exact-pool swaps and repeat activity have a dedicated honest mobile
   const { holderCalls, tradeCalls } = await mockTerminalLiveApis(page);
   await page.goto("/terminal/?instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&token_address=fixture-token-address&quote_address=fixture-quote-address");
   await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1h" });
-  await expect(page.locator("[data-terminal-pane-button]:visible")).toHaveText(["Chart", "Txns", "Holders", "Trade", "Raven"]);
+  await expect(page.locator("[data-terminal-pane-button]:visible")).toHaveText(["Chart", "Chart + Txns", "Txns", "Holders", "Trade", "Raven"]);
   await expect.poll(() => tradeCalls.length).toBe(1);
   await page.locator('[data-terminal-pane-button="activity"]').click();
   await expect(page.locator(".terminal-live")).toHaveAttribute("data-terminal-pane", "activity");
@@ -1500,14 +1500,14 @@ test("recent exact-pool swaps and repeat activity have a dedicated honest mobile
   await expect(page.locator("#terminalSpotFlow4")).toHaveText("3 · 100.0% flow");
   await expect(page.locator("#terminalSpotTradeRows .terminal-spot-trade-row")).toHaveCount(36);
   const compactRows = await page.locator("#terminalSpotTradeRows .terminal-spot-trade-row").evaluateAll((rows) => rows.map((row) => row.getBoundingClientRect().height));
-  expect(compactRows.every((height) => height <= 28)).toBe(true);
+  expect(compactRows.every((height) => height >= 44 && height <= 52)).toBe(true);
   await page.locator('[data-spot-trade-filter="buy"]').click();
   await expect(page.locator("#terminalSpotTradeRows .terminal-spot-trade-row")).toHaveCount(24);
   await page.locator('[data-spot-trade-filter="large"]').click();
   await expect(page.locator("#terminalSpotTradeRows .terminal-spot-trade-row")).toHaveCount(4);
   await page.locator('[data-spot-trade-filter="repeat"]').click();
   await expect(page.locator("#terminalSpotTradeRows .terminal-spot-trade-row")).toHaveCount(36);
-  await expect(page.locator("#terminalSpotTradeRows a").first()).toHaveAttribute("href", /solscan\.io\/account\//);
+  await expect(page.locator("#terminalSpotTradeRows .terminal-spot-trader a").first()).toHaveAttribute("href", /solscan\.io\/account\//);
   await expect.poll(() => holderCalls.length).toBe(1);
   await expect(page.locator('[data-terminal-pane-button="holders"]')).toHaveAttribute("data-status", "Watch");
   await page.locator('[data-spot-activity-view="wallets"]').click();
@@ -1564,6 +1564,83 @@ for (const width of [390, 1440]) test(`token activity populates trades and walle
   await expect(page.locator('#terminalActiveTraderNote')).not.toContainText('for this exact pool');
   expect(new URL(page.url()).searchParams.get('instrument_id')).toBe(`robinhood:pool:${ROBINHOOD_POOL}`);
   expect(await page.locator('#terminalSpotActivitySection').evaluate(el => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(2);
+});
+
+for (const width of [360, 390, 1440]) test(`readable transaction tape scrolls to full wallets and combines amount filters at ${width}px`, async ({ page }) => {
+  await page.setViewportSize({ width, height: 844 });
+  const { tradeCalls } = await mockTerminalLiveApis(page, { spotTokenTrades: true });
+  await page.goto(`/terminal/?instrument_id=${encodeURIComponent(`robinhood:pool:${ROBINHOOD_POOL}`)}&lane=spot&market=spot&instrument_type=exact_pool&token_address=${ROBINHOOD_CONTRACT}&quote_address=${ROBINHOOD_QUOTE}&panel=activity`);
+  const rows = page.locator('#terminalSpotTradeRows .terminal-spot-trade-row');
+  await expect(rows).toHaveCount(36);
+  await expect(page.locator('.terminal-spot-trade-head')).toBeVisible();
+  await expect(page.locator('#terminalSpotActivityScope')).toHaveText('Across token markets');
+  const sideFilters = page.locator('#terminalSpotTradeFilters');
+  const sideBounds = await sideFilters.boundingBox();
+  for (const side of ['all', 'buy', 'sell']) {
+    const bounds = await page.locator(`[data-spot-trade-filter="${side}"]`).boundingBox();
+    expect(bounds.x).toBeGreaterThanOrEqual(sideBounds.x);
+    expect(bounds.x + bounds.width).toBeLessThanOrEqual(sideBounds.x + sideBounds.width + 1);
+  }
+  if (width < 821) await expect(page.locator('.terminal-chart-panel')).toBeHidden();
+  const line = rows.first().locator('summary');
+  expect(await line.evaluate(el => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(14);
+  expect((await line.boundingBox()).height).toBeGreaterThanOrEqual(44);
+  await expect(rows.first().locator('.terminal-spot-quote-amount')).toHaveText('—');
+  const viewport = page.locator('#terminalSpotTapeScroll');
+  const geometry = await viewport.evaluate(el => ({ width: el.clientWidth, extent: el.scrollWidth, body: document.documentElement.scrollWidth, viewport: innerWidth }));
+  if (width < 821) expect(geometry.extent).toBeGreaterThan(geometry.width);
+  else expect(geometry.extent).toBeGreaterThanOrEqual(geometry.width);
+  expect(geometry.body).toBeLessThanOrEqual(geometry.viewport + 2);
+  await viewport.evaluate(el => window.scrollTo({top: el.getBoundingClientRect().top + scrollY - 96, behavior: 'instant'}));
+  if (width === 390) await page.screenshot({ path: '/tmp/raven-readable-tape-mobile.png' });
+  await viewport.evaluate(el => { el.scrollLeft = el.scrollWidth; });
+  const wallet = rows.first().locator('.terminal-spot-trade-wallet');
+  await expect(wallet).toHaveText('0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
+  const bounds = await wallet.boundingBox(), viewportBounds = await viewport.boundingBox();
+  expect(bounds.x).toBeGreaterThanOrEqual(viewportBounds.x - 1);
+  expect(bounds.x + bounds.width).toBeLessThanOrEqual(viewportBounds.x + viewportBounds.width + 1);
+  await expect(wallet).toHaveAttribute('href', 'https://app.ravenos.xyz/account/copy/?wallet=0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&chain=robinhood');
+  await expect(rows.first().locator('.terminal-spot-transaction-link a')).toHaveAttribute('href', /\/tx\/0x[0-9a-f]{64}$/);
+  if (width === 390) await page.screenshot({ path: '/tmp/raven-readable-tape-mobile-right.png' });
+  if (width === 390) {
+    // A wallet inspection stays over this tape even when its workspace cannot load.
+    await page.route('**/account/copy/', route => route.fulfill({ status: 503, body: '' }));
+    const tapeUrl = page.url();
+    await wallet.click();
+    await expect(page.locator('.ros-layer-header')).toContainText('Wallet intelligence');
+    await expect(page.locator('.ros-layer-body')).toContainText('Your current market is still open');
+    await expect(page).toHaveURL(tapeUrl);
+    await page.locator('.ros-layer-close').click();
+    await expect(page.locator('.ros-intelligence-layer')).toHaveCount(0);
+    await expect(rows).toHaveCount(36);
+  }
+  await page.locator('[data-spot-trade-min="1000"]').click();
+  await expect(rows).toHaveCount(27);
+  await page.locator('[data-spot-trade-filter="buy"]').click();
+  await expect(rows).toHaveCount(18);
+  await page.locator('[data-spot-trade-min="10000"]').click();
+  await expect(rows).toHaveCount(0);
+  await expect(page.locator('#terminalSpotTradeRows')).toContainText('No swaps match this filter');
+  await page.locator('[data-spot-trade-min="0"]').click();
+  await expect(rows).toHaveCount(24);
+  expect(tradeCalls).toHaveLength(1);
+  const failedRefresh = route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ ok: false }) });
+  await page.route('**/api/onchain/trades?**', failedRefresh);
+  await page.locator('#terminalSpotTradeRefresh').click();
+  await expect(page.locator('#terminalSpotActivityState')).toHaveText('Update delayed');
+  await expect(rows).toHaveCount(24);
+  await expect(page.locator('#terminalSpotTradeCoverage')).toContainText('retained swaps');
+  await page.unroute('**/api/onchain/trades?**', failedRefresh);
+  await page.locator('[data-terminal-pane-button="chart_activity"]').click();
+  await expect(page.locator('.terminal-live')).toHaveAttribute('data-terminal-pane', 'chart_activity');
+  await expect(page.locator('.terminal-chart-panel')).toBeVisible();
+  await expect(page.locator('#terminalSpotActivitySection')).toBeVisible();
+  expect(new URL(page.url()).searchParams.get('panel')).toBe('chart_activity');
+  await page.reload();
+  await expect(page.locator('.terminal-live')).toHaveAttribute('data-terminal-pane', 'chart_activity');
+  await expect(rows).toHaveCount(36);
+  await expect(page.locator('[data-spot-trade-min="0"]')).toHaveAttribute('aria-pressed', 'true');
+  if (width === 390) await page.screenshot({ path: '/tmp/raven-readable-combined-mobile.png', fullPage: true });
 });
 
 test('token activity for another contract is rejected before rendering', async ({ page }) => {
@@ -1638,60 +1715,45 @@ test("desktop spot Terminal keeps the chart beside a focused trade dock without 
   await page.locator('[data-terminal-pane-button="holders"]').click();
   await expect(chart).toBeVisible();
   await expect(page.locator("#terminalAnatomySection")).toBeVisible();
+  await page.locator('.ros-intelligence-layer[open]').getByRole('button', { name: 'Close', exact: true }).click();
   await page.locator('[data-terminal-pane-button="raven"]').click();
   await expect(chart).toBeVisible();
   await expect(page.locator("#terminalContextSection")).toBeVisible();
+  await page.locator('.ros-intelligence-layer[open]').getByRole('button', { name: 'Close', exact: true }).click();
   await page.locator('[data-terminal-pane-button="trade"]').click();
   await expect(chart).toBeVisible();
   await expect(ticket).toBeVisible();
   expect(await page.evaluate(() => window.scrollY)).toBe(0);
 });
 
-test("mobile spot Terminal keeps the live chart in context while trade review opens as a contained sheet", async ({ page }) => {
+test("mobile spot Terminal preserves the inline ticket across transaction and research views", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await mockTerminalLiveApis(page, { spotQuotePreview: true, bullishSpotPlan: true, velocitySpotContext: true });
   await page.goto("/terminal/?instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&token_address=fixture-token-address&quote_address=fixture-quote-address&launch=velocity");
   await waitForTerminalLive(page, { lane: "spot", instrument: "JUP/USDC", timeframe: "1h" });
-
-  const chart = page.locator("#terminalChart");
-  const dock = page.locator("#terminalMobileTradeDock");
+  const chart = page.locator("#terminalChart"), ticket = page.locator("#terminalSpotTicketSection");
   await expect(chart).toBeVisible();
-  await expect(dock).toBeVisible();
-  await expect(dock.locator('[data-terminal-mobile-side="primary"]')).toHaveText("Buy");
-  await expect(dock.locator('[data-terminal-mobile-side="secondary"]')).toHaveText("Sell");
-
-  await dock.locator('[data-terminal-mobile-side="primary"]').click();
-  await expect(page.locator(".terminal-live")).toHaveAttribute("data-terminal-pane", "trade");
+  await expect(ticket).toBeVisible();
+  await expect(page.locator("#terminalMobileTradeDock")).toBeHidden();
+  await expect(page.locator("#terminalTradeSheetDismiss")).toBeHidden();
+  await page.locator("#terminalSpotAmount").fill('75');
+  await page.locator('[data-terminal-pane-button="activity"]').click();
+  await expect(chart).toBeHidden();
+  await expect(ticket).toBeHidden();
+  await expect(page.locator('#terminalSpotActivitySection')).toBeVisible();
+  await page.locator('[data-terminal-pane-button="trade"]').click();
   await expect(chart).toBeVisible();
-  await expect(page.locator("#terminalSpotTicketSection")).toBeVisible();
-  await expect(page.locator("#terminalTradeSheetDismiss")).toBeVisible();
-  await expect(page.locator("#terminalSpotAmount")).toBeFocused();
-  await expect(dock).toBeHidden();
-
-  const geometry = await page.evaluate(() => {
-    const ticket = document.querySelector(".terminal-intelligence")?.getBoundingClientRect();
-    const mobileNav = document.querySelector(".ros-mobile-nav")?.getBoundingClientRect();
-    return {
-      ticketTop: ticket?.top,
-      ticketBottom: ticket?.bottom,
-      navTop: mobileNav?.top,
-      overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
-    };
-  });
-  expect(geometry.ticketTop).toBeGreaterThan(0);
-  expect(geometry.ticketBottom).toBeLessThanOrEqual((geometry.navTop || 844) - 4);
-  expect(geometry.overflow).toBeLessThanOrEqual(2);
-
-  await page.locator("#terminalSpotTicketClose").click();
-  await expect(page.locator(".terminal-live")).toHaveAttribute("data-terminal-pane", "chart");
-  await expect(chart).toBeVisible();
-  await expect(dock).toBeVisible();
-  await expect(page.locator("#terminalSpotTicketSection")).toBeHidden();
-
-  await dock.locator('[data-terminal-mobile-side="secondary"]').click();
-  await expect(page.locator("#terminalSpotSell")).toHaveAttribute("aria-pressed", "true");
-  await page.keyboard.press("Escape");
-  await expect(page.locator(".terminal-live")).toHaveAttribute("data-terminal-pane", "chart");
+  await expect(ticket).toBeVisible();
+  await expect(page.locator("#terminalSpotAmount")).toHaveValue('75');
+  const tradeUrl = page.url();
+  await page.locator('[data-terminal-pane-button="holders"]').click();
+  const overlay = page.locator('.ros-intelligence-layer[open]');
+  await expect(overlay).toBeVisible();
+  expect(page.url()).toBe(tradeUrl);
+  await overlay.getByRole('button', { name: 'Close', exact: true }).click();
+  await expect(ticket).toBeVisible();
+  await expect(page.locator("#terminalSpotAmount")).toHaveValue('75');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(2);
 });
 
 test("Raven Copy handoff opens the exact Solana trade pane with its policy size", async ({ page }) => {

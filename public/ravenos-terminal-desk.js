@@ -253,7 +253,7 @@ export function createTerminalDesk({ openMarket, inspectPane, resizeChart }) {
     },
     pane(pane) {
       if (["chart", "trade", "raven"].includes(pane)) root.dataset.deskDock = pane === "chart" ? "trade" : pane;
-      root.dataset.deskData = ["activity", "holders", "book", "account"].includes(pane) ? pane : "none";
+      root.dataset.deskData = pane === 'chart_activity' ? 'activity' : ["activity", "holders", "book", "account"].includes(pane) ? pane : "none";
       for (const button of dockNav.querySelectorAll("button")) button.setAttribute("aria-pressed", String(button.dataset.deskTab === root.dataset.deskDock));
       // Focus layout expands only on a deliberate panel action.
       if (pane !== "chart" && prefs.layout === "focus") { prefs.layout = "balanced"; apply(); save(); }
