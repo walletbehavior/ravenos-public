@@ -185,6 +185,7 @@ const releaseWrangler = {
     RAVENOS_DEXCH_CHARTS_ENABLED: productionDexchProvider && baseWrangler.vars?.RAVENOS_DEXCH_CHARTS_ENABLED === '1' ? '1' : '0',
     RAVENOS_DEXCH_COMMERCIAL_USE_ACKNOWLEDGED: productionDexchProvider ? "1" : "0",
     RAVENOS_CUSTOMER_ACCOUNTS_ENABLE: customerSecurity.customer_capabilities_enabled === true ? "1" : "0",
+    RAVENOS_EXECUTION_RECOVERY_ENABLED: customerSecurity.execution_reconciliation?.read_only_release_enabled === true ? "1" : "0",
     RAVENOS_LEGAL_ACCEPTANCE_ENABLED: legalAcceptanceActive ? "1" : "0",
     RAVENOS_LEGAL_COUNSEL_APPROVED: legalAcceptanceActive ? "1" : "0",
     RAVENOS_COMMUNITY_ENABLED: communityActive ? "1" : "0",

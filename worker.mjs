@@ -18,7 +18,9 @@ import { heliusWalletHistoryRuntime, loadHeliusWalletHistory, loadHeliusWalletPa
 import { retainMarketWallets } from "./lib/customer_trade/market_wallet_index.mjs";
 import { runRewardPayoutDispatcher } from "./lib/customer_reward_payouts.mjs";
 import { routeCustomerProduct } from "./lib/customer_product_routes.mjs";
-import { captureExecutionRewards, reconcileExecutionRewards, sweepExecutionRewards } from "./lib/customer_rewards.mjs";
+import { recoverExecutionRewards } from './lib/customer_trade/evm_execution_recovery.mjs';
+import { withEvmExecutionFinality } from './lib/customer_trade/evm_execution_finality.mjs';
+import { captureExecutionRewards, reconcileExecutionRewards } from "./lib/customer_rewards.mjs";
 import { readProductAccess, expireProTrials } from "./lib/customer_pro.mjs";
 import { RAVEN_STANDARD_EXECUTION_FEE_BPS, RAVEN_PRO_CASHBACK_PERCENT, productFlags } from "./lib/customer_product.mjs";
 import { emergingDiscoverCandidate } from "./lib/discover_radar.mjs";
@@ -259,7 +261,6 @@ import {
 } from "./lib/customer_trade/evm_live_execution.mjs";
 import {
   createReadOnlyEvmRpcClient,
-  readEvmFinalityEvidence,
   verifyReadOnlyEvmRpcChain,
 } from "./lib/customer_trade/evm_read_only_rpc.mjs";
 import { inspectRobinhoodStockToken } from "./lib/customer_trade/robinhood_stock_token_registry.mjs";
@@ -9121,10 +9122,11 @@ async function handleTradeLiveRobinhoodReport(request, env = {}) {
     const runtime = resolveRobinhoodChainRuntime(env, { network: "mainnet" });
     const rpcClient = createRobinhoodRpcFailoverClient(runtime);
     await verifyRobinhoodRpcChain(rpcClient, runtime);
-    const reconciliation = await reconcileRobinhoodExecution({ ticket: stored.prepared, client_report: report }, {
+    let reconciliation = await reconcileRobinhoodExecution({ ticket: stored.prepared, client_report: report }, {
       rpc_client: rpcClient,
       minimum_confirmations: 1,
     });
+    reconciliation = await withEvmExecutionFinality(reconciliation, rpcClient);
     const persisted = await store.reconcile({
       execution_id: stored.prepared.ticket_id,
       user_id: authorization.principal.user_id,
@@ -9241,37 +9243,7 @@ async function handleTradeLiveEvmReport(request, env = {}, profile) {
       rpc_client: rpcClient,
       minimum_confirmations: 1,
     });
-    if (reconciliation.state === "provider_confirmed") {
-      try {
-        const finality = await readEvmFinalityEvidence(rpcClient);
-        const receiptBlock = BigInt(reconciliation.evidence.block_number);
-        const finalized = receiptBlock <= BigInt(finality.finalized_block);
-        reconciliation = Object.freeze({
-          ...reconciliation,
-          state: finalized ? "provider_confirmed" : "indeterminate",
-          evidence: Object.freeze({
-            ...reconciliation.evidence,
-            reason: finalized ? null : "finality_pending",
-            finality_state: finalized ? "provider_finalized" : "included_not_finalized",
-            finalized,
-            finality_claim: "provider_finalized_tag",
-            finality,
-          }),
-        });
-      } catch {
-        reconciliation = Object.freeze({
-          ...reconciliation,
-          state: "indeterminate",
-          evidence: Object.freeze({
-            ...reconciliation.evidence,
-            reason: "provider_finality_unavailable",
-            finality_state: "unresolved",
-            finalized: false,
-            finality_claim: "unavailable",
-          }),
-        });
-      }
-    }
+    reconciliation = await withEvmExecutionFinality(reconciliation, rpcClient);
     const persisted = await store.reconcile({
       execution_id: stored.prepared.ticket_id,
       user_id: authorization.principal.user_id,
@@ -12232,7 +12204,9 @@ export default {
           loadTrades: (id) => fetchOnchainMarketTrades({env,chain:id.chain,pairAddress:id.pool_address,tokenAddress:id.token_address,quoteAddress:id.quote_token_address}) });
       })().catch(() => console.error(JSON.stringify({event:"wallet_universe_cycle",state:"unavailable"})));
       if (context?.waitUntil) context.waitUntil(universeWork); else await universeWork;
-      const rewardMaintenance = Promise.allSettled([expireProTrials(env.RAVENOS_CUSTOMER_DB), sweepExecutionRewards(env), runRewardPayoutDispatcher(env)]);
+      const rewardMaintenance = Promise.allSettled([expireProTrials(env.RAVENOS_CUSTOMER_DB),
+        recoverExecutionRewards(env).then(({ recovery }) => console.log(JSON.stringify({ event: 'execution_recovery_cycle', ...recovery }))),
+        runRewardPayoutDispatcher(env)]);
       if (context?.waitUntil) context.waitUntil(rewardMaintenance);
       else await rewardMaintenance;
     }

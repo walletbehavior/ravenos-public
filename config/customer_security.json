@@ -15,6 +15,14 @@
   },
   "current_stage": "stage_a_accounts_active",
   "customer_capabilities_enabled": true,
+  "execution_reconciliation": {
+    "read_only_release_enabled": true,
+    "chains": ["robinhood", "base", "bsc", "ethereum"],
+    "existing_submissions_only": true,
+    "rpc_sources": "public_unauthenticated_single_provider_per_chain",
+    "maximum_rpc_requests_per_hour": 360,
+    "customer_signing_or_submission": false
+  },
   "shielded_reserve_research": {
     "stage": "pro_portfolio_shadow_preview",
     "ZCASH_ENABLED": true,
