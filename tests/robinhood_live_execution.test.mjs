@@ -262,7 +262,7 @@ test("client report binds the one-shot live ticket, wallet, reviewed payload, an
   }, prepared.ticket), /robinhood_execution_reviewed_transaction_mismatch/);
 });
 
-test("reconciliation proves exact token debit, output credit, fee transfer, gas, and canonical block", async () => {
+test("reconciliation proves exact token debit, output credit, fee transfer, gas, and canonical block", async (t) => {
   const prepared = preparedBuy();
   const report = normalizeRobinhoodClientExecutionReport({
     ticket_id: prepared.ticket.ticket_id,
@@ -313,6 +313,30 @@ test("reconciliation proves exact token debit, output credit, fee transfer, gas,
   assert.equal(result.evidence.fee_collection.state, "observed");
   assert.equal(result.evidence.fee_collection.observed_amount_base_units, "10000");
   assert.equal(result.evidence.l1_finality_observed, false);
+
+  const sellUnit = 1000000n;
+  const transfer = (token, from, to, amount) => ({address:token,topics:[TRANSFER_TOPIC,topic(from),topic(to)],data:amountHex(amount)});
+  const cases = [
+    {name:'input refunds reduce the recorded cost', logs:[transfer(USDG,ROBINHOOD_ZERO_X_ALLOWANCE_HOLDER,WALLET,sellUnit/20n)], state:'provider_confirmed', debit:(sellUnit*95n/100n).toString()},
+    {name:'outgoing output cannot satisfy the received minimum', logs:[transfer(TOKEN,WALLET,ROBINHOOD_ZERO_X_ALLOWANCE_HOLDER,'20000000000000000')],state:'indeterminate',credit:'480000000000000000',reason:'buy_credit_below_minimum'},
+    {name:'self transfers do not create debit or output',logs:[transfer(USDG,WALLET,WALLET,sellUnit),transfer(TOKEN,WALLET,WALLET,'500000000000000000')],state:'provider_confirmed',debit:sellUnit.toString(),credit:'500000000000000000'},
+    {name:'input beyond the reviewed maximum remains unresolved',logs:[transfer(USDG,WALLET,ROBINHOOD_ZERO_X_ALLOWANCE_HOLDER,1n)],state:'indeterminate',reason:'sell_debit_above_reviewed_amount'},
+    {name:'a completely refunded input has no verified spend',logs:[transfer(USDG,ROBINHOOD_ZERO_X_ALLOWANCE_HOLDER,WALLET,sellUnit)],state:'indeterminate',debit:'0',reason:'sell_debit_not_positive'},
+    {name:'refunded collector fees cannot count as collected',logs:[transfer(USDG,COLLECTOR,ROBINHOOD_ZERO_X_ALLOWANCE_HOLDER,sellUnit/100n)],state:'provider_confirmed',fee:'0',feeState:'indeterminate'},
+    {name:'collector net debit cannot become a negative collected amount',logs:[transfer(USDG,COLLECTOR,ROBINHOOD_ZERO_X_ALLOWANCE_HOLDER,sellUnit/50n)],state:'provider_confirmed',fee:null,feeState:'indeterminate'},
+  ];
+  for (const sample of cases) await t.test(sample.name, async () => {
+    const observed = await reconcileRobinhoodExecution({ticket:prepared.ticket,client_report:report}, {now:NOW+1000,minimum_confirmations:2,rpc_client:{async request(method,...args){
+      const response=await rpc.request(method,...args);
+      return method==='eth_getTransactionReceipt' ? {...response,result:{...response.result,logs:[...response.result.logs,...sample.logs]}} : response;
+    }}});
+    assert.equal(observed.state,sample.state);
+    if(sample.debit!==undefined) assert.equal(observed.evidence.sell_debit_base_units,sample.debit);
+    if(sample.credit!==undefined) assert.equal(observed.evidence.buy_credit_base_units,sample.credit);
+    if(sample.reason) assert.ok(observed.evidence.economic_unresolved_reasons.includes(sample.reason));
+    if(Object.hasOwn(sample,'fee')) assert.equal(observed.evidence.fee_collection.observed_amount_base_units,sample.fee);
+    if(sample.feeState) assert.equal(observed.evidence.fee_collection.state,sample.feeState);
+  });
 });
 
 test("migration preserves populated legacy rows and adds exact, unique, append-only EVM evidence", async () => {

@@ -267,3 +267,12 @@ The first staging attempt stopped because Atlas FRED history returned 503 on bot
 See [Portfolio production proof](2026-09-10-portfolio-capital-production-proof.json). This completes the account-helper milestone, not Package 4: actual settled-trade balance consistency and closed-position accounting remain required. The persistent roadmap goal stays active.
 
 A read-only production D1 query grouped the existing customer execution ledger by chain and state and returned no rows. There are no recorded customer executions available to prove a settled position from this ledger. The query wrote zero rows; no test trade was initiated. Next work inspects receipt economic evidence and accounting independently of new financial authority.
+
+
+### Settlement accounting: EVM net receipt movements
+
+Receipt review found both EVM adapters summing only outgoing sell transfers, incoming buy transfers and incoming collector fees. A refund therefore left an overstated cost; an outgoing received-token transfer could still satisfy the minimum; a self transfer inflated amounts; input above the reviewed amount was accepted; and a returned fee still looked collected. Fourteen new adversarial cases reproduced these errors before the fix.
+
+Both adapters now record net ERC-20 debit/credit across the receipt. Positive refunded input may cost less than the reviewed maximum, but zero/negative spend, excess spend and net output below the reviewed minimum remain unresolved. Collector reversals cannot count as collected fees; a net collector debit is preserved as signed evidence while the nonnegative collected-amount field stays unknown. The evidence distinguishes net token transfers from native transaction value, which alone does not prove native refunds. No trace, balance request, fee setting, signing or submission authority is added.
+
+All 140 EVM-path tests pass, including the 14 previously failing cases; the 120-case rewards/Solana selection also passes. The [0x final-amount documentation](https://docs.0x.org/evm/0x-swap-api/additional-topics/0x-parser) separates settled amounts from quote presentation, and the [fee documentation](https://docs.0x.org/evm/0x-swap-api/guides/monetize-your-app-using-swap) remains the reference for the unchanged integrator-fee configuration. Build and deployment qualification follow. There are no production customer receipts to replay, so this remains controlled receipt evidence rather than a real-money settlement proof.
