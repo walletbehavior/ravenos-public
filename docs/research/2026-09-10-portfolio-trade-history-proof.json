@@ -1,0 +1,53 @@
+{
+  "schema_version": "ravenos.portfolio_history_production_proof.v1",
+  "release_id": "ravenos-77b4001eb4d0-5be8a8e3f01983fe",
+  "source_commit": "77b4001eb4d06001aba4c15dffde4354d2486f77",
+  "worker_version_id": "792ba9f1-f29c-4441-ba59-05dfc51f3eae",
+  "traffic_percent": 100,
+  "domains": ["ravenos.xyz", "app.ravenos.xyz"],
+  "archive_sha256": "adbf5ee3725878831caaad9be184e0304ca083cad4f9b6fb183d56de24499592",
+  "package_content_sha256": "262fce31cf25d72e1561514889f007d854c1f30ce049e0375d374fa24b2b75ec",
+  "source_delta_sha256": "c18b9c2958c71781b0a3d16a0c8aa8dab707605cfb1395e95e74a575dbd5341d",
+  "staging": {"verified": true, "verified_at": "2026-09-10T09:51:29.091Z"},
+  "validation": {
+    "portfolio_backend_tests_passed": 102,
+    "chromium_tests_passed": 26,
+    "webkit_tests_passed": 26,
+    "tested_layout_widths": [360, 390, 1440],
+    "build_security_passed": true,
+    "worker_response_leak_checks": 39,
+    "production_checks_passed": 57,
+    "verified_assets": 36,
+    "workspace_entrypoints": 11,
+    "unauthenticated_history_status": 401,
+    "wrong_origin_history_status": 409
+  },
+  "production_ui": {
+    "observed_at": "2026-09-10T09:53:13.648Z",
+    "viewport_width": 1525,
+    "account": "authenticated",
+    "capital_view_visible": true,
+    "capital_status": "Wallet view updated.",
+    "wallet_options": 1,
+    "history_status": "No Raven trades yet. Your submitted trades and receipts will appear here.",
+    "history_rows": 0,
+    "refresh_completed_at": "2026-09-10T09:53:47.499Z",
+    "refresh_account": "authenticated",
+    "refresh_history_rows": 0,
+    "refresh_control_reenabled": true
+  },
+  "initial_regression": {
+    "source_commit": "f570add0adbd055b34a604c4b0cb3f6fe5ea9023",
+    "observed_status": 404,
+    "cause": "Authenticated app boundary omitted the new exact API path",
+    "reproduced_by_worker_tests_before_fix": true,
+    "resolved_by_current_release": true
+  },
+  "real_transactions_submitted": 0,
+  "wallet_signatures_created": 0,
+  "funds_moved": false,
+  "provider_budget_changes": false,
+  "real_settlement_verified": false,
+  "real_closed_position_verified": false,
+  "entire_roadmap_complete": false
+}
