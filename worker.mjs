@@ -22,7 +22,7 @@ import { captureExecutionRewards, reconcileExecutionRewards, sweepExecutionRewar
 import { readProductAccess, expireProTrials } from "./lib/customer_pro.mjs";
 import { RAVEN_STANDARD_EXECUTION_FEE_BPS, RAVEN_PRO_CASHBACK_PERCENT, productFlags } from "./lib/customer_product.mjs";
 import { emergingDiscoverCandidate } from "./lib/discover_radar.mjs";
-import { preserveDiscoverCandidateLanes, qualifyDiscoverCandidates } from './lib/discover_candidate_lanes.mjs';
+import { preserveDiscoverCandidateLanes, qualifyDiscoverCandidates, cachedDiscoverCandidates } from './lib/discover_candidate_lanes.mjs';
 import { createSolanaWalletProfileReads } from "./lib/customer_trade/solana_wallet_profile_provider.mjs";
 import { rememberSeenWalletTokenMarks } from "./lib/customer_trade/wallet_token_marks.mjs";
 const solanaWalletTokenMetadataCache = new Map();
@@ -4115,6 +4115,7 @@ function attachDiscoverRegistryHistory(rows, history) {
       ...row,
       registry: {
         ...prior.registry,
+        ...row.registry,
         primary_behavior_state: prior.discovery.primary_behavior_state?.value || prior.registry.primary_behavior_state || "forming",
       },
       migration_cohort: prior.discovery.migration_cohort,
@@ -4436,9 +4437,7 @@ async function onchainMarketPulse({ env = {}, request = null, chains = [], durat
   // does not trigger collection, RPC fan-out, or refresh observation timestamps.
   const participation = env.RAVENOS_PARTICIPATION_UNIVERSE_ENABLED === '1' && env.RAVENOS_CUSTOMER_DB?.prepare
     ? await createParticipationSnapshotStore(env.RAVENOS_CUSTOMER_DB).read().catch(() => null) : null;
-  const cachedUniverseRows = (participation?.payload?.rows || []).filter(row => chains.includes(row.chain_id)
-    && Date.now() - Date.parse(row.observed_at) >= 0 && Date.now() - Date.parse(row.observed_at) <= 120_000)
-    .map(row => ({ ...row, discovery_source: 'cached_participation_universe' }));
+  const cachedUniverseRows = cachedDiscoverCandidates(participation?.payload?.rows || [], chains);
   const currentRows = [...jupiterRows, ...providerRows, ...existingRows, ...cachedUniverseRows].map((row) => {
     const token = dexchByToken.get(dexchDiscoveryTokenKey(row.chain_id || row.chain, row.token_address));
     // Holder census is token-wide and may be absent from the pool-price source.

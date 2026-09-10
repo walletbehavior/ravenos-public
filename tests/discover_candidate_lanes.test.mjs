@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { preserveDiscoverCandidateLanes } from '../lib/discover_candidate_lanes.mjs';
+import { preserveDiscoverCandidateLanes, cachedDiscoverCandidates, qualifyDiscoverCandidates } from '../lib/discover_candidate_lanes.mjs';
+import { buildDiscoverRadarProjection } from '../lib/discover_radar.mjs';
+import { spotMarketFactFreshness, spotMarketSnapshotUsable } from '../ravenos-discover-intelligence.js';
 
 const nowMs = Date.now();
 function row(id, state, age = 200_000) {
@@ -48,4 +50,31 @@ test('stale, contradictory and unknown lifecycle evidence cannot consume reserve
   const rows = [...trends, stale, unknown, contradiction];
   assert.deepEqual(preserveDiscoverCandidateLanes(rows, { capacity: 48, nowMs }).slice(0, 48), trends.slice(0, 48));
   assert.deepEqual(preserveDiscoverCandidateLanes(rows, { capacity: 240, nowMs }), rows);
+});
+
+test('recent cached markets remain browsable while their signals expire and bad pools remain excluded', () => {
+  const make = (index, age) => ({ instrument_id: `base:pool:pool${index}`, chain_id: 'base', market_type: 'spot',
+    identity_scope: 'exact_pool', pool_address: `pool${index}`, token_address: `token${index}`, quote_token_address: 'quote',
+    symbol: `COIN${index}`, observed_at: new Date(nowMs - age).toISOString(), context_state: 'current',
+    market: { price_usd: 1, liquidity_usd: 10000, holder_count: 25, volume_usd_5m: 2000, price_change_5m_pct: 10, buys_5m: 25, sells_5m: 10 } });
+  const original = [make(0, 30000), make(1, 180000), make(2, 601000), make(3, -1000),
+    { ...make(4, 180000), market: { ...make(4, 180000).market, liquidity_usd: 0 } },
+    { ...make(5, 180000), chain_id: 'ethereum' }];
+  const cached = cachedDiscoverCandidates(original, ['base'], nowMs);
+  assert.equal(cached.length, 3);
+  assert.equal(cached[1].observed_at, original[1].observed_at);
+  assert.equal(cached[1].context_state, 'delayed');
+  assert.equal(spotMarketSnapshotUsable(cached[1], nowMs), true);
+  assert.equal(spotMarketFactFreshness(cached[1], nowMs).current, false);
+  const qualified = qualifyDiscoverCandidates(cached, { nowMs });
+  assert.equal(qualified.length, 2);
+  const radar = buildDiscoverRadarProjection(qualified, { generatedAt: new Date(nowMs).toISOString(), nowMs });
+  assert.equal(radar.rows.length, 2);
+  const stale = radar.rows.find(row => row.token_address === 'token1');
+  assert.equal(stale.discovery.facts.freshness.state, 'stale');
+  assert.equal(stale.discovery.notability.default_opportunity_eligible, false);
+  assert.equal(stale.discovery.raven_evidence_state.qualified, false);
+  assert.equal(stale.market.price_usd, 1);
+  assert.equal(spotMarketSnapshotUsable(stale, nowMs + 421000), false);
+  assert.equal(original[1].registry, undefined, 'cached projection never mutates retained observations');
 });

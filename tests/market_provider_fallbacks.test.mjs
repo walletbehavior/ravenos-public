@@ -58,6 +58,22 @@ test('quota exhaustion backs off other requests to the same provider while alter
   assert.equal(calls, 3);
 });
 
+test('optional discovery rate limits do not disable market prices; market limits still cover every market endpoint', async () => {
+  let calls = 0, marketFails = false;
+  const reader = new MarketProviderReader({ now: () => NOW, cache: () => null, fetchFn: async url => {
+    calls++;
+    return /\/metas\//.test(url) || marketFails ? json({}, 429) : json({ ok: true });
+  } });
+  await assert.rejects(reader.read('https://api.dexscreener.com/metas/trending/v1'), /429/);
+  await assert.rejects(reader.read('https://api.dexscreener.com/token-profiles/latest/v1'), /backoff/);
+  assert.equal((await reader.read('https://api.dexscreener.com/latest/dex/search?q=ETH')).ok, true);
+  marketFails = true;
+  await assert.rejects(reader.read('https://api.dexscreener.com/tokens/v1/base/0xabc'), /429/);
+  await assert.rejects(reader.read('https://api.dexscreener.com/latest/dex/pairs/base/0xdef'), /backoff/);
+  await assert.rejects(reader.read('https://api.dexscreener.com/token-pairs/v1/base/0xabc'), /backoff/);
+  assert.equal(calls, 3);
+});
+
 test('provider readers reject unexpected origins, query secrets, oversized streaming bodies and invalid JSON', async () => {
   let calls = 0;
   const reader = new MarketProviderReader({ cache: () => null, fetchFn: async () => { calls++; return json({ body: 'x'.repeat(100) }); } });

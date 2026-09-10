@@ -65,6 +65,14 @@ export function spotMarketFactFreshness(row = {}, nowMs = Date.now()) {
   };
 }
 
+// A recent market snapshot can remain useful for browsing through a provider
+// delay. It never extends the 120-second signal or execution-quote boundary.
+export function spotMarketSnapshotUsable(row = {}, nowMs = Date.now()) {
+  const age = nowMs - Date.parse(row.observed_at || '');
+  return row.discovery_source === 'cached_participation_universe'
+    && Number.isFinite(age) && age >= 0 && age <= 600_000;
+}
+
 // Lifecycle evidence follows the token across pools. Provider membership or a
 // young pool alone is not evidence that a token bonded or graduated.
 export function reportedSpotLifecycle(row = {}, nowMs = Date.now()) {

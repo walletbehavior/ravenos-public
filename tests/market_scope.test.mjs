@@ -127,6 +127,18 @@ test('ZEC perps keep their exact market while known Solana ZEC is excluded even 
   assert.equal(instrumentMarketScope({ chain_id: 'solana', market_type: 'spot', token_address: 'A7bdiYdS5GjqGFtxf17ppRHtDKPkkRqbKtR27dxvQXaS' }), null);
 });
 
+test('issuer-listed Base stock contracts stay in Atlas when provider names omit the stock label', () => {
+  const address = '0xb200000000000000000000c2e324d24d7eecd1fb';
+  const stock = { chain_id: 'base', market_type: 'spot', instrument_id: 'base:pool:stock', token_address: address, symbol: 'AAPLc', name: 'Apple Inc.' };
+  for (const row of [stock, { ...stock, name: '', symbol: '' }, { subject: { ...stock, token_address: undefined, tokenAddress: address.toUpperCase() } }]) {
+    assert.equal(instrumentMarketScope(row), 'equities');
+  }
+  const coin = { ...stock, token_address: '0x' + '1'.repeat(40), name: 'Apple Cat', quote_token_address: address, quote_name: 'Apple Inc.' };
+  assert.equal(instrumentMarketScope(coin), 'memecoins');
+  assert.equal(instrumentMarketScope({ ...stock, chain_id: 'ethereum' }), 'memecoins');
+  assert.equal(instrumentMarketScope({ ...coin, name: 'Apple (Coinbase Tokenized Stock)' }), 'equities');
+});
+
  test("all-chain onchain cohorts retain their mode without admitting unknown groups", () => {
   assert.equal(participationMarketScope({chain:"all",capitalization_band:"micro"}),"memecoins");
   assert.equal(participationMarketScope({chain:"all",capitalization_band:"perps_majors"}),"perps");

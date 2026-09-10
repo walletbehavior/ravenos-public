@@ -7,6 +7,7 @@ import {
   opportunityLifecycle,
   spotMarketCapitalization,
   spotMarketFactFreshness,
+  spotMarketSnapshotUsable,
   spotDiscoveryQuality,
   reportedSpotLifecycle,
   spotRouteIsCurrent,
@@ -1445,7 +1446,7 @@ function currentDiscoverRadar(value, expectedTimeframe = null) {
     || !Number.isFinite(generatedMs)
     || generatedMs > Date.now() + 300_000
     || Date.now() - generatedMs > 3_600_000
-    || value.rows.some((row) => !validDiscoverRow(row))
+    || value.rows.some((row) => !validDiscoverRow(row, { allowExpiredSnapshot: spotMarketSnapshotUsable(row) }))
   ) return null;
   return value;
 }
@@ -1785,7 +1786,7 @@ function spotRankedRows({ cohort = state.spotCohort, revival = state.spotRevival
     const currentFacts = spotMarketFactFreshness(row).current;
     return ["solana", "robinhood", "base", "bsc", "ethereum"].includes(chain)
       && (state.spotChain === "all" || chain === state.spotChain)
-      && validDiscoverRow(row, { allowExpiredSnapshot: Boolean(state.participationFilter) })
+      && validDiscoverRow(row, { allowExpiredSnapshot: Boolean(state.participationFilter) || spotMarketSnapshotUsable(row) })
       && ((!currentFacts && retained && state.participationFilter) || spotDiscoveryQuality(row).eligible)
       && opportunityLaneMatches(row, lane)
       && revivalScanMatches(row, revival)
@@ -1794,7 +1795,7 @@ function spotRankedRows({ cohort = state.spotCohort, revival = state.spotRevival
       && (!state.participationFilter || matchesParticipationCell(row, state.participationFilter))
       && (lane !== "opportunities" || currentFacts)
       && (state.spotSort !== "raven" || currentFacts)
-      && (retained || state.participationFilter || (
+      && ((retained && (row.discovery_source !== 'cached_participation_universe' || spotMarketSnapshotUsable(row))) || state.participationFilter || (
         survivesCurrentSpotMarket(row, { allowQuietLifecycle: lifecycleBrowse })
         && ((lifecycleBrowse && reportedLaunchpadLifecycle(row))
           || (broadDegenScan ? hasDegenRelevantSpotActivity(row) : hasDecisionUsefulSpotActivity(row)))
@@ -2240,6 +2241,8 @@ function renderSpotEvidence(shell, row) {
 function updateSpotTokenRow(anchor, row, index) {
   const discovery = row.discovery;
   const factFreshness = spotMarketFactFreshness(row);
+  const storedSnapshot = !factFreshness.current && spotMarketSnapshotUsable(row);
+  const displayMarketFacts = factFreshness.current || storedSnapshot;
   const velocityScore = radarScore(row, "velocity");
   const activityScore = radarScore(row, "activity");
   const risks = rowRiskValues(row);
@@ -2306,7 +2309,7 @@ function updateSpotTokenRow(anchor, row, index) {
   ].filter(Boolean).join(" · ");
   if (marketIdentity) marketId.append(document.createTextNode(`${marketIdentity} · `));
   const marketAge = append(marketId, "time", "discover-token-quote-age", "");
-  setSpotAgeNode(marketAge, row, factFreshness.current ? "Quote" : "Last exact update", " ");
+  setSpotAgeNode(marketAge, row, factFreshness.current ? "Quote" : storedSnapshot ? "Snapshot" : "Last exact update", " ");
   append(copy, "span", "discover-token-mobile-meta", [
     spotChainLabel(row.chain_id || row.chain),
     spotMarketAge(row.market?.token_age_seconds),
@@ -2315,7 +2318,7 @@ function updateSpotTokenRow(anchor, row, index) {
   const move = append(anchor, "div", "discover-token-move", "");
   move.textContent = "";
   const participationRanking = state.participationFilter && state.spotSort === "participation";
-  const selectedMovement = participationRanking ? participationReturn(row) : factFreshness.current ? spotMetric(row, "price_change") : null;
+  const selectedMovement = participationRanking ? participationReturn(row) : displayMarketFacts ? spotMetric(row, "price_change") : null;
   const primaryTrigger = discovery.notability?.primary_trigger;
   const triggerMovement = primaryTrigger?.kind === "material_price_move" ? finite(primaryTrigger.value_pct) : null;
   const showPrimaryTrigger = factFreshness.current
@@ -2323,9 +2326,9 @@ function updateSpotTokenRow(anchor, row, index) {
     && discovery.notability?.qualified === true
     && triggerMovement !== null;
   const movement = showPrimaryTrigger ? triggerMovement : selectedMovement;
-  const movementValue = append(move, "strong", "", factFreshness.current ? percent(movement) : "Refreshing quote");
-  if (movement !== null) movementValue.classList.add(movement >= 0 ? "positive" : "negative");
-  const currentPrice = factFreshness.current ? tokenPrice(row.market?.price_usd) : "";
+  const movementValue = append(move, "strong", "", displayMarketFacts ? percent(movement) : "Refreshing quote");
+  if (movement !== null && factFreshness.current) movementValue.classList.add(movement >= 0 ? "positive" : "negative");
+  const currentPrice = displayMarketFacts ? tokenPrice(row.market?.price_usd) : "";
   if (currentPrice) append(move, "span", "", currentPrice);
   const glyph = factFreshness.current ? momentumGlyph(row) : null;
   if (glyph) move.append(glyph);
@@ -2336,30 +2339,30 @@ function updateSpotTokenRow(anchor, row, index) {
         ? `${primaryTrigger.window} material move`
         : `${primaryTrigger.window} trigger · ${state.spotTimeframe} now ${percent(selectedMovement)}`
       : participationRanking ? "6h move" : `${state.spotTimeframe} move`
-    : "Last exact update";
+    : storedSnapshot ? `${state.spotTimeframe} snapshot` : "Last exact update";
   setSpotAgeNode(moveContext, row, movePrefix, factFreshness.current ? " · " : " ");
 
   const anatomy = append(anchor, "div", "discover-token-anatomy", "");
   anatomy.textContent = "";
-  renderTokenStat(anatomy, participationRanking ? "6h Vol" : "Vol", !factFreshness.current || finite(spotMetric(row, "volume_usd")) === null ? "" : compact(spotMetric(row, "volume_usd"), { currency: true }));
-  renderTokenStat(anatomy, "Liq", !factFreshness.current ? "" : finite(row.market?.liquidity_usd) === null
+  renderTokenStat(anatomy, participationRanking ? "6h Vol" : "Vol", !displayMarketFacts || finite(spotMetric(row, "volume_usd")) === null ? "" : compact(spotMetric(row, "volume_usd"), { currency: true }));
+  renderTokenStat(anatomy, "Liq", !displayMarketFacts ? "" : finite(row.market?.liquidity_usd) === null
     ? (reportedSpotLifecycle(row)?.state === 'BONDING' ? 'Unreported' : '') : compact(row.market.liquidity_usd, { currency: true }));
-  const marketCap = factFreshness.current ? spotMarketCapitalization(row.market) : null;
-  const fdv = factFreshness.current && finite(row.market?.fdv_usd) > 0 ? finite(row.market.fdv_usd) : null;
+  const marketCap = displayMarketFacts ? spotMarketCapitalization(row.market) : null;
+  const fdv = displayMarketFacts && finite(row.market?.fdv_usd) > 0 ? finite(row.market.fdv_usd) : null;
   renderTokenStat(anatomy, "MCap", marketCap === null ? "Unknown" : compact(marketCap, { currency: true }));
   if (marketCap === null && fdv !== null) renderTokenStat(anatomy, "FDV", compact(fdv, { currency: true }));
   const marketCapLiquidity = marketCap !== null && finite(row.market?.liquidity_usd) > 0
     ? marketCap / row.market.liquidity_usd
     : null;
   renderTokenStat(anatomy, "MC/Liq", marketCapLiquidity === null ? "" : `${marketCapLiquidity.toFixed(marketCapLiquidity < 10 ? 1 : 0)}×`);
-  const traders = factFreshness.current ? spotMetric(row, "traders") : null;
-  const transactions = factFreshness.current ? spotWindowFlow(row).transactions : null;
+  const traders = displayMarketFacts ? spotMetric(row, "traders") : null;
+  const transactions = displayMarketFacts ? spotWindowFlow(row).transactions : null;
   renderTokenStat(
     anatomy,
     `${participationRanking ? "6h " : ""}${traders === null ? "Tx" : "Traders"}`,
     traders === null ? (transactions === null ? "Unknown" : compact(transactions)) : compact(traders),
   );
-  renderTokenStat(anatomy, "Holders", !factFreshness.current || finite(row.market?.holder_count) === null ? "" : compact(row.market.holder_count));
+  renderTokenStat(anatomy, "Holders", !displayMarketFacts || finite(row.market?.holder_count) === null ? "" : compact(row.market.holder_count));
   const bondingProgress = finite(row?.lifecycle_evidence?.progress_bps);
   renderTokenStat(anatomy, "Bonding", bondingProgress === null ? "" : `${Math.min(100, Math.max(0, bondingProgress / 100)).toFixed(bondingProgress % 100 ? 1 : 0)}%`);
   const raven = append(anchor, "div", "discover-token-raven", "");
@@ -2374,8 +2377,8 @@ function updateSpotTokenRow(anchor, row, index) {
     risks,
   });
   if (!factFreshness.current) {
-    append(raven, "span", "", "Retained exact market · live check pending");
-    append(raven, "strong", "", decisionHeadline);
+    append(raven, "span", "", storedSnapshot ? "Recent market snapshot" : "Retained exact market · live check pending");
+    append(raven, "strong", "", storedSnapshot ? "Current signal awaits the next market update." : decisionHeadline);
   } else if (state.spotSort === "velocity") {
     const label = scoreLabel(velocityScore, "Velocity");
     append(raven, "span", "", firstObservation
@@ -2414,7 +2417,7 @@ function updateSpotTokenRow(anchor, row, index) {
   renderSpotDecisionStrip(raven, row, risks, factFreshness.current);
   const compactDetail = factFreshness.current
     ? ""
-    : `Still tracked after leaving trending · last exact update ${spotMarketFactAgeLabel(row)}`;
+    : storedSnapshot ? `Snapshot ${spotMarketFactAgeLabel(row)}` : `Still tracked after leaving trending · last exact update ${spotMarketFactAgeLabel(row)}`;
   if (compactDetail) append(raven, "small", "", compactDetail);
 
   const open = append(anchor, "span", "discover-token-open", "Terminal");
@@ -3523,7 +3526,7 @@ function currentOnchainPulsePayload(payload) {
       && row?.execution_available === false
       && row?.raven_signal === false
       && row?.discovery?.raven_evidence_state?.raven_signal === false
-      && survivesCurrentSpotMarket(row, { allowQuietLifecycle: true });
+      && (spotMarketSnapshotUsable(row) ? spotDiscoveryQuality(row).eligible : survivesCurrentSpotMarket(row, { allowQuietLifecycle: true }));
   });
   return {
     rows,
@@ -3534,9 +3537,10 @@ function currentOnchainPulsePayload(payload) {
 }
 
 function mergeSpotRadarRows(registryRows = [], currentRows = []) {
-  const registry = new Map(registryRows.filter(validDiscoverRow).map((row) => [row.instrument_id, row]));
+  const valid = row => validDiscoverRow(row, { allowExpiredSnapshot: spotMarketSnapshotUsable(row) });
+  const registry = new Map(registryRows.filter(valid).map((row) => [row.instrument_id, row]));
   const merged = new Map(registry);
-  for (const current of currentRows.filter(validDiscoverRow)) {
+  for (const current of currentRows.filter(valid)) {
     const retained = registry.get(current.instrument_id);
     if (!retained) {
       merged.set(current.instrument_id, current);

@@ -53,3 +53,40 @@ for (const width of [390, 1440]) test(`${width}px: broad Discovery paginates qua
   await expect(page.locator('[data-token-address="bad-holder"], [data-token-address="dust"]')).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
 });
+
+
+test('cached quotes remain usable snapshots through a short outage without becoming live signals', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockTerminalLiveApis(page);
+  const now = Date.now(), observed = new Date(now).toISOString();
+  await page.clock.install({ time: new Date(now) });
+  const row = { instrument_id: 'base:pool:cached', market_type: 'spot', chain_id: 'base', chain: 'base',
+    research_only: true, actionable: false, execution_available: false,
+    pool_address: 'cached', token_address: 'snapshot-coin', quote_token_address: 'quote', quote_symbol: 'ETH',
+    symbol: 'SNAPCOIN', name: 'Snapshot coin', identity_scope: 'exact_pool', source_type: 'market_activity',
+    discovery_source: 'cached_participation_universe', observed_at: observed, context_state: 'current',
+    registry: { retained_after_trending: true },
+    market: { price_usd: .5, market_cap_usd: 500000, liquidity_usd: 100000, holder_count: 300,
+      price_change_5m_pct: 12, volume_usd_5m: 12000, buys_5m: 50, sells_5m: 20 } };
+  const radar = buildDiscoverRadarProjection([row], { nowMs: now, generatedAt: observed });
+  await page.route('**/api/onchain/trending?**', route => route.fulfill({ json: {
+    ok: true, safe_public: true, schema_version: 'ravenos.onchain_market_pulse.v1', state: 'current',
+    freshness: { state: 'current' }, rows: radar.rows, discovery_radar: radar,
+    provenance: { role: 'exact_pool_market_activity', raven_signal: false },
+    execution_boundary: { research_only: true, signing_available: false, submission_available: false },
+  } }));
+  await page.goto('/discover/?market_scope=memecoins');
+  const coin = page.locator('[data-token-address="snapshot-coin"].discover-token-row');
+  await expect(coin).toBeVisible();
+  await page.clock.fastForward(180000);
+  await expect(coin).toBeVisible();
+  await expect(coin).toHaveAttribute('data-freshness', 'stale');
+  await expect(coin).toContainText('Recent market snapshot');
+  await expect(coin.locator('.discover-token-move')).toContainText('$0.5');
+  await expect(coin.locator('.discover-token-move-context')).toContainText('snapshot');
+  await expect(coin.locator('.discover-token-anatomy')).toContainText('$100K');
+  await expect(coin.locator('.discover-token-move > strong')).not.toHaveClass(/positive|negative/);
+  await expect(coin).toHaveAttribute('data-route-current', 'false');
+  await page.clock.fastForward(421000);
+  await expect(coin).toHaveCount(0);
+});
