@@ -2,6 +2,66 @@ import { expect, test } from "@playwright/test";
 
 const POOL_A = "11111111111111111111111111111111";
 
+function accountFixtureItem(label='PRIVATE_A') {
+  return savedItem({market:{instrument_id:'solana:pool:'+POOL_A},workspace:{timeframe:'1h',indicators:[],raven_overlays:[],density:'comfortable',selected_panel:'chart'}},{market:{instrument_id:'solana:pool:'+POOL_A,display_label:label,chain:'solana',venue:'meteora',market:'spot'}});
+}
+for(const width of [390,1440])test(`Monitor shares Raven navigation and preserves readable content at ${width}px`,async({page,baseURL,browserName})=>{
+  await page.setViewportSize({width,height:900});const shared={items:[accountFixtureItem()],requests:[]};await installMonitorApi(page,baseURL,shared);
+  await page.goto('/monitor/');await expect(page.locator('.monitor-item')).toHaveCount(1);
+  await expect(page.locator('#rosProfileTrigger')).toHaveAttribute('data-account-state','authenticated');
+  await expect(page.locator('.ros-mobile-nav [data-ros-utility="more"]')).toHaveClass(/active/);
+  await expect(page.locator('.ros-mobile-nav [data-ros-nav="terminal"]')).not.toHaveClass(/active/);
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth-innerWidth)).toBeLessThanOrEqual(2);
+  await expect(page.locator('.monitor-topbar')).toHaveCount(0);
+  if(width===390)await page.screenshot({path:`/tmp/raven-monitor-shell-${browserName}-390.png`});
+});
+test('sign-out clears saved markets and cancels a delayed refresh without page errors',async({page,baseURL})=>{
+  const shared={items:[accountFixtureItem()],requests:[]};await installMonitorApi(page,baseURL,shared);const errors=[];page.on('pageerror',error=>errors.push(error.message));
+  await page.goto('/monitor/');await expect(page.locator('.monitor-item')).toHaveCount(1);
+  let release;await page.route('**/api/v1/research-state',async route=>{await new Promise(resolve=>{release=resolve;});await route.fulfill({json:{ok:true,items:[accountFixtureItem()]}}).catch(()=>{});});
+  await page.locator('#monitorReload').click();await expect.poll(()=>Boolean(release)).toBe(true);
+  await page.evaluate(()=>window.dispatchEvent(new CustomEvent('ravenos:accountstate',{detail:{authenticated:false}})));
+  await expect(page.locator('#monitorWorkspace')).toBeHidden();await expect(page.locator('.monitor-item')).toHaveCount(0);release();
+  await expect(page.locator('#monitorAuthActions')).toBeVisible();await expect(page.locator('body')).not.toContainText('PRIVATE_A');expect(errors).toEqual([]);
+});
+test('account restoration replaces old saved-market data and defeats its delayed response',async({page,baseURL})=>{
+  const shared={items:[accountFixtureItem()],requests:[]};await installMonitorApi(page,baseURL,shared);
+  await page.goto('/monitor/');await expect(page.locator('.monitor-item')).toHaveCount(1);
+  let first=true,release;
+  await page.route('**/api/v1/research-state',async route=>{
+    const item=accountFixtureItem(first?'PRIVATE_A':'PRIVATE_B');
+    if(first){first=false;await new Promise(resolve=>{release=resolve;});}
+    await route.fulfill({json:{ok:true,items:[item],limits:{maximum_saved_markets:100}}}).catch(()=>{});
+  });
+  await page.locator('#monitorReload').click();await expect.poll(()=>Boolean(release)).toBe(true);
+  await page.evaluate(()=>window.dispatchEvent(new CustomEvent('ravenos:accountstate',{detail:{authenticated:true}})));
+  await expect(page.locator('.monitor-item h3')).toHaveText('PRIVATE_B');release();await expect(page.locator('body')).not.toContainText('PRIVATE_A');
+});
+test('a private endpoint authentication expiry clears Monitor and its shared account header',async({page,baseURL})=>{
+  const shared={items:[accountFixtureItem()],requests:[]};await installMonitorApi(page,baseURL,shared);
+  await page.goto('/monitor/');await expect(page.locator('.monitor-item')).toHaveCount(1);
+  await page.route('**/api/v1/research-state',route=>route.fulfill({status:401,json:{ok:false,error:'authentication_required'}}));
+  await page.locator('#monitorReload').click();await expect(page.locator('#monitorAuthActions')).toBeVisible();await expect(page.locator('.monitor-item')).toHaveCount(0);
+  await expect(page.locator('#rosProfileTrigger')).toHaveAttribute('data-account-state','available');
+});
+test('an alert-service failure can be retried without pretending the account lacks permission',async({page,baseURL})=>{
+  const shared={items:[],requests:[]};await installMonitorApi(page,baseURL,shared);let failed=true;
+  await page.route('**/api/v1/entitlements',route=>route.fulfill(failed?{status:503,json:{ok:false,state:'unavailable'}}:{json:{ok:true,capabilities:[{capability:'research.alerts',available:true,state:'active'}]}}));
+  await page.route('**/api/v1/monitor-alerts**',route=>route.fulfill({json:{ok:true,state:'available',rules:[],notifications:[]}}));
+  await page.goto('/monitor/');await expect(page.locator('#monitorAlertSummary')).toContainText('could not be checked');await expect(page.locator('#monitorReloadAlerts')).toBeEnabled();
+  failed=false;await page.locator('#monitorReloadAlerts').click();await expect(page.locator('#monitorAlertSummary')).toContainText('0 active alerts');
+});
+test('a partial alert load is not overwritten by an empty count from the other request',async({page,baseURL})=>{
+  const shared={items:[],requests:[]};await installMonitorApi(page,baseURL,shared);
+  await page.route('**/api/v1/entitlements',route=>route.fulfill({json:{ok:true,capabilities:[{capability:'research.alerts',available:true,state:'active'}]}}));
+  await page.route('**/api/v1/monitor-alerts**',async route=>{
+    if(route.request().url().endsWith('/rules'))return route.fulfill({status:503,json:{ok:false,error:'unavailable'}});
+    await route.fulfill({json:{ok:true,state:'available',notifications:[]}});
+  });
+  await page.goto('/monitor/');await expect(page.locator('#monitorAlertSummary')).toHaveText('Some alert data could not load. Reload to try again.');
+  await expect(page.locator('#monitorReloadAlerts')).toBeEnabled();
+});
+
 test('Monitor retries an unavailable account without sign-in controls or duplicate saved-market actions', async ({ page, baseURL }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   const shared = { items: [], requests: [] };
@@ -194,7 +254,10 @@ test("exact-market handoff saves allowlisted workspace state and restores it on 
   expect(openUrl.searchParams.get("instrument_id")).toBe(`solana:pool:${POOL_A}`);
   expect(openUrl.searchParams.get("timeframe")).toBe("4h");
   expect(openUrl.searchParams.get("panel")).toBe("raven");
-  expect(await second.evaluate(() => ({ local: Object.keys(localStorage), session: Object.keys(sessionStorage) }))).toEqual({ local: [], session: [] });
+  const storage=await second.evaluate(() => ({ local: Object.entries(localStorage), session: Object.keys(sessionStorage) }));
+  expect(storage.local.map(([key])=>key).sort()).toEqual(['ravenos:display-preferences:v1','ravenos:selected-context:v2']);
+  expect(storage.session).toEqual([]);
+  expect(JSON.stringify(storage.local)).not.toMatch(/csrf_monitor|sespub_monitor|monitor@example|wat_aaaaaaaa|arbitrary_html/);
   await firstContext.close();
   await secondContext.close();
 });
@@ -315,7 +378,7 @@ test("monitor HTML uses the authenticated CSP and has no executable-data sinks",
 test("saved markets uses customer-facing copy", async ({ page }) => {
   await page.goto("/monitor/");
   const body = await page.locator("body").innerText();
-  expect(body).toContain("Your exact markets");
-  expect(body).toContain("You stay in control");
+  await expect(page.getByRole('heading',{name:'Saved markets',exact:true})).toBeVisible();
+  expect(body).toContain("Your markets and chart setups, synced across devices.");
   expect(body).not.toMatch(/Authenticated workspace|dormant Raven Monitor|Permission boundary|Research monitoring only|on this release/i);
 });

@@ -63,6 +63,8 @@ function spotChartRequestSupported(row = {}, timeframe = "1h") {
 }
 
 function currentSlug() {
+  const declared=document.querySelector('main[data-route-slug]')?.dataset.routeSlug;
+  if(declared)return declared;
   const configured = document.getElementById("ravenosRouteConfig");
   if (configured) {
     try { return JSON.parse(configured.textContent || "{}").slug || ""; } catch { /* use path */ }
@@ -278,7 +280,7 @@ function navMarkup(slug, { mobile = false } = {}) {
     return `<a class="${className}${active}" href="${ravenOSContext.decorateHref(item.href)}" data-ros-context-link data-ros-base-href="${item.href}" data-ros-nav="${item.key}"><span class="ros-nav-glyph" aria-hidden="true">${mobile ? mobileNavIcon(item.key) : item.glyph}</span><span>${item.label}</span></a>`;
   }).join("");
   if (!mobile) return items;
-  const moreActive = NAV_ITEMS.some((item) => item.mobile === false && item.match.includes(slug)) ? " active" : "";
+  const moreActive = ['monitor','account'].includes(slug)||NAV_ITEMS.some((item) => item.mobile === false && item.match.includes(slug)) ? " active" : "";
   return `${items}<button class="ros-mobile-nav-item${moreActive}" type="button" data-ros-utility="more" aria-label="More RavenOS destinations"><span class="ros-nav-glyph" aria-hidden="true">${mobileNavIcon("more")}</span><span>More</span></button>`;
 }
 

@@ -39,6 +39,8 @@ const entries=page=>page.locator('#journalRows > tr[data-execution-id]');
 for(const width of [360,390,1440])test(`trade history has readable rows and reachable receipt details at ${width}px`,async({page,browserName})=>{
   await page.setViewportSize({width,height:900});const state=await fixture(page);const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.goto('/portfolio/#trade-history');await expect(entries(page)).toHaveCount(25);
+  await expect(page.locator('.ros-mobile-nav [data-ros-nav="portfolio"]')).toHaveClass(/active/);
+  await expect(page.locator('.ros-mobile-nav [data-ros-nav="terminal"]')).not.toHaveClass(/active/);
   await expect(page.locator('#journalStatus')).toContainText('25 Raven trades');
   await expect(entries(page).nth(0)).toContainText('Checking receipt');await expect(entries(page).nth(1)).toContainText('Confirmed');
   await expect(entries(page).nth(2)).toContainText('Finalized');await expect(entries(page).nth(3)).toContainText('Failed');

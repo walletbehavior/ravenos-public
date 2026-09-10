@@ -33,6 +33,18 @@ const notificationNode = document.getElementById("monitorNotifications");
 const saveButton = document.getElementById("monitorSave");
 const unwatchButton = document.getElementById("monitorUnwatch");
 const state = { csrf: "", items: [], rules: [], notifications: [], pending: null, pendingIntent: "save", config: null, alerts: { available: false, state: "loading" } };
+let accountGeneration=0,accountController=new AbortController();
+function cancelAccountRequests(){accountGeneration++;accountController.abort();accountController=new AbortController();}
+function staleAccount(){return new DOMException('Account view changed','AbortError');}
+function clearPrivateState(){
+  state.csrf='';state.items=[];state.rules=[];state.notifications=[];state.alerts={available:false,state:'loading'};
+  listNode.replaceChildren();notificationNode.replaceChildren();unwatchButton.hidden=true;delete unwatchButton.dataset.watchId;
+  setText('monitorListSummary','');setText('monitorAlertSummary','');
+  for(const dialog of page.querySelectorAll('dialog[open]'))dialog.close();
+}
+function safely(handler){return (...args)=>{const version=accountGeneration;return Promise.resolve().then(()=>{if(version!==accountGeneration)throw staleAccount();return handler(...args);}).catch(error=>{
+  if(error?.name!=='AbortError')setText('monitorListSummary','The request could not finish. Reload to try again.');
+});};}
 
 function setText(id, value) {
   const node = document.getElementById(id);
@@ -84,13 +96,24 @@ function authenticatedReturnTo(pending) {
 }
 
 async function api(url, init = {}) {
+  const version=accountGeneration,signal=accountController.signal;
   const headers = { accept: "application/json", ...(init.headers || {}) };
   if (init.method && init.method !== "GET") {
     headers["content-type"] = "application/json";
     headers["x-ravenos-csrf"] = state.csrf;
   }
-  const response = await fetch(url, { cache: "no-store", credentials: "same-origin", ...init, headers });
-  return { response, payload: await response.json().catch(() => null) };
+  try {
+    const response = await fetch(url, { cache: "no-store", credentials: "same-origin", redirect:'error', ...init, headers,signal:AbortSignal.any([signal,AbortSignal.timeout(8000)]) });
+    const payload=await response.json().catch(()=>null);
+    if(version!==accountGeneration)throw staleAccount();
+    if(response.status===401&&page.dataset.monitorState==='authenticated'){
+      window.dispatchEvent(new CustomEvent('ravenos:accountstate',{detail:{authenticated:false}}));throw staleAccount();
+    }
+    return {response,payload};
+  } catch(error) {
+    if(version!==accountGeneration||signal.aborted||error?.name==='AbortError')throw staleAccount();
+    return {response:new Response(null,{status:503}),payload:{ok:false,error:'request_unavailable'}};
+  }
 }
 
 function formatWhen(value) {
@@ -106,7 +129,7 @@ function button(label, className, handler) {
   node.type = "button";
   node.textContent = label;
   if (className) node.className = className;
-  node.addEventListener("click", () => handler(node));
+  node.addEventListener("click", safely(() => handler(node)));
   return node;
 }
 
@@ -334,14 +357,21 @@ async function deleteAll() {
 
 function renderAlertState() {
   const available = state.alerts.available;
-  for (const id of ["monitorReloadAlerts", "monitorDeleteNotifications", "monitorDeleteAlertState"]) document.getElementById(id).disabled = !available;
+  document.getElementById('monitorReloadAlerts').disabled=false;
+  for (const id of ["monitorDeleteNotifications", "monitorDeleteAlertState"]) document.getElementById(id).disabled = !available;
   if (!available) {
     notificationNode.replaceChildren();
     const empty = document.createElement("p");
     empty.className = "monitor-empty";
-    empty.textContent = "Raven alerts aren’t available for this account yet. Your saved markets still work normally.";
+    const access=state.alerts.state;
+    const message=['not_granted','expired','revoked','suspended','not_yet_active'].includes(access)
+      ? 'Your account does not currently have alert access.'
+      : ['server_disabled','raven_monitor_beta_unavailable','notification_history_unavailable'].includes(access)
+      ? 'Raven alerts are not enabled yet.'
+      : 'Alert access could not be checked. Reload to try again.';
+    empty.textContent = message+' Your saved markets remain available.';
     notificationNode.append(empty);
-    setText("monitorAlertSummary", "Alerts aren’t available for this account yet.");
+    setText("monitorAlertSummary", message);
   }
   renderItems();
 }
@@ -401,7 +431,7 @@ function renderNotifications() {
   if (!state.alerts.available || !state.notifications.length) {
     const empty = document.createElement("p");
     empty.className = "monitor-empty";
-    empty.textContent = state.alerts.available ? "No Raven changes have been recorded yet." : "Raven alerts aren’t available for this account yet.";
+    empty.textContent = state.alerts.available ? "No Raven changes have been recorded yet." : "Reload to check alert access.";
     notificationNode.append(empty);
   } else notificationNode.append(...state.notifications.map(notificationItem));
 }
@@ -427,17 +457,18 @@ async function loadAlertAccess() {
   const entitlements = await api(ENTITLEMENT_ROUTE);
   const capability = Array.isArray(entitlements.payload?.capabilities) ? entitlements.payload.capabilities.find((item) => item.capability === "research.alerts") : null;
   if (!entitlements.response.ok || capability?.available !== true) {
-    state.alerts = { available: false, state: capability?.state || entitlements.payload?.state || entitlements.payload?.error || "server_disabled" };
+    state.alerts = { available: false, state: capability?.state || entitlements.payload?.state || entitlements.payload?.error || "unavailable" };
     return renderAlertState();
   }
   const contract = await api(ALERT_ROUTE);
   if (!contract.response.ok) {
-    state.alerts = { available: false, state: contract.payload?.state || contract.payload?.error || "server_disabled" };
+    state.alerts = { available: false, state: contract.payload?.state || contract.payload?.error || "unavailable" };
     return renderAlertState();
   }
   state.alerts = { available: true, state: "available" };
-  await Promise.all([loadRules(), loadNotifications()]);
+  const loaded=await Promise.all([loadRules(), loadNotifications()]);
   renderAlertState();
+  if(loaded.some(value=>value!==true))setText('monitorAlertSummary','Some alert data could not load. Reload to try again.');
 }
 
 async function deleteNotificationHistory() {
@@ -480,20 +511,21 @@ async function submitAuth(form) {
 function bindControls() {
   state.pending = safeQueryHandoff();
   renderPending();
-  for (const form of document.querySelectorAll("[data-monitor-auth]")) form.addEventListener("submit", (event) => { event.preventDefault(); submitAuth(form); });
-  saveButton.addEventListener("click", savePending);
-  unwatchButton.addEventListener("click", () => removeItem(unwatchButton.dataset.watchId));
-  document.getElementById("monitorReload").addEventListener("click", loadItems);
-  document.getElementById("monitorReloadAlerts").addEventListener("click", async () => Promise.all([loadRules(), loadNotifications()]));
-  document.getElementById("monitorDeleteNotifications").addEventListener("click", deleteNotificationHistory);
+  for (const form of document.querySelectorAll("[data-monitor-auth]")) form.addEventListener("submit", (event) => { event.preventDefault(); safely(submitAuth)(form); });
+  saveButton.addEventListener("click", safely(savePending));
+  unwatchButton.addEventListener("click", safely(() => removeItem(unwatchButton.dataset.watchId)));
+  document.getElementById("monitorReload").addEventListener("click", safely(loadItems));
+  document.getElementById("monitorReloadAlerts").addEventListener("click", safely(loadAlertAccess));
+  document.getElementById("monitorDeleteNotifications").addEventListener("click", safely(deleteNotificationHistory));
   document.getElementById("monitorDeleteAlertState").addEventListener("click", () => document.getElementById("monitorAlertDeleteDialog").showModal());
-  document.getElementById("monitorDeleteAlertStateConfirm").addEventListener("click", deleteAlertState);
+  document.getElementById("monitorDeleteAlertStateConfirm").addEventListener("click", safely(deleteAlertState));
   document.getElementById("monitorDeleteAll").addEventListener("click", () => document.getElementById("monitorDeleteDialog").showModal());
-  document.getElementById("monitorDeleteAllConfirm").addEventListener("click", deleteAll);
-  document.getElementById('monitorAccountRetry').addEventListener('click', retryAccountCheck);
+  document.getElementById("monitorDeleteAllConfirm").addEventListener("click", safely(deleteAll));
+  document.getElementById('monitorAccountRetry').addEventListener('click',()=>retryAccountCheck());
 }
 
 function showAccountGate(signedOut = false) {
+  clearPrivateState();
   page.dataset.monitorState = signedOut ? 'anonymous' : 'unavailable';
   workspaceNode.hidden = true;
   auth.hidden = false;
@@ -506,16 +538,20 @@ function showAccountGate(signedOut = false) {
 }
 
 async function initialize() {
+  cancelAccountRequests();clearPrivateState();
+  const version=accountGeneration;
   page.dataset.monitorState = 'checking';
   auth.hidden = true;
   workspaceNode.hidden = true;
   state.csrf = '';
   const config = await api("/api/v1/auth/config");
+  if(version!==accountGeneration)throw staleAccount();
   state.config = config.payload;
   if (!config.response.ok || !config.payload?.available || !config.payload?.on_authenticated_origin) {
     showAccountGate(); return;
   }
-  const session = await readAccountSession();
+  const session = await readAccountSession({signal:accountController.signal});
+  if(version!==accountGeneration)throw staleAccount();
   if (session.state === 'unavailable') {
     showAccountGate(); return;
   }
@@ -524,6 +560,7 @@ async function initialize() {
   page.dataset.monitorState = "authenticated";
   workspaceNode.hidden = false;
   await loadItems();
+  if(version!==accountGeneration)throw staleAccount();
   await loadAlertAccess();
 }
 
@@ -538,12 +575,18 @@ window.__RAVENOS_SAVED_MONITOR__ = Object.freeze({
   executionAvailable: false,
 });
 
-async function retryAccountCheck() {
+async function retryAccountCheck(force=false) {
   const button = document.getElementById('monitorAccountRetry');
-  if (button.disabled) return;
+  if (button.disabled&&!force) return;
   button.disabled = true;
-  try { await initialize(); } catch { showAccountGate(); }
-  finally { button.disabled = false; }
+  const pending=initialize(),version=accountGeneration;
+  try { await pending; } catch(error) { if(version===accountGeneration&&error?.name!=='AbortError')showAccountGate(); }
+  finally { if(version===accountGeneration)button.disabled = false; }
 }
+window.addEventListener('ravenos:accountstate',event=>{
+  if(typeof event.detail?.authenticated!=='boolean')return;
+  if(event.detail.authenticated===false){cancelAccountRequests();showAccountGate(true);document.getElementById('monitorAccountRetry').disabled=false;}
+  else void retryAccountCheck(true);
+});
 bindControls();
 retryAccountCheck();

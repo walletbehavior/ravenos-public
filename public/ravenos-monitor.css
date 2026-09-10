@@ -21,25 +21,11 @@ button { font: inherit; }
 [hidden] { display: none !important; }
 
 .monitor-page { min-height: 100vh; background: radial-gradient(circle at 85% 0, rgba(74, 105, 132, .11), transparent 31rem), repeating-linear-gradient(90deg, transparent 0 119px, rgba(255, 255, 255, .012) 120px); }
-.monitor-topbar { min-height: 58px; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; border-bottom: 1px solid var(--monitor-line); background: rgba(5, 8, 13, .92); }
-.monitor-brand { height: 58px; display: flex; align-items: center; gap: 10px; border-right: 1px solid var(--monitor-line); padding: 0 18px; text-decoration: none; }
-.monitor-brand > span { width: 29px; height: 29px; display: grid; place-items: center; border: 1px solid var(--monitor-line-strong); border-radius: 6px; font: 800 10px var(--monitor-mono); }
-.monitor-brand > strong { font-size: 12px; }
-.monitor-topbar-copy { min-width: 0; display: grid; gap: 2px; padding: 0 17px; }
-.monitor-topbar-copy span, .monitor-kicker { color: var(--monitor-dim); font: 740 10px var(--monitor-mono); letter-spacing: .08em; text-transform: uppercase; }
-.monitor-topbar-copy strong { font-size: 12px; }
-.monitor-topbar nav { height: 58px; display: flex; align-items: stretch; }
-.monitor-topbar nav a { display: flex; align-items: center; border-left: 1px solid var(--monitor-line); padding: 0 15px; color: var(--monitor-muted); font-size: 12px; text-decoration: none; }
-.monitor-topbar nav a:hover { background: rgba(255,255,255,.025); color: var(--monitor-text); }
 
-.monitor-hero { min-height: 250px; display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(280px, .5fr); gap: 30px; align-items: end; border-bottom: 1px solid var(--monitor-line); padding: clamp(30px, 5vw, 66px); }
+.monitor-hero { min-height: 116px; display: flex; align-items: center; border-bottom: 1px solid var(--monitor-line); padding: 24px clamp(20px, 4vw, 52px); }
 .monitor-hero > div { display: grid; gap: 13px; }
-.monitor-hero h1 { max-width: 900px; margin: 0; font-size: clamp(38px, 5.8vw, 74px); font-weight: 520; line-height: .95; letter-spacing: -.058em; }
+.monitor-hero h1 { margin: 0; font-size: 32px; font-weight: 650; line-height: 1.1; letter-spacing: -.025em; }
 .monitor-hero > div > p { max-width: 720px; margin: 0; color: var(--monitor-muted); font-size: 14px; line-height: 1.65; }
-.monitor-boundary { display: grid; gap: 8px; border: 1px solid var(--monitor-line-strong); padding: 18px; background: rgba(9, 14, 22, .78); }
-.monitor-boundary span { color: var(--monitor-positive); font: 740 10px var(--monitor-mono); text-transform: uppercase; }
-.monitor-boundary strong { font-size: 18px; }
-.monitor-boundary p { margin: 0; color: var(--monitor-muted); font-size: 12px; line-height: 1.55; }
 
 .monitor-auth { min-height: calc(100vh - 309px); display: grid; grid-template-columns: minmax(0, 1fr) minmax(340px, .7fr); gap: 34px; align-content: start; padding: clamp(34px, 6vw, 82px); }
 .monitor-auth > div:first-child { display: grid; gap: 12px; }
@@ -136,11 +122,8 @@ button { font: inherit; }
 .monitor-confirm form > div { display: flex; justify-content: flex-end; gap: 8px; }
 
 @media (max-width: 840px) {
-  .monitor-topbar { grid-template-columns: auto 1fr; }
-  .monitor-topbar nav { grid-column: 1 / -1; height: 44px; border-top: 1px solid var(--monitor-line); }
-  .monitor-topbar nav a { flex: 1; justify-content: center; }
-  .monitor-hero { grid-template-columns: 1fr; padding: 30px 15px; }
-  .monitor-hero h1 { font-size: 43px; }
+  .monitor-hero { padding: 20px 15px; }
+  .monitor-hero h1 { font-size: 30px; }
   .monitor-auth { min-height: 0; grid-template-columns: 1fr; padding: 34px 15px 90px; }
   .monitor-workspace { padding: 15px 10px 90px; }
   .monitor-pending > header, .monitor-saved > header, .monitor-alerts > header { align-items: flex-start; flex-direction: column; }
@@ -167,3 +150,5 @@ button { font: inherit; }
   .monitor-event-grid { grid-template-columns: 1fr; }
   .monitor-notification-actions { grid-template-columns: 1fr; }
 }
+
+.monitor-kicker { color: var(--monitor-dim); font: 740 10px var(--monitor-mono); letter-spacing: .08em; text-transform: uppercase; }

@@ -120,7 +120,7 @@ test("generated routes use the mobile primary navigation and context sheet", asy
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/outcomes/");
   await expect(page.locator(".ros-mobile-nav")).toBeVisible();
-  await expect(page.locator(".ros-mobile-nav > *")).toHaveText(["DDiscover", "TTerminal", "PPortfolio", "MMore"]);
+  await expect(page.locator(".ros-mobile-nav > *")).toHaveText(["Discover", "Terminal", "Portfolio", "More"]);
   await expect(page.locator("#rosContextRail")).toBeHidden();
   await expect(page.locator("#rosUtilityDrawer")).toBeHidden();
   await expect(page.locator("#rosContextTrigger")).toBeHidden();

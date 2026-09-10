@@ -5,32 +5,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Saved markets · RavenOS</title>
   <meta name="description" content="Save exact RavenOS markets and chart setups, reopen them on any signed-in device, and review Raven alerts when available." />
+  <link rel="stylesheet" href="/ravenos-shell.css" />
   <link rel="stylesheet" href="/ravenos-workspace.css" />
   <link rel="stylesheet" href="/ravenos-monitor.css" />
 </head>
 <body>
-  <main class="monitor-page" data-monitor-state="loading">
-    <header class="monitor-topbar">
-      <a class="monitor-brand" href="https://ravenos.xyz/discover/" aria-label="RavenOS Discover"><span>R</span><strong>RavenOS</strong></a>
-      <div class="monitor-topbar-copy"><span>Your workspace</span><strong>Saved markets</strong></div>
-      <nav aria-label="Market workspaces">
-        <a href="https://ravenos.xyz/discover/">Discover</a>
-        <a href="https://ravenos.xyz/terminal/">Terminal</a>
-        <a href="/account/">Account</a>
-      </nav>
-    </header>
-
+  <main class="monitor-page" data-monitor-state="loading" data-route-slug="monitor">
     <header class="monitor-hero">
       <div>
-        <span class="monitor-kicker">Saved markets</span>
-        <h1>Your exact markets,<br />right where you left them.</h1>
-        <p>Save exact markets across devices.</p>
+        <h1>Saved markets</h1>
+        <p>Your markets and chart setups, synced across devices.</p>
       </div>
-      <aside class="monitor-boundary">
-        <span>Private by default</span>
-        <strong>You stay in control</strong>
-        <p>Market + chart settings only. No trades.</p>
-      </aside>
     </header>
 
     <section class="monitor-auth" id="monitorAuth" hidden>
@@ -79,7 +64,7 @@
       <section class="monitor-saved">
         <header>
           <div><span class="monitor-kicker">Across your devices</span><h2>Saved exact markets</h2><p id="monitorListSummary" aria-live="polite">Loading your saved markets…</p></div>
-          <div class="monitor-list-actions"><button id="monitorReload" type="button">Reload</button><button id="monitorDeleteAll" class="danger" type="button">Delete all saved markets</button></div>
+          <div class="monitor-list-actions"><button id="monitorReload" type="button" aria-label="Reload saved markets">Reload</button><button id="monitorDeleteAll" class="danger" type="button">Delete all saved markets</button></div>
         </header>
         <div class="monitor-list" id="monitorList"></div>
       </section>
@@ -87,7 +72,7 @@
       <section class="monitor-alerts" id="monitorAlerts" aria-labelledby="monitorAlertsTitle">
         <header>
           <div><span class="monitor-kicker">Raven alerts</span><h2 id="monitorAlertsTitle">Changes worth reopening</h2><p id="monitorAlertSummary" aria-live="polite">Checking alert access…</p></div>
-          <div class="monitor-list-actions"><button id="monitorReloadAlerts" type="button">Reload</button><button id="monitorDeleteNotifications" class="danger" type="button">Clear notification history</button><button id="monitorDeleteAlertState" class="danger" type="button">Delete all alerts</button></div>
+          <div class="monitor-list-actions"><button id="monitorReloadAlerts" type="button" aria-label="Reload alerts">Reload</button><button id="monitorDeleteNotifications" class="danger" type="button">Clear notification history</button><button id="monitorDeleteAlertState" class="danger" type="button">Delete all alerts</button></div>
         </header>
         <div class="monitor-alert-boundary" id="monitorAlertBoundary">
           <strong>Meaningful changes, not constant noise</strong>
@@ -114,6 +99,7 @@
       </form>
     </dialog>
   </main>
+  <script type="module" src="/ravenos-shell.js"></script>
   <script type="module" src="/ravenos-monitor.js"></script>
 </body>
 </html>
