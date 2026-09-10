@@ -511,7 +511,7 @@ body .terminal-desk .ros-layer-body #terminalRavenEmptySection { display: block;
 .terminal-live .terminal-spot-trade-head,
 .terminal-live .terminal-spot-trade-line { display: grid; grid-template-columns: 38px 40px 84px 90px 100px 134px var(--terminal-tape-wallet-width) 36px; gap: 6px; align-items: center; }
 .terminal-live .terminal-spot-scroll-hint { margin: 3px 0; color: #91a5be; text-align: right; font: 11px/1.5 var(--desk-font); }
-.terminal-live .terminal-spot-tape-scroll { --terminal-tape-wallet-width: 250px; --terminal-tape-width: 826px; container-type: inline-size; max-width: 100%; max-height: min(60svh,560px); overflow: auto; overscroll-behavior-inline: contain; scrollbar-width: thin; border-bottom: 1px solid var(--terminal-line); }
+.terminal-live .terminal-spot-tape-scroll { --terminal-tape-wallet-width: 250px; --terminal-tape-width: 826px; container-type: inline-size; max-width: 100%; max-height: min(60svh,560px); overflow: auto; overscroll-behavior-inline: contain; scrollbar-width: thin; scrollbar-gutter: stable; border-bottom: 1px solid var(--terminal-line); }
 .terminal-live .terminal-spot-tape-scroll > .terminal-spot-trade-head,
 .terminal-live .terminal-spot-tape-scroll > .terminal-spot-trade-rows { width: var(--terminal-tape-width); box-sizing: border-box; }
 .terminal-live .terminal-spot-trade-head { position: sticky; top: 0; z-index: 1; margin: 0; padding: 9px 6px; border: 0; border-bottom: 1px solid var(--terminal-line); background: #111923; color: #9babbf; font: 12px/1.4 var(--desk-font); text-transform: none; }
