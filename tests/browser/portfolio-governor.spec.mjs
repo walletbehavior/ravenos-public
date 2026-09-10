@@ -35,7 +35,13 @@ test('failed refresh retains the same wallet and observation without manufacturi
  state.mode='failed';await page.getByRole('button',{name:'Refresh wallet',exact:true}).click();await expect(page.locator('#capitalStatus')).toContainText('Update delayed');await expect(page.locator('#capitalBalanceSOL')).toHaveText('1.234567890');await expect(page.locator('#capitalObserved')).toHaveText(at);await expect(page.locator('#capitalMarkedState')).toHaveText('Retained marks');
 });
 test('expired observations prevent a current working-capital recommendation',async({page})=>{
- const state=await fixture(page);state.mode='expired';await page.goto('/portfolio/');await expect(page.locator('#capitalPlan')).toContainText('Refresh your wallet');await page.getByLabel('Working USDC target',{exact:true}).fill('20');await expect(page.locator('#capitalPlan')).not.toContainText('above your target');
+ const state=await fixture(page);state.mode='expired';await page.goto('/portfolio/');await expect(page.locator('#capitalPlan')).toContainText('Refresh your wallet');await expect(page.locator('#capitalMarkedState')).toHaveText('Refresh needed');await page.getByLabel('Working USDC target',{exact:true}).fill('20');await expect(page.locator('#capitalPlan')).not.toContainText('above your target');
+});
+test('returning to an older open tab immediately removes current proposals',async({page})=>{
+ await fixture(page);await page.goto('/portfolio/');await expect(page.locator('#capitalResults')).toBeVisible();
+ await page.getByLabel('Working USDC target',{exact:true}).fill('20');await expect(page.locator('#capitalPlan')).toContainText('above your target');
+ await page.clock.setFixedTime(new Date(Date.now()+121000));await page.evaluate(()=>window.dispatchEvent(new Event('focus')));
+ await expect(page.locator('#capitalPlan')).toContainText('Refresh your wallet');await expect(page.locator('#capitalMarkedState')).toHaveText('Refresh needed');
 });
 test('wrong-wallet responses are rejected before displaying balances',async({page})=>{
  const state=await fixture(page);state.mode='wrong_wallet';await page.goto('/portfolio/');await expect(page.locator('#capitalStatus')).toContainText('could not finish');await expect(page.locator('#capitalResults')).toBeHidden();await expect(page.locator('#capitalBalanceSOL')).toBeEmpty();

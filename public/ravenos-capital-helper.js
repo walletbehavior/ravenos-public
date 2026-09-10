@@ -26,6 +26,7 @@ export function mountCapitalHelper(root) {
   function renderPlan() {
     if (!payload) return;
     const plan = calculateCapitalPlan(payload, currentTargets());
+    if (plan.state === 'refresh_required') text(root,'capitalMarkedState','Refresh needed');
     root.querySelector('#capitalPlan').replaceChildren(...plan.rows.map(row => {
       const item = document.createElement('article'), title = document.createElement('strong'), detail = document.createElement('p');
       title.textContent = row.title; detail.textContent = row.detail; item.append(title, detail); return item;
@@ -109,5 +110,7 @@ export function mountCapitalHelper(root) {
     text(root,'capitalStatus','Sign in to inspect your Raven wallet.');
   });
   setInterval(() => { if (document.visibilityState === 'visible') renderPlan(); },30000);
+  document.addEventListener('visibilitychange', renderPlan);
+  window.addEventListener('focus', renderPlan);
   loadAccess();
 }
