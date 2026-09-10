@@ -44,7 +44,19 @@ test('journal requires authentication before querying account executions',async(
   const response=await routeTradeJournal(request(),{RAVENOS_CUSTOMER_DB:{prepare(){reads++;throw Error('private read');}}},{authorizeRequest:async()=>({response:new Response(null,{status:401})})});
   assert.equal(response.status,401);assert.equal(reads,0);
   const routed=await worker.fetch(request(),{RAVENOS_CUSTOMER_DB:{prepare(){reads++;throw Error('private read');}}});
-  assert.notEqual(routed.status,200);assert.equal(reads,0);
+  assert.equal(routed.status,503);assert.equal(reads,0);
+});
+test('the authenticated Worker boundary reaches the journal handler without opening unrelated paths',async()=>{
+  let privateReads=0;
+  const env={RAVENOS_CUSTOMER_ACCOUNTS_ENABLE:'1',RAVENOS_AUTH_ORIGIN:'https://app.ravenos.xyz',RAVENOS_AUTH_REDIRECT_URI:'https://app.ravenos.xyz/api/v1/auth/callback',
+    WORKOS_CLIENT_ID:'client_test_ravenos',WORKOS_API_KEY:'sk_test_not_returned',RAVENOS_AUTH_HASH_PEPPER:'test-pepper-not-returned',
+    RAVENOS_CUSTOMER_DB:{prepare(){privateReads++;throw Error('private database must not be read');},batch(){privateReads++;}}};
+  const anonymous=await worker.fetch(request(),env);assert.equal(anonymous.status,401);assert.equal((await anonymous.json()).error,'authentication_required');assert.equal(privateReads,0);
+  const invalid=await worker.fetch(request('?user_id='+OTHER),{});
+  assert.equal(invalid.status,400);assert.equal((await invalid.json()).error,'request_parameters_invalid');
+  const post=await worker.fetch(new Request('https://app.ravenos.xyz'+TRADE_JOURNAL_ROUTE,{method:'POST',headers:{'sec-fetch-site':'same-origin'}}),{});
+  assert.equal(post.status,405);assert.equal((await post.json()).error,'method_not_allowed');
+  const other=await worker.fetch(new Request('https://app.ravenos.xyz'+TRADE_JOURNAL_ROUTE+'/other'),{});assert.equal(other.status,404);
 });
 test('journal is account-scoped, bounded and pages equal timestamps without duplicates',async t=>{
   const {db,add}=setup(t);

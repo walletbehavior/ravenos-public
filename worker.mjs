@@ -3,7 +3,7 @@ import { DEFAULT_SPOT_SLIPPAGE_BPS, MIN_SPOT_SLIPPAGE_BPS, MAX_SPOT_SLIPPAGE_BPS
 import { dexscreenerChartSurface } from './ravenos-chart-data-plane.js';
 import { resolveReleaseFlags } from './lib/runtime_release_flags.mjs';
 import { readExecutionStatusContext } from "./lib/customer_trade/live_execution_status.mjs";
-import { routeTradeJournal } from './lib/customer_trade/trade_journal.mjs';
+import { routeTradeJournal, TRADE_JOURNAL_ROUTE } from './lib/customer_trade/trade_journal.mjs';
 import { evmTokenApprovalContext } from "./lib/customer_trade/evm_token_approval.mjs";
 import { evmEconomicPreview, evmPreparationErrorStatus } from "./lib/customer_trade/evm_economic_preview.mjs";
 import { enrichHolderWalletContext } from './lib/customer_trade/holder_wallet_context.mjs';
@@ -506,7 +506,7 @@ function authenticatedAppBoundary(request) {
     || url.pathname === "/api/v1/wallets/privy"
     || url.pathname === "/api/v1/wallets/privy/session"
     || url.pathname === "/api/v1/wallets/privy/link";
-  const portfolioPreviewApi = url.pathname === PORTFOLIO_GOVERNOR_PREVIEW_ROUTE || url.pathname === CUSTOMER_SHIELDED_ROUTE || url.pathname.startsWith(`${CUSTOMER_SHIELDED_ROUTE}/`);
+  const portfolioPreviewApi = url.pathname === PORTFOLIO_GOVERNOR_PREVIEW_ROUTE || url.pathname === TRADE_JOURNAL_ROUTE || url.pathname === CUSTOMER_SHIELDED_ROUTE || url.pathname.startsWith(`${CUSTOMER_SHIELDED_ROUTE}/`);
   const portfolioPath = ["/portfolio", "/portfolio/", "/portfolio/index.html"].includes(url.pathname);
   const researchStateApi = url.pathname === CUSTOMER_RESEARCH_STATE_ROUTE
     || url.pathname === `${CUSTOMER_RESEARCH_STATE_ROUTE}/watch-items`
