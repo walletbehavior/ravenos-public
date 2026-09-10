@@ -4778,6 +4778,7 @@ function renderSpotTradeProjection(payload) {
   setText("terminalSpotTradeCoverage", `${payload.trades.length} recent swaps · ${tokenScope ? 'across token markets' : 'exact pool'} · bounded 24h sample`);
   const credit = document.getElementById("terminalSpotTradeCredit");
   const creditUrl = String(payload?.source?.attribution_url || "");
+  if (credit) credit.hidden = !["https://www.coingecko.com/en/api", "https://dexch.art"].includes(creditUrl);
   if (credit && ["https://www.coingecko.com/en/api", "https://dexch.art"].includes(creditUrl)) {
     credit.href = creditUrl;
     credit.textContent = payload?.source?.label || "Market data";
@@ -4806,6 +4807,8 @@ function renderSpotTradeSurface() {
     return;
   }
   document.getElementById("terminalSpotFlow").hidden = true;
+  const credit = document.getElementById('terminalSpotTradeCredit');
+  if (credit) { credit.hidden = true; credit.removeAttribute('href'); }
   setText("terminalActivityTradeCount", "Current sample");
   setText("terminalActivityWalletCount", "Returned sample");
   setText("terminalSpotActivityState", state.spotTradeLoadingKey === identity.key ? "Loading" : "Ready to load");
@@ -4861,7 +4864,11 @@ async function loadSpotTrades({ force = false } = {}) {
       document.getElementById("terminalSpotFlow").hidden = true;
       setText("terminalActiveTraderState", "Unavailable");
       renderActiveWalletMessage("Recent traders are unavailable for this market. You can still inspect its holders.");
-      renderSpotTradeMessage("Recent swaps are unavailable for this market. Refresh to try again.");
+      renderSpotTradeMessage(payload?.error === 'onchain_trade_not_indexed'
+        ? 'Transaction history is not indexed for this token yet. Its chart is still available.'
+        : payload?.error === 'onchain_trade_coverage_unavailable'
+          ? 'Transaction history is not available for this chain yet. Its chart is still available.'
+          : 'Recent swaps are unavailable for this market. Refresh to try again.');
       return;
     }
     state.spotTradeCache.set(identity.key, { payload: verified, loadedAt: Date.now() });

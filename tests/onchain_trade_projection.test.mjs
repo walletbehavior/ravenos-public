@@ -5,6 +5,7 @@ import {
   ONCHAIN_TRADE_SCHEMA,
   OnchainTradeProjectionContract,
   buildPublicOnchainTradeProjection,
+  publicOnchainTradeUnavailable,
 } from "../lib/onchain_trade_projection.mjs";
 import worker from "../worker.mjs";
 
@@ -18,6 +19,19 @@ const TX_B = `0x${"b".repeat(64)}`;
 const TX_C = `0x${"c".repeat(64)}`;
 const NOW = new Date("2026-08-28T12:00:00.000Z");
 const ROBINHOOD_V4_POOL = "0x0646357e2ed21b9964f09616152fda33433965b58c830e8d52b8f31b3b616102";
+
+test('transaction coverage gaps are distinguished from transient errors without exposing provider messages', () => {
+  const identity = { chain: 'base', pool_address: POOL, token_address: TOKEN, quote_token_address: QUOTE };
+  for (const [code, expected] of [['dexch_http_404', 'onchain_trade_not_indexed'],
+    ['onchain_trade_provider_unavailable', 'onchain_trade_coverage_unavailable'],
+    ['dexch_http_503', 'onchain_trade_temporarily_unavailable']]) {
+    const result = publicOnchainTradeUnavailable({ code, message: 'private provider response' }, identity);
+    assert.equal(result.payload.error, expected);
+    assert.equal(result.payload.state, 'unavailable');
+    assert.equal(result.payload.trades.length, 0);
+    assert.equal(JSON.stringify(result).includes('private provider response'), false);
+  }
+});
 
 function providerTrade({ id, hash, trader, at, side, volume, amount = 1_000 } = {}) {
   const buy = side === "buy";

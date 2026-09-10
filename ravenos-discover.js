@@ -7,7 +7,7 @@ import {
   opportunityLifecycle,
   spotMarketCapitalization,
   spotMarketFactFreshness,
-  spotMarketSnapshotUsable,
+  spotMarketSnapshotUsable as providerSpotMarketSnapshotUsable,
   spotDiscoveryQuality,
   reportedSpotLifecycle,
   spotRouteIsCurrent,
@@ -19,6 +19,7 @@ import { buildParticipationMap, buildPerpParticipationMap, matchesParticipationC
 import { openIntelligenceLayer, intelligenceLayerOpen } from "/ravenos-intelligence-layers.js";
 
 const REFRESH_MS = 45 * 1_000;
+const DISCOVER_REQUEST_TIMEOUT_MS = 12_000;
 const MARKET_TAPE_REFRESH_MS = 20 * 1_000;
 const DISCOVER_IDLE_MS = 2_400;
 const CHANGE_FLASH_MS = 1_600;
@@ -101,6 +102,12 @@ const state = {
   featuredRows: [],
   featuredRefreshedAt: 0,
   spotRows: [],
+  spotPulseRows: [],
+  spotPulseGeneratedAt: null,
+  spotPulseRadarState: null,
+  spotPulseRequest: null,
+  spotAcceptedObservations: new Set(),
+  spotRegistryRows: [],
   spotUniverse: null,
   spotPage: 0,
   spotPaginationKey: '',
@@ -187,6 +194,17 @@ function finite(value) {
   return Number.isFinite(result) ? result : null;
 }
 
+function spotObservationKey(row) {
+  return JSON.stringify([row.instrument_id, row.token_address, row.quote_token_address, spotMarketFactFreshness(row).observed_at]);
+}
+
+function spotMarketSnapshotUsable(row) {
+  if (providerSpotMarketSnapshotUsable(row)) return true;
+  const facts = spotMarketFactFreshness(row);
+  return state.spotAcceptedObservations.has(spotObservationKey(row))
+    && facts.age_seconds !== null && facts.age_seconds > 120 && facts.age_seconds <= 600;
+}
+
 function title(value, fallback = "Unavailable") {
   const result = text(value, fallback);
   return result.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
@@ -260,9 +278,19 @@ function when(value) {
   return new Intl.DateTimeFormat("en", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "UTC" }).format(parsed) + " UTC";
 }
 
-async function json(url) {
-  const response = await fetch(url, { cache: "no-store", headers: { accept: "application/json" } });
-  return { response, payload: await response.json().catch(() => null) };
+async function json(url, { signal } = {}) {
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  const timer = setTimeout(abort, DISCOVER_REQUEST_TIMEOUT_MS);
+  if (signal?.aborted) abort();
+  else signal?.addEventListener('abort', abort, { once: true });
+  try {
+    const response = await fetch(url, { cache: "no-store", headers: { accept: "application/json" }, signal: controller.signal });
+    return { response, payload: await response.json().catch(() => null) };
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener('abort', abort);
+  }
 }
 
 function setState(id, value, label = null) {
@@ -1795,7 +1823,7 @@ function spotRankedRows({ cohort = state.spotCohort, revival = state.spotRevival
       && (!state.participationFilter || matchesParticipationCell(row, state.participationFilter))
       && (lane !== "opportunities" || currentFacts)
       && (state.spotSort !== "raven" || currentFacts)
-      && ((retained && (row.discovery_source !== 'cached_participation_universe' || spotMarketSnapshotUsable(row))) || state.participationFilter || (
+      && ((!currentFacts && spotMarketSnapshotUsable(row)) || (retained && (row.discovery_source !== 'cached_participation_universe' || spotMarketSnapshotUsable(row))) || state.participationFilter || (
         survivesCurrentSpotMarket(row, { allowQuietLifecycle: lifecycleBrowse })
         && ((lifecycleBrowse && reportedLaunchpadLifecycle(row))
           || (broadDegenScan ? hasDegenRelevantSpotActivity(row) : hasDecisionUsefulSpotActivity(row)))
@@ -3697,32 +3725,82 @@ function currentFeaturedAtlasPayload(payload) {
   return rows;
 }
 
+function renderRetainedSpotMarkets({ forceOrder = false } = {}) {
+  const rows = mergeSpotRadarRows(state.spotRegistryRows, state.spotPulseRows);
+  renderSpotPulse(rows, { forceOrder });
+  renderDeskBrief({ ...state.deskInputs, markets: [...state.markets.values()], spotRows: rows });
+  applyFilter();
+  syncMarketSection();
+  return rows;
+}
+
+function refreshSpotMarkets() {
+  const chain = state.spotChain, timeframe = state.spotTimeframe;
+  const key = `${chain}:${timeframe}`;
+  if (state.spotPulseRequest?.key === key) return state.spotPulseRequest.promise;
+  state.spotPulseRequest?.controller.abort();
+  const request = { key, controller: new AbortController(), promise: null };
+  state.spotPulseRequest = request;
+  const newScope = chain !== state.spotLoadedChain || timeframe !== state.spotLoadedTimeframe;
+  if (newScope) state.spotUniverse = null;
+  const chains = ['solana', 'robinhood', 'base', 'bsc', 'ethereum'].includes(chain)
+    ? chain : 'solana,robinhood,base,bsc,ethereum';
+  const isCurrent = () => state.spotPulseRequest === request && state.spotChain === chain && state.spotTimeframe === timeframe;
+  request.promise = (async () => {
+    try {
+      const { response, payload } = await json(`/api/onchain/trending?chains=${chains}&duration=${encodeURIComponent(timeframe)}`, { signal: request.controller.signal });
+      if (!isCurrent()) return;
+      if (!response.ok) throw new Error('onchain_update_delayed');
+      const current = currentOnchainPulsePayload(payload);
+      // Only previously accepted, useful observations get the short local
+      // browsing grace period. Provider payloads cannot self-assert this status.
+      state.spotAcceptedObservations = new Set(current.rows.filter(row => providerSpotMarketSnapshotUsable(row)
+        || (survivesCurrentSpotMarket(row, { allowQuietLifecycle: lifecycleBrowseActive() })
+          && (hasDecisionUsefulSpotActivity(row)
+            || ((degenMarketCapFilterActive() || state.spotRevivalOnly) && hasDegenRelevantSpotActivity(row))
+            || (lifecycleBrowseActive() && reportedLaunchpadLifecycle(row)))))
+        .map(spotObservationKey));
+      state.spotPulseRows = current.rows;
+      state.spotPulseGeneratedAt = current.generatedAt;
+      state.spotUniverse = payload.universe || null;
+      state.spotFeedState = current.state === 'degraded' ? 'refreshing' : 'current';
+      state.spotPulseRadarState = current.radarState;
+      state.spotRadarState = current.radarState === 'current' && state.spotRadarState === 'shadow' ? 'shadow' : current.radarState;
+      state.spotLoadedChain = chain;
+      state.spotLoadedTimeframe = timeframe;
+    } catch {
+      if (!isCurrent()) return;
+      // Preserve the last accepted market observations. Rendering still applies
+      // their original timestamps, quality thresholds and selected window.
+      state.spotFeedState = 'refreshing';
+    } finally {
+      if (isCurrent()) {
+        state.spotPulseRequest = null;
+        renderRetainedSpotMarkets({ forceOrder: newScope });
+      }
+    }
+  })();
+  return request.promise;
+}
+
 async function refresh({ manual = false } = {}) {
   if (state.loading) {
     if (manual) state.refreshQueued = true;
     return;
   }
   if (state.paused && !manual) return;
-  const requestedTimeframe = state.spotTimeframe, requestedChain = state.spotChain;
-  const requestedChains = ['solana', 'robinhood', 'base', 'bsc', 'ethereum'].includes(requestedChain)
-    ? requestedChain : 'solana,robinhood,base,bsc,ethereum';
   void loadParticipationBoards();
   state.loading = true;
   document.getElementById("discoverRefresh").textContent = "Refreshing…";
   const shouldRefreshFeatured = manual || !state.featuredRows.length || Date.now() - state.featuredRefreshedAt >= 300_000;
-  const [opportunities, markets, atlas, featured, onchainPulse, brief] = await Promise.allSettled([
+  const [opportunities, markets, atlas, featured, , brief] = await Promise.allSettled([
     json("/api/opportunity"),
     json("/api/hyperliquid/perps"),
     json("/api/atlas"),
     shouldRefreshFeatured ? json("/api/atlas/featured?limit=40") : Promise.resolve(null),
-    json(`/api/onchain/trending?chains=${requestedChains}&duration=${encodeURIComponent(requestedTimeframe)}`),
+    refreshSpotMarkets(),
     json("/api/brief"),
   ]);
-  if (requestedChain !== state.spotChain || requestedTimeframe !== state.spotTimeframe) {
-    state.loading = false; state.refreshQueued = false;
-    void refresh({ manual: true });
-    return;
-  }
 
   if (shouldRefreshFeatured) {
     if (featured.status === "fulfilled" && featured.value?.response?.ok) {
@@ -3752,10 +3830,10 @@ async function refresh({ manual = false } = {}) {
 
   let ravenRows = [];
   let spotAttentionRows = [];
-  let registryRadarRows = [];
-  let marketPulseRows = [];
+  let registryRadarRows = state.spotRegistryRows;
+  const marketPulseRows = state.spotPulseRows;
   let ravenGeneratedAt = null;
-  let marketPulseGeneratedAt = null;
+  const marketPulseGeneratedAt = state.spotPulseGeneratedAt;
   let ravenFailure = "";
   if (opportunities.status === "fulfilled" && opportunities.value.response.ok) {
     try {
@@ -3801,28 +3879,10 @@ async function refresh({ manual = false } = {}) {
     ravenFailure = "New Raven reads are temporarily delayed. Velocity, Activity, and live venue data remain available.";
   }
 
-  if (onchainPulse.status === "fulfilled" && onchainPulse.value.response.ok) {
-    try {
-      const current = currentOnchainPulsePayload(onchainPulse.value.payload);
-      marketPulseRows = current.rows;
-      state.spotUniverse = onchainPulse.value.payload.universe || null;
-      marketPulseGeneratedAt = current.generatedAt;
-      state.spotFeedState = current.state === "degraded" ? "refreshing" : "current";
-      state.spotRadarState = current.radarState === "current" && state.spotRadarState === "shadow" ? "shadow" : current.radarState;
-    } catch {
-      marketPulseRows = [];
-      state.spotFeedState = "refreshing";
-    }
-  } else {
-    state.spotFeedState = "refreshing";
-  }
+  state.spotRegistryRows = registryRadarRows;
+  if (state.spotPulseRadarState) state.spotRadarState = state.spotPulseRadarState === 'current' && state.spotRadarState === 'shadow' ? 'shadow' : state.spotPulseRadarState;
   const tokenRows = mergeSpotRadarRows(registryRadarRows, marketPulseRows);
-  // A requested chain/timeframe refresh replaces the prior slice immediately.
-  // Otherwise a retained display order can claim the new count but show old
-  // page-one rows again on page two.
-  const newMarketSample = requestedChain !== state.spotLoadedChain || requestedTimeframe !== state.spotLoadedTimeframe;
-  renderSpotPulse(tokenRows, { forceOrder: newMarketSample });
-  state.spotLoadedChain = requestedChain; state.spotLoadedTimeframe = requestedTimeframe;
+  renderSpotPulse(tokenRows);
 
   let briefData = null;
   if (brief.status === "fulfilled" && brief.value.response.ok) {
@@ -3909,7 +3969,7 @@ async function refresh({ manual = false } = {}) {
   syncMarketSection();
   state.loading = false;
   document.getElementById("discoverRefresh").textContent = "Refresh now";
-  if (state.refreshQueued || requestedTimeframe !== state.spotTimeframe) {
+  if (state.refreshQueued) {
     state.refreshQueued = false;
     void refresh({ manual: true });
   }
@@ -3996,7 +4056,7 @@ function bind() {
     state.spotTimeframe = button.dataset.spotTimeframe;
     setPreference("discoverTimeframe", state.spotTimeframe);
     renderSpotPulse(state.spotRows, { forceOrder: true });
-    void refresh({ manual: true });
+    void refreshSpotMarkets();
   }));
   document.querySelectorAll("[data-spot-sort]").forEach((button) => button.addEventListener("click", () => {
     state.spotSort = button.dataset.spotSort;
@@ -4019,7 +4079,7 @@ function bind() {
     setPreference("discoverChain", state.spotChain);
     renderSpotPulse(state.spotRows, { forceOrder: true });
     // Query the whole retained chain sample, not just its slice of the All page.
-    void refresh({ manual: true });
+    void refreshSpotMarkets();
   }));
   document.querySelectorAll("[data-spot-lane]").forEach((button) => button.addEventListener("click", () => {
     state.spotLane = button.dataset.spotLane;

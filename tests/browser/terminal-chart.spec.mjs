@@ -1648,6 +1648,7 @@ test('token activity for another contract is rejected before rendering', async (
   await page.goto(`/terminal/?instrument_id=${encodeURIComponent(`robinhood:pool:${ROBINHOOD_POOL}`)}&lane=spot&market=spot&instrument_type=exact_pool&token_address=${ROBINHOOD_CONTRACT}&quote_address=${ROBINHOOD_QUOTE}&panel=activity`);
   await expect(page.locator('#terminalSpotActivityState')).toHaveText('Unavailable');
   await expect(page.locator('#terminalSpotTradeRows .terminal-spot-trade-row')).toHaveCount(0);
+  await expect(page.locator('#terminalSpotTradeCredit')).toBeHidden();
 });
 
 test("active wallets can be opened directly without widening exact-pool identity", async ({ page }) => {
