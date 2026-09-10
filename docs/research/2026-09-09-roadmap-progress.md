@@ -225,3 +225,8 @@ Seven focused browser cases pass at 360, 390 and 1440 px, covering price/wallet/
 
 
 The signed-in mobile postflight loads 120 rows with the 676 px table and no page overflow. At the right edge, price (59–193 px), wallet (199–299 px) and transaction link (305–341 px) fit within the scroll area. A native scrollbar exposed an additional expanded-detail alignment issue: conditional scrollbar width was not subtracted from the container query width, shifting the panel left by 11 px. A stable scrollbar gutter fixes that width calculation without changing row data or desktop wallet identity. Final native-browser qualification and deployment follow below.
+
+
+Final follow-up `7a12d194f93d` is deployed as `ravenos-7a12d194f93d-c945a123bfa33899`, Worker `55b079cc-9331-473a-b97f-cea1367c5adb`, on both origins. Three native-window Chromium cases and three WebKit cases pass at 360/390/1440 px. Staging, build/security/no-leak validation and all 39 production checks pass. The signed-in mobile check confirms 120 rows and an expanded detail panel exactly inside the 330 px visible area (17–347 px), including the full wallet address and exact amounts. Screenshots were inspected. No transaction was submitted. See [mobile production proof](2026-09-09-mobile-tape-production-proof.json). The mobile tape milestone is delivered; the overall roadmap remains active.
+
+The compact mobile wallet link also opened the populated H4BB…HfS intelligence overlay with its CODEC record. Close returned to the same RETIRE/SOL exact-pool Terminal URL, activity pane and 120 rows. This was a read-only inspection.

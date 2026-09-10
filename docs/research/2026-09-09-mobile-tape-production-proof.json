@@ -1,0 +1,45 @@
+{
+  "release_id": "ravenos-7a12d194f93d-c945a123bfa33899",
+  "source_commit": "7a12d194f93df0954392305ae8ac7a4da33f4b66",
+  "worker_version": "55b079cc-9331-473a-b97f-cea1367c5adb",
+  "archive_sha256": "4c503d36ac18b8aa5714ecbbe64ed15a14ba88aee2bca1ce4937ec8a7f2fe7dd",
+  "production_checks": {
+    "ok": true,
+    "release_id": "ravenos-7a12d194f93d-c945a123bfa33899",
+    "checks": 39,
+    "verified_assets": 24,
+    "authenticated_workspaces": 7,
+    "transactions_submitted": 0
+  },
+  "browser_cases": {
+    "chromium_initial": 7,
+    "webkit_initial": 7,
+    "native_window_chromium_final": 3,
+    "webkit_final": 3
+  },
+  "production_mobile": {
+    "viewport_width": 390,
+    "page_width": 375,
+    "rows": 120,
+    "table_width": 676,
+    "scroll_left_at_right_edge": 346,
+    "scroll_client_width": 330,
+    "visible_left": 17,
+    "visible_right": 347,
+    "expanded_detail_left": 17,
+    "expanded_detail_right": 347,
+    "expanded_detail_inside_visible_area": true,
+    "price_wallet_tx_columns_visible_together": true,
+    "full_address_in_expanded_details": true
+  },
+  "scope": "Read-only UI and release checks. Counts describe the sampled exact Solana pool, not the complete market history. The broader roadmap and actual trading round trips remain incomplete.",
+  "wallet_overlay": {
+    "profile": "H4BB95H3ezr3c993PWVdJUhNfe2N3a61CZgLoVVF2HfS",
+    "profile_populated": true,
+    "token_record_visible": "CODEC",
+    "same_market_url_on_close": true,
+    "pane_after_close": "activity",
+    "rows_after_close": 120,
+    "overlay_count_after_close": 0
+  }
+}
