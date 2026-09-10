@@ -40,6 +40,17 @@ test('token references share edge cache across wallets and worker instances, pre
   await loadWalletTokenMarks({...input,now:NOW+301,priceCache:new Map()});assert.equal(calls,2);
 });
 
+test('hash-identified pools supply retained marks without broadening token or wallet identity',async()=>{
+  const pool='0x'+'ab'.repeat(32),cache=edge();let calls=0;
+  const input={chain:'robinhood',contracts:[T],now:NOW,cache,priceCache:new Map(),fetchImpl:async()=>{calls++;return Response.json([pair({pairAddress:pool})]);}};
+  const first=await loadWalletTokenMarks(input);
+  assert.equal(first.rows[0]?.pool_address,pool);
+  const retained=await loadWalletTokenMarks({...input,now:NOW+1,priceCache:new Map()});
+  assert.equal(retained.rows[0]?.pool_address,pool);assert.equal(retained.rows[0]?.sampled_at,NOW);assert.equal(calls,1);
+  assert.equal(selectWalletTokenMark('robinhood',pool,[pair({baseToken:{address:pool}})],NOW),null);
+  assert.equal(selectWalletTokenMark('robinhood',T,[pair({pairAddress:pool,quoteToken:{address:pool}})],NOW).state,'no_qualified_market');
+});
+
 test('wallet price requests honor the shared market cooldown for new tokens and chains',async()=>{
   let calls=0;
   const fetchImpl=async()=>{calls++;return new Response('',{status:429,headers:{'retry-after':'120'}});};
@@ -48,6 +59,12 @@ test('wallet price requests honor the shared market cooldown for new tokens and 
   const result=await loadWalletTokenMarks({chain:'robinhood',contracts:[T],now:NOW+1,priceCache:new Map(),providerReader,fetchImpl});
   assert.equal(calls,1);
   assert.equal(result.rows.length,0);assert.equal(result.request_count,0);
+});
+
+test('a full local market queue does not count as a provider request for wallet marks',async()=>{
+  const result=await loadWalletTokenMarks({chain:'robinhood',contracts:[T],now:NOW,priceCache:new Map(),
+    providerReader:{snapshot:async()=>{throw Object.assign(Error('busy'),{code:'market_provider_busy',retry_after_ms:1000});}}});
+  assert.equal(result.request_count,0);assert.equal(result.rows.length,0);assert.equal(result.unavailable[0].reason,'provider_unavailable');
 });
 
 test('an existing market response supplies a wallet mark with its original observation time',async()=>{

@@ -64,3 +64,34 @@ test('participation collection, compressed D1 storage and recovery run in worker
   assert.equal(cold.status,503); assert.equal((await cold.json()).error,'market_provider_backoff');
   assert.equal(calls,3, 'a cold reader in workerd honors the prior public edge cooldown');
 });
+
+test('the production shared reader paces real workerd timers and stops queued reads after a cooldown', async t => {
+  const config = JSON.parse(readFileSync('wrangler.jsonc', 'utf8'));
+  const bundle = await build({ stdin: { contents: `
+    import {sharedMarketProviderReader as reader} from './lib/market_provider_fallbacks.mjs';
+    export default {async fetch(request) {
+      const path=new URL(request.url).pathname;
+      const rows=await Promise.allSettled(['base','ethereum','robinhood'].map(chain=>
+        reader.snapshot('https://api.dexscreener.com/tokens/v1/'+chain+path)));
+      return Response.json(rows.map(row=>row.status==='fulfilled'?{cache_hit:row.value.cache_hit}:{error:row.reason.code}));
+    }};`, resolveDir: process.cwd() }, bundle: true, write: false, format: 'esm', platform: 'browser', external: ['node:*'] });
+  const calls = [];
+  const mf = new Miniflare(convertV4MiniflareOptions({ modules: true, script: bundle.outputFiles[0].text,
+    compatibilityDate: config.compatibility_date, compatibilityFlags: config.compatibility_flags,
+    outboundService: request => {
+      calls.push({ at: Date.now(), path: new URL(request.url).pathname });
+      return request.url.endsWith('/limited') ? new Response(null, { status: 429, headers: { 'retry-after': '120' } }) : Response.json({ ok: true });
+    },
+  }));
+  t.after(() => mf.dispose());
+  const first = await (await mf.dispatchFetch('https://fixture.invalid/prices')).json();
+  assert.deepEqual(first, Array.from({ length: 3 }, () => ({ cache_hit: false })));
+  assert.equal(calls.length, 3);
+  for (let i = 1; i < calls.length; i++) assert(calls[i].at - calls[i - 1].at >= 225, 'provider starts remain spaced in the Worker runtime');
+  const cached = await (await mf.dispatchFetch('https://fixture.invalid/prices')).json();
+  assert(cached.every(row => row.cache_hit));assert.equal(calls.length, 3);
+  const limited = await (await mf.dispatchFetch('https://fixture.invalid/limited')).json();
+  assert.equal(calls.length, 4);
+  assert.equal(limited.filter(row => row.error === 'market_provider_http_429').length, 1);
+  assert.equal(limited.filter(row => row.error === 'market_provider_backoff').length, 2);
+});

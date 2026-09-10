@@ -142,6 +142,7 @@ test("EVM wallet identities remain distinct across Robinhood, BNB, Base, and Eth
     ["base", 8453, "base"],
     ["ethereum", 1, "eth"],
   ].map(([chain, chainId, namespace]) => {
+    assert.throws(() => normalizeSourceWalletChainIdentity({ chain, network: 'mainnet', address: '0x' + 'ab'.repeat(32) }));
     const identity = normalizeSourceWalletChainIdentity({ chain, network: "mainnet", chain_id: chainId, address: ACTOR });
     assert.match(identity.source_wallet_id, new RegExp(`^sw_${namespace}_[a-f0-9]{40}$`));
     assert.equal(identity.chain_id, chainId);

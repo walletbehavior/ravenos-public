@@ -69,6 +69,19 @@ test("Dexch token normalization binds exact chain and address instead of ticker 
   assert.equal(robinhood.canonical_identity.asset_id, `eip155:4663/erc20:${RH_TOKEN}`);
 });
 
+test("Dexch retains EVM pool hashes while token, quote and creator addresses remain contracts or accounts", () => {
+  const pool = '0x' + 'AB'.repeat(32);
+  const options = { nowMs: NOW, retrievedAt: new Date(NOW).toISOString() };
+  for (const chain of ['robinhood', 'bsc']) {
+    const token = normalizeDexchToken(tokenFixture({ chain, poolAddress: pool }), options);
+    assert.equal(token.venue.pool_address, pool.toLowerCase());
+    assert.equal(token.address, RH_TOKEN);
+    assert.equal(normalizeDexchToken(tokenFixture({ chain, address: pool }), options), null);
+    const invalid = normalizeDexchToken(tokenFixture({ chain, poolAddress: pool + 'a', quoteToken: pool, creator: pool }), options);
+    assert.equal(invalid.venue.pool_address, null);assert.equal(invalid.venue.quote_token_address, null);assert.equal(invalid.creator_address, null);
+  }
+});
+
 test("Solana Dexch identity does not guess SPL versus Token-2022", () => {
   const token = normalizeDexchToken(tokenFixture({
     chain: "solana",

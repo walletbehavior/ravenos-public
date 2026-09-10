@@ -266,6 +266,22 @@ test("identically named pools remain separate exact saved markets", async () => 
   assert(payload.items.every((item) => new URL(item.terminal_url).searchParams.get("instrument_id") === item.market.instrument_id));
 });
 
+test("saved EVM pool hashes retain every byte and stay distinct across pools and chains", async () => {
+  const harness = await setup();
+  const pool = '0x' + 'AB'.repeat(32), otherPool = pool.slice(0, -2) + 'CD';
+  const ids = [`robinhood:pool:${pool}`, `robinhood:pool:${otherPool}`, `base:pool:${pool}`];
+  for (const id of ids) {
+    const response = await routeCustomerResearchState(request(`${CUSTOMER_RESEARCH_STATE_ROUTE}/watch-items`, { method: "POST", body: saveBody(id) }), configuredEnv(), harness.deps);
+    assert.equal(response.status, 201);
+  }
+  const payload = await (await routeCustomerResearchState(request(), configuredEnv(), harness.deps)).json();
+  assert.deepEqual(new Set(payload.items.map(item => item.market.instrument_id)), new Set(ids.map(id => id.toLowerCase())));
+  for (const item of payload.items) assert.equal(new URL(item.terminal_url).searchParams.get('instrument_id'), item.market.instrument_id);
+  for (const length of [39, 41, 63, 65]) {
+    assert.throws(() => canonicalizeSavedMarket({ instrument_id: `base:pool:0x${'a'.repeat(length)}` }), /exact_market_identity_invalid/);
+  }
+});
+
 test("save is idempotent, workspace changes revise once, and a second device restores state", async () => {
   const harness = await setup();
   const path = `${CUSTOMER_RESEARCH_STATE_ROUTE}/watch-items`;

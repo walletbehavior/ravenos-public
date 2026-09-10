@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { buildDexchChart } from '../lib/dexch_chart.mjs';
+import { normalizeDexchToken } from '../lib/dexch_discovery_provider.mjs';
 const NOW = Date.parse('2026-09-09T12:00:30Z');
 const address = n => '0x' + n.toString(16).padStart(40, '0');
 function fixture() {
@@ -18,6 +19,17 @@ test('Dexch charts keep only post-migration candles with explicit provider linea
   assert.equal(result.capabilities.older_bar_backfill,false);assert.equal(result.instrument.identity_scope,'exact_pool');
   assert.equal(result.lineage.provider,'Dexch');assert.equal(result.last_candle_age_seconds,30);
   assert.equal(result.provider_usage.provider_request_count,null);
+});
+
+test('normalized Dexch tokens support an exact hash-identified pool chart without selecting another pool',()=>{
+  const f=fixture(),pool='0x'+'ab'.repeat(32);
+  f.pairAddress=pool;f.pair.pairAddress=pool;
+  f.token=normalizeDexchToken({chain:f.chain,address:f.tokenAddress,poolAddress:pool,quoteToken:f.quoteAddress,
+    symbol:'TOKEN',decimals:18,quoteDecimals:18,migratedAt:f.token.lifecycle.migrated_at}, {nowMs:NOW,retrievedAt:new Date(NOW).toISOString()});
+  const result=buildDexchChart(f);
+  assert.equal(result.pair_address,pool);assert.equal(result.lineage.pool_address,pool);assert.equal(result.continuity.identity.state,'verified');
+  f.pair.pairAddress=pool.slice(0,-2)+'cd';
+  assert.throws(()=>buildDexchChart(f),/identity_mismatch/);
 });
 
 test('unknown pools, quote assets, chain, token or interval cannot be relabeled to the selected market',()=>{

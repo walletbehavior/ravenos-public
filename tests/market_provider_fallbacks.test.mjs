@@ -10,6 +10,65 @@ const pair = (overrides = {}) => ({ chainId: 'base', pairAddress: address(1), ba
   priceUsd: '2.50', liquidity: { usd: 125000 }, volume: { m5: 8000 }, txns: { m5: { buys: 5, sells: 3 } }, priceChange: { m5: 2 }, pairCreatedAt: NOW - 86400000, ...overrides });
 const token = chain => ({ chain, address: address(2), name: 'Token', symbol: 'TOKEN', priceUsd: 2, liquidityUsd: 10000 });
 
+const settle = () => new Promise(resolve => setImmediate(resolve));
+function pacedReader(fetchFn = async () => json({ ok: true })) {
+  let now = NOW;const timers = [], calls = [];
+  const reader = new MarketProviderReader({ now: () => now, cache: () => null, marketIntervalMs: 250,
+    waitFn: ms => new Promise(resolve => timers.push({ at: now + ms, resolve })),
+    fetchFn: async (url, init) => { calls.push({ url, at: now });return fetchFn(url, init); },
+  });
+  return { reader, calls, async advance(ms) {
+    now += ms;
+    for (const timer of timers.splice(0)) { if (timer.at <= now) timer.resolve();else timers.push(timer); }
+    await settle();
+  } };
+}
+
+test('uncached market requests start at spaced intervals across endpoints and chains, while coalesced reads share a slot', async () => {
+  const p = pacedReader(), urls = ['tokens/v1/base/a', 'latest/dex/pairs/ethereum/b', 'token-pairs/v1/robinhood/c'].map(path => 'https://api.dexscreener.com/' + path);
+  const jobs = [p.reader.snapshot(urls[0]), p.reader.snapshot(urls[0]), p.reader.snapshot(urls[1]), p.reader.snapshot(urls[2])];
+  await settle();assert.equal(p.calls.length, 1);
+  await p.advance(249);assert.equal(p.calls.length, 1);
+  await p.advance(1);assert.equal(p.calls.length, 2);
+  await p.advance(250);
+  const results = await Promise.all(jobs);
+  assert.deepEqual(p.calls.map(call => call.at - NOW), [0, 250, 500]);assert.deepEqual(results[0], results[1]);
+  const cached = await p.reader.snapshot(urls[0]);
+  assert.equal(cached.cache_hit, true);assert.equal(cached.observed_at, results[0].observed_at);assert.equal(p.calls.length, 3);
+});
+
+test('discovery and other providers do not queue behind market requests, and late timers cannot cause a catch-up burst', async () => {
+  const p = pacedReader();
+  const jobs = ['a', 'b', 'c'].map(id => p.reader.read('https://api.dexscreener.com/tokens/v1/base/' + id));
+  await settle();
+  await p.reader.read('https://api.dexscreener.com/token-profiles/latest/v1');
+  await p.reader.read('https://api.dexch.art/api/v1/tokens');
+  assert.equal(p.calls.length, 3);
+  await p.advance(700);assert.equal(p.calls.length, 4);
+  await p.advance(250);await Promise.all(jobs);
+  assert.deepEqual(p.calls.filter(call => call.url.includes('/tokens/v1/base/')).map(call => call.at - NOW), [0, 700, 950]);
+});
+
+test('queued market requests honor a newly returned cooldown before contacting the provider', async () => {
+  const p = pacedReader(async () => new Response('', { status: 429, headers: { 'retry-after': '120' } }));
+  const jobs = Promise.allSettled(['a', 'b', 'c'].map(id => p.reader.read('https://api.dexscreener.com/tokens/v1/base/' + id)));
+  await settle();await p.advance(250);
+  const results = await jobs;
+  assert.equal(p.calls.length, 1);
+  assert.deepEqual(results.map(row => row.reason.code), ['market_provider_http_429', 'market_provider_backoff', 'market_provider_backoff']);
+  assert(results.slice(1).every(row => row.reason.retry_after_ms > 119000));
+});
+
+test('market pacing bounds the queue instead of adding unbounded latency or provider requests', async () => {
+  const p = pacedReader();
+  const resultsJob = Promise.allSettled(Array.from({ length: 12 }, (_, i) => p.reader.read('https://api.dexscreener.com/tokens/v1/base/' + i)));
+  await settle();assert.equal(p.calls.length, 1);
+  for (let i = 0; i < 8; i++) await p.advance(250);
+  const results = await resultsJob;
+  assert.equal(p.calls.length, 9);assert.equal(results.filter(row => row.status === 'fulfilled').length, 9);
+  assert(results.filter(row => row.status === 'rejected').every(row => row.reason.code === 'market_provider_busy'));
+});
+
 test('a provider cooldown survives a cold reader without blocking separately limited discovery', async () => {
   const rows = new Map(); let now = NOW, calls = 0;
   const cache = { match: async key => rows.get(key.url)?.clone(), put: async (key, response) => rows.set(key.url, response) };

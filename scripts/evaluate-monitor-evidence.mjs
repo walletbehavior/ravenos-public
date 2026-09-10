@@ -38,7 +38,11 @@ try {
     const current = rows.filter(row => { const age = now - Date.parse(row.observed_at) / 1000; return age >= 0 && age <= 120; });
     const sample = current.slice(0, 100);
     const evidence = buildOnchainMonitorEvidence({ ...snapshot, rows }, sample.map(row => row.instrument_id), { now });
+    const hashPool = row => /^0x[0-9a-fA-F]{64}$/.test(row.pool_address || '');
     byChain[chain] = { retained_markets: rows.length, current_markets: current.length, sampled_markets: sample.length,
+      current_hash_pool_markets: current.filter(hashPool).length,
+      sampled_hash_pool_markets: sample.filter(hashPool).length,
+      qualified_hash_pool_snapshots: sample.filter(row => hashPool(row) && evidence[row.instrument_id]).length,
       observation_age_seconds: { newest: ages.length ? Math.floor(ages[0]) : null,
         median: ages.length ? Math.floor(ages[Math.floor(ages.length / 2)]) : null,
         oldest: ages.length ? Math.floor(ages.at(-1)) : null },

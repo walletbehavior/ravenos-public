@@ -135,8 +135,9 @@ function venueDisplayName(value) {
 
 function extractedMarketAddresses(value = "") {
   const clean = String(value || "").slice(0, 512);
-  const evm = clean.match(/0x[a-fA-F0-9]{40}/g) || [];
-  const solanaScan = clean.replace(/0x[a-fA-F0-9]{40}/g, (match) => " ".repeat(match.length));
+  const evmPattern = /0x(?:[a-fA-F0-9]{64}|[a-fA-F0-9]{40})(?![a-fA-F0-9])/g;
+  const evm = clean.match(evmPattern) || [];
+  const solanaScan = clean.replace(evmPattern, (match) => " ".repeat(match.length));
   const matches = [
     ...evm,
     ...(solanaScan.match(/(?<![1-9A-HJ-NP-Za-km-z])[1-9A-HJ-NP-Za-km-z]{32,44}(?![1-9A-HJ-NP-Za-km-z])/g) || []),

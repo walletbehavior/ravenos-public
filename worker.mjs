@@ -6712,8 +6712,9 @@ function exactAddressDexResults(rows, address, { caseSensitive = false } = {}) {
 function extractDexInputTerms(input) {
   const clean = String(input || "").replace(/[\u0000-\u001f\u007f]/g, " ").trim().slice(0, 512);
   if (!clean) return [];
-  const evm = clean.match(/0x[a-fA-F0-9]{40}/g) || [];
-  const solanaScan = clean.replace(/0x[a-fA-F0-9]{40}/g, (match) => " ".repeat(match.length));
+  const evmPattern = /0x(?:[a-fA-F0-9]{64}|[a-fA-F0-9]{40})(?![a-fA-F0-9])/g;
+  const evm = clean.match(evmPattern) || [];
+  const solanaScan = clean.replace(evmPattern, (match) => " ".repeat(match.length));
   const matches = [
     ...evm,
     ...(solanaScan.match(/(?<![1-9A-HJ-NP-Za-km-z])[1-9A-HJ-NP-Za-km-z]{32,44}(?![1-9A-HJ-NP-Za-km-z])/g) || []),
@@ -6736,6 +6737,10 @@ async function resolveSingleDexInput(input) {
       ...EVM_CHAINS.map((chain) => tokensDex(chain, q)),
     ]);
     return exactAddressDexResults(mergeOnchainSearchRows(settled.flatMap((item) => item.status === "fulfilled" ? item.value : [])), q);
+  }
+  if (EVM_POOL_ID_RE.test(q)) {
+    const settled = await Promise.allSettled([searchDex(q), searchDexPaprika(q)]);
+    return exactAddressDexResults(mergeOnchainSearchRows(settled.flatMap(item => item.status === "fulfilled" ? item.value : [])), q);
   }
   const pair = q.match(/^([a-z0-9_-]+):([A-Za-z0-9x]+)$/i);
   if (pair) return pairDex(pair[1], pair[2]);

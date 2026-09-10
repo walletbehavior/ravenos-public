@@ -31,6 +31,20 @@ test('all five chains use their exact fresh pool, never a paired token or anothe
   assert.deepEqual(buildOnchainMonitorEvidence(snapshot(rows), [`base:pool:${addr(99)}`], { now: NOW }), {});
 });
 
+test('full EVM pool hashes qualify without allowing hashes to masquerade as token addresses', () => {
+  const pool = '0x' + 'ab'.repeat(32), otherPool = pool.slice(0, -2) + 'cd';
+  for (const chain of ['base', 'ethereum', 'bsc', 'robinhood']) {
+    const r = { ...row(chain), instrument_id: `${chain}:pool:${pool}`, pool_address: pool };
+    assert.equal(build([r])[r.instrument_id]?.classifications.pressure_regime, '1h buy-led');
+    assert.deepEqual(build([{ ...r, pool_address: otherPool }]), {});
+    assert.deepEqual(build([{ ...r, token_address: pool }]), {});
+    assert.deepEqual(build([{ ...r, quote_token_address: pool }]), {});
+    const other = { ...r, instrument_id: `${chain}:pool:${otherPool}`, pool_address: otherPool };
+    assert.equal(Object.keys(build([r, other])).length, 2);
+    assert.deepEqual(build([r, { ...r, token_address: addr(9) }]), {});
+  }
+});
+
 test('the real collector compact snapshot remains usable as onchain alert evidence', async () => {
   const value = await collectParticipationUniverse({ dexchEnabled: false, now: () => NOW * 1000,
     readKnownMarkets: async () => [{ chain: 'base', token_address: addr(2) }],

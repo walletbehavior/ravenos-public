@@ -5,6 +5,28 @@ async function waitForTerminal(page) {
   await waitForTerminalLive(page, { instrument: "SOL-PERP" });
 }
 
+for (const width of [390, 1440]) test(`pasting an EVM pool URL preserves its full hash in mobile and desktop search at ${width}px`, async ({ page }) => {
+  const pool = '0x' + 'ab'.repeat(32), token = '0x' + '12'.repeat(20), quote = '0x' + '34'.repeat(20);
+  await page.setViewportSize({ width, height: 844 });
+  await mockTerminalLiveApis(page);
+  const queries = [];
+  await page.route('**/api/dexscreener/search**', route => {
+    queries.push(new URL(route.request().url()).searchParams.get('q'));
+    return route.fulfill({ json: { ok: true, results: [{ chainId: 'robinhood', dexId: 'uniswap', pairAddress: pool,
+      tokenAddress: token, quoteTokenAddress: quote, symbol: 'HASHPOOL', name: 'Hash pool', quoteSymbol: 'WETH',
+      priceUsd: 1, liquidityUsd: 100000, volume24h: 10000, input_match: 'pool_address' }] } });
+  });
+  await page.goto('/terminal/?market_scope=memecoins');
+  await page.keyboard.press('Control+K');
+  await page.locator('#rosCommandInput').fill('https://dexscreener.com/robinhood/' + pool);
+  const result = page.locator('.ros-command-result.instrument').filter({ hasText: 'HASHPOOL' });
+  await expect(result).toHaveCount(1);
+  expect(queries.at(-1)).toBe(pool);
+  await expect(page.getByText('Analyze public wallet', { exact: true })).toHaveCount(0);
+  await result.click();
+  await expect.poll(() => new URL(page.url()).searchParams.get('pair_address')).toBe(pool);
+});
+
 test("desktop shell wraps the Terminal without replacing the analytical workspace", async ({ page }) => {
   await mockTerminalLiveApis(page);
   await page.goto("/terminal/?market_scope=perps");
