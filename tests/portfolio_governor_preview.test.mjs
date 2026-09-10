@@ -307,6 +307,14 @@ for (const mode of ['current','frozen','unavailable','wrong_owner']) test(`buyin
   }
 });
 
+test('small native and working USDC balances remain visible below the dust display threshold',async()=>{
+  const result=await analyzeSolanaPortfolioPreview({
+    user_id:USER_ID,wallet:walletResolver({user_id:USER_ID})[0],jupiter_api_key:'test',fetch_impl:async url=>liveProviderFixture(url),now:()=>NOW_MS,
+    rpc_request:async(method,params)=>method==='getBalance'?{value:100000}:{value:params[1].programId===SOLANA_TOKEN_PROGRAMS[0].program_id?[tokenAccount({accountSeed:21,mint:SOLANA_USDC_MINT,amount:'10000'})]:[]},
+  });
+  assert.deepEqual(result.dto.holdings.rows.map(row=>row.instrument.symbol).sort(),['SOL','USDC']);
+});
+
 test("live validation harness requires authorization and emits only structural diagnostics", async () => {
   const env = {
     RAVENOS_PORTFOLIO_VALIDATION_ACK: "authorized_read_only",
