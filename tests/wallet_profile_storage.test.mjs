@@ -30,12 +30,14 @@ function large(profile) {
 test('large immutable wallet profiles round-trip without truncating evidence or breaking screener metrics', async () => {
   const { db, store, profile } = await fixture(); large(profile);
   profile.discovery_metrics.warning_tokens_pct = 12;
+  profile.wallet_reconstruction = {version:1,opening_balances:{fixture:'9007199254740993000000'}};
   assert(JSON.stringify(profile).length > 65536);
   const id = await store.recordProfile(identity.source_wallet_id, profile, NOW);
   assert.deepEqual(await store.latestProfile(identity.source_wallet_id), profile);
   const inline = JSON.parse(db.raw.prepare('SELECT profile_json FROM ravenos_source_wallet_profiles').get().profile_json);
   assert.equal(inline.discovery_metrics.warning_tokens_pct,12);
   assert.deepEqual(inline.behavior,profile.behavior);
+  assert.deepEqual(inline.wallet_reconstruction,{version:1});
   assert(JSON.stringify(inline).length < 65536);
   assert.equal(db.raw.prepare('SELECT profile_snapshot_id FROM ravenos_source_wallet_current_profiles').get().profile_snapshot_id,id);
   await store.recordProfile(identity.source_wallet_id, profile, NOW);

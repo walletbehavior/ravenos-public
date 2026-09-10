@@ -124,6 +124,33 @@ test('precision accounting upgrades retained profiles on every EVM chain once wi
   assert.deepEqual(await items[0].store.listProfileRefreshCandidates(8,{now:NOW+900000}),[]);
 });
 
+test('legacy large EVM profiles upgrade from retained details without changing old snapshots',async t=>{
+ const db=database(t),wallets=createD1CustomerWalletCopyStore(db),items=[];
+ for(const [index,chain,version,reconstructed] of [[41,'bsc',3,true],[42,'ethereum',EVM_WALLET_TRADING_PROFILE_VERSION,true],[43,'base',3,false]]) {
+  const item=await addJob(db,index,chain),snapshot='swp_precision_legacy_'+index,generated=NOW/1000+600;
+  const full={schema_version:'ravenos.evm_wallet_basic_profile.v2',profile_version:version,
+   source_wallet:{chain,network:'mainnet',address:item.address},generated_at:new Date(generated*1000).toISOString(),
+   coverage:{normalized_events:24},behavior:{},source_performance:{},data_quality:{},
+   ...(reconstructed?{wallet_reconstruction:{version:1}}:{}),retained_lookup:{padding:'x'.repeat(70000)}};
+  const inline={schema_version:full.schema_version,profile_version:version,source_wallet:full.source_wallet,details_stored_separately:true};
+  db.raw.prepare(`INSERT INTO ravenos_source_wallet_profiles
+   (profile_snapshot_id,schema_version,source_wallet_id,profile_version,normalized_event_count,profile_json,generated_at,retention_expires_at)
+   VALUES (?,?,?,?,24,?,?,?)`).run(snapshot,full.schema_version,item.job.source_wallet_id,version,JSON.stringify(inline),generated,generated+86400);
+  db.raw.prepare('INSERT INTO ravenos_source_wallet_profile_details (profile_snapshot_id,profile_json) VALUES (?,?)').run(snapshot,JSON.stringify(full));
+  db.raw.prepare(`INSERT INTO ravenos_source_wallet_current_profiles
+   (source_wallet_id,profile_snapshot_id,profile_version,generated_at,trade_count,active_days,token_count,performance_state,closed_lots,profile_hash,updated_at)
+   VALUES (?,?,?,?,0,0,0,'insufficient_evidence',0,?,?)`).run(item.job.source_wallet_id,snapshot,version,generated,'a'.repeat(40),generated);
+  db.raw.prepare('UPDATE ravenos_source_wallet_backfill_jobs SET signatures_seen=24,transactions_decoded=24 WHERE job_id=?').run(item.job.job_id);
+  items.push({...item,snapshot,full});
+ }
+ const selected=await items[0].store.listProfileRefreshCandidates(8,{now:NOW+700000});
+ assert.deepEqual(selected.map(j=>j.job_id),[items[0].job.job_id]);
+ await wallets.recordProfile(items[0].job.source_wallet_id,{...items[0].full,profile_version:EVM_WALLET_TRADING_PROFILE_VERSION},NOW/1000+800);
+ assert.deepEqual(await items[0].store.listProfileRefreshCandidates(8,{now:NOW+900000}),[]);
+ assert.deepEqual(JSON.parse(db.raw.prepare('SELECT profile_json FROM ravenos_source_wallet_profile_details WHERE profile_snapshot_id=?').get(items[0].snapshot).profile_json),items[0].full);
+ assert.equal(db.raw.prepare('PRAGMA foreign_key_check').all().length,0);
+});
+
 function page(address, count, token = '999999:2') {
   return { pagination_token: token, history_exhausted: false, rows: Array.from({ length: count }, (_, i) => {
     const slot = 999999 - i, blockTime = NOW / 1000 - i;
