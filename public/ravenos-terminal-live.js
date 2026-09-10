@@ -4501,6 +4501,16 @@ function spotFlowLabel(value) {
   return `${amount > 0 ? "+" : amount < 0 ? "−" : ""}${compact(Math.abs(amount), { currency: true })}`;
 }
 
+function spotTradeAmountLabel(value) {
+  const amount = finite(value);
+  if (amount === null || amount <= 0) return "—";
+  if (amount >= 1_000) return compact(amount);
+  if (amount < 0.000001) return amount.toExponential(3).replace(/\.?0+e/, 'e');
+  return amount.toLocaleString('en-US', amount < 1
+    ? { maximumSignificantDigits: 4 }
+    : { maximumFractionDigits: 4 });
+}
+
 function renderSpotTradeSummary(payload) {
   const fiveMinute = payload?.summary?.windows?.m5 || {};
   const oneHour = payload?.summary?.windows?.h1 || {};
@@ -4573,18 +4583,19 @@ function renderSpotTradeRows(payload) {
     side.dataset.side = row.side;
     side.textContent = row.side === 'buy' ? 'Buy' : 'Sell';
     const volume = document.createElement("strong");
-    volume.textContent = compact(row.volume_usd, { currency: true });
-    volume.title = `$${Number(row.volume_usd).toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
+    volume.textContent = row.volume_usd < 0.01 ? '<$0.01' : compact(row.volume_usd, { currency: true });
+    volume.title = `$${Number(row.volume_usd).toLocaleString("en-US", { maximumSignificantDigits: 15 })}`;
     const amount = document.createElement('span');
     amount.className = 'terminal-spot-token-amount';
     const tokenAmount = finite(row.token_amount);
-    amount.textContent = tokenAmount !== null && tokenAmount > 0 ? compact(tokenAmount) : '—';
+    amount.textContent = spotTradeAmountLabel(tokenAmount);
+    amount.title = tokenAmount !== null && tokenAmount > 0 ? tokenAmount.toLocaleString('en-US', { maximumSignificantDigits: 15 }) : 'Not reported';
     const quote = document.createElement('span');
     quote.className = 'terminal-spot-quote-amount';
     const quoteAmount = payload.schema_version === SPOT_TOKEN_TRADE_SCHEMA ? null : finite(row.quote_amount);
-    quote.textContent = quoteAmount !== null && quoteAmount > 0 ? compact(quoteAmount) : '—';
+    quote.textContent = spotTradeAmountLabel(quoteAmount);
     quote.title = quoteAmount !== null && quoteAmount > 0
-      ? `${quoteAmount.toLocaleString('en-US', { maximumFractionDigits: 20 })} ${state.selected?.quoteSymbol || 'quote asset'}`
+      ? `${quoteAmount.toLocaleString('en-US', { maximumSignificantDigits: 15 })} ${state.selected?.quoteSymbol || 'quote asset'}`
       : 'Quote denomination not supplied by this feed';
     const price = document.createElement('span');
     price.className = 'terminal-spot-trade-price';
@@ -4606,7 +4617,8 @@ function renderSpotTradeRows(payload) {
     const metrics = document.createElement('dl');
     for (const [label, value] of [
       ['Price', formatPrice(row.price_usd)],
-      ['Reported tokens', tokenAmount !== null && tokenAmount > 0 ? tokenAmount.toLocaleString('en-US', { maximumFractionDigits: 20 }) : 'Not reported'],
+      ['Reported tokens', amount.title],
+      ['Reported quote', quoteAmount !== null && quoteAmount > 0 ? quote.title : 'Not reported'],
       ['Value', volume.title], ['Time', timestamp(row.observed_at)],
     ]) {
       const term = document.createElement('dt'), valueNode = document.createElement('dd');

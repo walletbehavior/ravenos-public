@@ -1646,14 +1646,21 @@ for (const width of [360, 390, 1440]) test(`readable transaction tape scrolls to
 for (const retained of [false, true]) test(`Mobula exact-pool amounts and attribution remain readable${retained ? ' during a delayed refresh' : ''}`, async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.addInitScript(() => { window.mobulaTapeEvents = []; document.addEventListener('ravenos:charttape', e => window.mobulaTapeEvents.push(e.detail)); });
-  await mockTerminalLiveApis(page, { spotMobulaState: retained ? 'retained' : 'current', spotTradePrice: 9.9 });
+  await mockTerminalLiveApis(page, { spotMobulaState: retained ? 'retained' : 'current', spotTradePrice: 9.9, spotSmallTradeAmounts: true });
   await page.goto('/terminal/?instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&token_address=fixture-token-address&quote_address=fixture-quote-address&panel=activity');
   const rows=page.locator('#terminalSpotTradeRows .terminal-spot-trade-row');
   await expect(rows).toHaveCount(36);
   await expect(page.locator('#terminalSpotTradeCredit')).toHaveText('Mobula');
   await expect(page.locator('#terminalSpotTradeCredit')).toHaveAttribute('href','https://mobula.io');
   await expect(page.locator('#terminalSpotActivityScope')).toHaveText('Exact pool');
-  await expect(rows.first().locator('.terminal-spot-quote-amount')).not.toHaveText('—');
+  await expect(page.locator('.terminal-live')).toHaveAttribute('data-terminal-pane', 'activity');
+  await expect(rows.first().locator('.terminal-spot-quote-amount')).toHaveText('0.003332');
+  await expect(rows.first().locator('.terminal-spot-token-amount')).toHaveText('0.003432');
+  await expect(rows.nth(1).locator('.terminal-spot-quote-amount')).toHaveText('1.25e-9');
+  await expect(rows.nth(1).locator('.terminal-spot-token-amount')).toHaveText('3e-9');
+  await expect(rows.nth(1).locator('summary strong')).toHaveText('<$0.01');
+  await expect(rows.nth(2).locator('.terminal-spot-token-amount')).toHaveText('123.46K');
+  await expect(rows.first().locator('.terminal-spot-trade-detail')).toContainText('0.003332');
   await page.locator('#terminalSpotTapeScroll').evaluate(el=>{el.scrollLeft=el.scrollWidth;});
   await expect(rows.first().locator('.terminal-spot-trade-wallet')).toHaveText('Stake11111111111111111111111111111111111111');
   await expect(rows.first().locator('.terminal-spot-transaction-link a')).toHaveAttribute('href',/solscan.io\/tx\//);

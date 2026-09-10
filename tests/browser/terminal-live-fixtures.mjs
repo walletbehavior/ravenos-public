@@ -443,6 +443,7 @@ export async function mockTerminalLiveApis(page, {
   chartEnrichmentDelayTimeframe = null,
   chartEnrichmentDelayMs = 0,
   spotTradePrice = null,
+  spotSmallTradeAmounts = false,
   spotTokenTrades = false,
   spotTradeTokenMismatch = false,
   spotTradeDelayMs = 0,
@@ -649,9 +650,9 @@ export async function mockTerminalLiveApis(page, {
         price_usd: spotLateOlderPrice !== null && tradeRequestNumber > 1 && index === 2
           ? Number(spotLateOlderPrice)
           : effectiveSpotTradePrice + index / 100_000,
-        token_amount: volume / effectiveSpotTradePrice,
-        quote_amount: volume,
-        volume_usd: volume,
+        token_amount: spotSmallTradeAmounts ? [0.003432, 0.000000003, 123456][index % 3] : volume / effectiveSpotTradePrice,
+        quote_amount: spotSmallTradeAmounts ? [0.003332, 0.00000000125, 0.138][index % 3] : volume,
+        volume_usd: spotSmallTradeAmounts && index === 1 ? 0.00125 : volume,
         trader_address: trader,
         transaction_hash: transaction,
         block_number: 250_000_000 + index,

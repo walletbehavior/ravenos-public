@@ -284,6 +284,7 @@ function providerCreditMarkup() {
   const providers = [
     { mark: "DS", name: "DexScreener", role: "Pool discovery and current market state", href: "https://dexscreener.com/" },
     { mark: "DX", name: "Dexch", role: "Market charts, discovery and launchpad activity", href: "https://dexch.art/" },
+    { mark: "MB", name: "Mobula", role: "Solana, Base and Ethereum pool transactions", href: "https://mobula.io/" },
     { mark: "HL", name: "Hyperliquid", role: "Venue-native perpetual markets", href: "https://hyperliquid.xyz/" },
     { mark: "SEC", name: "SEC + Atlas", role: "Filings and public listed-market context", href: "https://www.sec.gov/edgar/search/" },
     { mark: "M", name: "Moralis", role: "Read-only wallet and holder inputs", href: "https://moralis.com/" },
