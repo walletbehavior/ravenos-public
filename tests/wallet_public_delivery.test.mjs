@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { PUBLIC_WALLET_CATEGORIES, publicWalletCard, publicWalletGroups, validatePublicWalletCard } from '../lib/customer_trade/wallet_public_cards.mjs';
 import { publicWalletResponse } from '../lib/customer_trade/wallet_public_delivery.mjs';
+import { evmSettlementBases } from '../lib/customer_trade/evm_wallet_swaps.mjs';
 const NOW=Date.parse('2026-09-10T14:00:00Z'), LAST=new Date(NOW-3600000).toISOString();
 const source=(chain='base')=>({chain,network:'mainnet',address:chain==='solana'?'11111111111111111111111111111111':`0x${'a'.repeat(40)}`});
 function profile(chain='base') {return {source_wallet:source(chain),generated_at:new Date(NOW).toISOString(),
@@ -65,6 +66,32 @@ test('ordinary timestamped trade detail survives while decoder rationale and pri
  chain_evidence:{block_time:LAST,signature:'public_signature',provider:secret},economic:{source_asset:{mint:'USDC',amount_base_units:'1000000',decimals:6,private_hint:secret}}};
  const output=publicWalletResponse({ok:true,events:[event],copyability:[secret],relationships:[secret]});
  assert.ok(!JSON.stringify(output).includes(secret));assert.equal(output.events[0].economic.source_asset.amount_base_units,'1000000');assert.equal(output.events[0].chain_evidence.block_time,LAST);
+});
+
+test('every supported settlement currency survives public amounts without merging units or exposing private fields',()=>{
+ for(const chain of ['base','ethereum','bsc','robinhood']){
+  const p=profile(chain), labels=Object.fromEntries(Object.values(evmSettlementBases(chain)).map(row=>[row.key,row.label]));
+  const amounts=Object.fromEntries(Object.keys(labels).map((key,index)=>[key,index===0?null:index===1?'0':'25.125']));
+  p.trading_record={basis_labels:{...labels,private_basis:secret},periods:{d30:{realized_pnl:{...amounts,private_basis:secret},buy_notional_by_basis:Object.fromEntries(Object.keys(labels).map(key=>[key,{total:'100',average:'50',private:secret}]))}},tokens:[{mint:'public_token',by_basis:Object.fromEntries(Object.keys(labels).map(key=>[key,{remaining_cost:'50',matched_cost:'100',realized_pnl:amounts[key],private:secret}]))}]};
+  p.source_performance.realized_pnl_by_basis=amounts;
+  const delivered=publicWalletResponse({ok:true,profile:p},{now:NOW}).profile;
+  assert.deepEqual(delivered.trading_record.basis_labels,labels,chain);
+  assert.deepEqual(delivered.trading_record.periods.d30.realized_pnl,amounts,chain);
+  assert.deepEqual(delivered.source_performance.realized_pnl_by_basis,amounts,chain);
+  for(const key of Object.keys(labels)){
+   assert.equal(delivered.trading_record.periods.d30.buy_notional_by_basis[key].total,'100');
+   assert.equal(delivered.trading_record.tokens[0].by_basis[key].remaining_cost,'50');
+  }
+  assert.ok(!JSON.stringify(delivered).includes(secret));
+ }
+});
+
+test('transaction amounts are public but internal cost-basis state is not a per-transaction profit claim',()=>{
+ const event={event_id:'public_tx',source_wallet:source(),classification:{kind:'SWAP_SELL'},chain_evidence:{block_time:LAST},economic:{cost_basis_state:secret,source_asset:{contract:'token',amount_base_units:'1000000',decimals:6},destination_asset:{contract:'settlement',symbol:'USDT',amount_base_units:'25000000',decimals:6}}};
+ const delivered=publicWalletResponse({ok:true,events:[event]}).events[0];
+ assert.equal(delivered.economic.destination_asset.amount_base_units,'25000000');
+ assert.equal(delivered.economic.cost_basis_state,undefined);
+ assert.ok(!JSON.stringify(delivered).includes(secret));
 });
 
 test('patient top-holder classification requires a qualified private profile, never a balance-only fallback',()=>{

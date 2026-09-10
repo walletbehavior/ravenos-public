@@ -224,6 +224,7 @@ function exactAssetAmount(endpoint) {
     const identity = endpoint.symbol || endpoint.contract || endpoint.asset_id;
     return `${raw} raw units · ${shortAddress(identity)}`;
   }
+  if (endpoint.decimals == null || endpoint.decimals === "") return "Unavailable";
   const decimals = Number(endpoint.decimals);
   if (!Number.isInteger(decimals) || decimals < 0 || decimals > 18) return "Unavailable";
   let units = BigInt(endpoint.amount_base_units);
@@ -231,7 +232,7 @@ function exactAssetAmount(endpoint) {
   if (units < 0n) units = -units;
   const scale = 10n ** BigInt(decimals);
   const whole = units / scale;
-  const fraction = (units % scale).toString().padStart(decimals, "0").replace(/0+$/, "").slice(0, 6);
+  const fraction = (units % scale).toString().padStart(decimals, "0").replace(/0+$/, "");
   const identity = String(endpoint.mint || endpoint.contract || endpoint.asset_id || "");
   const asset = endpoint.symbol || state.profile?.token_metadata?.rows?.find(token => token.mint === identity)?.symbol
     || (identity === SOLANA_USDC ? "USDC" : new Set([SOLANA_WRAPPED_NATIVE, "native_sol"]).has(identity) ? "SOL" : shortAddress(identity));
@@ -380,15 +381,17 @@ function eventCard(event) {
   const head = document.createElement("header");
   const kind = document.createElement("strong");
   const time = document.createElement("span");
-  kind.textContent = readable(event.classification?.kind);
+  kind.textContent = {SWAP_BUY:"Buy",SWAP_SELL:"Sell"}[event.classification?.kind] || readable(event.classification?.kind);
   time.textContent = when(event.chain_evidence?.block_time || event.timing?.raven_received_at);
   head.append(kind, time);
   const details = document.createElement("dl");
   details.append(
-    fact("Cost basis", readable(event.economic?.cost_basis_state)),
     fact("Paid", exactAssetAmount(event.economic?.source_asset)),
     fact("Received", exactAssetAmount(event.economic?.destination_asset)),
   );
+  for (const amount of details.querySelectorAll("dd")) {
+    if (amount.textContent.split(" ")[0].length > 18) amount.classList.add("copy-long-amount");
+  }
   const transactionReference = event.chain_evidence?.transaction_reference || event.chain_evidence?.signature;
   const transaction = event.source_wallet?.chain === "solana" ? document.createElement("a") : document.createElement("span");
   transaction.className = "copy-event-transaction";
@@ -490,30 +493,29 @@ function renderDeepHistory(history) {
   const active = history && !new Set(["not_enabled", "not_queued"]).has(history.state);
   node.hidden = !active;
   if (!active) return;
-  const signatures = Math.max(0, Number(history.signatures_indexed || 0));
-  const maximum = Math.max(1, Number(history.maximum_signatures || 10_000));
   const gaps = Math.max(0, Number(history.unresolved_references || 0));
-  const progress = !gaps && (history.state === "complete" || history.state === "bounded_partial")
-    ? 100
-    : Math.min(99, (signatures / maximum) * 100);
   const labels = {
-    queued: [signatures ? "Indexing older activity" : "Deep history queued", "Shared history updates in batches. This page checks Raven’s cache."],
-    leased: ["Indexing older activity", "Normalizing provider evidence."],
-    retry_wait: ["History retry queued", "Cursor preserved."],
-    complete: history.chain && history.chain !== "solana" ? ["30-day indexed window processed", "Receipt-backed activity is saved. Unsupported internal transfers and unknown costs remain excluded."] : ["Provider history exhausted", "Oldest available page reached."],
-    bounded_partial: [`${maximum.toLocaleString()}-event window retained`, "Older activity may exist. Stored activity remains available without a fresh provider lookup."],
-    dead_letter: ["History needs operator review", "Evidence gap preserved."],
-    unavailable: ["Deep history unavailable", "Current evidence remains visible."],
+    queued: ["Loading wallet history", "More history is queued. Current results may change as it loads."],
+    leased: ["Loading wallet history", "Current activity remains available while more history loads."],
+    retry_wait: ["History update delayed", "Raven will retry. Current activity remains available."],
+    complete: history.chain && history.chain !== "solana" ? ["Recent history loaded", "The supported 30-day window has been processed. Earlier activity and unknown purchase costs may remain."] : ["Available history loaded", "Available activity has been processed. Missing purchase costs remain unknown."],
+    bounded_partial: ["Partial history loaded", "Older activity may be missing. Results use the history currently available."],
+    dead_letter: ["History update needs attention", "Some history could not be loaded. Current activity remains available."],
+    unavailable: ["History status unavailable", "Current activity remains available. Try refreshing the status."],
   };
   const [headline, detail] = gaps && history.state === "bounded_partial"
     ? ["History retained with gaps", `${gaps.toLocaleString()} transaction receipts remain unresolved. Verified activity is available; complete cost basis is not established.`]
-    : labels[history.state] || ["History state forming", "Evidence boundary preserved."];
+    : labels[history.state] || ["History status unavailable", "Current activity remains available."];
   setText("copyDeepHistoryHeadline", headline);
   setText("copyDeepHistoryDetail", gaps && history.state !== "bounded_partial" ? `${detail} ${gaps.toLocaleString()} transaction receipts awaiting verification; other history continues indexing.` : detail);
   const progressNode = document.getElementById("copyDeepHistoryProgress");
-  progressNode.value = progress;
-  progressNode.textContent = `${Math.round(progress)}%`;
-  setText("copyDeepHistoryCount", `${compactNumber(signatures)} transaction references · ${compactNumber(history.transactions_decoded || 0)} decoded · ${compactNumber(history.pages_indexed || 0)} pages`);
+  // The collection ceiling is not the wallet's total history. A percentage
+  // calculated from that ceiling would imply progress we cannot measure.
+  progressNode.removeAttribute("value");
+  progressNode.hidden = !deepHistoryPending(history);
+  progressNode.textContent = "Loading wallet history";
+  const loaded = history.transactions_decoded;
+  setText("copyDeepHistoryCount", Number.isSafeInteger(loaded) && loaded >= 0 ? `${loaded.toLocaleString()} transactions loaded` : "Transaction count unavailable");
 }
 
 function deepHistoryPending(history) {
@@ -675,8 +677,11 @@ function renderWalletRecord() {
   const balanceObservedAt = Object.hasOwn(profile, "balances_observed_at") ? profile.balances_observed_at : profile.generated_at;
   const balanceScope = balanceObservedAt ? `Balances observed ${when(balanceObservedAt)}.` : "Balances have not been indexed.";
   const historyGaps = Number(profile.durable_history?.unresolved_references || 0);
+  const historyScope = deepHistoryPending(state.deep_history)
+    ? state.deep_history.state === "retry_wait" ? "History update is delayed; more activity remains to load. " : "More history is being collected. Results may change as it loads. "
+    : state.deep_history?.state === "bounded_partial" ? "Older activity may be missing. " : "";
   const gapScope = historyGaps ? `${historyGaps.toLocaleString()} transaction receipts remain unresolved; history and cost basis are incomplete. ` : "";
-  setText("copyOverviewScope", `${chainLabel(profile.source_wallet.chain)} · ${balanceScope} ${gapScope}${fxScope}${decoded ? "Results cover retained decoded activity; matched cost only, network fees separate. Settlement currencies stay separate." : "Transfer history is available; swaps and cost basis are not reconstructed yet."} ${selected || all ? "" : "This snapshot has no period breakdown. "}Retained activity: ${when(profile.coverage?.first_observed_at || profile.behavior?.first_trade_at)} → ${when(profile.coverage?.last_observed_at || profile.behavior?.last_trade_at)}; not wallet age. Missing values are not zero.`);
+  setText("copyOverviewScope", `${chainLabel(profile.source_wallet.chain)} · ${balanceScope} ${historyScope}${gapScope}${fxScope}${decoded ? "Results cover retained decoded activity; matched cost only, network fees separate. Settlement currencies stay separate." : "Transfer history is available; swaps and cost basis are not reconstructed yet."} ${selected || all ? "" : "This snapshot has no period breakdown. "}Retained activity: ${when(profile.coverage?.first_observed_at || profile.behavior?.first_trade_at)} → ${when(profile.coverage?.last_observed_at || profile.behavior?.last_trade_at)}; not wallet age. Missing values are not zero.`);
   const distribution = document.getElementById("copyOutcomeDistribution");
   distribution.replaceChildren();
   if (selected?.distribution?.length && selected.observations > 0) {
@@ -906,7 +911,7 @@ function renderProfile(payload, { scroll = true, from_poll: fromPoll = false } =
     row.append(identity, detail);
     return row;
   }) : [empty("No known-cost open positions", "Unknown inventory excluded.")]));
-  setText("copySourceLimits", performance.limitations?.join(" ") || "No material limitations reported.");
+  setText("copySourceLimits", "Results use the available history. Unknown purchase costs are excluded from profit.");
   if (!fromPoll || !state.events.length) {
     renderWalletActivity(payload.activity || {
       filter: "all",

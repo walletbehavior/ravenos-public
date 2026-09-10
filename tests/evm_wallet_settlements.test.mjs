@@ -48,6 +48,13 @@ for(const [chain,key,contract,decimals] of [['ethereum','usdt',USDT,6],['bsc','b
     assert.equal(all.buy_count,1); assert.equal(all.sell_count,1); assert.equal(all.fully_matched_sells,1);
     assert.equal(result.trading_record.tokens[0].by_basis[key].remaining_cost,'50');
     assert.equal(result.trading_record.tokens[0].unrealized_pnl_usd,null);
+    const {publicWalletResponse}=await import('../lib/customer_trade/wallet_public_delivery.mjs');
+    const delivered=publicWalletResponse({ok:true,profile:result}).profile;
+    assert.equal(delivered.trading_record.periods.all_available.realized_pnl[key],'25');
+    assert.equal(delivered.trading_record.tokens[0].by_basis[key].remaining_cost,'50');
+    assert.equal(delivered.trading_record.basis_labels[key],evmSettlementBases(chain)[contract].label);
+    const partial=publicWalletResponse({ok:true,profile:analyze(chain,events,null)}).profile;
+    assert.equal(partial.trading_record.periods.all_available.realized_pnl[key],null);
     const usd=walletUsdTradingRecord(result,events,[]);
     assert.equal(usd.eligible_trades,2); assert.equal(usd.priced_trades,0); assert.equal(usd.periods.all_available.realized_pnl.usd,null);
     assert.equal(analyze(chain,events,null).trading_record.periods.all_available.realized_pnl[key],null);

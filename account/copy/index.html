@@ -214,6 +214,7 @@
               <div><span>Wallet activity</span><strong id="copyEventCount">0 retained</strong></div>
               <label><span>Show</span><select id="copyActivityFilter" aria-label="Wallet activity filter"><option value="all">All activity</option><option value="trades">All trades</option><option value="buys">Buys</option><option value="sells">Sells</option><option value="transfers">Transfers</option><option value="unresolved">Needs review</option><option value="other">Other activity</option></select></label>
             </header>
+            <p id="copyActivityScope" class="copy-record-scope">Amounts show payments and receipts. Profit appears in the wallet overview when purchase costs can be matched.</p>
             <div id="copyRecentEvents"></div>
             <footer><p id="copyActivityStatus">Choose a wallet.</p><button type="button" id="copyActivityMore" hidden>Load older</button></footer>
           </section>
@@ -224,8 +225,8 @@
             <p>Wallet groups and trading history.</p>
           </section>
           <section class="copy-history-state copy-pro-only" id="copyDeepHistory" hidden aria-live="polite">
-            <div><span>Wallet history</span><strong id="copyDeepHistoryHeadline">Deep history queued</strong><p id="copyDeepHistoryDetail">Indexing history…</p></div>
-            <div class="copy-history-progress"><progress id="copyDeepHistoryProgress" max="100" value="0">0%</progress><small id="copyDeepHistoryCount">0 signatures indexed</small><button type="button" class="button-secondary" id="copyRefreshHistoryStatus">Refresh history status</button></div>
+            <div><span>Wallet history</span><strong id="copyDeepHistoryHeadline">Loading wallet history</strong><p id="copyDeepHistoryDetail">Loading activity…</p></div>
+            <div class="copy-history-progress"><progress id="copyDeepHistoryProgress" aria-label="Loading wallet history">Loading wallet history</progress><small id="copyDeepHistoryCount">Transaction count unavailable</small><button type="button" class="button-secondary" id="copyRefreshHistoryStatus">Refresh history status</button></div>
           </section>
           <section class="copy-profile-thesis copy-pro-only" id="copyProfileThesis" hidden aria-label="Wallet profile summary">
             <header><span>Wallet profile</span><strong id="copyThesisState">Limited history</strong></header>

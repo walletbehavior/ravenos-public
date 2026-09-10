@@ -765,8 +765,8 @@ test("Pro user inspects source evidence, saves a private policy, and establishes
   await expect(page.getByText("Source performance", { exact: true })).toBeVisible();
   await expect(page.locator("#copyProfile").getByText("Follower reality", { exact: true })).toHaveCount(0);
   await expect(page.locator("#copySourcePnl")).toHaveText("+$428 realized");
-  await expect(page.getByText("Indexing older activity", { exact: true })).toBeVisible();
-  await expect(page.getByText("700 transaction references · 694 decoded · 7 pages", { exact: true })).toBeVisible();
+  await expect(page.getByText("Loading wallet history", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("694 transactions loaded", { exact: true })).toBeVisible();
   await expect(page.getByText("Transfer In")).toBeVisible();
   await page.getByRole("button", { name: "Copy this wallet" }).click();
   await expect(page.locator("#copyPolicyFee")).toHaveText("1.00% · simulated in Shadow");
@@ -862,7 +862,7 @@ test("Raven-indexed screener keeps proprietary research private and opens a reta
   await expect(page.locator("#copyEventCount")).toHaveText("2 of 26 retained");
   await page.getByRole("button", { name: "Load older" }).click();
   await expect(page.locator("#copyEventCount")).toHaveText("4 of 26 retained");
-  await expect(page.getByText("Swap Sell", { exact: true })).toBeVisible();
+  await expect(page.locator('#copyRecentEvents').getByText("Sell", { exact: true })).toBeVisible();
   const pagedActivity = [...shared.requests].reverse().find((row) => row.path.endsWith("/events"));
   expect(new URLSearchParams(pagedActivity.search).has("cursor")).toBe(true);
   await page.getByLabel("Wallet activity filter").selectOption("unresolved");
@@ -1409,6 +1409,79 @@ test('EVM receipt gaps stay explicit on desktop and mobile without a false full-
  await page.setViewportSize({width:390,height:844});
  await expect(page.locator('#copyOverviewScope')).toContainText('history and cost basis are incomplete');
 });
+
+test('wallet activity shows exact payments and receipts without treating a sale amount as profit',async({page})=>{
+ const shared={requests:[]};await install(page,shared);
+ const snapshot=evmProfile();snapshot.coverage.trade_events=2;
+ const buy={...evmTransfer(),event_id:`swe_${'d'.repeat(40)}`,classification:{kind:'SWAP_BUY'},economic:{cost_basis_state:'known_canonical_usdc',source_asset:{contract:EVM_TOKEN,symbol:'USDC',amount_base_units:'100000000',decimals:6},destination_asset:{contract:EVM_TOKEN_TWO,symbol:'COIN',amount_base_units:'10000000',decimals:6}}};
+ const sell={...buy,event_id:`swe_${'e'.repeat(40)}`,classification:{kind:'SWAP_SELL'},economic:{cost_basis_state:'unresolved_non_settlement_basis',source_asset:{contract:EVM_TOKEN_TWO,symbol:'COIN',amount_base_units:'5000000',decimals:6},destination_asset:{contract:EVM_TOKEN,symbol:'USDC',amount_base_units:'75000000',decimals:6}}};
+ const tiny={...evmTransfer(),event_id:`swe_${'f'.repeat(40)}`,economic:{destination_asset:{contract:EVM_TOKEN_TWO,symbol:'COIN',amount_base_units:'1',decimals:18}}};
+ const unknown={...tiny,event_id:`swe_${'1'.repeat(40)}`,economic:{destination_asset:{contract:EVM_TOKEN_TWO,symbol:'UNKNOWN',amount_base_units:'25',decimals:null}}};
+ await page.route('**/api/v1/wallet-copy/inspect',route=>route.fulfill({status:200,contentType:'application/json',body:publicPayload({ok:true,source_wallet_id:EVM_SOURCE_ID,profile:snapshot,activity:activityPage([sell,buy,tiny,unknown])})}));
+ await page.goto(`/account/copy/?wallet=${EVM_WALLET}&chain=bsc`);
+ const cards=page.locator('#copyRecentEvents');
+ await expect(cards.locator('[data-activity-kind="SWAP_SELL"]')).toContainText('75 USDC');
+ await expect(cards.locator('[data-activity-kind="SWAP_BUY"]')).toContainText('100 USDC');
+ await expect(cards).not.toContainText('Cost basis');
+ await expect(cards).not.toContainText('Unresolved');
+ await expect(cards).toContainText('0.000000000000000001 COIN');
+ await expect(cards).not.toContainText('25 UNKNOWN');
+ await expect(page.locator('#copyActivityScope')).toContainText('Profit appears in the wallet overview');
+ await expect(page.locator('#copyOverviewMetrics')).toContainText('Not reconstructed');
+ await page.setViewportSize({width:390,height:844});
+ await expect(cards).not.toContainText('Cost basis');
+ if(process.env.RAVENOS_VISUAL_ARTIFACT_DIR)await page.locator('#copyWalletActivity').screenshot({path:join(process.env.RAVENOS_VISUAL_ARTIFACT_DIR,'wallet-activity-amounts-mobile.png')});
+ expect(shared.requests.filter(row=>row.method==='POST'&&/watches|trade|execute/.test(row.path))).toEqual([]);
+});
+
+test('history loading has no invented completion percentage and explains pending data in the overview',async({page})=>{
+ const shared={requests:[]};await install(page,shared);
+ let inspectRequests=0;
+ const snapshot=evmProfile();snapshot.coverage.trade_events=2;
+ const pending={...deepHistory('queued'),chain:'bsc',signatures_indexed:9999,maximum_signatures:10000};
+ await page.route('**/api/v1/wallet-copy/inspect',route=>{inspectRequests+=1;return route.fulfill({status:200,contentType:'application/json',body:publicPayload({ok:true,source_wallet_id:EVM_SOURCE_ID,profile:snapshot,recent_events:[],deep_history:pending})});});
+ await page.goto(`/account/copy/?wallet=${EVM_WALLET}&chain=bsc`);
+ await expect(page.locator('#copyOverviewScope')).toContainText('More history is being collected');
+ await expect(page.locator('#copyDeepHistoryProgress')).not.toHaveAttribute('value',/.+/);
+ await expect(page.locator('#copyDeepHistoryCount')).toHaveText('694 transactions loaded');
+ await page.getByRole('link',{name:'Wallet profile · Pro',exact:true}).click();
+ await expect(page.locator('#copyDeepHistoryProgress')).toBeVisible();
+ for(const state of ['retry_wait','bounded_partial','complete']){
+  await page.route(`**/api/v1/wallet-copy/wallets/${EVM_SOURCE_ID}`,route=>route.fulfill({status:200,contentType:'application/json',body:publicPayload({ok:true,source_wallet_id:EVM_SOURCE_ID,profile:snapshot,recent_events:[],deep_history:{...pending,state}})}));
+  await page.getByRole('button',{name:'Refresh history status',exact:true}).click();
+  if(state==='retry_wait'){
+   await expect(page.locator('#copyDeepHistoryHeadline')).toHaveText('History update delayed');
+   await expect(page.locator('#copyDeepHistoryProgress')).not.toHaveAttribute('value',/.+/);
+  }else{
+   await expect(page.locator('#copyDeepHistoryProgress')).toBeHidden();
+   await expect(page.locator('#copyDeepHistoryDetail')).toContainText(state==='complete'?'30-day window':'Older activity');
+  }
+ }
+ await page.setViewportSize({width:390,height:844});
+ await expect(page.locator('#copyDeepHistoryHeadline')).toHaveText('Recent history loaded');
+ await expect(page.locator('#copyOverviewMetrics')).toContainText('Not reconstructed');
+ if(process.env.RAVENOS_VISUAL_ARTIFACT_DIR)await page.locator('#copyDeepHistory').screenshot({path:join(process.env.RAVENOS_VISUAL_ARTIFACT_DIR,'wallet-history-state-mobile.png')});
+ expect(inspectRequests).toBe(1);
+});
+
+for(const [key,label,chain] of [['usdt','USDT','ethereum'],['binance_peg_usdt','USDT (Binance-Peg)','bsc'],['binance_peg_usdc','USDC (Binance-Peg)','bsc']]){
+ test(`wallet overview preserves ${key} amounts and missing cost on desktop and mobile`,async({page})=>{
+  const shared={requests:[]};await install(page,shared);
+  const snapshot=evmProfile();snapshot.source_wallet.chain=chain;snapshot.source_wallet.chain_id=chain==='ethereum'?1:56;snapshot.coverage.trade_events=2;
+  const id=normalizeSourceWalletChainIdentity({chain,network:'mainnet',address:EVM_WALLET}).source_wallet_id;
+  const period={realized_pnl:{[key]:null},buy_count:1,sell_count:1,observations:0,buy_notional_by_basis:{[key]:{total:'100',average:'100'}},sell_notional_by_basis:{[key]:{total:'75'}}};
+  snapshot.trading_record={basis_labels:{[key]:label},periods:{d30:period,all_available:period},tokens:[{mint:EVM_TOKEN_TWO,buy_count:1,sell_count:1,by_basis:{[key]:{remaining_cost:null,matched_proceeds:null,realized_pnl:null}}}]};
+  await page.route('**/api/v1/wallet-copy/inspect',route=>route.fulfill({status:200,contentType:'application/json',body:publicPayload({ok:true,source_wallet_id:id,profile:snapshot,recent_events:[]})}));
+  await page.goto(`/account/copy/?wallet=${EVM_WALLET}&chain=${chain}`);
+  for(const width of [1440,390]){
+   await page.setViewportSize({width,height:900});
+   await expect(page.locator('#copyOverviewMetrics')).toContainText(`100 ${label}`);
+   await expect(page.locator('#copyOverviewMetrics')).toContainText(`75 ${label}`);
+   await expect(page.locator('#copyOverviewMetrics')).toContainText('Not reconstructed');
+   await expect(page.locator('#copyOverviewMetrics')).not.toContainText('+75');
+  }
+ });
+}
 
 test('verified EVM results show separate currencies and the coverage of unrealized marks on desktop and mobile',async({page})=>{
  const shared={requests:[]};await install(page,shared);

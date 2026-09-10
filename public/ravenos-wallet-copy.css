@@ -197,6 +197,9 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .copy-history-progress progress::-webkit-progress-value { background: linear-gradient(90deg, var(--copy-green), #91e8be); }
 .copy-history-progress progress::-moz-progress-bar { background: linear-gradient(90deg, var(--copy-green), #91e8be); }
 .copy-history-progress small { text-align: right; }
+.copy-history-progress button { min-height:40px; border:1px solid var(--copy-line-strong); border-radius:6px; padding:8px 12px; background:var(--copy-panel-2); color:var(--copy-text); font:600 13px var(--copy-mono); cursor:pointer; }
+.copy-history-progress button:disabled { opacity:.6; cursor:wait; }
+.copy-history-progress button:focus-visible { outline:2px solid var(--copy-green); outline-offset:2px; }
 .copy-profile-thesis { display: grid; gap: 1px; border-bottom: 1px solid var(--copy-line); background: var(--copy-line); }
 .copy-profile-thesis > header { min-height: 42px; display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 9px 18px; background: linear-gradient(90deg, rgba(111, 218, 166, .09), transparent 45%), var(--copy-panel-2); }
 .copy-profile-thesis > header span { color: var(--copy-green); font: 800 8px var(--copy-mono); letter-spacing: .06em; text-transform: uppercase; }
@@ -589,7 +592,12 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .copy-seen-wallet > div, .copy-screener-card > div, .copy-card-main, .copy-rh-relationship { min-width:0; overflow-wrap:anywhere; }
 .copy-seen-wallet strong, .copy-screener-card h3, .copy-card-main p, #copyPolicySource { white-space:normal; overflow-wrap:anywhere; text-overflow:clip; }
 .copy-event-card { padding:12px 16px; }
-.copy-event-card > dl { grid-template-columns:repeat(4,minmax(0,1fr)); }
+.copy-event-card > dl { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.copy-event-card dt { font-size:10px; }
+.copy-event-card dd { font-size:14px; line-height:1.45; }
+.copy-event-card dd.copy-long-amount { font-size:12px; }
+.copy-event-card > header strong { font-size:14px; }
+.copy-event-card > header span { font-size:10px; }
 .copy-event-card > p { margin:6px 0; }
 @media(max-width:1100px) { #copyOverviewMetrics { grid-template-columns:repeat(3,minmax(0,1fr)); } }
 @media(max-width:650px) {

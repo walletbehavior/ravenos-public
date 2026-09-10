@@ -869,6 +869,22 @@ test("wallet activity explorer allowlists filters, cursors, and page size", asyn
   assert.equal((await json(unexpected)).error, "wallet_activity_query_invalid");
 });
 
+test("wallet activity keeps unknown token precision unknown and withholds internal cost labels", async () => {
+  const retained = structuredClone(walletEvent({ signature: "b".repeat(88), slot: 101, blockTime: NOW - 1 }));
+  retained.economic.destination_asset.decimals = null;
+  const store = memoryStore();
+  const activeEnv = env({ RAVENOS_WALLET_SCREENER_ENABLED: "1" });
+  const d = deps(store, { async loadHistory() { return { events: [walletEvent()] }; } });
+  const inspected = await json(await routeCustomerWalletCopy(request("/api/v1/wallet-copy/inspect", { method: "POST", body: { address: WALLET } }), activeEnv, d));
+  await store.recordEvents(inspected.source_wallet_id, [retained]);
+  const result = await routeCustomerWalletCopy(request(`/api/v1/wallet-copy/wallets/${inspected.source_wallet_id}/events`), activeEnv, d);
+  const payload = await json(result);
+  assert.equal(result.status, 200);
+  assert.equal(payload.events[0].economic.destination_asset.decimals, null);
+  assert.equal(payload.events[0].economic.destination_asset.amount_base_units, retained.economic.destination_asset.amount_base_units);
+  assert.equal(payload.events[0].economic.cost_basis_state, undefined);
+});
+
 test("wallet activity explorer fails closed on a retained source-identity mismatch", async () => {
   const store = memoryStore();
   const provider = { async loadHistory() { return { events: [walletEvent()] }; } };
