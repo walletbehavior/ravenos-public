@@ -73,6 +73,7 @@ button { font: inherit; }
 .monitor-page button, .monitor-list-actions button { min-height: 35px; border: 1px solid var(--monitor-line-strong); border-radius: 6px; padding: 0 12px; background: var(--monitor-panel-raised); color: var(--monitor-text); cursor: pointer; font-size: 11px; font-weight: 720; }
 .monitor-page button:hover { border-color: rgba(173, 189, 209, .48); }
 .monitor-page button:disabled { cursor: wait; opacity: .5; }
+#monitorAccountRetry { justify-self: start; min-height: 44px; font-size: 14px; }
 .monitor-page button.secondary { background: transparent; }
 .monitor-page button.danger { border-color: rgba(220, 113, 128, .34); background: rgba(220, 113, 128, .05); color: #ee9ba7; }
 

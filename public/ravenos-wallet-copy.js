@@ -1,5 +1,6 @@
 const API = "/api/v1/wallet-copy";
 import { getPreference, setPreference } from "./ravenos-preferences.js";
+import { readAccountSession } from './ravenos-account-session.js';
 
 const page = document.querySelector(".copy-page");
 let embeddedActive = page?.dataset.embedded !== 'true';
@@ -2292,7 +2293,7 @@ async function savePolicy(event) {
   switchView("watching");
 }
 
-async function boot() {
+async function boot(checkedSession) {
   const requestedUrl = new URL(walletLocationHref());
   const requestedWallet = requestedUrl.searchParams.get("wallet") || "";
   const requestedChain = requestedUrl.searchParams.get("inspect_chain") || requestedUrl.searchParams.get("chain") || "solana";
@@ -2302,8 +2303,8 @@ async function boot() {
   if (requestedWallet) document.getElementById("copyWalletAddress").value = requestedWallet.slice(0, 44);
   state.address = requestedWallet.slice(0, 44);
   document.querySelectorAll('input[name="return_to"]').forEach(input => { input.value = walletReturnTo(); });
-  const session = await api("/api/v1/auth/session");
-  if (!session.response.ok) {
+  const session = checkedSession || await readAccountSession();
+  if (session.state === 'unavailable') {
     if (state.session_expired) return;
     page.dataset.copyState = "unavailable";
     unavailable.hidden = false;
@@ -2311,7 +2312,7 @@ async function boot() {
     setText("copyUnavailableReason", "Your session could not be checked. Please try again shortly. Your account and saved research are unchanged.");
     return;
   }
-  if (session.payload?.authenticated !== true) {
+  if (session.state === 'signed_out') {
     page.dataset.copyState = "signed-out";
     signIn.hidden = false;
     setText("copyWorkspaceState", "Sign in required");
@@ -2463,7 +2464,7 @@ document.getElementById("copyScreenNext").addEventListener("click", async () => 
 document.getElementById("copyActivityFilter").addEventListener("change", () => loadWalletActivity({ append: false }));
 document.getElementById("copyActivityMore").addEventListener("click", () => loadWalletActivity({ append: true }));
 
-function startWalletWorkspace() { return boot().catch(() => {
+function startWalletWorkspace(checkedSession) { return boot(checkedSession).catch(() => {
   page.dataset.copyState = "unavailable";
   unavailable.hidden = false;
   setText("copyWorkspaceState", "Unavailable");
@@ -2474,11 +2475,19 @@ export async function openEmbeddedIntelligence(href) {
   embeddedActive = true; embeddedUrl = href;
   if (!walletBootPromise) { walletBootPromise = startWalletWorkspace(); await walletBootPromise; return; }
   await walletBootPromise;
-  const session = await api('/api/v1/auth/session');
-  if (!session.response.ok || session.payload?.authenticated !== true) { recoverWalletSession(); return; }
-  if (state.session_expired || !state.csrf || state.csrf !== session.payload.csrf_token) {
+  const session = await readAccountSession();
+  if (session.state === 'unavailable') {
+    state.deep_poll_token += 1; clearTimeout(state.deep_poll_timer);
+    workspace.hidden = true; signIn.hidden = true; unavailable.hidden = false;
+    page.dataset.copyState = 'unavailable';
+    setText('copyWorkspaceState', 'Account check unavailable');
+    setText('copyUnavailableReason', 'Your account could not be checked. Reopen Wallet Intelligence to retry.');
+    return;
+  }
+  if (session.state === 'signed_out') { recoverWalletSession(); return; }
+  if (state.session_expired || !state.csrf || state.csrf !== session.payload.csrf_token || !unavailable.hidden) {
     state.session_expired = false; signIn.hidden = true; unavailable.hidden = true;
-    walletBootPromise = startWalletWorkspace(); await walletBootPromise; return;
+    walletBootPromise = startWalletWorkspace(session); await walletBootPromise; return;
   }
   const request = new URL(href), wallet = request.searchParams.get('wallet');
   const chain = request.searchParams.get('inspect_chain') || request.searchParams.get('chain') || 'solana';

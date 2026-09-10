@@ -17,15 +17,16 @@ function retryDelay(response, now) {
   const ms = /^\d+$/.test(header) ? Number(header) * 1000 : Date.parse(header) - now;
   return Number.isFinite(ms) ? Math.max(0, ms) : 750;
 }
-export function createAccountSessionReader({ fetchImpl = (...args) => fetch(...args), wait = delay, now = () => Date.now() } = {}) {
+export function createAccountSessionReader({ fetchImpl = (...args) => fetch(...args), wait = delay, now = () => Date.now(), onResult = () => {} } = {}) {
   let current = null;
   async function run(flight) {
     for (let attempt = 0; attempt < 2; attempt++) {
-      let response, payload, temporary = true;
+      let response, payload, temporary = true, reason = 'invalid_response';
+      const requestSignal = AbortSignal.any([flight.controller.signal, AbortSignal.timeout(8000)]);
       try {
         response = await fetchImpl('/api/v1/auth/session', {
           credentials: 'same-origin', cache: 'no-store', redirect: 'error', headers: { accept: 'application/json' },
-          signal: AbortSignal.any([flight.controller.signal, AbortSignal.timeout(8000)]),
+          signal: requestSignal,
         });
         payload = await response.json();
         if (flight.controller.signal.aborted) throw aborted();
@@ -37,8 +38,10 @@ export function createAccountSessionReader({ fetchImpl = (...args) => fetch(...a
           return { response, payload: { ...payload, authenticated: false }, state: 'signed_out' };
         }
         temporary = retryable(response.status) || response.ok;
-      } catch {
+        reason = response.ok ? 'invalid_response' : retryable(response.status) ? 'service_error' : 'request_rejected';
+      } catch (error) {
         if (flight.controller.signal.aborted) throw aborted();
+        reason = requestSignal.aborted || error?.name === 'TimeoutError' ? 'timeout' : response ? 'invalid_response' : 'network_error';
       }
       const ms = retryDelay(response, now());
       if (attempt === 0 && temporary && ms <= 60000) {
@@ -48,7 +51,8 @@ export function createAccountSessionReader({ fetchImpl = (...args) => fetch(...a
         flight.retryAt = null;
         continue;
       }
-      return { response: response || new Response(null, { status: 503 }), payload: null, state: 'unavailable' };
+      return { response: response || new Response(null, { status: 503 }), payload: null, state: 'unavailable',
+        diagnostic: { reason, attempts: attempt + 1, http_status: response?.status ?? null, retry_after_ms: ms } };
     }
   }
   function read({ signal, onRetry } = {}) {
@@ -56,7 +60,10 @@ export function createAccountSessionReader({ fetchImpl = (...args) => fetch(...a
     if (!current) {
       const flight = { controller: new AbortController(), listeners: new Set(), retryAt: null };
       current = flight;
-      flight.promise = run(flight).finally(() => { if (current === flight) current = null; });
+      flight.promise = run(flight).then(result => {
+        if (!flight.controller.signal.aborted) { try { onResult(result); } catch {} }
+        return result;
+      }).finally(() => { if (current === flight) current = null; });
     }
     const flight = current;
     if (onRetry) { flight.listeners.add(onRetry); if (flight.retryAt !== null) { try { onRetry({ retryAt: flight.retryAt }); } catch {} } }
@@ -75,7 +82,15 @@ export function createAccountSessionReader({ fetchImpl = (...args) => fetch(...a
   function invalidate() { current?.controller.abort(); current = null; }
   return { read, invalidate };
 }
-const sessionReader = createAccountSessionReader();
+// Subscribers receive presentation state only, never credentials or a cached
+// authentication result. A later read still checks the server.
+const subscribers = new Set();
+const sessionReader = createAccountSessionReader({ onResult: result => {
+  const summary = { state: result.state, username: result.payload?.account?.username || '' };
+  for (const listener of subscribers) { try { listener(summary); } catch {} }
+  if (result.state === 'unavailable') console.warn('ravenos.account_check_unavailable', result.diagnostic);
+} });
+export function subscribeAccountSession(listener) { subscribers.add(listener); return () => subscribers.delete(listener); }
 export const readAccountSession = options => sessionReader.read(options);
 export const invalidateAccountSession = () => sessionReader.invalidate();
 if (typeof window !== 'undefined') window.addEventListener('ravenos:accountstate', event => {

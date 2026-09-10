@@ -35,9 +35,9 @@
 
     <section class="monitor-auth" id="monitorAuth" hidden>
       <div>
-        <span class="monitor-kicker">Sign in required</span>
-        <h2>Continue to your saved markets.</h2>
-        <p>Sign in to sync.</p>
+        <span class="monitor-kicker" id="monitorAccountLabel">Sign in required</span>
+        <h2 id="monitorAccountHeading">Continue to your saved markets.</h2>
+        <p id="monitorAccountMessage">Sign in to sync.</p>
       </div>
       <div class="monitor-auth-actions" id="monitorAuthActions" hidden>
         <form data-monitor-auth="google">
@@ -54,7 +54,8 @@
         </form>
         <p id="monitorAuthStatus" aria-live="polite">No wallet connection.</p>
       </div>
-      <p class="monitor-service-unavailable" id="monitorServiceUnavailable" hidden>Sign-in unavailable.</p>
+      <p class="monitor-service-unavailable" id="monitorServiceUnavailable" hidden>Account check unavailable.</p>
+      <button type="button" id="monitorAccountRetry" hidden>Retry account check</button>
     </section>
 
     <section class="monitor-workspace" id="monitorWorkspace" hidden>

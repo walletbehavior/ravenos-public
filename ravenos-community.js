@@ -1,7 +1,9 @@
 import { requestLegalAcceptance } from "./ravenos-legal-client.js";
+import { readAccountSession } from './ravenos-account-session.js';
 
 const state = {
   session: null,
+  sessionState: 'checking',
   csrf: "",
   ownProfile: null,
   following: new Set(),
@@ -144,16 +146,33 @@ async function loadBoard() {
 }
 
 async function loadSession() {
-  if (!onAuthenticatedApp()) return null;
-  try {
-    const { response, payload } = await getJson("/api/v1/auth/session");
-    if (!response.ok || !payload?.authenticated) return null;
-    state.session = payload;
-    state.csrf = String(payload.csrf_token || "");
-    return payload;
-  } catch {
-    return null;
+  state.session = null;
+  state.csrf = '';
+  if (!onAuthenticatedApp()) { state.sessionState = 'signed_out'; return null; }
+  const result = await readAccountSession().catch(() => ({ state: 'unavailable' }));
+  state.sessionState = result.state;
+  if (result.state === 'authenticated') {
+    state.session = result.payload;
+    state.csrf = result.payload.csrf_token;
+  } else if (result.state === 'signed_out') {
+    state.ownProfile = null;
+    state.following.clear();
   }
+  return state.session;
+}
+
+function showAccountUnavailable(root, retry) {
+  if (!root) return;
+  root.innerHTML = emptyMarkup('Account check unavailable', 'Try the account check again to continue.');
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'community-account-retry';
+  button.textContent = 'Retry account check';
+  button.addEventListener('click', async () => {
+    button.disabled = true;
+    try { await retry(); } finally { button.disabled = false; }
+  });
+  root.append(button);
 }
 
 function showPanel(name) {
@@ -205,7 +224,12 @@ function populateSettings(profile) {
 async function loadOwnProfile() {
   const accountState = document.getElementById("communityAccountState");
   if (!accountState) return;
-  if (!state.session) await loadSession();
+  accountState.hidden = false;
+  accountState.textContent = 'Checking account';
+  document.getElementById('communitySettingsForm').hidden = true;
+  document.getElementById('communityPublicProfileLink').hidden = true;
+  await loadSession();
+  if (state.sessionState === 'unavailable') { showAccountUnavailable(accountState, loadOwnProfile); return; }
   if (!state.session) {
     accountState.innerHTML = `<strong>Sign in to opt in</strong><a href="https://app.ravenos.xyz/account/">Open account →</a>`;
     return;
@@ -264,9 +288,11 @@ function followingRow(row) {
   </article>`;
 }
 
-async function loadFollowing() {
+async function loadFollowing({ checkSession = true } = {}) {
   const root = document.getElementById("communityFollowingRows");
-  if (!state.session) await loadSession();
+  if (root) root.innerHTML = emptyMarkup('Checking account');
+  if (checkSession) await loadSession();
+  if (state.sessionState === 'unavailable') { showAccountUnavailable(root, loadFollowing); return; }
   if (!state.session) {
     if (root) root.innerHTML = `<div class="community-empty"><strong>Sign in to follow traders</strong><a href="https://app.ravenos.xyz/account/">Open account →</a></div>`;
     return;
@@ -347,12 +373,14 @@ async function loadPublicProfile() {
     if (!response.ok || !payload?.profile) throw new Error("not_found");
     const profile = payload.profile;
     await loadSession();
-    if (state.session) await loadFollowing();
+    if (state.session) await loadFollowing({ checkSession: false });
     const signedInApp = Boolean(state.session && onAuthenticatedApp());
     const profileAppUrl = `https://app.ravenos.xyz/community/profile/?username=${encodeURIComponent(username)}`;
     const actions = signedInApp
       ? `<button class="primary" type="button" data-profile-action="follow" data-enabled="${state.following.has(username)}" ${profile.availability.following ? "" : "disabled"}>${state.following.has(username) ? "Following" : profile.availability.following ? "Follow" : "Following closed"}</button><button type="button" data-profile-action="useful">Useful</button>`
-      : `<a class="primary" href="${profileAppUrl}">Sign in to follow</a>`;
+      : state.sessionState === 'unavailable'
+        ? `<span role="status">Account check unavailable</span><button type="button" data-profile-account-retry>Retry account check</button>`
+        : `<a class="primary" href="${profileAppUrl}">Sign in to follow</a>`;
     root.innerHTML = `<header class="community-profile-header">
       <div><span class="community-profile-eyebrow">Public Raven profile</span><h1>@${escapeHtml(profile.username)}</h1><p>Member since ${escapeHtml(shortDate(profile.member_since))}</p></div>
       <div class="community-profile-actions">${actions}</div>
@@ -364,6 +392,10 @@ async function loadPublicProfile() {
       ${metric("Raven Copy", profile.availability.raven_copy ? "Available" : "Off")}
     </div>
     <section class="community-performance"><h2>Public performance</h2><div class="community-period-grid">${profile.performance?.length ? profile.performance.map(performanceCard).join("") : emptyMarkup("Insufficient evidence", "No qualified public performance yet.")}</div></section>`;
+    root.querySelector('[data-profile-account-retry]')?.addEventListener('click', async event => {
+      event.currentTarget.disabled = true;
+      await loadPublicProfile();
+    });
     if (profile.referral_cta?.url && /^https:\/\/ravenos\.xyz\/r\/RVN[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{12}$/.test(profile.referral_cta.url)) {
       const invitation=document.createElement("section"); invitation.className="community-performance";
       const title=document.createElement("h2");title.textContent=`Try Raven Pro free for ${profile.referral_cta.trial_days} days`;

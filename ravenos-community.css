@@ -242,6 +242,7 @@ button, select, a { -webkit-tap-highlight-color: transparent; }
   color: var(--community-muted);
   font-size: 13px;
 }
+.community-account-retry,
 .community-settings button,
 .community-profile-actions button,
 .community-profile-actions a {
@@ -253,8 +254,10 @@ button, select, a { -webkit-tap-highlight-color: transparent; }
   cursor: pointer;
   text-decoration: none;
 }
+.community-account-retry:hover,
 .community-settings button:hover,
 .community-profile-actions button:hover { border-color: var(--community-accent); }
+.community-account-retry:disabled,
 .community-settings button:disabled,
 .community-profile-actions button:disabled { cursor: wait; opacity: 0.55; }
 #communitySettingsStatus { margin-left: 14px; color: var(--community-muted); font-size: 12px; }

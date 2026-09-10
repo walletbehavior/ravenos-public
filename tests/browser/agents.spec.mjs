@@ -1,5 +1,25 @@
 import { expect, test } from "@playwright/test";
 
+test('Agents recovers account access before reading the paper workspace and sends no mutation', async ({ page }) => {
+  let mode = 'failure'; const requests = [];
+  await page.route('**/api/v1/auth/session', r => mode === 'failure'
+    ? r.fulfill({ status: 503, headers: { 'retry-after': '0' }, json: { ok: false, authenticated: false } })
+    : r.fulfill({ json: { ok: true, authenticated: mode === 'authenticated', csrf_token: mode === 'authenticated' ? 'csrf_agents_fixture' : null } }));
+  await page.route('**/api/v1/agents/**', r => {
+    requests.push(r.request().method());
+    return r.fulfill({ json: { ok: true, agents: [], radar: { entries: [] }, live_execution_enabled: false } });
+  });
+  await page.goto('/agents/');
+  await expect(page.locator('#agentsStatus')).toContainText('Account check unavailable');
+  await expect(page.locator('#agentsStatus')).not.toContainText('Login required'); expect(requests).toEqual([]);
+  mode = 'authenticated'; await page.getByRole('button', { name: 'Retry account check', exact: true }).click();
+  await expect(page.locator('#agentName')).toHaveText('No paper agents');
+  await expect(page.locator('#agentsWorkspace')).toBeVisible(); expect(requests).toEqual(['GET']);
+  mode = 'signed_out'; await page.reload();
+  await expect(page.locator('#agentsStatus')).toContainText('Login required');
+  await expect(page.locator('#agentsWorkspace')).toBeHidden(); expect(requests).toEqual(['GET']);
+});
+
 test("Agents renders the two-venue partial paper path without implying live execution", async ({ page }) => {
   await page.goto("/agents/?fixture=two-venue");
 

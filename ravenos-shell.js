@@ -9,7 +9,7 @@ import {
 } from "/ravenos-intelligence-contract.js";
 import { ravenOSContext } from "/ravenos-context-store.js";
 import { setPreference } from "/ravenos-preferences.js";
-import { readAccountSession } from '/ravenos-account-session.js';
+import { readAccountSession, subscribeAccountSession } from '/ravenos-account-session.js';
 import { resolveChartCapability } from "/ravenos-chart-data-plane.js";
 import { resolveTradingViewChart } from "/ravenos-tradingview-adapter.js";
 import { openIntelligenceLayer, closeIntelligenceLayers, intelligenceLayerOpen } from '/ravenos-intelligence-layers.js';
@@ -842,6 +842,12 @@ export function mountRavenOSShell(options = {}) {
   }
 
   let accountStateGeneration = 0;
+  subscribeAccountSession(result => renderCustomerAccountState({
+    ...customerAccountState,
+    authenticated: result.state === 'authenticated' || (result.state === 'unavailable' && customerAccountState.authenticated),
+    username: result.state === 'unavailable' ? customerAccountState.username : result.username,
+    checkState: result.state,
+  }));
   async function hydrateCustomerAccountState() {
     const generation = accountStateGeneration;
     try {

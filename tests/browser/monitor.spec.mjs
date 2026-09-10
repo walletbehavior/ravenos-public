@@ -2,6 +2,28 @@ import { expect, test } from "@playwright/test";
 
 const POOL_A = "11111111111111111111111111111111";
 
+test('Monitor retries an unavailable account without sign-in controls or duplicate saved-market actions', async ({ page, baseURL }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const shared = { items: [], requests: [] };
+  await installMonitorApi(page, baseURL, shared);
+  let mode = 'failure';
+  await page.route('**/api/v1/auth/session', r => mode === 'failure'
+    ? r.fulfill({ status: 503, headers: { 'retry-after': '0' }, json: { ok: false, authenticated: false } })
+    : r.fulfill({ json: mode === 'authenticated' ? session() : { ok: true, authenticated: false } }));
+  await page.goto('/monitor/');
+  await expect(page.locator('#monitorAccountHeading')).toHaveText('Your account could not be checked.');
+  await expect(page.locator('#monitorAuth')).not.toContainText(/Sign in|Sign-in/, { useInnerText: true });
+  await expect(page.locator('#monitorAuthActions')).toBeHidden(); expect(shared.requests).toHaveLength(0);
+  mode = 'authenticated'; await page.getByRole('button', { name: 'Retry account check', exact: true }).click();
+  await expect(page.locator('#monitorWorkspace')).toBeVisible(); await expect(page.locator('#monitorAuth')).toBeHidden();
+  expect(shared.requests).toHaveLength(1);
+  await page.locator('#monitorReload').click(); await expect.poll(() => shared.requests.length).toBe(2);
+  expect(shared.requests.every(r => r.method === 'GET')).toBe(true);
+  mode = 'signed_out'; await page.reload();
+  await expect(page.locator('#monitorAuthActions')).toBeVisible();
+  await expect(page.locator('#monitorAccountLabel')).toHaveText('Sign in required');
+});
+
 function authConfig(origin) {
   return {
     ok: true,

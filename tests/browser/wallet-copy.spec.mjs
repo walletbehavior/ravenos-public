@@ -45,6 +45,36 @@ const EVM_TOKEN = `0x${"56".repeat(20)}`;
 const EVM_TOKEN_TWO = `0x${"ab".repeat(20)}`;
 const EVM_SOURCE_ID = `sw_bsc_${"b".repeat(40)}`;
 
+test('Wallet overlay account failure preserves the chart draft and recovers on reopen', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockTerminalLiveApis(page, { spotQuotePreview: true });
+  const shared = { watch: null, decision: null, position: null, requests: [] };
+  await install(page, shared);
+  let failed = false;
+  await page.route('**/api/v1/auth/session', r => failed
+    ? r.fulfill({ status: 503, headers: { 'retry-after': '0' }, json: { ok: false } })
+    : r.fulfill({ json: session() }));
+  await page.goto('/terminal/?instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&token_address=fixture-token-address&quote_address=fixture-quote-address&panel=chart');
+  await waitForTerminalLive(page, { lane: 'spot' }); await page.locator('#terminalSpotAmount').fill('42');
+  const url = page.url();
+  const open = async () => {
+    await page.locator('#rosCommandTrigger').click(); await page.locator('#rosCommandInput').fill(WALLET);
+    await page.locator('.ros-command-result.wallet').click();
+  };
+  await open(); await expect(page.locator('.ros-intelligence-layer #copyProfile')).toBeVisible();
+  await page.locator('.ros-layer-close').click(); failed = true;
+  const inspections = shared.requests.filter(row => row.path.endsWith('/inspect')).length;
+  await open();
+  await expect(page.locator('.ros-intelligence-layer #copyUnavailableReason')).toContainText('Your account could not be checked');
+  await expect(page.locator('#copySignIn')).toBeHidden(); await expect(page.locator('#copyWorkspace')).toBeHidden();
+  expect(shared.requests.filter(row => row.path.endsWith('/inspect')).length).toBe(inspections);
+  await page.locator('.ros-layer-close').click(); failed = false;
+  await open(); await expect(page.locator('.ros-intelligence-layer #copyProfile')).toBeVisible();
+  await page.locator('.ros-layer-close').click();
+  await expect(page.locator('#terminalSpotAmount')).toHaveValue('42'); await expect(page).toHaveURL(url);
+  expect(shared.requests.filter(row => /sign|execute|broadcast/.test(row.path))).toHaveLength(0);
+});
+
 function researchThesis() {
   return {
     schema_version: "ravenos.wallet_research_thesis.v1",

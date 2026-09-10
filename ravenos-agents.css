@@ -18,6 +18,8 @@
 .agents-status span { color: var(--agent-blue); font: 700 10px/1 ui-monospace, monospace; text-transform: uppercase; }
 .agents-status[data-state="error"] span { color: var(--agent-red); }
 .agents-status[data-state="ready"] span { color: var(--agent-green); }
+#agentsAccountRetry { min-height: 44px; margin: 16px 18px; padding: 10px 16px; border: 1px solid var(--ws-border, #26303b); background: transparent; color: inherit; font: inherit; cursor: pointer; }
+#agentsAccountRetry:disabled { cursor: wait; opacity: .6; }
 .agents-layout { display: grid; grid-template-columns: minmax(230px, 300px) minmax(0, 1fr); min-height: calc(100vh - 220px); }
 .agents-list-panel { border-right: 1px solid var(--ws-border, #26303b); }
 .agents-list-panel > header, .agent-section > header, .radar-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 14px; border-bottom: 1px solid var(--ws-border, #26303b); text-transform: uppercase; font: 700 10px/1.2 ui-monospace, monospace; color: var(--ws-muted, #8793a2); }

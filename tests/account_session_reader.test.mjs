@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createAccountSessionReader } from '../ravenos-account-session.js';
+import { createAccountSessionReader, readAccountSession, subscribeAccountSession, invalidateAccountSession } from '../ravenos-account-session.js';
 
 const signedIn = () => Response.json({ ok: true, authenticated: true, csrf_token: 'fixture_csrf', account: { username: 'fixture' } });
 test('concurrent surfaces share one retry, honor Retry-After, and recover without signing out',async()=>{
@@ -24,6 +24,10 @@ for(const kind of ['service','network','malformed','missing_csrf','invalid_signe
     return kind==='service'?Response.json({authenticated:false},{status:503}):kind==='invalid_signed_out'?Response.json({ok:false,authenticated:false}):Response.json({ok:true,authenticated:true});
   }});
   const result=await reader.read();assert.equal(requests,2);assert.equal(result.state,'unavailable');assert.equal(result.payload,null);
+  assert.deepEqual(Object.keys(result.diagnostic).sort(),['attempts','http_status','reason','retry_after_ms']);
+  assert.equal(result.diagnostic.attempts,2);
+  assert.equal(result.diagnostic.reason,kind==='network'?'network_error':kind==='service'?'service_error':'invalid_response');
+  assert.doesNotMatch(JSON.stringify(result.diagnostic),/private|network details|html|csrf_token/);
 });
 for(const status of [200,401])test(`explicit ${status} authentication failure remains signed out without a retry`,async()=>{
   let requests=0;const reader=createAccountSessionReader({fetchImpl:async()=>{requests++;return Response.json(status===200?{ok:true,authenticated:false}:{error:'authentication_required'},{status});},wait:()=>assert.fail('Must not retry')});
@@ -57,4 +61,33 @@ test('a cancellation during synchronous fetch setup cannot leave a consumer unre
 test('an already canceled request performs no account read',async()=>{
   const controller=new AbortController();controller.abort();const reader=createAccountSessionReader({fetchImpl:()=>assert.fail('Canceled read')});
   await assert.rejects(reader.read({signal:controller.signal}),{name:'AbortError'});
+});
+
+test('one shared result notifies presentation once, while later reads still check the server',async()=>{
+  let requests=0;const results=[];
+  const reader=createAccountSessionReader({fetchImpl:async()=>{requests++;return signedIn();},onResult:r=>results.push(r.state)});
+  await Promise.all([reader.read(),reader.read()]);assert.equal(requests,1);assert.deepEqual(results,['authenticated']);
+  await reader.read();assert.equal(requests,2);assert.deepEqual(results,['authenticated','authenticated']);
+});
+test('a failing presentation listener cannot break account recovery',async()=>{
+  const reader=createAccountSessionReader({fetchImpl:async()=>signedIn(),onResult:()=>{throw new Error('broken presentation');}});
+  assert.equal((await reader.read()).state,'authenticated');
+});
+test('sign-out invalidation suppresses presentation of the abandoned authenticated response',async()=>{
+  let release;const waiting=new Promise(r=>{release=r;}),results=[];
+  const reader=createAccountSessionReader({fetchImpl:async()=>{await waiting;return signedIn();},onResult:r=>results.push(r.state)});
+  const pending=reader.read();reader.invalidate();release();await assert.rejects(pending,{name:'AbortError'});
+  assert.deepEqual(results,[]);
+});
+test('subscribers receive no credentials, can unsubscribe, and never replay a cached account',async()=>{
+  const originalFetch=globalThis.fetch,results=[];let requests=0;
+  const unsubscribe=subscribeAccountSession(result=>results.push(result));
+  try {
+    globalThis.fetch=async()=>++requests===1?signedIn():Response.json({ok:true,authenticated:false});
+    await readAccountSession();
+    assert.deepEqual(results,[{state:'authenticated',username:'fixture'}]);
+    const late=[];const stopLate=subscribeAccountSession(result=>late.push(result));assert.deepEqual(late,[]);
+    await readAccountSession();assert.equal(requests,2);assert.deepEqual(late,[{state:'signed_out',username:''}]);
+    stopLate();unsubscribe();await readAccountSession();assert.equal(results.length,2);assert.equal(late.length,1);
+  } finally { unsubscribe();invalidateAccountSession();globalThis.fetch=originalFetch; }
 });

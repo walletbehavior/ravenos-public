@@ -20,15 +20,16 @@
       <div class="pro-intelligence-session" aria-live="polite">
         <span>Pro access</span>
         <strong id="proWorkspaceState">Checking session</strong>
-        <small id="proWorkspaceIdentity">Waiting for sign-in</small>
+        <small id="proWorkspaceIdentity">Checking account</small>
       </div>
     </header>
 
     <section class="pro-intelligence-signin" id="proWorkspaceSignIn" hidden>
       <div>
-        <span>RavenOS account required</span>
-        <h2>Sign in to open Pro Intelligence.</h2>
-        <p>Use your RavenOS account to continue. Signing in does not connect a wallet or allow trades.</p>
+        <span id="proAccountLabel">RavenOS account required</span>
+        <h2 id="proAccountHeading">Sign in to open Pro Intelligence.</h2>
+        <p id="proAccountMessage">Use your RavenOS account to continue. Signing in does not connect a wallet or allow trades.</p>
+        <button type="button" id="proAccountRetry" hidden>Retry account check</button>
       </div>
       <div class="pro-intelligence-signin-actions" id="proWorkspaceSignInActions">
         <form method="get" action="/account/" data-auth-start>

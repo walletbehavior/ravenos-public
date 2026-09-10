@@ -2,6 +2,48 @@ import { expect, test } from "@playwright/test";
 
 const memberSince = "2026-06-01T00:00:00.000Z";
 
+test('Community profile controls and following distinguish account failure from sign-out and recover', async ({ page }) => {
+  let mode = 'failure'; const privateReads = [];
+  await page.route('**/api/v1/auth/session', r => mode === 'failure'
+    ? r.fulfill({ status: 503, headers: { 'retry-after': '0' }, json: { ok: false, authenticated: false } })
+    : r.fulfill({ json: { ok: true, authenticated: mode === 'authenticated', csrf_token: mode === 'authenticated' ? 'csrf_community_fixture' : null } }));
+  await page.route('**/api/v1/community/boards**', r => r.fulfill({ json: boardPayload() }));
+  await page.route('**/api/v1/community/me', r => {
+    privateReads.push(r.request().method()); return r.fulfill({ json: { ok: true, profile: { username: 'verified_edge', settings: {} } } });
+  });
+  await page.route('**/api/v1/community/following', r => { privateReads.push(r.request().method()); return r.fulfill({ json: { ok: true, rows: [] } }); });
+  await page.goto('/community/');
+  await page.getByRole('button', { name: 'Your profile', exact: true }).click();
+  await expect(page.locator('#communityAccountState')).toContainText('Account check unavailable');
+  await expect(page.locator('#communityAccountState')).not.toContainText('Sign in');
+  await expect(page.locator('#communitySettingsForm')).toBeHidden(); expect(privateReads).toEqual([]);
+  mode = 'authenticated'; await page.getByRole('button', { name: 'Retry account check', exact: true }).click();
+  await expect(page.locator('#communitySettingsForm')).toBeVisible();
+  mode = 'failure'; await page.getByRole('button', { name: 'Following', exact: true }).click();
+  await expect(page.locator('#communityFollowingRows')).toContainText('Account check unavailable');
+  await expect(page.locator('#communityFollowingRows')).not.toContainText('Sign in'); expect(privateReads).toEqual(['GET']);
+  mode = 'authenticated'; await page.getByRole('button', { name: 'Retry account check', exact: true }).click();
+  await expect(page.locator('#communityFollowingRows')).toContainText('No profiles followed'); expect(privateReads).toEqual(['GET', 'GET']);
+  mode = 'signed_out'; await page.getByRole('button', { name: 'Your profile', exact: true }).click();
+  await expect(page.locator('#communityAccountState')).toContainText('Sign in to opt in');
+  await expect(page.locator('#communitySettingsForm')).toBeHidden();
+});
+
+test('an unavailable account leaves the public profile readable without a false sign-in prompt', async ({ page }) => {
+  let failed = true;
+  await page.route('**/api/v1/auth/session', r => failed
+    ? r.fulfill({ status: 503, headers: { 'retry-after': '0' }, json: { ok: false } })
+    : r.fulfill({ json: { ok: true, authenticated: true, csrf_token: 'csrf_community_fixture' } }));
+  await page.route('**/api/v1/community/profiles/verified_edge', r => r.fulfill({ json: { ok: true, profile: profile() } }));
+  await page.route('**/api/v1/community/following', r => r.fulfill({ json: { ok: true, rows: [] } }));
+  await page.goto('/community/profile/?username=verified_edge');
+  await expect(page.locator('#communityPublicProfile')).toContainText('@verified_edge');
+  await expect(page.locator('#communityPublicProfile')).toContainText('Account check unavailable');
+  await expect(page.locator('#communityPublicProfile')).not.toContainText('Sign in to follow');
+  failed = false; await page.getByRole('button', { name: 'Retry account check', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Follow', exact: true })).toBeEnabled();
+});
+
 function profile(overrides = {}) {
   return {
     schema_version: "ravenos.community_profile.v1",

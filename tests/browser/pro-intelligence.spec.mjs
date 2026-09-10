@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { mockTerminalLiveApis, waitForTerminalLive } from './terminal-live-fixtures.mjs';
 
 function configPayload(origin) {
   return {
@@ -20,6 +21,7 @@ function sessionPayload(authenticated = true) {
     ? {
         ok: true,
         authenticated: true,
+        csrf_token: 'csrf_pro_fixture',
         account: { display_name: "Raven Beta", email: "beta@example.com" },
         session: { session_public_id: "sespub_current", current: true, authentication_strength: "federated" },
         wallet_links: [],
@@ -190,6 +192,64 @@ async function routeAuth(page, baseURL, { authenticated = true } = {}) {
   await page.route("**/api/v1/auth/config", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(configPayload(baseURL)) }));
   await page.route("**/api/v1/auth/session", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(sessionPayload(authenticated)) }));
 }
+
+for (const width of [390, 1440]) test(`Pro account failure recovers in place and real sign-out stays distinct at ${width}px`, async ({ page, baseURL }, info) => {
+  await page.setViewportSize({ width, height: 900 });
+  await routeAuth(page, baseURL);
+  let mode = 'failure', privateReads = 0;
+  await page.route('**/api/v1/auth/session', r => mode === 'failure'
+    ? r.fulfill({ status: 503, headers: { 'retry-after': '0' }, json: { ok: false, authenticated: false } })
+    : r.fulfill({ json: sessionPayload(mode === 'authenticated') }));
+  await page.route('**/api/v1/entitlements', r => { privateReads++; return r.fulfill({ json: entitlementPayload([]) }); });
+  await page.goto('/account/intelligence/?view=participants');
+  await expect(page.locator('#proWorkspaceState')).toHaveText('Account check unavailable');
+  await expect(page.locator('#proWorkspaceSignIn')).not.toContainText(/Sign in|sign-in/, { useInnerText: true });
+  await expect(page.locator('#proWorkspaceSignInActions')).toBeHidden();
+  expect(privateReads).toBe(0);
+  if (width === 390) await page.screenshot({ path: info.outputPath('pro-account-recovery-mobile.png'), fullPage: true });
+  mode = 'authenticated'; await page.getByRole('button', { name: 'Retry account check', exact: true }).click();
+  await expect(page.locator('#proWorkspace')).toBeVisible();
+  await expect(page.locator('#proWorkspaceSignIn')).toBeHidden();
+  await expect(page.locator('[data-pro-view="participants"]')).toHaveAttribute('aria-selected', 'true');
+  expect(privateReads).toBe(1);
+  mode = 'signed_out'; await page.reload();
+  await expect(page.locator('#proWorkspaceSignInActions')).toBeVisible();
+  await expect(page.locator('#proAccountHeading')).toHaveText('Sign in to open Pro Intelligence.');
+  expect(privateReads).toBe(1);
+});
+
+test('Pro overlay rechecks account on reopen and recovers without leaving the Terminal', async ({ page, baseURL }) => {
+  await mockTerminalLiveApis(page, { spotQuotePreview: true });
+  await routeAuth(page, baseURL);
+  let failed = false, privateReads = 0;
+  await page.route('**/api/v1/auth/session', r => failed
+    ? r.fulfill({ status: 503, headers: { 'retry-after': '0' }, json: { ok: false } })
+    : r.fulfill({ json: sessionPayload() }));
+  await page.route('**/api/v1/entitlements', r => { privateReads++; return r.fulfill({ json: entitlementPayload([]) }); });
+  await page.goto('/terminal/?instrument_id=solana%3Apool%3Afixture-pair-address&lane=spot&market=spot&instrument_type=exact_pool&token_address=fixture-token-address&quote_address=fixture-quote-address&panel=chart');
+  await waitForTerminalLive(page, { lane: 'spot' }); await page.locator('#terminalSpotAmount').fill('42');
+  const url = page.url();
+  // Exercise the shared handoff boundary used by the shell's intelligence links.
+  const open = () => page.evaluate(async () => {
+    const { openWorkspaceWallet } = await import('/ravenos-workspace-wallet-layer.js');
+    await openWorkspaceWallet('/account/intelligence/?view=participants');
+  });
+  await open();
+  await expect(page.locator('.ros-intelligence-layer #proWorkspace')).toBeVisible();
+  await page.locator('.ros-layer-close').click();
+  failed = true;
+  await open();
+  await expect(page.locator('.ros-intelligence-layer #proAccountHeading')).toHaveText('Your account could not be checked.');
+  await expect(page.locator('#proWorkspaceSignInActions')).toBeHidden();
+  expect(privateReads).toBe(1);
+  await page.locator('.ros-layer-close').click(); failed = false;
+  await open();
+  await expect(page.locator('.ros-intelligence-layer #proWorkspace')).toBeVisible();
+  await expect(page.locator('#proWorkspaceSignIn')).toBeHidden();
+  expect(privateReads).toBe(2);
+  await page.locator('.ros-layer-close').click(); await expect(page).toHaveURL(url);
+  await expect(page.locator('#terminalSpotAmount')).toHaveValue('42');
+});
 
 test("signed-out Pro workspace canonicalizes return context and never requests private projections", async ({ page, baseURL }) => {
   await routeAuth(page, baseURL, { authenticated: false });

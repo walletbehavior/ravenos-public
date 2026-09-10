@@ -1,3 +1,4 @@
+import { readAccountSession } from './ravenos-account-session.js';
 const embeddedPage = document.querySelector('.pro-intelligence-page');
 let embeddedUrl = embeddedPage?.dataset.embeddedUrl || location.href;
 let embeddedBoot = null;
@@ -577,11 +578,32 @@ async function loadEntitlements() {
   }
 }
 
+function showAccountGate(signedOut = false) {
+  document.getElementById('proWorkspace').hidden = true;
+  document.getElementById('proWorkspaceSignIn').hidden = false;
+  document.getElementById('proWorkspaceSignInActions').hidden = !signedOut;
+  document.getElementById('proAccountRetry').hidden = signedOut;
+  setText('proAccountLabel', signedOut ? 'RavenOS account required' : 'Account access');
+  setText('proAccountHeading', signedOut ? 'Sign in to open Pro Intelligence.' : 'Your account could not be checked.');
+  setText('proAccountMessage', signedOut ? 'Use your RavenOS account to continue. Signing in does not connect a wallet or allow trades.' : 'Try the account check again to open your intelligence workspace.');
+  setText('proWorkspaceIdentity', signedOut ? 'Signed out' : 'Try again shortly');
+  setText('proWorkspaceState', signedOut ? 'Sign in required' : 'Account check unavailable');
+  embeddedPage.dataset.workspaceState = signedOut ? 'signed_out' : 'unavailable';
+}
+
 async function boot() {
+  document.getElementById('proWorkspace').hidden = true;
+  document.getElementById('proWorkspaceSignIn').hidden = true;
+  setText('proWorkspaceState', 'Checking account');
+  setText('proWorkspaceIdentity', 'Checking account');
+  embeddedPage.dataset.workspaceState = 'checking';
+  state.projections.clear();
+  state.capabilities.clear();
+  document.getElementById('proPerpsProjection').hidden = true;
+  document.getElementById('proParticipantsProjection').hidden = true;
   const context = requestedContext();
   state.view = context.view;
   state.selectedInstrumentId = context.instrumentId;
-  bindTabs();
   selectView(state.view);
   syncReturnTo();
   setText("proPerpsContext", state.selectedInstrumentId
@@ -595,27 +617,22 @@ async function boot() {
     config = null;
   }
   if (config?.available !== true || config?.on_authenticated_origin !== true) {
-    document.getElementById("proWorkspaceSignIn").hidden = false;
-    document.getElementById("proWorkspaceSignInActions").hidden = true;
-    setText("proWorkspaceState", "Account service unavailable");
-    document.querySelector(".pro-intelligence-page").dataset.workspaceState = "unavailable";
+    showAccountGate();
     return;
   }
 
-  let session;
-  try {
-    ({ payload: session } = await getJson("/api/v1/auth/session"));
-  } catch {
-    session = null;
+  const accountCheck = await readAccountSession();
+  if (accountCheck.state === 'unavailable') {
+    showAccountGate();
+    return;
   }
-  if (session?.authenticated !== true) {
-    document.getElementById("proWorkspaceSignIn").hidden = false;
-    setText("proWorkspaceState", "Sign in required");
-    document.querySelector(".pro-intelligence-page").dataset.workspaceState = "signed_out";
+  if (accountCheck.state === 'signed_out') {
+    showAccountGate(true);
     return;
   }
 
   document.getElementById("proWorkspace").hidden = false;
+  const session = accountCheck.payload;
   setText("proWorkspaceState", "Resolving capabilities");
   const username = String(session.account?.username || "").trim().toLowerCase();
   setText("proWorkspaceIdentity", /^[a-z][a-z0-9_]{2,23}$/.test(username) ? `@${username}` : "Authenticated RavenOS account");
@@ -624,14 +641,18 @@ async function boot() {
 }
 
 bindAuthStartForms();
-if (embeddedPage?.dataset.embedded !== 'true') embeddedBoot = boot();
+bindTabs();
+document.getElementById('proAccountRetry').addEventListener('click', async event => {
+  event.currentTarget.disabled = true;
+  embeddedBoot = boot().catch(() => showAccountGate());
+  await embeddedBoot;
+  document.getElementById('proAccountRetry').disabled = false;
+});
+if (embeddedPage?.dataset.embedded !== 'true') embeddedBoot = boot().catch(() => showAccountGate());
 export async function openEmbeddedIntelligence(href) {
   embeddedUrl = href;
-  if (!embeddedBoot) { embeddedBoot = boot(); await embeddedBoot; return; }
+  if (embeddedBoot) await embeddedBoot;
+  embeddedBoot = boot().catch(() => showAccountGate());
   await embeddedBoot;
-  const next = requestedContext();
-  state.selectedInstrumentId = next.instrumentId;
-  selectView(next.view, { updateUrl: false });
-  await loadEntitlements();
 }
 export function suspendEmbeddedIntelligence() {}

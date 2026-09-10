@@ -1,3 +1,4 @@
+import { readAccountSession } from './ravenos-account-session.js';
 const RESEARCH_ROUTE = "/api/v1/research-state";
 const ENTITLEMENT_ROUTE = "/api/v1/entitlements";
 const ALERT_ROUTE = "/api/v1/monitor-alerts";
@@ -476,7 +477,7 @@ async function submitAuth(form) {
   }
 }
 
-async function initialize() {
+function bindControls() {
   state.pending = safeQueryHandoff();
   renderPending();
   for (const form of document.querySelectorAll("[data-monitor-auth]")) form.addEventListener("submit", (event) => { event.preventDefault(); submitAuth(form); });
@@ -489,13 +490,36 @@ async function initialize() {
   document.getElementById("monitorDeleteAlertStateConfirm").addEventListener("click", deleteAlertState);
   document.getElementById("monitorDeleteAll").addEventListener("click", () => document.getElementById("monitorDeleteDialog").showModal());
   document.getElementById("monitorDeleteAllConfirm").addEventListener("click", deleteAll);
+  document.getElementById('monitorAccountRetry').addEventListener('click', retryAccountCheck);
+}
+
+function showAccountGate(signedOut = false) {
+  page.dataset.monitorState = signedOut ? 'anonymous' : 'unavailable';
+  workspaceNode.hidden = true;
+  auth.hidden = false;
+  authActions.hidden = !signedOut;
+  document.getElementById('monitorServiceUnavailable').hidden = signedOut;
+  document.getElementById('monitorAccountRetry').hidden = signedOut;
+  setText('monitorAccountLabel', signedOut ? 'Sign in required' : 'Account access');
+  setText('monitorAccountHeading', signedOut ? 'Continue to your saved markets.' : 'Your account could not be checked.');
+  setText('monitorAccountMessage', signedOut ? 'Sign in to sync.' : 'Try the account check again to load your saved markets and alerts.');
+}
+
+async function initialize() {
+  page.dataset.monitorState = 'checking';
+  auth.hidden = true;
+  workspaceNode.hidden = true;
+  state.csrf = '';
   const config = await api("/api/v1/auth/config");
   state.config = config.payload;
   if (!config.response.ok || !config.payload?.available || !config.payload?.on_authenticated_origin) {
-    page.dataset.monitorState = "unavailable"; auth.hidden = false; document.getElementById("monitorServiceUnavailable").hidden = false; return;
+    showAccountGate(); return;
   }
-  const session = await api("/api/v1/auth/session");
-  if (!session.response.ok || !session.payload?.authenticated) { page.dataset.monitorState = "anonymous"; auth.hidden = false; authActions.hidden = false; return; }
+  const session = await readAccountSession();
+  if (session.state === 'unavailable') {
+    showAccountGate(); return;
+  }
+  if (session.state === 'signed_out') { showAccountGate(true); return; }
   state.csrf = session.payload.csrf_token || "";
   page.dataset.monitorState = "authenticated";
   workspaceNode.hidden = false;
@@ -514,8 +538,12 @@ window.__RAVENOS_SAVED_MONITOR__ = Object.freeze({
   executionAvailable: false,
 });
 
-initialize().catch(() => {
-  page.dataset.monitorState = "unavailable";
-  auth.hidden = false;
-  document.getElementById("monitorServiceUnavailable").hidden = false;
-});
+async function retryAccountCheck() {
+  const button = document.getElementById('monitorAccountRetry');
+  if (button.disabled) return;
+  button.disabled = true;
+  try { await initialize(); } catch { showAccountGate(); }
+  finally { button.disabled = false; }
+}
+bindControls();
+retryAccountCheck();

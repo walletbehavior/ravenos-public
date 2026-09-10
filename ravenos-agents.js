@@ -1,3 +1,4 @@
+import { readAccountSession } from './ravenos-account-session.js';
 const $ = (id) => document.getElementById(id);
 
 const developmentFixture = Object.freeze({
@@ -256,10 +257,13 @@ function selectView(view) {
   $("radarWorkspace").hidden = state.view !== "radar" || !state.payload;
 }
 
-async function loadWorkspace() {
+function localFixtureAllowed() {
   const fixtureRequested = new URLSearchParams(location.search).get("fixture") === "two-venue";
-  const localFixtureAllowed = fixtureRequested && ["localhost", "127.0.0.1", "::1"].includes(location.hostname);
-  if (localFixtureAllowed) return developmentFixture;
+  return fixtureRequested && ["localhost", "127.0.0.1", "::1"].includes(location.hostname);
+}
+
+async function loadWorkspace() {
+  if (localFixtureAllowed()) return developmentFixture;
   const response = await fetch("/api/v1/agents/workspace", { credentials: "include", headers: { accept: "application/json" } });
   const payload = await response.json().catch(() => null);
   if (!response.ok || !payload?.ok) {
@@ -271,10 +275,15 @@ async function loadWorkspace() {
 }
 
 async function loadSession() {
-  const response = await fetch("/api/v1/auth/session", { cache: "no-store", credentials: "same-origin", headers: { accept: "application/json" } });
-  const payload = await response.json().catch(() => null);
-  if (response.ok && payload?.authenticated) state.csrf = clean(payload.csrf_token, "");
-  return payload;
+  state.csrf = '';
+  const result = await readAccountSession();
+  if (result.state !== 'authenticated') {
+    const error = new Error(result.state === 'signed_out' ? 'authentication_required' : 'account_check_unavailable');
+    error.status = result.state === 'signed_out' ? 401 : 503;
+    throw error;
+  }
+  state.csrf = result.payload.csrf_token;
+  return result.payload;
 }
 
 async function transitionAgent(action) {
@@ -379,19 +388,32 @@ $("agentStart").addEventListener("click", () => transitionAgent(new Set(["paper_
 $("agentPause").addEventListener("click", () => transitionAgent("pause"));
 $("agentKill").addEventListener("click", () => transitionAgent("kill"));
 
-try {
-  await loadSession();
-  state.payload = await loadWorkspace();
-  state.selectedAgent = state.payload.agents?.[0] || null;
-  const fixture = state.payload.demonstration_data === true;
-  setStatus("ready", fixture ? "Development fixture" : "Paper ready", fixture ? "No live data or orders" : "Live execution disabled");
-  renderAgentList();
-  renderAgent();
-  renderRadar();
-  selectView("agents");
-} catch (error) {
-  const login = error.status === 401;
-  setStatus("error", login ? "Login required" : "Unavailable", login ? "Open your RavenOS account" : "Paper workspace is not enabled");
-  $("agentsWorkspace").hidden = true;
-  $("radarWorkspace").hidden = true;
+async function initializeAgents() {
+  setStatus('loading', 'Checking account', 'Loading paper workspace');
+  try {
+    if (!localFixtureAllowed()) await loadSession();
+    state.payload = await loadWorkspace();
+    state.selectedAgent = state.payload.agents?.[0] || null;
+    const fixture = state.payload.demonstration_data === true;
+    setStatus("ready", fixture ? "Development fixture" : "Paper ready", fixture ? "No live data or orders" : "Live execution disabled");
+    renderAgentList();
+    renderAgent();
+    renderRadar();
+    selectView("agents");
+  } catch (error) {
+    const login = error.status === 401;
+    const accountUnavailable = error.message === 'account_check_unavailable';
+    setStatus("error", login ? "Login required" : accountUnavailable ? 'Account check unavailable' : "Unavailable", login ? "Open your RavenOS account" : accountUnavailable ? 'Retry the account check' : "Paper workspace could not be loaded");
+    $("agentsWorkspace").hidden = true;
+    $("radarWorkspace").hidden = true;
+    $('agentsAccountRetry').hidden = !accountUnavailable;
+  }
 }
+$('agentsAccountRetry').addEventListener('click', async event => {
+  const button = event.currentTarget;
+  button.disabled = true;
+  button.hidden = true;
+  await initializeAgents();
+  button.disabled = false;
+});
+await initializeAgents();

@@ -19,6 +19,7 @@ html { min-width: 320px; background: var(--pro-bg); }
 body { margin: 0; background: radial-gradient(circle at 20% -20%, rgba(94, 134, 164, .1), transparent 35%), var(--pro-bg); color: var(--pro-text); font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
 button, input, select { font: inherit; }
 .pro-intelligence-page { min-width: 0; padding-bottom: 80px; }
+.pro-intelligence-page [hidden] { display: none !important; }
 .pro-intelligence-head { min-height: 190px; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 32px; padding: 34px clamp(18px, 5vw, 72px) 28px; border-bottom: 1px solid var(--pro-line-strong); }
 .pro-intelligence-head > div:first-child { max-width: 850px; display: grid; gap: 8px; }
 .pro-intelligence-head a { width: fit-content; color: var(--pro-muted); font: 750 9px var(--pro-mono); text-decoration: none; text-transform: uppercase; }
@@ -32,6 +33,9 @@ button, input, select { font: inherit; }
 
 .pro-intelligence-signin { max-width: 1050px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(290px, .65fr); gap: 1px; margin: 30px auto; border: 1px solid var(--pro-line-strong); background: var(--pro-line); }
 .pro-intelligence-signin[hidden] { display: none; }
+.pro-intelligence-page[data-workspace-state="unavailable"] .pro-intelligence-signin { grid-template-columns: 1fr; }
+#proAccountRetry { justify-self: start; min-height: 44px; padding: 10px 16px; border: 1px solid var(--pro-line-strong); background: var(--pro-panel-soft); color: var(--pro-text); font-size: 14px; cursor: pointer; }
+#proAccountRetry:disabled { cursor: wait; opacity: .6; }
 .pro-intelligence-signin > div { min-width: 0; display: grid; align-content: center; gap: 10px; padding: clamp(24px, 5vw, 58px); background: var(--pro-panel); }
 .pro-intelligence-signin span { color: var(--pro-green); font: 800 9px var(--pro-mono); text-transform: uppercase; }
 .pro-intelligence-signin h2 { margin: 0; font-size: clamp(26px, 4vw, 48px); line-height: 1; letter-spacing: -.045em; }

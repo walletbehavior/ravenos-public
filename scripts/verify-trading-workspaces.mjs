@@ -28,7 +28,8 @@ for (const page of ['discover', 'terminal', 'perps', 'atlas']) {
   assert.equal(redirected.headers.get('location'), `${app}/${page}/${query}&raven_app=1`);
   assert.match(redirected.headers.get('cache-control'), /\bno-store\b/);
 }
-for (const page of ['discover', 'terminal', 'perps', 'atlas', 'account', 'portfolio', 'account/copy']) {
+const workspacePages = ['discover', 'terminal', 'perps', 'atlas', 'account', 'portfolio', 'account/copy', 'account/intelligence', 'monitor', 'community', 'agents'];
+for (const page of workspacePages) {
   const html = await (await read(`${app}/${page}/`)).text();
   assert.ok(html.includes(`name="ravenos-release-id" content="${release.release_id}"`), page);
   for (const match of html.matchAll(/(?:src|href)=["']([^"']+\.(?:js|css))["']/g)) {
@@ -54,4 +55,4 @@ const flags = await (await read(app + '/api/trade/flags')).json();
 const live = flags.live_execution;
 assert.ok(live, 'Live-execution contract missing');
 for (const chain of ['solana', 'robinhood', 'bsc', 'base', 'ethereum', 'hyperliquid']) assert.equal(live.chains[chain].enabled, true, chain);
-console.log(JSON.stringify({ ok: true, release_id: release.release_id, checks: checks.length, verified_assets: checkedAssets.size, authenticated_workspaces: 7, transactions_submitted: 0 }, null, 2));
+console.log(JSON.stringify({ ok: true, release_id: release.release_id, checks: checks.length, verified_assets: checkedAssets.size, authenticated_workspaces: workspacePages.length, transactions_submitted: 0 }, null, 2));

@@ -80,6 +80,8 @@ test('sustained account failure does not manufacture sign-out and manual refresh
   await page.locator('#rosProfileTrigger').click();await expect(page.locator('#rosUtilityContent')).toContainText('Account check temporarily unavailable');
   await expect(page.locator('#rosUtilityContent')).not.toContainText('Create account or sign in');await page.keyboard.press('Escape');
   state.authFailures=0;await page.getByRole('button',{name:'Refresh wallet',exact:true}).click();await expect(page.locator('#capitalResults')).toBeVisible();
+  await expect(page.locator('#rosProfileTrigger')).toHaveAttribute('data-account-state','authenticated');
+  expect(state.authCalls).toBe(3);
 });
 test('actual sign-out during a shared retry keeps Portfolio and the shell signed out',async({page})=>{
   const state=await fixture(page,{authFailures:1,shellAuth:true});await page.goto('/portfolio/');
