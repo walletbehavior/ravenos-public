@@ -26,3 +26,9 @@ This continues roadmap packages 2, 3 and 8. It does not complete the roadmap or 
 - The first one-second queue limit caused missing catalog rows and lost discovery chains in broader tests. It was corrected before packaging; all original population assertions now pass.
 
 Deployment, fresh source qualification and the signed-in production postflight are recorded in the accompanying proof after promotion. The prior horizontal transaction table remains part of the release.
+
+## Production evidence
+
+Release `ravenos-e038ec1c4566-f79a99f1e8baa7b0` is live at 100%. Staging and all 62 production checks pass across 36 assets and 11 authenticated workspaces. Three read-only source snapshots qualified all 488 sampled exact pools per cycle, including full Robinhood pool hashes. Two collector cycles completed without failure; one still returned an upstream 429. Sustained freshness remains open.
+
+Signed-in desktop Discovery showed 100 Robinhood rows. An exact full-hash XCOINS pool opened with a visible DexScreener chart, 120 transactions and 10 observed holders. Seven transaction columns populated; quote amount remains unknown because the token-wide feed lacks quote currency/units. Monitor restored its real empty alert history and Portfolio restored its wallet view and actual empty trade journal. No trade, signature, personal rule or outbound delivery occurred. See [aggregate proof and limits](2026-09-10-pool-identity-and-market-pacing-proof.json). The latest Raven Reads and Discovery count report is the next active investigation.

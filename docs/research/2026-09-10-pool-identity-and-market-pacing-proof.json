@@ -1,0 +1,394 @@
+{
+  "release_id": "ravenos-e038ec1c4566-f79a99f1e8baa7b0",
+  "source_commit": "e038ec1c45668ede4df5d4d8c73005ffd47edb59",
+  "worker_version": "b777e711-8038-45c2-a398-ee629d996659",
+  "verified_at": "2026-09-10T12:05:45.468Z",
+  "production_checks": 62,
+  "verified_assets": 36,
+  "authenticated_workspaces": 11,
+  "local_tests": {
+    "backend_runtime": 124,
+    "chromium": 2,
+    "webkit": 2,
+    "browser_widths": [
+      390,
+      1440
+    ]
+  },
+  "source_observations": [
+    {
+      "observed_at": "2026-09-10T12:08:01.000Z",
+      "snapshot_generated_at": "2026-09-10T12:07:43.216Z",
+      "collector": {
+        "next_refresh_at": "2026-09-10T12:08:04.000Z",
+        "market_retry_at": null,
+        "failed_pair_batches": 0,
+        "incomplete_batches": 0,
+        "pair_failure_codes": {},
+        "pair_backoff_causes": {},
+        "logical_provider_read_attempts": 112,
+        "collection_ms": 23108
+      },
+      "source": "existing_shared_participation_snapshot",
+      "by_chain": {
+        "solana": {
+          "retained_markets": 2442,
+          "current_markets": 471,
+          "sampled_markets": 100,
+          "current_hash_pool_markets": 0,
+          "sampled_hash_pool_markets": 0,
+          "qualified_hash_pool_snapshots": 0,
+          "observation_age_seconds": {
+            "newest": 17,
+            "median": 2672,
+            "oldest": 17975
+          },
+          "qualified_pool_snapshots": 100,
+          "qualified_flow_measurements": 8
+        },
+        "base": {
+          "retained_markets": 88,
+          "current_markets": 88,
+          "sampled_markets": 88,
+          "current_hash_pool_markets": 21,
+          "sampled_hash_pool_markets": 21,
+          "qualified_hash_pool_snapshots": 21,
+          "observation_age_seconds": {
+            "newest": 36,
+            "median": 38,
+            "oldest": 39
+          },
+          "qualified_pool_snapshots": 88,
+          "qualified_flow_measurements": 54
+        },
+        "ethereum": {
+          "retained_markets": 106,
+          "current_markets": 106,
+          "sampled_markets": 100,
+          "current_hash_pool_markets": 7,
+          "sampled_hash_pool_markets": 6,
+          "qualified_hash_pool_snapshots": 6,
+          "observation_age_seconds": {
+            "newest": 35,
+            "median": 37,
+            "oldest": 39
+          },
+          "qualified_pool_snapshots": 100,
+          "qualified_flow_measurements": 32
+        },
+        "bsc": {
+          "retained_markets": 795,
+          "current_markets": 795,
+          "sampled_markets": 100,
+          "current_hash_pool_markets": 0,
+          "sampled_hash_pool_markets": 0,
+          "qualified_hash_pool_snapshots": 0,
+          "observation_age_seconds": {
+            "newest": 18,
+            "median": 28,
+            "oldest": 39
+          },
+          "qualified_pool_snapshots": 100,
+          "qualified_flow_measurements": 0
+        },
+        "robinhood": {
+          "retained_markets": 1002,
+          "current_markets": 838,
+          "sampled_markets": 100,
+          "current_hash_pool_markets": 696,
+          "sampled_hash_pool_markets": 85,
+          "qualified_hash_pool_snapshots": 85,
+          "observation_age_seconds": {
+            "newest": 17,
+            "median": 29,
+            "oldest": 748
+          },
+          "qualified_pool_snapshots": 100,
+          "qualified_flow_measurements": 27
+        }
+      },
+      "existing_alert_totals": {
+        "rules": 0,
+        "active_rules": 0,
+        "notifications": 0,
+        "last_evaluator_cycle_at": 1789041922,
+        "evaluator_lease_held": 0
+      },
+      "due_rule_query_rows": 0,
+      "database_reads": 3,
+      "database_rows_written": 0,
+      "market_provider_calls": 0,
+      "personal_rules_created": 0,
+      "notifications_created": 0,
+      "evaluator_invoked": false
+    },
+    {
+      "observed_at": "2026-09-10T12:10:37.000Z",
+      "snapshot_generated_at": "2026-09-10T12:10:27.653Z",
+      "collector": {
+        "next_refresh_at": "2026-09-10T12:11:28.000Z",
+        "market_retry_at": "2026-09-10T12:11:27.653Z",
+        "failed_pair_batches": 2,
+        "incomplete_batches": 4,
+        "pair_failure_codes": {
+          "market_provider_http_429": 1,
+          "market_provider_backoff": 1
+        },
+        "pair_backoff_causes": {
+          "market_provider_http_429": 1
+        },
+        "logical_provider_read_attempts": 111,
+        "collection_ms": 25739
+      },
+      "source": "existing_shared_participation_snapshot",
+      "by_chain": {
+        "solana": {
+          "retained_markets": 2445,
+          "current_markets": 978,
+          "sampled_markets": 100,
+          "current_hash_pool_markets": 0,
+          "sampled_hash_pool_markets": 0,
+          "qualified_hash_pool_snapshots": 0,
+          "observation_age_seconds": {
+            "newest": 15,
+            "median": 136,
+            "oldest": 4990
+          },
+          "qualified_pool_snapshots": 100,
+          "qualified_flow_measurements": 20
+        },
+        "base": {
+          "retained_markets": 88,
+          "current_markets": 88,
+          "sampled_markets": 88,
+          "current_hash_pool_markets": 22,
+          "sampled_hash_pool_markets": 22,
+          "qualified_hash_pool_snapshots": 22,
+          "observation_age_seconds": {
+            "newest": 30,
+            "median": 31,
+            "oldest": 33
+          },
+          "qualified_pool_snapshots": 88,
+          "qualified_flow_measurements": 55
+        },
+        "ethereum": {
+          "retained_markets": 106,
+          "current_markets": 106,
+          "sampled_markets": 100,
+          "current_hash_pool_markets": 7,
+          "sampled_hash_pool_markets": 6,
+          "qualified_hash_pool_snapshots": 6,
+          "observation_age_seconds": {
+            "newest": 29,
+            "median": 31,
+            "oldest": 32
+          },
+          "qualified_pool_snapshots": 100,
+          "qualified_flow_measurements": 32
+        },
+        "bsc": {
+          "retained_markets": 796,
+          "current_markets": 796,
+          "sampled_markets": 100,
+          "current_hash_pool_markets": 0,
+          "sampled_hash_pool_markets": 0,
+          "qualified_hash_pool_snapshots": 0,
+          "observation_age_seconds": {
+            "newest": 10,
+            "median": 22,
+            "oldest": 57
+          },
+          "qualified_pool_snapshots": 100,
+          "qualified_flow_measurements": 4
+        },
+        "robinhood": {
+          "retained_markets": 1002,
+          "current_markets": 1002,
+          "sampled_markets": 100,
+          "current_hash_pool_markets": 841,
+          "sampled_hash_pool_markets": 83,
+          "qualified_hash_pool_snapshots": 83,
+          "observation_age_seconds": {
+            "newest": 9,
+            "median": 24,
+            "oldest": 61
+          },
+          "qualified_pool_snapshots": 100,
+          "qualified_flow_measurements": 22
+        }
+      },
+      "existing_alert_totals": {
+        "rules": 0,
+        "active_rules": 0,
+        "notifications": 0,
+        "last_evaluator_cycle_at": 1789042231,
+        "evaluator_lease_held": 0
+      },
+      "due_rule_query_rows": 0,
+      "database_reads": 3,
+      "database_rows_written": 0,
+      "market_provider_calls": 0,
+      "personal_rules_created": 0,
+      "notifications_created": 0,
+      "evaluator_invoked": false
+    },
+    {
+      "observed_at": "2026-09-10T12:15:27.000Z",
+      "snapshot_generated_at": "2026-09-10T12:14:59.415Z",
+      "collector": {
+        "next_refresh_at": "2026-09-10T12:15:18.000Z",
+        "market_retry_at": null,
+        "failed_pair_batches": 0,
+        "incomplete_batches": 0,
+        "pair_failure_codes": {},
+        "pair_backoff_causes": {},
+        "logical_provider_read_attempts": 118,
+        "collection_ms": 24680
+      },
+      "source": "existing_shared_participation_snapshot",
+      "by_chain": {
+        "solana": {
+          "retained_markets": 2443,
+          "current_markets": 1440,
+          "sampled_markets": 100,
+          "current_hash_pool_markets": 0,
+          "sampled_hash_pool_markets": 0,
+          "qualified_hash_pool_snapshots": 0,
+          "observation_age_seconds": {
+            "newest": 27,
+            "median": 96,
+            "oldest": 3119
+          },
+          "qualified_pool_snapshots": 100,
+          "qualified_flow_measurements": 3
+        },
+        "base": {
+          "retained_markets": 88,
+          "current_markets": 88,
+          "sampled_markets": 88,
+          "current_hash_pool_markets": 21,
+          "sampled_hash_pool_markets": 21,
+          "qualified_hash_pool_snapshots": 21,
+          "observation_age_seconds": {
+            "newest": 46,
+            "median": 47,
+            "oldest": 49
+          },
+          "qualified_pool_snapshots": 88,
+          "qualified_flow_measurements": 57
+        },
+        "ethereum": {
+          "retained_markets": 106,
+          "current_markets": 106,
+          "sampled_markets": 100,
+          "current_hash_pool_markets": 7,
+          "sampled_hash_pool_markets": 6,
+          "qualified_hash_pool_snapshots": 6,
+          "observation_age_seconds": {
+            "newest": 45,
+            "median": 47,
+            "oldest": 48
+          },
+          "qualified_pool_snapshots": 100,
+          "qualified_flow_measurements": 32
+        },
+        "bsc": {
+          "retained_markets": 796,
+          "current_markets": 796,
+          "sampled_markets": 100,
+          "current_hash_pool_markets": 0,
+          "sampled_hash_pool_markets": 0,
+          "qualified_hash_pool_snapshots": 0,
+          "observation_age_seconds": {
+            "newest": 28,
+            "median": 37,
+            "oldest": 49
+          },
+          "qualified_pool_snapshots": 100,
+          "qualified_flow_measurements": 2
+        },
+        "robinhood": {
+          "retained_markets": 1005,
+          "current_markets": 1005,
+          "sampled_markets": 100,
+          "current_hash_pool_markets": 842,
+          "sampled_hash_pool_markets": 93,
+          "qualified_hash_pool_snapshots": 93,
+          "observation_age_seconds": {
+            "newest": 27,
+            "median": 39,
+            "oldest": 91
+          },
+          "qualified_pool_snapshots": 100,
+          "qualified_flow_measurements": 30
+        }
+      },
+      "existing_alert_totals": {
+        "rules": 0,
+        "active_rules": 0,
+        "notifications": 0,
+        "last_evaluator_cycle_at": 1789042231,
+        "evaluator_lease_held": 0
+      },
+      "due_rule_query_rows": 0,
+      "database_reads": 3,
+      "database_rows_written": 0,
+      "market_provider_calls": 0,
+      "personal_rules_created": 0,
+      "notifications_created": 0,
+      "evaluator_invoked": false
+    }
+  ],
+  "signed_in_desktop": {
+    "viewport": [
+      1525,
+      857
+    ],
+    "discover": {
+      "chain": "robinhood",
+      "visible_rows": 100
+    },
+    "terminal": {
+      "full_pool_hash_preserved": true,
+      "chart_visually_populated": true,
+      "chart_provider": "DexScreener",
+      "swap_rows": 120,
+      "populated_columns": [
+        "Time",
+        "Type",
+        "USD",
+        "Token amount",
+        "Price",
+        "Wallet",
+        "Tx"
+      ],
+      "quote_amount_rows": 0,
+      "holder_scope": "observed_sample",
+      "holder_rows": 10
+    },
+    "monitor": {
+      "authenticated": true,
+      "active_alerts": 0,
+      "unread_notifications": 0,
+      "reload_enabled": true
+    },
+    "portfolio": {
+      "authenticated": true,
+      "wallet_status": "Wallet view updated.",
+      "history": "No Raven trades yet."
+    }
+  },
+  "limits": [
+    "One of three sampled collector cycles still returned an upstream 429; sustained freshness is not established.",
+    "Monitor qualification is exact-pool snapshot qualification; flow measurement and wallet PnL are distinct.",
+    "Dexch token-wide trades omit quote currency and units, so quote amount stays unavailable.",
+    "Actual production mobile was not repeated in this checkpoint.",
+    "Raven Reads and Discovery universe counts require follow-up from the latest user report."
+  ],
+  "transactions_submitted": 0,
+  "signatures_requested": 0,
+  "personal_alert_rules_created": 0,
+  "outbound_delivery_enabled": false,
+  "roadmap_complete": false
+}
