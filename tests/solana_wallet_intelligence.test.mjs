@@ -364,7 +364,7 @@ test("FIFO accounting keeps native-SOL returns useful without inventing historic
   }), "l", { observation_mode: "historical_backfill" });
   const profile = buildSolanaWalletProfile([sell, buy], { generated_at: "2026-08-29T12:00:00.000Z" });
   assert.equal(buy.economic.cost_basis_state, "known_native_sol");
-  assert.equal(profile.profile_version, 7);
+  assert.equal(profile.profile_version, 8);
   assert.equal(profile.coverage.known_cost_basis_pct, 100);
   assert.equal(profile.coverage.known_sol_cost_basis_pct, 100);
   assert.equal(profile.source_performance.realized_pnl_sol, 0.2);
@@ -433,7 +433,7 @@ test("profile v5 separates USDC and SOL buy notionals and counts exact traded as
     { generated_at: "2026-08-29T12:00:00.000Z" },
   );
 
-  assert.equal(profile.profile_version, 7);
+  assert.equal(profile.profile_version, 8);
   assert.equal(profile.behavior.first_trade_at, new Date(1_777_100_000_000).toISOString());
   assert.equal(profile.behavior.last_trade_at, new Date(1_777_186_500_000).toISOString());
   assert.equal(profile.behavior.active_days, 2);
@@ -566,6 +566,53 @@ test("wallet trading record reuses exact partial FIFO closes, bounds periods, an
   assert.equal(record.settlement_bases_combined, false);
   assert.equal(record.network_fees_included, false);
   assert(Object.isFrozen(record.tokens[0].by_basis));
+});
+
+test('transferred inventory cannot be reused to inflate later Solana trading profits', () => {
+  const template = normalize(transaction({ logs: [], programId: '11111111111111111111111111111111' }), 'C');
+  const asset = (mint, amount, decimals = 6) => ({ mint, amount_base_units: String(amount), decimals });
+  const token = n => asset(TOKEN, n * 1000000), usdc = n => asset(SOLANA_CANONICAL_USDC_MINT, n * 1000000);
+  const event = (index, kind, source, destination) => retainedEvent({ ...template, classification: { ...template.classification, kind },
+    economic: { ...template.economic, source_asset: source, destination_asset: destination } }, index);
+  const profile = events => buildSolanaWalletProfile(events, { generated_at: new Date(1777000100000).toISOString() });
+  const result = profile([event(1, 'SWAP_BUY', usdc(10), token(10)), event(2, 'TRANSFER_OUT', token(8), null),
+    event(3, 'AIRDROP', null, token(8)), event(4, 'SWAP_SELL', token(10), usdc(20))]);
+  assert.equal(result.source_performance.realized_pnl_usdc, 2);
+  assert.equal(result.trading_record.tokens[0].by_basis.usdc.matched_cost, '2.000000');
+  assert.equal(result.trading_record.tokens[0].by_basis.usdc.matched_proceeds, '4.000000');
+  assert.equal(result.source_performance.open_known_cost_lots, 0);
+  assert.equal(result.source_performance.open_unknown_cost_lots, 0);
+  assert.equal(result.behavior.unmatched_sell_observations, 1);
+  assert.equal(result.source_performance.state, 'partial');
+});
+
+test('unknown incoming lots occupy inventory before later known purchases', () => {
+  const template = normalize(transaction({ logs: [], programId: '11111111111111111111111111111111' }), 'C');
+  const asset = (mint, amount, decimals = 6) => ({ mint, amount_base_units: String(amount), decimals });
+  const event = (index, kind, source, destination) => retainedEvent({ ...template, classification: { ...template.classification, kind },
+    economic: { ...template.economic, source_asset: source, destination_asset: destination } }, index);
+  const token = n => asset(TOKEN, n * 1000000), usdc = n => asset(SOLANA_CANONICAL_USDC_MINT, n * 1000000);
+  const events = [event(1, 'TRANSFER_IN', null, token(8)), event(2, 'SWAP_BUY', usdc(2), token(2)), event(3, 'SWAP_SELL', token(8), usdc(16))];
+  const first = buildSolanaWalletProfile(events, { generated_at: new Date(1777000100000).toISOString() });
+  assert.equal(first.source_performance.realized_pnl_usdc, null);
+  assert.equal(first.source_performance.open_known_cost_lots, 1);
+  const next = buildSolanaWalletProfile([...events, event(4, 'SWAP_SELL', token(2), usdc(4))], { generated_at: new Date(1777000100000).toISOString() });
+  assert.equal(next.source_performance.realized_pnl_usdc, 2);
+  assert.equal(next.source_performance.closed_lots, 1);
+});
+
+test('Solana FIFO never skips a different-currency lot to claim a matched profit', () => {
+  const template = normalize(transaction({ logs: [], programId: '11111111111111111111111111111111' }), 'C');
+  const asset = (mint, amount, decimals = 6) => ({ mint, amount_base_units: String(amount), decimals });
+  const event = (index, kind, source, destination) => retainedEvent({ ...template, classification: { ...template.classification, kind },
+    economic: { ...template.economic, source_asset: source, destination_asset: destination } }, index);
+  const token = asset(TOKEN, 2000000), sol = asset('native_sol', 1000000000, 9);
+  const result = buildSolanaWalletProfile([event(1, 'SWAP_BUY', asset(SOLANA_CANONICAL_USDC_MINT, 2000000), token),
+    event(2, 'SWAP_BUY', sol, token), event(3, 'SWAP_SELL', token, asset('native_sol', 2000000000, 9))], { generated_at: new Date(1777000100000).toISOString() });
+  assert.equal(result.source_performance.realized_pnl_sol, null);
+  assert.equal(result.source_performance.realized_pnl_usdc, null);
+  assert.equal(result.source_performance.open_known_cost_lots, 1);
+  assert.equal(result.behavior.unmatched_sell_observations, 1);
 });
 
 test("wallet token results keep SOL profits denominated in SOL", () => {

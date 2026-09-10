@@ -80,6 +80,41 @@ test('receipt byte and log limits remain bounded and do not silently truncate ev
   }}),/receipt_log_budget/);
 });
 
+test('deeper EVM pages share pinned reads, preserve pending references and reuse retained receipts', async () => {
+  const p = provider(), calls = [];
+  const transfers = Array.from({ length: 16 }, (_, i) => ({ hash: hash(i + 1), blockNum: hex(100), uniqueId: `transfer-${i}`,
+    category: 'erc20', from: S, to: W, rawContract: { address: T }, metadata: { blockTimestamp: new Date(Number(BigInt(block(100).timestamp)) * 1000).toISOString() } }));
+  const fetchImpl = async (url, options) => {
+    const request = JSON.parse(options.body); calls.push(request);
+    if (request.method === 'alchemy_getAssetTransfers') return Response.json({ id: 1, result: { transfers: request.params[0].toAddress ? transfers : [] } });
+    const response = await p.fetchImpl(url, options);
+    if (!['eth_getTransactionReceipt', 'eth_getTransactionByHash'].includes(request.method)) return response;
+    const body = await response.json();
+    if (request.method === 'eth_getTransactionReceipt') body.result.transactionHash = request.params[0];
+    else body.result.hash = request.params[0];
+    return Response.json(body);
+  };
+  const job = createSourceWalletBackfillJob({ chain: 'base', address: W, requested_at: new Date(NOW).toISOString() });
+  const first = await loadEvmWalletBackfillPage(env, job, { fetchImpl, now: NOW, maximumNewReferences: 6 });
+  assert.equal(first.events.length, 6); assert.equal(first.cursor.pending.length, 10);
+  assert.equal(first.cursor.direction, 'in');
+  assert.equal(calls.filter(r => r.method === 'eth_chainId').length, 1, 'nested decoders share the verified chain read');
+  assert.equal(calls.filter(r => r.method === 'eth_getBlockByNumber' && r.params[0] === hex(100)).length, 1, 'same-block references share the header');
+  assert.equal(first.request_count, calls.length);
+  calls.length = 0;
+  const second = await loadEvmWalletBackfillPage(env, { ...job, provider_cursor: first.cursor }, { fetchImpl, now: NOW + 1000 });
+  assert.equal(second.events.length, 10); assert.equal(second.cursor.pending.length, 0); assert.equal(second.cursor.direction, 'out');
+  assert.equal(new Set([...first.events, ...second.events].map(e => e.event_id)).size, 16);
+  assert.equal(calls.filter(r => r.method === 'alchemy_getAssetTransfers').length, 0, 'pending references do not repeat the index request');
+  assert.equal(second.request_count, calls.length); assert(second.request_count < 100);
+  calls.length = 0;
+  const retained = new Map([...first.events, ...second.events].map(e => [e.chain_evidence.transaction_reference, e]));
+  const replay = await loadEvmWalletBackfillPage(env, job, { fetchImpl, now: NOW, existingTransaction: async (_, reference) => retained.get(reference) });
+  assert.equal(replay.reference_count, 16); assert.equal(replay.events.length, 0); assert.equal(replay.cursor.pending.length, 0);
+  assert.equal(calls.filter(r => r.method === 'eth_getTransactionReceipt').length, 0);
+  assert(calls.every(r => !/send|sign|approve/i.test(r.method)));
+});
+
 test('wrong network, changed pinned head, missing receipt and disabled feature fail closed',async()=>{
   const job=createSourceWalletBackfillJob({chain:'base',address:W,requested_at:new Date(NOW).toISOString()});
   await assert.rejects(loadEvmWalletBackfillPage({...env,RAVENOS_EVM_WALLET_BACKFILL_ENABLED:'0'},job),/disabled/);

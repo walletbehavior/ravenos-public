@@ -81,21 +81,24 @@ test('history migration preserves populated evidence, retries, leases and constr
 
 function signature(index) { const bytes = Buffer.alloc(64); bytes.writeUInt32BE(index, 60); return bs58.encode(bytes); }
 
-test('deeper Solana analysis upgrades old bounded profiles once without refreshing unrelated EVM profiles', async t => {
+test('Solana accounting upgrades old profiles once without refreshing unrelated EVM profiles', async t => {
   const db=database(t), wallets=createD1CustomerWalletCopyStore(db);
-  const sol=await addJob(db,20), evm=await addJob(db,21,'base');
-  for(const item of [sol,evm]) {
-    db.raw.prepare('UPDATE ravenos_source_wallet_backfill_jobs SET signatures_seen=5000,transactions_decoded=5000 WHERE job_id=?').run(item.job.job_id);
+  const sol=await addJob(db,20), shallow=await addJob(db,23), evm=await addJob(db,21,'base');
+  for(const item of [sol,shallow,evm]) {
+    const count=item===shallow?100:5000;
+    db.raw.prepare('UPDATE ravenos_source_wallet_backfill_jobs SET signatures_seen=?,transactions_decoded=? WHERE job_id=?').run(count,count,item.job.job_id);
     const generated=NOW/1000+600;
     const profile={schema_version:'ravenos.solana_wallet_profile.v1',profile_version:6,
-      source_wallet:{chain:item===sol?'solana':'base',network:'mainnet',address:item.address},
+      source_wallet:{chain:item===evm?'base':'solana',network:'mainnet',address:item.address},
       generated_at:new Date(generated*1000).toISOString(),coverage:{normalized_events:2000},behavior:{},source_performance:{},data_quality:{}};
     await wallets.recordProfile(item.job.source_wallet_id,profile,generated);
   }
   const candidates=await sol.store.listProfileRefreshCandidates(8,{now:NOW+700000});
-  assert.deepEqual(candidates.map(j=>j.job_id),[sol.job.job_id]);
-  const old=await wallets.latestProfile(sol.job.source_wallet_id);
-  await wallets.recordProfile(sol.job.source_wallet_id,{...old,profile_version:7,coverage:{normalized_events:5000}},NOW/1000+800);
+  assert.deepEqual(new Set(candidates.map(j=>j.job_id)),new Set([sol.job.job_id,shallow.job.job_id]));
+  for(const item of [sol,shallow]) {
+    const old=await wallets.latestProfile(item.job.source_wallet_id);
+    await wallets.recordProfile(item.job.source_wallet_id,{...old,profile_version:8,coverage:{normalized_events:item===shallow?100:5000}},NOW/1000+800);
+  }
   assert.deepEqual(await sol.store.listProfileRefreshCandidates(8,{now:NOW+900000}),[]);
 });
 

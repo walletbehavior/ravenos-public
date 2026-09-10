@@ -7,7 +7,7 @@ import {sqliteStore} from './customer_pro_rewards.test.mjs';
 import {createD1CustomerWalletCopyStore} from '../lib/customer_wallet_copy.mjs';
 import {createD1SourceWalletBackfillStore,runSourceWalletBackfillBatch,publicSourceWalletBackfillJob} from '../lib/customer_trade/source_wallet_backfill.mjs';
 import {loadHeliusWalletPage} from '../lib/customer_trade/helius_wallet_history.mjs';
-import {normalizeSolanaWalletTransaction} from '../lib/customer_trade/solana_wallet_intelligence.mjs';
+import {normalizeSolanaWalletTransaction,SOLANA_WALLET_PROFILE_VERSION} from '../lib/customer_trade/solana_wallet_intelligence.mjs';
 import {normalizeSourceWalletChainIdentity} from '../lib/customer_trade/source_wallet_chain_identity.mjs';
 import {WalletHistoryPolicy,heliusBackfillPolicy,reserveHeliusBackfillCredits} from '../lib/customer_trade/wallet_history_policy.mjs';
 import {normalizeWalletDiscoverySource,retainWalletDiscoverySource,queuePriorityWalletWarmups} from '../lib/customer_trade/wallet_discovery_sources.mjs';
@@ -171,12 +171,13 @@ test('profile refreshes serve every chain while direct user demand remains first
   for(const job of jobs) {
    visited.add(job.source_wallet.chain);
    const snapshot='swp_'+String(++sequence).padStart(40,'0'),generated=NOW+1+cycle*300;
+   const version=job.source_wallet.chain==='solana'?SOLANA_WALLET_PROFILE_VERSION:1;
    db.raw.prepare(`INSERT INTO ravenos_source_wallet_profiles
     (profile_snapshot_id,source_wallet_id,profile_version,normalized_event_count,profile_json,generated_at,retention_expires_at)
-    VALUES (?,?,1,1,'{}',?,?)`).run(snapshot,job.source_wallet_id,generated,generated+86400);
+    VALUES (?,?,?,1,'{}',?,?)`).run(snapshot,job.source_wallet_id,version,generated,generated+86400);
    db.raw.prepare(`INSERT INTO ravenos_source_wallet_current_profiles
     (source_wallet_id,profile_snapshot_id,profile_version,generated_at,trade_count,active_days,token_count,performance_state,closed_lots,profile_hash,updated_at)
-    VALUES (?,?,1,?,0,0,0,'insufficient_evidence',0,?,?)`).run(job.source_wallet_id,snapshot,generated,'a'.repeat(40),generated);
+    VALUES (?,?,?,?,0,0,0,'insufficient_evidence',0,?,?)`).run(job.source_wallet_id,snapshot,version,generated,'a'.repeat(40),generated);
   }
  }
  assert.deepEqual([...visited].sort(),chains.sort());
