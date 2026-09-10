@@ -1,0 +1,13 @@
+{
+  "source": "Solana mainnet getTransaction",
+  "signature": "wgNXRgTbH1ot84yV21uuQbNoK6ADubr3pLc7X7PwL1ByK9iadLWG4mjSY6K1DWHFpihTmCt5YxunyXbvFEcie1Y",
+  "slot": 445964969,
+  "instruction": "get_fees_with_quote_mint",
+  "program_id": "pfeeUxB6jkeY1Hxd7CsFCAjcbHA9rWtchMGdZ6VojVZ",
+  "accounts": [
+    "5PHirr8joyTMp9JMm6nW7hNDVyEYdkzDqazxPD7RaTjx",
+    "pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA"
+  ],
+  "data": "KX69VKtJ7u4EDvX9qX3dNSg4Lr7674PGBK1vKYYsc5ChzeiyEtvS79F2JepBUNvufDHjxF8YYXEGiL",
+  "stack_height": 3
+}

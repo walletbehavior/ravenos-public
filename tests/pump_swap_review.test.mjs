@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import bs58 from "bs58";
 import { PUMP_SWAP_REVIEW as pump, reviewPumpSwapCpis } from "../lib/customer_trade/pump_swap_review.mjs";
 import { pumpSwapFixture } from "./fixtures/pump_swap.mjs";
@@ -30,6 +32,37 @@ function rpcSimulationFormat(fixture) {
   }
   return fixture;
 }
+const recordedFeeQuery = JSON.parse(readFileSync(new URL("./fixtures/pump_fee_quote_mint.json", import.meta.url), "utf8"));
+test("the current read-only fee query matches Pump's published schema and a successful mainnet CPI", () => {
+  const data = Buffer.from(bs58.decode(recordedFeeQuery.data));
+  assert.equal(recordedFeeQuery.program_id, pump.fee_program);
+  assert.deepEqual(recordedFeeQuery.accounts, [pump.fee_config, pump.amm_program]);
+  assert.equal(data.subarray(0, 8).toString("hex"), createHash("sha256")
+    .update(`global:${recordedFeeQuery.instruction}`).digest("hex").slice(0, 16));
+  assert.equal(data.length, 57);
+  for (const method of ["buy", "buy_exact_quote_in", "sell"]) {
+    for (const format of [f => f, rpcSimulationFormat]) {
+      const fixture = format(pumpSwapFixture(method));
+      instruction(fixture, 1).data = recordedFeeQuery.data;
+      assert.equal(reviewPumpSwapCpis(fixture).reviewed, true);
+    }
+  }
+});
+test("quote-mint fee queries reject changed mint, invalid bool, extra bytes, accounts or authority", () => {
+  for (const [mutate, error] of [
+    [f => changeData(f, 1, d => d[25] ^= 1), /fee_query_mint_mismatch/],
+    [f => changeData(f, 1, d => d[8] = 2), /fee_query_data_invalid/],
+    [f => instruction(f, 1).data = bs58.encode(bs58.decode(recordedFeeQuery.data).slice(0, -1)), /fee_query_data_invalid/],
+    [f => instruction(f, 1).data = bs58.encode(Buffer.concat([bs58.decode(recordedFeeQuery.data), Buffer.from([0])])), /fee_query_data_invalid/],
+    [f => instruction(f, 1).accounts.push(instruction(f, 0).accounts[1]), /fee_query_accounts_invalid/],
+    [f => instruction(f, 1).accounts[0] = instruction(f, 0).accounts[1], /fee_query_accounts_invalid/],
+    [f => instruction(f, 1).stackHeight = 2, /fee_instruction_unreviewed/],
+    [f => changeData(f, 1, d => d[0] ^= 1), /fee_instruction_unreviewed/],
+  ]) {
+    const fixture = pumpSwapFixture(); instruction(fixture, 1).data = recordedFeeQuery.data;
+    mutate(fixture); assert.throws(() => reviewPumpSwapCpis(fixture), error);
+  }
+});
 test("current simulation RPC address records and parsed built-ins preserve the same swap checks", () => {
   for (const method of ["buy", "buy_exact_quote_in", "sell"]) {
     const fixture = rpcSimulationFormat(pumpSwapFixture(method));
