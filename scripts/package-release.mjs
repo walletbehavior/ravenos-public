@@ -12,6 +12,7 @@ import {
 } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { packReleaseFlags } from "../lib/runtime_release_flags.mjs";
+import { build as compileWorker } from "esbuild";
 
 const repoRoot = process.cwd();
 const args = new Set(process.argv.slice(2));
@@ -130,9 +131,16 @@ cpSync(join(repoRoot, "worker.mjs"), join(bundleRoot, "worker.mjs"));
 cpSync(join(repoRoot, "ravenos-chart-data-plane.js"), join(bundleRoot, "ravenos-chart-data-plane.js"));
 cpSync(join(repoRoot, "ravenos-discover-intelligence.js"), join(bundleRoot, "ravenos-discover-intelligence.js"));
 cpSync(join(repoRoot, "ravenos-spot-trade-policy.js"), join(bundleRoot, "ravenos-spot-trade-policy.js"));
+cpSync(join(repoRoot, "ravenos-trading-strategy.js"), join(bundleRoot, "ravenos-trading-strategy.js"));
 cpSync(join(repoRoot, "ravenos-market-scope.js"), join(bundleRoot, "ravenos-market-scope.js"));
 cpSync(join(repoRoot, "ravenos-participation-map.js"), join(bundleRoot, "ravenos-participation-map.js"));
 cpSync(join(repoRoot, "lib"), join(bundleRoot, "lib"), { recursive: true });
+// Validate the shipped source-module graph independently of the checkout.
+// Wrangler checks third-party packages and runtime compatibility at staging.
+// Missing local modules must stop packaging before any upload or promotion.
+await compileWorker({ entryPoints: [join(bundleRoot, "worker.mjs")], bundle: true,
+  write: false, packages: "external", platform: "neutral", format: "esm", target: "es2022",
+  external: ["node:*", "cloudflare:*"], logLevel: "silent" });
 
 const chartProviderConfig = releaseConfig.onchain_chart_provider || {};
 const productionChartProvider = chartProviderConfig.production_promotion_eligible === true;
