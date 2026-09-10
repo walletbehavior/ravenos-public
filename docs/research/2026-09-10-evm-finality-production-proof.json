@@ -1,0 +1,96 @@
+{
+  "schema_version": "ravenos.evm_finality_recovery.production_proof.v1",
+  "recorded_at": "2026-09-10T07:17:24.584317+00:00",
+  "release_id": "ravenos-9fc1f55acb6b-9efe8c2036be712f",
+  "source_commit": "9fc1f55acb6b631d4a38d4e37783647884ab055e",
+  "worker_version_id": "9f23b453-cc96-4a4d-9d96-d72f245aeeb0",
+  "production_traffic_percent": 100,
+  "origins": [
+    "https://ravenos.xyz",
+    "https://app.ravenos.xyz"
+  ],
+  "archive_sha256": "7ed3fd8f89385500a8a4dc46da8149fad05f828e5cf21c0730a237d872909673",
+  "package_content_sha256": "48f3c60cf574897a7cc9fde2be1eb2afeed62cb5e91979da079c1a2cf3cf4442",
+  "staging": {
+    "verified": true,
+    "verified_at": "2026-09-10T07:10:10.763Z",
+    "first_attempt": "stopped_at_unhealthy_publisher",
+    "existing_production_also_degraded": true,
+    "publisher_last_success_before": "2026-09-10T06:42:11.198Z",
+    "publisher_last_success_after": "2026-09-10T07:06:50.309Z",
+    "publisher_source_changed": false,
+    "verification_relaxed": false,
+    "delay_root_cause": "unconfirmed"
+  },
+  "migration": {
+    "file": "0052_execution_reconciliation.sql",
+    "applied": true,
+    "sql_duration_ms": 3.0106,
+    "added_tables": 2,
+    "added_indexes": 1,
+    "foreign_key_violations": 0,
+    "postflight_counts": {
+      "intents": 0,
+      "events": 0,
+      "fee_receipts": 0,
+      "jobs": 0,
+      "budget": 0
+    },
+    "existing_customer_financial_rows_changed": false
+  },
+  "qualification": {
+    "evm_tests_passed": 186,
+    "rewards_solana_runtime_tests_passed": 69,
+    "final_recovery_tests_passed": 30,
+    "build_security_and_no_leak_passed": true
+  },
+  "production_checks": {
+    "passed": 40,
+    "assets_verified": 25,
+    "authenticated_workspace_entrypoints": 7,
+    "transactions_submitted": 0
+  },
+  "runtime_recovery_enabled": true,
+  "scheduled_cycle": {
+    "worker_version": {
+      "id": "9f23b453-cc96-4a4d-9d96-d72f245aeeb0"
+    },
+    "outcome": "ok",
+    "schedule": {
+      "cron": "*/5 * * * *",
+      "scheduledTime": 1789024522000
+    },
+    "recovery": {
+      "event": "execution_recovery_cycle",
+      "state": "complete",
+      "inspected": 0,
+      "completed": 0,
+      "retrying": 0,
+      "errors": 0,
+      "rpc_requests": 0
+    }
+  },
+  "signed_in_portfolio": {
+    "release_identity_matched": true,
+    "own_wallet_options": 1,
+    "holding_rows": 1,
+    "sol_usdc_match_buying_power": true,
+    "unquoted_exit_unavailable": true,
+    "three_draft_targets_blank": true,
+    "actual_viewport_width": 1525,
+    "horizontal_overflow": false,
+    "initial_reload_showed_sign_in_prompt": true,
+    "subsequent_reload_restored_without_login": true,
+    "transient_account_check_root_cause": "unconfirmed",
+    "production_mobile_checked_this_release": false,
+    "private_wallet_addresses_or_balances_included": false
+  },
+  "remaining_gates": [
+    "Actual customer settlement and closed-position proof",
+    "Account-scoped receipt journal",
+    "Native input refund and native-output evidence",
+    "Non-USDC fee valuation",
+    "Transient account-check failures must not imply sign-out",
+    "Remaining roadmap packages and final full tab audit"
+  ]
+}

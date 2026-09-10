@@ -143,3 +143,7 @@ All 40 release checks pass (25 assets, seven authenticated entry points). Final 
 
 
 The subsequent `ravenos-be56fb56c047-f023b6397fe6619c` release also passes all 40 production checks. Signed-in Portfolio still loads automatically, leaves draft targets blank after reload and renders the unquoted exit value as unavailable. Backend EVM settlement now uses net ERC-20 wallet/collector movements, qualified by 14 reproduced regression cases and the full affected suites. This is controlled receipt qualification; no production customer trade was submitted or replayed.
+
+### September 10: background receipt recovery release
+
+Release `ravenos-9fc1f55acb6b-9efe8c2036be712f` passes 40 production release checks, with 25 manifest assets and seven authenticated workspace entry points. Its scheduled read-only EVM recovery cycle ran with zero errors and zero RPC calls for the empty submission queue. No real trade was placed. The signed-in desktop Portfolio eventually restored its own wallet/holding, matching buying power and the unavailable exit estimate, without another login. Its first reload briefly showed signed-out wording; session reliability remains open pending transient-read handling. This check used the actual 1525-pixel viewport and does not replace the earlier mobile tape proof or the required final full tab audit. Evidence: `2026-09-10-evm-finality-production-proof.json`.
