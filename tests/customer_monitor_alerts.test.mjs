@@ -284,6 +284,23 @@ test("same-symbol pools remain independent exact identities", async () => {
   assert.notEqual(store.rules[0].instrument_id, store.rules[1].instrument_id);
 });
 
+test('same-origin GETs work under the account no-referrer policy without weakening mutations or ownership', async () => {
+  const store = new MemoryStore(), deps = routeDeps(store);
+  for (const path of [CUSTOMER_MONITOR_ALERTS_ROUTE, `${CUSTOMER_MONITOR_ALERTS_ROUTE}/rules`, `${CUSTOMER_MONITOR_ALERTS_ROUTE}/notifications`]) {
+    const read = new Request(APP + path, { headers: { 'sec-fetch-site': 'same-origin' } });
+    assert.equal((await routeCustomerMonitorAlerts(read, env(), deps)).status, 200, path);
+    const denied = async () => ({ response: new Response('{}', { status: 401 }) });
+    assert.equal((await routeCustomerMonitorAlerts(read, env(), routeDeps(store, { authorizeRequest: denied }))).status, 401);
+  }
+  for (const headers of [{}, { 'sec-fetch-site': 'same-site' }, { 'sec-fetch-site': 'cross-site' },
+    { 'sec-fetch-site': 'same-origin', referer: 'https://evil.example/' }, { 'sec-fetch-site': 'same-origin', origin: 'https://evil.example' }]) {
+    assert.equal((await routeCustomerMonitorAlerts(new Request(APP + CUSTOMER_MONITOR_ALERTS_ROUTE, { headers }), env(), deps)).status, 403);
+  }
+  assert.equal((await routeCustomerMonitorAlerts(new Request(APP + CUSTOMER_MONITOR_ALERTS_ROUTE + '/rules', {
+    method: 'POST', headers: { 'sec-fetch-site': 'same-origin', 'x-ravenos-csrf': 'csrf_test' }, body: '{}',
+  }), env(), deps)).status, 403);
+});
+
 test("anonymous, cross-origin, missing-CSRF, malformed, and oversized requests fail closed", async () => {
   const path = `${CUSTOMER_MONITOR_ALERTS_ROUTE}/rules`;
   const store = new MemoryStore();

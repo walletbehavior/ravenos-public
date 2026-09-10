@@ -48,7 +48,9 @@ try {
   const due = await createD1CustomerMonitorAlertStore(db).listDueRules(now, null);
   const totals = await db.prepare(`SELECT (SELECT COUNT(*) FROM ravenos_customer_monitor_rules) AS rules,
     (SELECT COUNT(*) FROM ravenos_customer_monitor_rules WHERE state='active') AS active_rules,
-    (SELECT COUNT(*) FROM ravenos_customer_notification_events) AS notifications`).bind().first();
+    (SELECT COUNT(*) FROM ravenos_customer_notification_events) AS notifications,
+    (SELECT updated_at FROM ravenos_monitor_evaluator_leases WHERE lease_key='raven_monitor_v1') AS last_evaluator_cycle_at,
+    (SELECT CASE WHEN lease_token IS NULL THEN 0 ELSE 1 END FROM ravenos_monitor_evaluator_leases WHERE lease_key='raven_monitor_v1') AS evaluator_lease_held`).bind().first();
   if (rowsWritten !== 0) throw new Error('probe_read_only_violation');
   console.log(JSON.stringify({ observed_at: new Date(now * 1000).toISOString(), snapshot_generated_at: snapshot?.generated_at || null,
     collector: { next_refresh_at: Number.isSafeInteger(stored.nextRefreshAt) ? new Date(stored.nextRefreshAt * 1000).toISOString() : null,

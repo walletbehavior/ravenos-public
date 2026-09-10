@@ -58,12 +58,18 @@ const publicHistory = await read(publicOrigin + '/api/v1/portfolio/trades', 409)
 assert.match(publicHistory.headers.get('cache-control'), /private.*no-store/);
 assert.equal((await publicHistory.json()).error, 'authenticated_origin_required');
 const evidencePath = '/api/v1/monitor-alerts/evidence/wat_verification000001';
-const privateEvidence = await read(app + evidencePath, 401, { 'sec-fetch-site': 'same-origin', origin: app });
+// Real account-page GETs use no-referrer and do not send an Origin header.
+const privateEvidence = await read(app + evidencePath, 401, { 'sec-fetch-site': 'same-origin' });
 assert.match(privateEvidence.headers.get('cache-control'), /no-store/);
 assert.equal((await privateEvidence.json()).error, 'authentication_required');
-const publicEvidence = await read(publicOrigin + evidencePath, 409);
-assert.match(publicEvidence.headers.get('cache-control'), /private.*no-store/);
-assert.equal((await publicEvidence.json()).error, 'authenticated_origin_required');
+const publicEvidence = await read(publicOrigin + evidencePath, 403);
+assert.match(publicEvidence.headers.get('cache-control'), /\bno-store\b/);
+assert.equal((await publicEvidence.json()).error, 'request_not_allowed');
+for (const path of ['/api/v1/monitor-alerts', '/api/v1/monitor-alerts/rules', '/api/v1/monitor-alerts/notifications']) {
+  const response = await read(app + path, 401, { 'sec-fetch-site': 'same-origin' });
+  assert.match(response.headers.get('cache-control'), /\bno-store\b/);
+  assert.equal((await response.json()).error, 'authentication_required');
+}
 assert.equal(config.on_authenticated_origin, true);
 assert.equal(config.available, true);
 const flags = await (await read(app + '/api/trade/flags')).json();
