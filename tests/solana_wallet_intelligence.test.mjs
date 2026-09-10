@@ -4,6 +4,7 @@ import test from "node:test";
 import bs58 from "bs58";
 import { persistSourceWalletProfile } from '../lib/customer_wallet_copy.mjs';
 import { normalizeSourceWalletChainIdentity } from '../lib/customer_trade/source_wallet_chain_identity.mjs';
+import { walletUsdTradingRecord } from '../lib/customer_trade/wallet_historical_prices.mjs';
 
 import {
   SOLANA_CANONICAL_USDC_MINT,
@@ -11,6 +12,7 @@ import {
   buildSolanaWalletProfile,
   normalizeSolanaWalletAddress,
   normalizeSolanaWalletTransaction,
+  solanaAnalyticalTradeKind,
 } from "../lib/customer_trade/solana_wallet_intelligence.mjs";
 import {
   SOLANA_PROGRAM_IDS,
@@ -364,7 +366,7 @@ test("FIFO accounting keeps native-SOL returns useful without inventing historic
   }), "l", { observation_mode: "historical_backfill" });
   const profile = buildSolanaWalletProfile([sell, buy], { generated_at: "2026-08-29T12:00:00.000Z" });
   assert.equal(buy.economic.cost_basis_state, "known_native_sol");
-  assert.equal(profile.profile_version, 8);
+  assert.equal(profile.profile_version, 9);
   assert.equal(profile.coverage.known_cost_basis_pct, 100);
   assert.equal(profile.coverage.known_sol_cost_basis_pct, 100);
   assert.equal(profile.source_performance.realized_pnl_sol, 0.2);
@@ -433,7 +435,7 @@ test("profile v5 separates USDC and SOL buy notionals and counts exact traded as
     { generated_at: "2026-08-29T12:00:00.000Z" },
   );
 
-  assert.equal(profile.profile_version, 8);
+  assert.equal(profile.profile_version, 9);
   assert.equal(profile.behavior.first_trade_at, new Date(1_777_100_000_000).toISOString());
   assert.equal(profile.behavior.last_trade_at, new Date(1_777_186_500_000).toISOString());
   assert.equal(profile.behavior.active_days, 2);
@@ -622,4 +624,58 @@ test("wallet token results keep SOL profits denominated in SOL", () => {
   assert.equal(record.tokens[0].by_basis.sol.realized_pnl,"0.200000000");
   assert.equal(record.tokens[0].by_basis.usdc.realized_pnl,null);
   assert.equal(record.periods.d30.buy_notional_by_basis.sol.total,"1.000000000");
+});
+
+test('split-route net wallet buys and sells enter settlement and USD records without changing Copy signals', () => {
+  const at=1777000000,logs=['Program log: Instruction: Swap','Program log: Instruction: Swap'];
+  const buy=normalize(transaction({blockTime:at,logs,preLamports:1000000000,postLamports:699995000,
+    pre:[balance(WALLET,TOKEN,0,6)],post:[balance(WALLET,TOKEN,1000000,6)]}), 'J');
+  const sell=normalize(transaction({slot:101,blockTime:at+60,logs,preLamports:699995000,postLamports:1099990000,
+    pre:[balance(WALLET,TOKEN,1000000,6)],post:[balance(WALLET,TOKEN,0,6)]}), 'K');
+  const events=[buy,sell],original=JSON.stringify(events);
+  assert.equal(solanaAnalyticalTradeKind(buy),'SWAP_BUY');
+  assert.equal(solanaAnalyticalTradeKind(sell),'SWAP_SELL');
+  const profile=buildSolanaWalletProfile(events,{generated_at:new Date((at+120)*1000).toISOString()});
+  assert.equal(profile.behavior.buy_count,1);assert.equal(profile.behavior.sell_count,1);
+  assert.equal(profile.behavior.classifications.SPLIT_ROUTE_SWAP,2);
+  assert.equal(profile.source_performance.realized_pnl_sol,0.1);
+  assert.equal(profile.source_performance.closed_lots,1);
+  assert.equal(profile.trading_record.tokens[0].buy_count,1);
+  assert.equal(profile.trading_record.tokens[0].sell_count,1);
+  assert.equal(profile.trading_record.periods.all_available.buy_notional_by_basis.sol.total,'0.300000000');
+  const prices=[{symbol:'SOL',bucket_at:Math.floor(at/300)*300,price_usd:'100',provider:'alchemy_historical_5m'}];
+  const usd=walletUsdTradingRecord(profile,events,prices);
+  assert.equal(usd.eligible_trades,2);assert.equal(usd.priced_trades,2);
+  assert.equal(usd.periods.all_available.realized_pnl.usd,'10');
+  assert.equal(walletUsdTradingRecord(profile,events,[]).periods.all_available.realized_pnl.usd,null);
+  assert.equal(JSON.stringify(events),original);
+  assert.equal(buy.classification.kind,'SPLIT_ROUTE_SWAP');
+  assert.equal(buy.copy_signal.eligible_buy_signal,false);assert.equal(sell.copy_signal.eligible_sell_signal,false);
+  for(const mutate of [
+    event=>{event.economic.deltas[0].amount_base_units='1';},
+    event=>{event.economic.deltas.push({...event.economic.deltas[1],mint:TOKEN_TWO});},
+    event=>{event.route_evidence.program_ids=[];},
+    event=>{event.route_evidence.swap_route_observed=false;},
+    event=>{event.economic.source_asset.decimals=6;},
+    event=>{event.chain_evidence.finality='processed';},
+  ]){const invalid=structuredClone(buy);mutate(invalid);assert.equal(solanaAnalyticalTradeKind(invalid),'SPLIT_ROUTE_SWAP');}
+});
+
+test('unpriced token rotations consume outgoing lots and retain unknown incoming cost', () => {
+  const at=1777000000;
+  const buy=normalize(transaction({blockTime:at,
+    pre:[balance(WALLET,SOLANA_CANONICAL_USDC_MINT,50000000,6),balance(WALLET,TOKEN,0,6)],
+    post:[balance(WALLET,SOLANA_CANONICAL_USDC_MINT,40000000,6),balance(WALLET,TOKEN,10000000,6)]}), 'L');
+  const rotate=normalize(transaction({blockTime:at+30,slot:101,
+    pre:[balance(WALLET,TOKEN,10000000,6),balance(WALLET,TOKEN_TWO,0,6)],
+    post:[balance(WALLET,TOKEN,0,6),balance(WALLET,TOKEN_TWO,2000000,6)]}), 'M');
+  const sell=normalize(transaction({blockTime:at+60,slot:102,
+    pre:[balance(WALLET,SOLANA_CANONICAL_USDC_MINT,40000000,6),balance(WALLET,TOKEN_TWO,2000000,6)],
+    post:[balance(WALLET,SOLANA_CANONICAL_USDC_MINT,60000000,6),balance(WALLET,TOKEN_TWO,0,6)]}), 'N');
+  assert.equal(solanaAnalyticalTradeKind(rotate),'MULTIHOP_SWAP');
+  const profile=buildSolanaWalletProfile([buy,rotate,sell],{generated_at:new Date((at+120)*1000).toISOString()});
+  assert.equal(profile.source_performance.closed_lots,0);
+  assert.equal(profile.source_performance.realized_pnl_usdc,null);
+  assert.equal(profile.coverage.unresolved_cost_basis_observations,1);
+  assert.equal(profile.positions.known_cost_open_positions.length,0);
 });

@@ -1,0 +1,25 @@
+{
+  "wallet": "H4BB95H3ezr3c993PWVdJUhNfe2N3a61CZgLoVVF2HfS",
+  "generated_at": "2026-09-10T03:50:38.865Z",
+  "profile_version": 9,
+  "retained_events": 24,
+  "input_events_unchanged": true,
+  "original_kinds": {
+    "MULTIHOP_SWAP": 5,
+    "SPLIT_ROUTE_SWAP": 19
+  },
+  "analytical_kinds": {
+    "MULTIHOP_SWAP": 5,
+    "SWAP_BUY": 18,
+    "SPLIT_ROUTE_SWAP": 1
+  },
+  "buy_count": 18,
+  "sell_count": 0,
+  "token_records": 1,
+  "known_cost_open_positions": 1,
+  "matched_closes": 0,
+  "realized_pnl_sol": null,
+  "realized_pnl_usdc": null,
+  "provider_requests": 0,
+  "transactions_submitted": 0
+}

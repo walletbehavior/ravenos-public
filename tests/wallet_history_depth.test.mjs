@@ -6,6 +6,7 @@ import bs58 from 'bs58';
 import { createD1CustomerWalletCopyStore } from '../lib/customer_wallet_copy.mjs';
 import { createD1SourceWalletBackfillStore, runSourceWalletBackfillBatch } from '../lib/customer_trade/source_wallet_backfill.mjs';
 import { normalizeSourceWalletChainIdentity } from '../lib/customer_trade/source_wallet_chain_identity.mjs';
+import { SOLANA_WALLET_PROFILE_VERSION } from '../lib/customer_trade/solana_wallet_intelligence.mjs';
 
 const NOW = Date.parse('2026-09-10T00:00:00Z');
 const migration = readFileSync('customer-migrations/0050_wallet_history_depth.sql', 'utf8');
@@ -97,7 +98,7 @@ test('Solana accounting upgrades old profiles once without refreshing unrelated 
   assert.deepEqual(new Set(candidates.map(j=>j.job_id)),new Set([sol.job.job_id,shallow.job.job_id]));
   for(const item of [sol,shallow]) {
     const old=await wallets.latestProfile(item.job.source_wallet_id);
-    await wallets.recordProfile(item.job.source_wallet_id,{...old,profile_version:8,coverage:{normalized_events:item===shallow?100:5000}},NOW/1000+800);
+    await wallets.recordProfile(item.job.source_wallet_id,{...old,profile_version:SOLANA_WALLET_PROFILE_VERSION,coverage:{normalized_events:item===shallow?100:5000}},NOW/1000+800);
   }
   assert.deepEqual(await sol.store.listProfileRefreshCandidates(8,{now:NOW+900000}),[]);
 });
