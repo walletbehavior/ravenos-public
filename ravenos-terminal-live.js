@@ -7534,6 +7534,7 @@ function spotQuoteReason(reason) {
     amount_below_minimum: "Increase the amount before requesting a route.",
     amount_above_maximum: "Reduce the amount before requesting a route.",
     live_notional_out_of_bounds: "Orders must be at least $1 and within the current order limit. Nothing was sent.",
+    jupiter_order_http_400: "The route provider could not prepare this order. Nothing was signed or sent.",
     sell_balance_required: "Connect a wallet for percentage sizing or enter an exact token amount.",
     insufficient_balance: "This wallet has insufficient funds for the selected amount. Nothing was sent.",
     selected_mint_unavailable: "Token decimals could not be verified from the configured Solana RPC.",

@@ -590,6 +590,12 @@ test("Worker proves a same-chain Solana USDC entry and reverse USDC exit without
       const valuation = url.searchParams.get("inputMint") === quote && url.searchParams.get("outputMint") === usdc;
       assert.equal(url.searchParams.get("referralFee"), valuation ? null : "100");
       assert.equal(url.searchParams.get("excludeRouters"), valuation ? null : "jupiterz,dflow,okx");
+      if (valuation) assert.equal(url.searchParams.get("excludeDexes"), null);
+      else {
+        const excluded = url.searchParams.get("excludeDexes").split(",");
+        assert.ok(excluded.includes("Pump.fun Amm"));
+        assert.ok(!excluded.includes("Raydium CLMM"));
+      }
     }
 
     returnForbiddenMaterial = true;

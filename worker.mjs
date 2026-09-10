@@ -234,7 +234,7 @@ import {
   createHyperliquidLiveTicket,
   normalizeHyperliquidClientExecutionReport,
 } from "./lib/customer_trade/hyperliquid_live_execution.mjs";
-import { runCustomerSolanaLivePreflight } from "./lib/customer_trade/operator_solana_canary.mjs";
+import { runCustomerSolanaLivePreflight, SOLANA_UNREVIEWED_DEX_EXCLUSIONS } from "./lib/customer_trade/operator_solana_canary.mjs";
 import {
   createD1SolanaLiveExecutionStore,
   createSolanaLiveTicket,
@@ -6222,7 +6222,10 @@ async function fetchJupiterExactSpotQuote({ env = {}, inputMint, outputMint, amo
   url.searchParams.set("amount", amountBaseUnits);
   url.searchParams.set("slippageBps", String(slippageBps));
   url.searchParams.set("swapMode", "ExactIn");
-  if (feePolicy) url.searchParams.set("excludeRouters", "jupiterz,dflow,okx");
+  if (feePolicy) {
+    url.searchParams.set("excludeRouters", "jupiterz,dflow,okx");
+    url.searchParams.set("excludeDexes", SOLANA_UNREVIEWED_DEX_EXCLUSIONS.join(","));
+  }
   if (feePolicy?.enabled) {
     url.searchParams.set("referralAccount", feePolicy.fee_recipient);
     url.searchParams.set("referralFee", String(feePolicy.fee_bps));
