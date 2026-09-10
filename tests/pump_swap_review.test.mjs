@@ -150,6 +150,58 @@ test("a closed WSOL simulation record must be empty, System-owned and have exact
   }
 });
 
+function withTemporaryVolumeClose(fixture = pumpSwapFixture()) {
+  const keys = fixture.programs.account_keys;
+  const index = address => keys.findIndex(row => row.address === address);
+  const volume = instruction(fixture, 0).accounts[20];
+  const event = Buffer.alloc(88);
+  Buffer.from("e445a52e51cb9a1d929fbdac925838f4", "hex").copy(event);
+  Buffer.from(bs58.decode(fixture.request.wallet_address)).copy(event, 16);
+  fixture.innerInstructions[0].instructions.push(
+    {programIdIndex:index(pump.amm_program),stackHeight:2,data:bs58.encode(Buffer.from("f945a4da9667548a", "hex")),
+      accounts:[index(fixture.request.wallet_address),volume,index(pump.event_authority),index(pump.amm_program)]},
+    {programIdIndex:index(pump.amm_program),stackHeight:3,data:bs58.encode(event),accounts:[index(pump.event_authority)]},
+  );
+  fixture.logs.splice(-1,0,`Program ${pump.amm_program} invoke [2]`,`Program ${pump.amm_program} invoke [3]`,
+    `Program ${pump.amm_program} success`,`Program ${pump.amm_program} success`);
+  fixture.preAccounts.push({address:keys[volume].address,exists:false});
+  fixture.postAccounts.push({address:keys[volume].address,exists:true,owner:"1".repeat(32),executable:false,lamports:0n,data:Buffer.alloc(0)});
+  return fixture;
+}
+test("Jupiter can reclaim only a newly created empty volume account after the reviewed buy", () => {
+  for (const method of ["buy", "buy_exact_quote_in"]) {
+    for (const format of [f => f, rpcSimulationFormat]) {
+      const fixture = format(withTemporaryVolumeClose(pumpSwapFixture(method)));
+      instruction(fixture,1).data = recordedFeeQuery.data;
+      assert.equal(reviewPumpSwapCpis(fixture).temporary_accounts_closed,1);
+    }
+  }
+});
+test("temporary volume cleanup rejects existing accounts, retained state, other authorities and rewards", () => {
+  for (const [mutate,error] of [
+    [f => f.preAccounts.at(-1).exists = true,/temporary_close_state_invalid/],
+    [f => f.preAccounts.pop(),/temporary_close_state_invalid/],
+    [f => f.postAccounts.pop(),/temporary_close_state_invalid/],
+    [f => f.postAccounts.at(-1).lamports = 1n,/temporary_close_state_invalid/],
+    [f => f.postAccounts.at(-1).owner = pump.amm_program,/temporary_close_state_invalid/],
+    [f => f.postAccounts.at(-1).data = Buffer.from([0]),/temporary_close_state_invalid/],
+    [f => instruction(f,3).accounts[0] = instruction(f,0).accounts[0],/temporary_close_accounts_invalid/],
+    [f => instruction(f,3).accounts[1] = instruction(f,0).accounts[5],/temporary_close_accounts_invalid/],
+    [f => instruction(f,3).accounts.push(instruction(f,0).accounts[3]),/temporary_close_data_invalid/],
+    [f => instruction(f,3).data = bs58.encode(Buffer.concat([bs58.decode(instruction(f,3).data),Buffer.from([0])])),/temporary_close_data_invalid/],
+    [f => instruction(f,3).stackHeight = 3,/temporary_close_parent_invalid/],
+    [f => {const rows=f.innerInstructions[0].instructions;rows.unshift(...rows.splice(3,2));},/temporary_close_without_buy/],
+    [f => changeData(f,4,d => d[16] ^= 1),/temporary_close_event_mismatch/],
+    [f => changeData(f,4,d => d[56] = 1),/temporary_close_rewards_present/],
+    [f => changeData(f,4,d => d[64] = 1),/temporary_close_rewards_present/],
+    [f => changeData(f,4,d => d[72] = 1),/temporary_close_rewards_present/],
+    [f => f.innerInstructions[0].instructions.splice(4,1),/invocation_evidence_incomplete/],
+  ]) {
+    const fixture = withTemporaryVolumeClose(); mutate(fixture);
+    assert.throws(() => reviewPumpSwapCpis(fixture),error);
+  }
+});
+
 test("PumpSwap admission leaves bonding curves excluded and never grants general program admission", () => {
   assert.equal(SOLANA_UNREVIEWED_DEX_EXCLUSIONS.includes(pump.venue), false);
   assert.equal(SOLANA_UNREVIEWED_DEX_EXCLUSIONS.includes("Pump.fun"), true);
