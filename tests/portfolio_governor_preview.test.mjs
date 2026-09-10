@@ -239,7 +239,7 @@ test("operator-authorized beta registry is account scoped and never returns raw 
 });
 
 test('account wallet discovery uses active embedded Solana bindings and changes reference when the wallet changes', async () => {
-  const calls = [], record = {wallet_record_id:'rpw_'+'1'.repeat(64),public_address:WALLET_ADDRESS,ecosystem:'solana',wallet_type:'privy_embedded',state:'active'};
+  const calls = [], record = {wallet_record_id:'rpw_'+await sha256('privy-fixture:solana:'+WALLET_ADDRESS),public_address:WALLET_ADDRESS,ecosystem:'solana',wallet_type:'privy_embedded',state:'active'};
   const privyStore = {
     getIdentity:async id => {calls.push(['identity',id]);return {state:'active'};},
     listWallets:async id => {calls.push(['wallets',id]);return [record,{...record,ecosystem:'evm'},{...record,state:'revoked'},{...record,wallet_type:'external'}];},
@@ -256,7 +256,7 @@ test('account wallet discovery uses active embedded Solana bindings and changes 
 
 test('account-bound preview ignores legacy registry and rejects another account or rotated wallet reference before analysis', async () => {
   const store=await new MemoryStore().seed();let analyses=0;
-  const record={wallet_record_id:'rpw_'+'2'.repeat(64),public_address:WALLET_ADDRESS,ecosystem:'solana',wallet_type:'privy_embedded',state:'active'};
+  const record={wallet_record_id:'rpw_'+await sha256('privy-fixture:solana:'+WALLET_ADDRESS),public_address:WALLET_ADDRESS,ecosystem:'solana',wallet_type:'privy_embedded',state:'active'};
   const privyStore={getIdentity:async()=>({state:'active'}),listWallets:async id=>{assert.equal(id,USER_ID);return [record];}};
   const env=configuredEnv({RAVENOS_PORTFOLIO_ACCOUNT_WALLETS_ENABLED:'1',RAVENOS_PORTFOLIO_PREVIEW_WALLETS:'invalid legacy registry'});
   const deps={store,privyStore,nowMs:NOW_MS,analyze:async()=>{analyses++;throw Error('must not analyze');}};

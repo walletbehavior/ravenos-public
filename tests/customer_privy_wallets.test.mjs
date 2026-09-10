@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
+import { accountPortfolioPreviewWallets } from '../lib/portfolio_governor/preview.mjs';
 
 import {
   PrivyWalletContract,
@@ -263,6 +264,11 @@ test("migration stores public metadata only and usage is append-only", async () 
   });
   const expanded = await store.listWallets(`usr_${"a".repeat(32)}`);
   assert.equal(expanded.length, 2);
+  const portfolioWallets=await accountPortfolioPreviewWallets({},`usr_${"a".repeat(32)}`,store);
+  assert.equal(portfolioWallets.length,1);
+  assert.equal(portfolioWallets[0].address,'Stake11111111111111111111111111111111111111');
+  assert.equal(portfolioWallets[0].authorization_basis,'account_bound_privy_wallet');
+  assert.deepEqual(await accountPortfolioPreviewWallets({},`usr_${"b".repeat(32)}`,store),[]);
   assert.equal(expanded.find((wallet) => wallet.ecosystem === "evm").wallet_record_id, original.wallet_record_id);
   assert.equal(expanded.find((wallet) => wallet.ecosystem === "evm").public_address, original.public_address);
   assert.deepEqual(await store.listWallets(`usr_${"b".repeat(32)}`), []);
