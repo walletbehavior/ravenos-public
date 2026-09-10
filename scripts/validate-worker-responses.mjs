@@ -53,6 +53,7 @@ const checks = [
   ["GET", "/api/atlas"],
   ["GET", "/api/instruments/search?q=AAPL"],
   ["GET", "/api/onchain/trending?chains=base,ethereum,robinhood&duration=5m"],
+  ["GET", "/api/onchain/reads?duration=1h"],
   ["GET", "/api/onchain/participation"],
   ["GET", "/api/onchain/token-metadata?chain=solana&addresses=4Nd1mYtH6cQqVaM4D6j6fLQ1xUeLLkL3ZnH8JY5FQ7pP"],
   ["GET", "/api/onchain/holders?chain=solana&pair_address=3w7NMJECsezNurAb3MbvTiEtVeayhqNXgXXcqiK5qwwj&token_address=EBLUKPgx5FvTUBU6bTJi3aR8XVELSBdC5FiodSWQpump&quote_address=So11111111111111111111111111111111111111112"],

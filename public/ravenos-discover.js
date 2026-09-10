@@ -108,6 +108,9 @@ const state = {
   spotPulseRequest: null,
   spotAcceptedObservations: new Set(),
   spotRegistryRows: [],
+  spotReadRows: [],
+  spotReadRequest: null,
+  spotLoadingMore: false,
   spotUniverse: null,
   spotPage: 0,
   spotPaginationKey: '',
@@ -1203,13 +1206,14 @@ function updateSpotResultState(visibleCount, exactTokenCount, exactMarketCount) 
   const output = document.getElementById("discoverSpotResultState");
   if (!output) return;
   if (!exactMarketCount) {
-    output.textContent = "No matching markets";
+    output.textContent = state.spotLoadingMore ? "Loading markets…" : "No matching markets";
     return;
   }
   const start = state.spotPage * 100 + 1, end = Math.min((state.spotPage + 1) * 100, visibleCount);
   output.textContent = `${start}–${end} of ${visibleCount.toLocaleString()} qualifying tokens`
     + (visibleCount < exactTokenCount ? ` · ${exactTokenCount} exact contracts` : '')
     + (state.spotUniverse?.sampled_tokens ? ` · ${state.spotUniverse.sampled_tokens.toLocaleString()} in shared market sample` : '')
+    + (state.spotLoadingMore ? ' · Loading more markets…' : '')
     + (state.spotUniverse?.delivery_limited ? ` · ${state.spotUniverse.qualified_tokens.toLocaleString()} qualify across the requested chains; narrow by chain for more` : '');
 }
 
@@ -1832,7 +1836,12 @@ function spotRankedRows({ cohort = state.spotCohort, revival = state.spotRevival
   if (state.participationFilter && state.spotSort === "participation") return rankParticipationMarkets(current, { filter: state.participationFilter, order: state.participationFilter.order });
   if (state.spotSort === "raven") {
     return current
-      .filter((row) => row?.discovery?.raven_evidence_state?.qualified === true && row?.discovery?.raven_evidence_state?.raven_signal === true)
+      .filter((row) => {
+        const evidence = row?.discovery?.raven_evidence_state;
+        const age = Date.now() - Date.parse(evidence?.observed_at || '');
+        return evidence?.qualified === true && evidence?.raven_signal === true && age >= 0 && age <= 120_000
+          && (!evidence.timeframe || evidence.timeframe === state.spotTimeframe);
+      })
       .sort((left, right) => {
         const order = { strengthened: 4, qualified: 3, forming: 2, weakened: 1, invalidated: 0 };
         const stateDifference = (order[right.discovery.raven_evidence_state.state] || 0) - (order[left.discovery.raven_evidence_state.state] || 0);
@@ -1991,6 +2000,7 @@ function spotDecisionHeadline(row, { current = true, velocityState = "forming", 
   if (!current) return "Refreshing exact pool…";
   const discovery = row?.discovery || {};
   const raven = discovery.raven_evidence_state || {};
+  if (state.spotSort === 'raven' && raven.qualified === true && raven.why_raven_noticed) return customerFacingText(raven.why_raven_noticed, '');
   const observationCount = Math.max(1, Math.floor(finite(discovery.registry?.observation_count) || 1));
   if (observationCount < 2) return spotFirstObservationHeadline(row, risks);
   const activityHeadlines = {
@@ -2023,7 +2033,7 @@ function spotDecisionHeadline(row, { current = true, velocityState = "forming", 
   if (state.spotSort === "activity" && activityHeadlines[activityState]) return activityHeadlines[activityState];
   if (state.spotSort !== "raven" && behaviorHeadlines[primary]) return behaviorHeadlines[primary];
   const candidates = state.spotSort === "raven"
-    ? [discovery.decision_support?.why_now, raven.why_raven_noticed, discovery.decision_support?.what_changed, raven.what_changed]
+    ? [raven.why_raven_noticed, raven.what_changed, discovery.decision_support?.why_now, discovery.decision_support?.what_changed]
     : [discovery.decision_support?.why_now, discovery.decision_support?.what_changed, row.what_changed];
   for (const value of candidates) {
     const candidate = customerFacingText(value, "").trim();
@@ -2243,7 +2253,7 @@ function renderSpotEvidence(shell, row) {
   const ravenSection = append(body, "section", "discover-token-evidence-narrative", "");
   append(ravenSection, "h4", "", "Raven evidence");
   if (factFreshness.current && raven?.qualified === true) {
-    const whyNow = customerFacingText(discovery.decision_support?.why_now || raven.why_raven_noticed, "Current read available for this exact market.");
+    const whyNow = customerFacingText(raven.why_raven_noticed || discovery.decision_support?.why_now, "Current read available for this exact market.");
     const ravenChanged = customerFacingText(raven.what_changed, "");
     const decisionChanged = customerFacingText(discovery.decision_support?.what_changed, "");
     append(ravenSection, "p", "", whyNow);
@@ -2775,7 +2785,7 @@ function renderSpotPulse(rows = state.spotRows, { forceOrder = false } = {}) {
     },
     raven: {
       title: "Raven token reads",
-      summary: "Observed exact pools.",
+      summary: "Repeated pressure and price observations.",
       column: "Raven evidence",
     },
     activity: {
@@ -3576,9 +3586,9 @@ function mergeSpotRadarRows(registryRows = [], currentRows = []) {
     }
     const retainedDiscovery = retained.discovery;
     const currentDiscovery = current.discovery;
-    const raven = retainedDiscovery.raven_evidence_state?.qualified === true
-      ? retainedDiscovery.raven_evidence_state
-      : currentDiscovery.raven_evidence_state;
+    const retainedRead = retainedDiscovery.raven_evidence_state, currentRead = currentDiscovery.raven_evidence_state;
+    const raven = currentRead?.qualified === true && (retainedRead?.qualified !== true || Date.parse(currentRead.observed_at) >= Date.parse(retainedRead.observed_at))
+      ? currentRead : retainedRead?.qualified === true ? retainedRead : currentRead;
     const retainedRegistry = retainedDiscovery.registry || {};
     const currentRegistry = currentDiscovery.registry || {};
     const firstSeenAt = [retainedRegistry.first_seen_at, currentRegistry.first_seen_at]
@@ -3726,7 +3736,7 @@ function currentFeaturedAtlasPayload(payload) {
 }
 
 function renderRetainedSpotMarkets({ forceOrder = false } = {}) {
-  const rows = mergeSpotRadarRows(state.spotRegistryRows, state.spotPulseRows);
+  const rows = mergeSpotRadarRows(mergeSpotRadarRows(state.spotRegistryRows, state.spotReadRows), state.spotPulseRows);
   renderSpotPulse(rows, { forceOrder });
   renderDeskBrief({ ...state.deskInputs, markets: [...state.markets.values()], spotRows: rows });
   applyFilter();
@@ -3741,33 +3751,68 @@ function refreshSpotMarkets() {
   state.spotPulseRequest?.controller.abort();
   const request = { key, controller: new AbortController(), promise: null };
   state.spotPulseRequest = request;
+  state.spotReadRequest = request;
   const newScope = chain !== state.spotLoadedChain || timeframe !== state.spotLoadedTimeframe;
-  if (newScope) state.spotUniverse = null;
+  if (newScope) { state.spotUniverse = null; state.spotReadRows = []; }
   const chains = ['solana', 'robinhood', 'base', 'bsc', 'ethereum'].includes(chain)
     ? chain : 'solana,robinhood,base,bsc,ethereum';
   const isCurrent = () => state.spotPulseRequest === request && state.spotChain === chain && state.spotTimeframe === timeframe;
+  void (async () => {
+    try {
+      const { response, payload } = await json(`/api/onchain/reads?chains=${chains}&duration=${encodeURIComponent(timeframe)}`, { signal: request.controller.signal });
+      if (state.spotReadRequest !== request || request.controller.signal.aborted || state.spotChain !== chain || state.spotTimeframe !== timeframe) return;
+      const radar = response.ok && payload?.safe_public === true && payload?.schema_version === 'ravenos.onchain_raven_reads.v1'
+        && payload?.provenance?.provider_rank_used === false && payload?.execution_boundary?.submission_available === false
+        ? currentDiscoverRadar(payload.discovery_radar, timeframe) : null;
+      if (!radar) return;
+      state.spotReadRows = radar.rows.filter(row => row.discovery?.raven_evidence_state?.qualified === true);
+      state.spotRavenHealth = { producer_state: 'operational', qualified_read_count: state.spotReadRows.length };
+      renderRetainedSpotMarkets();
+    } catch { /* Previously accepted reads expire at their own observation time. */ }
+  })();
   request.promise = (async () => {
     try {
-      const { response, payload } = await json(`/api/onchain/trending?chains=${chains}&duration=${encodeURIComponent(timeframe)}`, { signal: request.controller.signal });
-      if (!isCurrent()) return;
-      if (!response.ok) throw new Error('onchain_update_delayed');
-      const current = currentOnchainPulsePayload(payload);
-      // Only previously accepted, useful observations get the short local
-      // browsing grace period. Provider payloads cannot self-assert this status.
-      state.spotAcceptedObservations = new Set(current.rows.filter(row => providerSpotMarketSnapshotUsable(row)
-        || (survivesCurrentSpotMarket(row, { allowQuietLifecycle: lifecycleBrowseActive() })
-          && (hasDecisionUsefulSpotActivity(row)
-            || ((degenMarketCapFilterActive() || state.spotRevivalOnly) && hasDegenRelevantSpotActivity(row))
-            || (lifecycleBrowseActive() && reportedLaunchpadLifecycle(row)))))
-        .map(spotObservationKey));
-      state.spotPulseRows = current.rows;
-      state.spotPulseGeneratedAt = current.generatedAt;
-      state.spotUniverse = payload.universe || null;
-      state.spotFeedState = current.state === 'degraded' ? 'refreshing' : 'current';
-      state.spotPulseRadarState = current.radarState;
-      state.spotRadarState = current.radarState === 'current' && state.spotRadarState === 'shadow' ? 'shadow' : current.radarState;
-      state.spotLoadedChain = chain;
-      state.spotLoadedTimeframe = timeframe;
+      let cursor = null, snapshotId = null, expectedOffset = 0;
+      const seen = new Set(), collected = [], accepted = new Set();
+      do {
+        const pageQuery = new URLSearchParams({ chains, duration: timeframe, paged: '1' });
+        if (cursor) pageQuery.set('cursor', cursor);
+        const { response, payload } = await json(`/api/onchain/trending?${pageQuery}`, { signal: request.controller.signal });
+        if (!isCurrent()) return;
+        if (!response.ok) throw new Error('onchain_update_delayed');
+        const current = currentOnchainPulsePayload(payload), page = payload.pagination;
+        if (page) {
+          if (page.schema_version !== 'ravenos.onchain_market_page.v1' || !/^[a-f0-9]{24}$/.test(page.snapshot_id)
+            || page.offset !== expectedOffset || (snapshotId && snapshotId !== page.snapshot_id)
+            || !Number.isSafeInteger(page.total_rows) || page.total_rows < expectedOffset + payload.rows.length || page.total_rows > 10000
+            || (page.next_cursor && page.next_cursor !== `${page.snapshot_id}.${expectedOffset + payload.rows.length}`)
+            || (page.next_cursor && !payload.rows.length)
+            || (!page.next_cursor && expectedOffset + payload.rows.length !== page.total_rows)) throw new Error('market_page_mismatch');
+          snapshotId = page.snapshot_id;
+          expectedOffset += payload.rows.length;
+        } else if (cursor) throw new Error('market_page_missing');
+        for (const row of current.rows) {
+          if (seen.has(row.instrument_id)) throw new Error('market_page_duplicate');
+          seen.add(row.instrument_id); collected.push(row);
+          if (providerSpotMarketSnapshotUsable(row)
+            || (survivesCurrentSpotMarket(row, { allowQuietLifecycle: lifecycleBrowseActive() })
+              && (hasDecisionUsefulSpotActivity(row)
+                || ((degenMarketCapFilterActive() || state.spotRevivalOnly) && hasDegenRelevantSpotActivity(row))
+                || (lifecycleBrowseActive() && reportedLaunchpadLifecycle(row))))) accepted.add(spotObservationKey(row));
+        }
+        state.spotAcceptedObservations = new Set(accepted);
+        state.spotPulseRows = [...collected];
+        state.spotPulseGeneratedAt = current.generatedAt;
+        state.spotUniverse = payload.universe || null;
+        state.spotFeedState = current.state === 'degraded' ? 'refreshing' : 'current';
+        state.spotPulseRadarState = current.radarState;
+        state.spotRadarState = current.radarState === 'current' && state.spotRadarState === 'shadow' ? 'shadow' : current.radarState;
+        state.spotLoadedChain = chain;
+        state.spotLoadedTimeframe = timeframe;
+        cursor = page?.next_cursor || null;
+        state.spotLoadingMore = Boolean(cursor);
+        renderRetainedSpotMarkets({ forceOrder: newScope && expectedOffset <= 500 });
+      } while (cursor && isCurrent());
     } catch {
       if (!isCurrent()) return;
       // Preserve the last accepted market observations. Rendering still applies
@@ -3776,6 +3821,7 @@ function refreshSpotMarkets() {
     } finally {
       if (isCurrent()) {
         state.spotPulseRequest = null;
+        state.spotLoadingMore = false;
         renderRetainedSpotMarkets({ forceOrder: newScope });
       }
     }
@@ -3881,7 +3927,7 @@ async function refresh({ manual = false } = {}) {
 
   state.spotRegistryRows = registryRadarRows;
   if (state.spotPulseRadarState) state.spotRadarState = state.spotPulseRadarState === 'current' && state.spotRadarState === 'shadow' ? 'shadow' : state.spotPulseRadarState;
-  const tokenRows = mergeSpotRadarRows(registryRadarRows, marketPulseRows);
+  const tokenRows = mergeSpotRadarRows(mergeSpotRadarRows(registryRadarRows, state.spotReadRows), marketPulseRows);
   renderSpotPulse(tokenRows);
 
   let briefData = null;

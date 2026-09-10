@@ -1,3 +1,5 @@
+import { onchainMarketPages, validOnchainMarketCursor } from './lib/onchain_market_pages.mjs';
+import { buildOnchainRavenReads } from './lib/onchain_raven_reads.mjs';
 import { estimateEvmPriceImpact } from "./lib/customer_trade/price_impact.mjs";
 import { DEFAULT_SPOT_SLIPPAGE_BPS, MIN_SPOT_SLIPPAGE_BPS, MAX_SPOT_SLIPPAGE_BPS } from "./ravenos-spot-trade-policy.js";
 import { dexscreenerChartSurface } from './ravenos-chart-data-plane.js';
@@ -550,6 +552,7 @@ function authenticatedAppBoundary(request) {
       "/api/onchain/holders",
       "/api/onchain/trades",
       "/api/onchain/trending",
+      "/api/onchain/reads",
       "/api/onchain/token-metadata",
       "/api/onchain/participation",
     ]).has(url.pathname)
@@ -598,6 +601,7 @@ const dexchDiscoveryProvider = new DexchDiscoveryProvider({
   fetchFn: (...args) => globalThis.fetch(...args),
 });
 const onchainPulseCache = new Map();
+const onchainPageMemory = new Map();
 const onchainPulseSupplementCache = new Map();
 const jupiterVelocityCache = new Map();
 const hyperliquidCache = new Map();
@@ -4288,7 +4292,7 @@ function discoverRadarSummary(discoveryRadar = {}) {
   });
 }
 
-function onchainPulseEdgeCacheRequest(request, env = {}, { chains = [], duration = "5m" } = {}) {
+function onchainPulseEdgeCacheRequest(request, env = {}, { chains = [], duration = "5m", paged = false, cursor = null } = {}) {
   if (request?.method !== "GET") return null;
   const url = new URL(request.url);
   // Only contract inputs belong in the cache identity. Ignored query parameters
@@ -4296,6 +4300,8 @@ function onchainPulseEdgeCacheRequest(request, env = {}, { chains = [], duration
   url.search = "";
   url.searchParams.set("chains", chains.join(","));
   url.searchParams.set("duration", duration);
+  if (paged) url.searchParams.set("paged", "1");
+  if (cursor) url.searchParams.set("cursor", cursor);
   url.searchParams.set("__ravenos_release", String(env.RAVENOS_RELEASE_ID || "development"));
   return new Request(url.toString(), { method: "GET" });
 }
@@ -4343,14 +4349,14 @@ function balancedDiscoverCandidates(rows = [], chains = [], { timeframe = "5m", 
   return selected;
 }
 
-async function onchainMarketPulse({ env = {}, request = null, chains = [], duration = "5m" } = {}) {
+async function onchainMarketPulse({ env = {}, request = null, chains = [], duration = "5m", paged = false } = {}) {
   const providerWindow = ONCHAIN_PULSE_DURATIONS[duration];
   if (!providerWindow || !chains.length) throw new Error("onchain_market_pulse_request_invalid");
   const runtime = onchainProviderRuntime("coingecko_onchain", env);
   const providerAvailable = runtime.runtime_allowed && runtime.credential_present;
   const jupiterConfigured = chains.includes("solana") && Boolean(String(env.JUPITER_API_KEY || "").trim());
   const dexchRuntime = resolveDexchDiscoveryRuntime(env);
-  const cacheKey = `${runtime.provider_tier}:${chains.join(",")}:${duration}:jupiter-${jupiterConfigured ? "on" : "off"}:dexch-${dexchRuntime.state}:fallback-${env.RAVENOS_MARKET_PROVIDER_FALLBACKS_ENABLED || '0'}`;
+  const cacheKey = `${runtime.provider_tier}:${chains.join(",")}:${duration}:paged-${paged}:jupiter-${jupiterConfigured ? "on" : "off"}:dexch-${dexchRuntime.state}:fallback-${env.RAVENOS_MARKET_PROVIDER_FALLBACKS_ENABLED || '0'}`;
   const cached = cacheGet(onchainPulseCache, cacheKey);
   if (cached) return cached;
   // Browse the shared collector's qualified snapshots before starting another
@@ -4485,9 +4491,9 @@ async function onchainMarketPulse({ env = {}, request = null, chains = [], durat
   }
   const indexedRows = [...rowsByMarket.values()];
   const qualifiedRows = qualifyDiscoverCandidates(indexedRows);
-  const rows = balancedDiscoverCandidates(qualifiedRows, chains, { timeframe: duration });
+  const rows = balancedDiscoverCandidates(qualifiedRows, chains, { timeframe: duration, limit: paged ? 10_000 : ONCHAIN_PULSE_MAX_ROWS });
   if (!indexedRows.length) throw new Error("onchain_market_pulse_unavailable");
-  const classifiedRows = attachDiscoverRegistryHistory(rows, registryHistory).map((row) => ({
+  const classifiedRows = attachDiscoverRegistryHistory(rows, registryHistory).map(({ raven_observations, ...row }) => ({
     ...row,
     name: boundedPublicMarketName(row.name, 80),
   }));
@@ -4498,7 +4504,7 @@ async function onchainMarketPulse({ env = {}, request = null, chains = [], durat
     timeframe: duration,
     generatedAt,
     sourceState: degraded ? "degraded" : registryHistory.size ? "shadow" : "forming",
-    maxRows: ONCHAIN_PULSE_MAX_ROWS,
+    maxRows: paged ? 10_000 : ONCHAIN_PULSE_MAX_ROWS,
   });
   const result = {
     ok: true,
@@ -11983,6 +11989,22 @@ async function routeApi(request, env, executionContext = null) {
       }, { headers: { 'cache-control': 'public, max-age=15' } });
     } catch { return json({ ok: false, state: 'unavailable', rows: [] }, { status: 503, headers: { 'cache-control': 'no-store' } }); }
   }
+  if (url.pathname === "/api/onchain/reads" && request.method === "GET") {
+    const chains = parseOnchainPulseChains(url.searchParams.get('chains') || '');
+    const timeframe = url.searchParams.get('duration') || '5m';
+    const instrumentId = url.searchParams.get('instrument_id') || null;
+    if (!chains || !['5m', '1h', '24h'].includes(timeframe) || (instrumentId && (instrumentId.length > 180 || !/^(solana|base|ethereum|bsc|robinhood):pool:[a-zA-Z0-9]+$/.test(instrumentId)))) {
+      return json({ ok: false, error: 'onchain_reads_request_invalid' }, { status: 400 });
+    }
+    try {
+      if (env.RAVENOS_PARTICIPATION_UNIVERSE_ENABLED !== '1' || !env.RAVENOS_CUSTOMER_DB?.prepare) throw new Error('source_unavailable');
+      const snapshot = await createParticipationSnapshotStore(env.RAVENOS_CUSTOMER_DB).read();
+      if (!snapshot?.payload?.ok || !Array.isArray(snapshot.payload.rows)) throw new Error('source_unavailable');
+      return json(buildOnchainRavenReads(snapshot.payload, { chains, timeframe, instrumentId }), { headers: { 'cache-control': 'public, max-age=15' } });
+    } catch {
+      return json({ ok: false, safe_public: true, schema_version: 'ravenos.onchain_raven_reads.v1', state: 'unavailable' }, { status: 503, headers: { 'cache-control': 'no-store' } });
+    }
+  }
   if (url.pathname === "/api/onchain/trending" && request.method === "GET") {
     const chains = parseOnchainPulseChains(url.searchParams.get("chains") || "");
     const duration = String(url.searchParams.get("duration") || "5m").trim().toLowerCase();
@@ -11994,8 +12016,11 @@ async function routeApi(request, env, executionContext = null) {
         allowed_durations: Object.keys(ONCHAIN_PULSE_DURATIONS),
       }, { status: 400 });
     }
+    const paged = url.searchParams.get('paged') === '1';
+    const cursor = url.searchParams.get('cursor');
+    if (cursor && (!paged || !validOnchainMarketCursor(cursor))) return json({ ok: false, error: 'market_page_cursor_invalid' }, { status: 400 });
     const edgeCache = globalThis.caches?.default || null;
-    const edgeCacheRequest = edgeCache ? onchainPulseEdgeCacheRequest(request, env, { chains, duration }) : null;
+    const edgeCacheRequest = onchainPulseEdgeCacheRequest(request, env, { chains, duration, paged, cursor });
     if (edgeCache && edgeCacheRequest) {
       try {
         const cached = await edgeCache.match(edgeCacheRequest);
@@ -12005,7 +12030,26 @@ async function routeApi(request, env, executionContext = null) {
       }
     }
     try {
-      const pulse = await onchainMarketPulse({ env, request, chains, duration });
+      if (cursor) {
+        const page = cacheGet(onchainPageMemory, edgeCacheRequest.url);
+        return page ? json(page, { headers: { 'cache-control': 'public, max-age=15' } })
+          : json({ ok: false, error: 'market_page_expired', restart: true }, { status: 409, headers: { 'cache-control': 'no-store' } });
+      }
+      let pulse = await onchainMarketPulse({ env, request, chains, duration, paged });
+      if (paged) {
+        const pages = onchainMarketPages(pulse);
+        // Continuations use the same immutable market observation set. Cache
+        // misses request a restart instead of mixing pages from a newer cycle.
+        onchainPageMemory.clear();
+        for (const page of pages.slice(1)) {
+          const key = onchainPulseEdgeCacheRequest(request, env, { chains, duration, paged, cursor: `${page.pagination.snapshot_id}.${page.pagination.offset}` });
+          if (edgeCache) {
+            try { await edgeCache.put(key, json(page, { headers: { 'cache-control': 'public, max-age=120' } })); }
+            catch { cacheSet(onchainPageMemory, key.url, page, 120_000); }
+          } else cacheSet(onchainPageMemory, key.url, page, 120_000);
+        }
+        pulse = pages[0];
+      }
       const cachePolicy = onchainPulseCachePolicy(pulse, {
         jupiterConfigured: chains.includes("solana") && Boolean(String(env.JUPITER_API_KEY || "").trim()),
       });

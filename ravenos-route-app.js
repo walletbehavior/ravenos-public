@@ -2257,10 +2257,12 @@ function syncShellFromRoute(payload = {}) {
 function renderSectionReads(payload = {}) {
   const scope = ravenOSContext.getState().marketScope;
   const label = MARKET_SCOPES[scope];
-  const census = censusFromPayload(payload);
+  const sharedReads = payload?.safe_public === true && payload?.schema_version === 'ravenos.onchain_raven_reads.v1'
+    && payload?.provenance?.provider_rank_used === false && payload?.execution_boundary?.submission_available === false;
+  const census = sharedReads ? { discovery_radar: payload.discovery_radar, generated_at: payload.generated_at } : censusFromPayload(payload);
   const observedAt = census?.generated_at || payload.generated_at || payload.delivery?.source_generated_at;
   const age = Date.now() - Date.parse(observedAt || "");
-  const current = payload.delivery?.source === "current_public_origin" && payload.delivery?.fallback === false && payload.delivery?.freshness_state === "fresh" && age >= -300000 && age <= 3600000;
+  const current = sharedReads ? age >= 0 && age <= 120000 : payload.delivery?.source === "current_public_origin" && payload.delivery?.fallback === false && payload.delivery?.freshness_state === "fresh" && age >= -300000 && age <= 3600000;
   const radar = census?.discovery_radar;
   const radarAge = Date.now() - Date.parse(radar?.generated_at || "");
   const tokenRows = radar?.ok === true && radar?.safe_public === true && radar?.schema_version === "ravenos.discover_radar.v1" && radarAge >= -300000 && radarAge <= 3600000
@@ -2271,7 +2273,8 @@ function renderSectionReads(payload = {}) {
         && row.instrument_id === `${chain}:pool:${row.pool_address}`
         && identity?.instrument_id === row.instrument_id && identity?.token_address === row.token_address
         && discovery?.raven_evidence_state?.qualified === true
-        && discovery?.raven_evidence_state?.raven_signal === true && discovery?.raven_evidence_state?.freshness === "current";
+        && discovery?.raven_evidence_state?.raven_signal === true && discovery?.raven_evidence_state?.freshness === "current"
+        && Date.now() - Date.parse(discovery.raven_evidence_state.observed_at) >= 0 && Date.now() - Date.parse(discovery.raven_evidence_state.observed_at) <= 120000;
     }) : [];
   const rows = current ? (scope === "memecoins" ? tokenRows : scope === "perps" ? census?.opportunities?.rows || [] : payload.market_context?.rows || []).filter(row => matchesMarketScope(row, scope)) : [];
   document.getElementById("routeHeadline").textContent = `${label} Raven Reads`;
@@ -2321,7 +2324,7 @@ function renderRoute(payload) {
 }
 
 async function fetchLivePayload() {
-  let endpoint = routeConfig.slug === "opportunity" ? (ravenOSContext.getState().marketScope === "equities" ? "/api/atlas" : "/api/opportunity") : routeConfig.api_endpoint;
+  let endpoint = routeConfig.slug === "opportunity" ? (ravenOSContext.getState().marketScope === "equities" ? "/api/atlas" : ravenOSContext.getState().marketScope === "memecoins" ? "/api/onchain/reads?duration=1h" : "/api/opportunity") : routeConfig.api_endpoint;
   if (routeConfig.slug === "behavior") {
     const params = new URLSearchParams({ market_scope: ravenOSContext.getState().marketScope });
     endpoint += `?${params}`;

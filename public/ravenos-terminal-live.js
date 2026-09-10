@@ -5447,6 +5447,7 @@ function qualifiedSpotOpportunity(payload, instrumentId) {
     || evidence?.qualified !== true
     || evidence?.raven_signal !== true
     || evidence?.availability !== "available"
+    || !(Date.now() - Date.parse(evidence.observed_at) >= 0 && Date.now() - Date.parse(evidence.observed_at) <= 120_000)
     || !["current", "fresh"].includes(String(evidence.freshness || "").toLowerCase())
     || payload?.discovery_selection?.silently_replaced === true
   ) return null;
@@ -5456,6 +5457,19 @@ function qualifiedSpotOpportunity(payload, instrumentId) {
 async function fetchExactOpportunityEvidence(instrumentId, instrument = "") {
   if (!instrumentId) return { perp: null, spot: null, generatedAt: null };
   const params = new URLSearchParams({ instrument_id: instrumentId });
+  if (/^(solana|base|ethereum|bsc|robinhood):pool:/.test(instrumentId)) {
+    try {
+      // Chart intervals and aggregate flow windows are different contracts.
+      params.set('duration', '1h');
+      const { response, payload } = await fetchJson(`/api/onchain/reads?${params}`);
+      if (response.ok && payload?.safe_public === true && payload?.schema_version === 'ravenos.onchain_raven_reads.v1'
+        && payload?.provenance?.provider_rank_used === false && payload?.execution_boundary?.submission_available === false) {
+        const spot = qualifiedSpotOpportunity(payload, instrumentId);
+        if (spot) return { perp: null, spot, generatedAt: payload.generated_at || null };
+      }
+    } catch { /* The existing exact-market origin remains independently checked. */ }
+    params.delete('duration');
+  }
   if (instrument) params.set("instrument", instrument);
   try {
     const { response, payload } = await fetchJson(`/api/opportunity?${params.toString()}`);
@@ -6509,6 +6523,7 @@ function spotContextFromRadar(radarRow, row) {
     || !exactInstrumentMatch(radarRow.instrument_id, `${chain}:pool:${row?.pairAddress || ""}`)
     || !sameSelectedAddress(chain, identity?.pool_address, row?.pairAddress)
     || !sameSelectedAddress(chain, identity?.token_address, row?.tokenAddress)
+    || (row?.quoteTokenAddress && !sameSelectedAddress(chain, identity?.quote_token_address, row.quoteTokenAddress))
     || evidence?.qualified !== true
     || evidence?.raven_signal !== true
   ) return null;
@@ -6527,11 +6542,11 @@ function spotContextFromRadar(radarRow, row) {
     symbol: radarRow.symbol || row.symbol,
     name: radarRow.name || row.name,
     observed_at: evidence.observed_at,
-    movement_state: titleCase(behavior.value, "Raven observation"),
+    movement_state: customerFacingText(evidence.why_raven_noticed, "") || titleCase(behavior.value, "Raven observation"),
     what_changed: customerFacingText(evidence.what_changed || decision.what_changed, ""),
     risk: operatorList(contradictions, ""),
-    raven_why: customerFacingText(decision.why_now || evidence.why_raven_noticed, ""),
-    timing_lead_seconds: Number.isFinite(Number(evidence.timing_lead_seconds))
+    raven_why: customerFacingText(evidence.why_raven_noticed || decision.why_now, ""),
+    timing_lead_seconds: finite(evidence.timing_lead_seconds) !== null
       ? Math.max(0, Math.floor(Number(evidence.timing_lead_seconds)))
       : null,
     behavioral_evidence: Array.isArray(evidence.behavioral_evidence) ? evidence.behavioral_evidence : [],
