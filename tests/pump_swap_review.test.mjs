@@ -63,6 +63,18 @@ test("quote-mint fee queries reject changed mint, invalid bool, extra bytes, acc
     mutate(fixture); assert.throws(() => reviewPumpSwapCpis(fixture), error);
   }
 });
+test("unreviewed instruction diagnostics contain public selectors without account or transaction data", () => {
+  const fixture = pumpSwapFixture(); changeData(fixture, 0, d => d[0] ^= 1);
+  assert.throws(() => reviewPumpSwapCpis(fixture), error => {
+    assert.equal(error.code, "pump_swap_instruction_unreviewed");
+    assert.deepEqual(Object.keys(error.details).sort(), ["instruction_bytes", "instruction_tag", "parent_program_id",
+      "parent_tag", "program_id", "stack_height"].sort());
+    assert.equal(error.details.program_id, pump.amm_program);
+    assert.equal(error.details.stack_height, 2);
+    assert.equal(JSON.stringify(error.details).includes(fixture.request.wallet_address), false);
+    return true;
+  });
+});
 test("current simulation RPC address records and parsed built-ins preserve the same swap checks", () => {
   for (const method of ["buy", "buy_exact_quote_in", "sell"]) {
     const fixture = rpcSimulationFormat(pumpSwapFixture(method));
