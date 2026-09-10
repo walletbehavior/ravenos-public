@@ -4390,6 +4390,7 @@ async function loadHolderList() {
 }
 
 const SPOT_TRADE_SCHEMA = "ravenos.onchain_pool_trades.v1";
+const SPOT_TOKEN_TRADE_SCHEMA = "ravenos.onchain_token_trades.v1";
 const SPOT_TRADE_LINK_HOSTS = new Set(["solscan.io", "basescan.org", "bscscan.com", "etherscan.io", "robinhoodchain.blockscout.com"]);
 
 function clearSpotTradeRefresh() {
@@ -4428,16 +4429,19 @@ function spotTradeAddressValid(chain, value) {
 }
 
 function verifiedSpotTradeProjection(payload, identity = currentProjectIdentity()) {
+  const tokenScope = payload?.schema_version === SPOT_TOKEN_TRADE_SCHEMA;
   if (
     !identity
     || payload?.ok !== true
     || payload?.safe_public !== true
-    || payload?.schema_version !== SPOT_TRADE_SCHEMA
+    || (!tokenScope && payload?.schema_version !== SPOT_TRADE_SCHEMA)
     || payload?.state !== "available"
     || String(payload?.identity?.chain || "").toLowerCase() !== identity.chain
-    || !sameSelectedAddress(identity.chain, payload?.identity?.pool_address, identity.poolAddress)
     || !sameSelectedAddress(identity.chain, payload?.identity?.token_address, identity.tokenAddress)
-    || !sameSelectedAddress(identity.chain, payload?.identity?.quote_token_address, identity.quoteAddress)
+    || (tokenScope ? (payload?.coverage?.scope !== 'token_last_24h_bounded' || payload?.coverage?.exact_pool_verified !== false
+      || payload?.identity?.pool_address != null || payload?.identity?.quote_token_address != null)
+      : (!sameSelectedAddress(identity.chain, payload?.identity?.pool_address, identity.poolAddress)
+        || !sameSelectedAddress(identity.chain, payload?.identity?.quote_token_address, identity.quoteAddress)))
     || !Array.isArray(payload?.trades)
     || payload.trades.length > 120
     || !Array.isArray(payload?.active_traders)
@@ -4538,7 +4542,7 @@ function renderSpotTradeRows(payload) {
   host.replaceChildren();
   const rows = filteredSpotTrades(payload);
   if (!rows.length) {
-    renderSpotTradeMessage("No swaps match this filter in the current exact-pool sample.");
+    renderSpotTradeMessage(`No swaps match this filter in the current ${payload.schema_version === SPOT_TOKEN_TRADE_SCHEMA ? 'token' : 'exact-pool'} sample.`);
     return;
   }
   for (const row of rows) {
@@ -4693,11 +4697,12 @@ function renderActiveTraders(payload) {
   }
   const filterLabels = { repeat: "repeat", buy: "buy-heavy", sell: "sell-heavy", holders: "listed holders" };
   setText("terminalActiveTraderState", state.spotWalletFilter === "all" ? `${rows.length} wallets` : `${rows.length} ${filterLabels[state.spotWalletFilter]}`);
-  setText("terminalActiveTraderNote", "Public transaction senders ranked by returned volume for this exact pool. Repeat does not imply related ownership, skill, or profitability; this is not complete wallet history.");
+  setText("terminalActiveTraderNote", `Public transaction senders ranked by returned volume ${payload.schema_version === SPOT_TOKEN_TRADE_SCHEMA ? "across this token's markets" : 'for this exact pool'}. Repeat does not imply related ownership, skill, or profitability; this is not complete wallet history.`);
 }
 
 function renderSpotTradeProjection(payload) {
-  const tapeUpdate = state.workspace?.ingestExactPoolTrades?.(payload);
+  const tokenScope = payload.schema_version === SPOT_TOKEN_TRADE_SCHEMA;
+  const tapeUpdate = tokenScope ? null : state.workspace?.ingestExactPoolTrades?.(payload);
   // The workspace owns the exact-pool clock and emits the one canonical price
   // event used by both the forming candle and the header. A rejected or older
   // tape response must never update the header independently.
@@ -4710,12 +4715,12 @@ function renderSpotTradeProjection(payload) {
   const latestAge = Math.max(0, (Date.now() - Date.parse(payload?.freshness?.latest_trade_at || payload.observed_at)) / 1_000);
   setText("terminalSpotActivityState", `${payload.freshness.state === "live" ? "Live" : "Recent"} · ${durationLabel(latestAge)}`);
   setTerminalPaneStatus("activity", `${payload.trades.length} swaps`, payload.trades.length ? "positive" : "neutral");
-  setText("terminalSpotTradeCoverage", `${payload.trades.length} recent swaps · exact pool · bounded 24h sample`);
+  setText("terminalSpotTradeCoverage", `${payload.trades.length} recent swaps · ${tokenScope ? 'across token markets' : 'exact pool'} · bounded 24h sample`);
   const credit = document.getElementById("terminalSpotTradeCredit");
   const creditUrl = String(payload?.source?.attribution_url || "");
-  if (credit && creditUrl === "https://www.coingecko.com/en/api") {
+  if (credit && ["https://www.coingecko.com/en/api", "https://dexch.art"].includes(creditUrl)) {
     credit.href = creditUrl;
-    credit.textContent = payload?.source?.label || "Data provided by CoinGecko";
+    credit.textContent = payload?.source?.label || "Market data";
   }
   for (const button of document.querySelectorAll("[data-spot-trade-filter]")) {
     button.setAttribute("aria-pressed", String(button.dataset.spotTradeFilter === state.spotTradeFilter));
@@ -4744,11 +4749,11 @@ function renderSpotTradeSurface() {
   setTerminalPaneStatus("activity", state.spotTradeLoadingKey === identity.key ? "Loading" : "Load");
   setText("terminalActiveTraderState", "Waiting");
   renderActiveWalletMessage(state.spotTradeLoadingKey === identity.key
-    ? "Loading active wallets from the returned exact-pool sample…"
-    : "Open Active wallets to load the current exact-pool sample.");
+    ? "Loading active wallets from recent trades…"
+    : "Open Active wallets to load recent traders.");
   renderSpotTradeMessage(state.spotTradeLoadingKey === identity.key
-    ? "Loading recent exact-pool swaps…"
-    : "Open Txns to load exact-pool activity.");
+    ? "Loading recent swaps…"
+    : "Open Txns to load recent activity.");
 }
 
 async function loadSpotTrades({ force = false } = {}) {
@@ -4782,8 +4787,8 @@ async function loadSpotTrades({ force = false } = {}) {
       setTerminalPaneStatus("activity", "Unavailable", "warning");
       document.getElementById("terminalSpotFlow").hidden = true;
       setText("terminalActiveTraderState", "Unavailable");
-      renderActiveWalletMessage("Active wallets aren’t available for this exact pool yet. No token-wide or similarly named market was substituted.");
-      renderSpotTradeMessage("Recent exact-pool swaps aren’t available for this market yet. No token-wide or similarly named market was substituted.");
+      renderActiveWalletMessage("Recent traders are unavailable for this market. You can still inspect its holders.");
+      renderSpotTradeMessage("Recent swaps are unavailable for this market. Refresh to try again.");
       return;
     }
     state.spotTradeCache.set(identity.key, { payload: verified, loadedAt: Date.now() });
@@ -4795,8 +4800,8 @@ async function loadSpotTrades({ force = false } = {}) {
     setTerminalPaneStatus("activity", "Unavailable", "warning");
     document.getElementById("terminalSpotFlow").hidden = true;
     setText("terminalActiveTraderState", "Unavailable");
-    renderActiveWalletMessage("Active wallets couldn’t be loaded for this exact pool. No alternate market was used.");
-    renderSpotTradeMessage("Recent exact-pool swaps couldn’t be loaded. No alternate market was used.");
+    renderActiveWalletMessage("Recent traders couldn’t be loaded. You can still inspect its holders.");
+    renderSpotTradeMessage("Recent swaps couldn’t be loaded. Refresh to try again.");
   } finally {
     if (state.spotTradeLoadingKey === identity.key) state.spotTradeLoadingKey = "";
     scheduleSpotTradeRefresh();

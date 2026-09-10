@@ -1549,6 +1549,30 @@ test("recent exact-pool swaps and repeat activity have a dedicated honest mobile
   expect(tradeCalls[0]).toEqual({ chain: "solana", poolAddress: "fixture-pair-address", tokenAddress: "fixture-token-address", quoteAddress: "fixture-quote-address" });
 });
 
+for (const width of [390, 1440]) test(`token activity populates trades and wallets without changing the pool chart at ${width}px`, async ({ page }) => {
+  await page.setViewportSize({ width, height: 900 });
+  await page.addInitScript(() => { window.testTokenTapeEvents = []; document.addEventListener('ravenos:charttape', e => window.testTokenTapeEvents.push(e.detail)); });
+  await mockTerminalLiveApis(page, { spotTokenTrades: true, spotTradePrice: 9.9 });
+  await page.goto(`/terminal/?instrument_id=${encodeURIComponent(`robinhood:pool:${ROBINHOOD_POOL}`)}&lane=spot&market=spot&instrument_type=exact_pool&token_address=${ROBINHOOD_CONTRACT}&quote_address=${ROBINHOOD_QUOTE}&panel=activity`);
+  await expect(page.locator('#terminalSpotTradeRows .terminal-spot-trade-row')).toHaveCount(36);
+  await expect(page.locator('#terminalSpotTradeCoverage')).toContainText('across token markets');
+  await expect(page.locator('#terminalSpotTradeCredit')).toHaveAttribute('href', 'https://dexch.art');
+  expect(await page.evaluate(() => window.testTokenTapeEvents)).toEqual([]);
+  await page.locator('[data-spot-activity-view="wallets"]').click();
+  await expect(page.locator('#terminalActiveTraderRows .terminal-active-trader-row')).toHaveCount(3);
+  await expect(page.locator('#terminalActiveTraderNote')).toContainText("across this token's markets");
+  await expect(page.locator('#terminalActiveTraderNote')).not.toContainText('for this exact pool');
+  expect(new URL(page.url()).searchParams.get('instrument_id')).toBe(`robinhood:pool:${ROBINHOOD_POOL}`);
+  expect(await page.locator('#terminalSpotActivitySection').evaluate(el => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(2);
+});
+
+test('token activity for another contract is rejected before rendering', async ({ page }) => {
+  await mockTerminalLiveApis(page, { spotTokenTrades: true, spotTradeTokenMismatch: true });
+  await page.goto(`/terminal/?instrument_id=${encodeURIComponent(`robinhood:pool:${ROBINHOOD_POOL}`)}&lane=spot&market=spot&instrument_type=exact_pool&token_address=${ROBINHOOD_CONTRACT}&quote_address=${ROBINHOOD_QUOTE}&panel=activity`);
+  await expect(page.locator('#terminalSpotActivityState')).toHaveText('Unavailable');
+  await expect(page.locator('#terminalSpotTradeRows .terminal-spot-trade-row')).toHaveCount(0);
+});
+
 test("active wallets can be opened directly without widening exact-pool identity", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   const { tradeCalls } = await mockTerminalLiveApis(page);

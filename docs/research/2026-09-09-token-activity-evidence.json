@@ -1,0 +1,32 @@
+[
+  {
+    "observed_at": "2026-09-10T01:38:28.974Z",
+    "chain": "robinhood",
+    "token": "0x834b31164b5e5f4a08b441d796abb85f714bb7c1",
+    "requested_pool": "0x60E50467D9ffA04a08C2720E859ff1DdCB09C36E",
+    "status": 200,
+    "ok": true,
+    "schema": "ravenos.onchain_token_trades.v1",
+    "trades": 120,
+    "traders": 24,
+    "latest_trade": "2026-09-10T01:35:06.000Z",
+    "scope": "token_last_24h_bounded",
+    "ms": 1171,
+    "response_bytes": 99178
+  },
+  {
+    "observed_at": "2026-09-10T01:38:29.308Z",
+    "chain": "bsc",
+    "token": "0xdc7cbca283772847e74cd2b59f8aa51f49a97777",
+    "requested_pool": "0xC6CC8A6e6eddcd7E002D89b398f921fC2Dd3c9a2",
+    "status": 200,
+    "ok": true,
+    "schema": "ravenos.onchain_token_trades.v1",
+    "trades": 120,
+    "traders": 7,
+    "latest_trade": "2026-09-10T01:09:05.000Z",
+    "scope": "token_last_24h_bounded",
+    "ms": 332,
+    "response_bytes": 86460
+  }
+]

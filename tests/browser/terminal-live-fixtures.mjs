@@ -443,6 +443,8 @@ export async function mockTerminalLiveApis(page, {
   chartEnrichmentDelayTimeframe = null,
   chartEnrichmentDelayMs = 0,
   spotTradePrice = null,
+  spotTokenTrades = false,
+  spotTradeTokenMismatch = false,
   spotTradeDelayMs = 0,
   spotLateOlderPrice = null,
   spotChartCurrent = false,
@@ -679,12 +681,13 @@ export async function mockTerminalLiveApis(page, {
       body: JSON.stringify({
         ok: true,
         safe_public: true,
-        schema_version: "ravenos.onchain_pool_trades.v1",
+        schema_version: spotTokenTrades ? "ravenos.onchain_token_trades.v1" : "ravenos.onchain_pool_trades.v1",
         state: "available",
-        identity: { chain, pool_address: poolAddress, token_address: tokenAddress, quote_token_address: quoteAddress, instrument_id: `${chain}:pool:${poolAddress}` },
+        identity: spotTokenTrades ? { chain, token_address: spotTradeTokenMismatch ? ROBINHOOD_QUOTE : tokenAddress, instrument_id: `${chain}:token:${tokenAddress}` }
+          : { chain, pool_address: poolAddress, token_address: tokenAddress, quote_token_address: quoteAddress, instrument_id: `${chain}:pool:${poolAddress}` },
         observed_at: observedAt.toISOString(),
         freshness: { state: "live", latest_trade_at: trades[0].observed_at },
-        coverage: { scope: "exact_pool_last_24h_bounded", provider_row_limit: 300, returned_trade_rows: trades.length, returned_trader_rows: activeTraders.length, complete_history: false },
+        coverage: { scope: spotTokenTrades ? "token_last_24h_bounded" : "exact_pool_last_24h_bounded", exact_pool_verified: !spotTokenTrades, provider_row_limit: 300, returned_trade_rows: trades.length, returned_trader_rows: activeTraders.length, complete_history: false },
         summary: {
           windows: {
             m5: { trade_count: 16, buy_count: 11, sell_count: 5, volume_usd: 42_400, buy_volume_usd: 31_200, sell_volume_usd: 11_200, net_buy_volume_usd: 20_000, buy_volume_share_pct: 73.5849, unique_trader_count: 3 },
@@ -697,7 +700,7 @@ export async function mockTerminalLiveApis(page, {
         },
         trades,
         active_traders: activeTraders,
-        source: { label: "Data provided by CoinGecko", attribution_url: "https://www.coingecko.com/en/api" },
+        source: spotTokenTrades ? { label: "Dexch", attribution_url: "https://dexch.art" } : { label: "Data provided by CoinGecko", attribution_url: "https://www.coingecko.com/en/api" },
         limitations: ["This is a bounded exact-pool tape, not complete lifetime history."],
         privacy: { public_chain_addresses_only: true, customer_account_joined: false, private_labels_included: false },
         execution_boundary: { research_only: true, signing_available: false, submission_available: false },

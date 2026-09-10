@@ -24,7 +24,7 @@
     "generate:constant-k-wallet-discovery-manifest": "node scripts/generate-constant-k-nexus-discovery-manifest.mjs",
     "test:copy-budget": "node --test --experimental-test-isolation=none tests/interface_copy_budget.test.mjs",
     "test:agentic": "node --test --experimental-test-isolation=none tests/agentic_*.test.mjs",
-    "test:dexch": "node --test --experimental-test-isolation=none tests/dexch_discovery_provider.test.mjs tests/dexch_discovery_stream.test.mjs tests/worker_dexch_discovery.test.mjs tests/market_provider_fallbacks.test.mjs tests/dexch_chart.test.mjs tests/worker_market_providers.test.mjs",
+    "test:dexch": "node --test --experimental-test-isolation=none tests/dexch_discovery_provider.test.mjs tests/dexch_discovery_stream.test.mjs tests/worker_dexch_discovery.test.mjs tests/market_provider_fallbacks.test.mjs tests/dexch_chart.test.mjs tests/worker_market_providers.test.mjs tests/token_trade_activity.test.mjs",
     "test:ta": "node --test --experimental-test-isolation=none tests/raven_chart_overlays.test.mjs",
     "test:legal": "node --test --experimental-test-isolation=none tests/customer_legal.test.mjs tests/legal_documents.test.mjs tests/customer_identity.test.mjs",
     "evaluate:dexch": "node scripts/evaluate-dexch-provider.mjs",

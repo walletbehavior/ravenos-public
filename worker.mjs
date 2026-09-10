@@ -182,6 +182,8 @@ import {
   ONCHAIN_TRADE_SCHEMA,
   PUBLIC_ONCHAIN_TRADE_ROUTE,
   buildPublicOnchainTradeProjection,
+  buildPublicTokenTradeProjection,
+  normalizeOnchainTradeIdentity,
   publicOnchainTradeUnavailable,
 } from "./lib/onchain_trade_projection.mjs";
 import { buildMarketControlRiskProjection } from "./lib/market_control_risk.mjs";
@@ -4638,6 +4640,24 @@ async function fetchGeckoPoolIdentity({ env = {}, chain = "", pairAddress = "", 
     quote_token_decimals: selectedIsBase ? identity.quote_decimals : identity.base_decimals,
     orientation: "selected_token_usd",
   };
+}
+
+async function fetchOnchainMarketTrades(args = {}) {
+  const { env = {}, chain, pairAddress, tokenAddress, quoteAddress } = args;
+  const identity = normalizeOnchainTradeIdentity({ chain, pool_address: pairAddress, token_address: tokenAddress, quote_token_address: quoteAddress });
+  if (!identity) throw new Error('onchain_trade_identity_invalid');
+  // Preserve exact-pool evidence when its configured provider is available.
+  if (onchainProviderRuntime('coingecko_onchain', env).runtime_allowed) {
+    try { const exact = await fetchGeckoPoolTrades(args); if (exact.ok) return exact; } catch { /* Try an explicitly scoped alternative. */ }
+  }
+  if (env.RAVENOS_MARKET_PROVIDER_FALLBACKS_ENABLED === '1' && ['robinhood','bsc'].includes(identity.chain)
+    && resolveDexchDiscoveryRuntime(env).runtime_allowed) {
+    const envelope = await runProviderOperation({ component: 'onchain_pool_trades',
+      operation_key: `dexch:token-trades:${identity.chain}:${identity.token_address}`,
+      fn: () => dexchDiscoveryProvider.trades(identity.chain, identity.token_address, { limit: 120 }) });
+    return buildPublicTokenTradeProjection(envelope, identity);
+  }
+  throw new Error('onchain_trade_provider_unavailable');
 }
 
 async function fetchGeckoPoolTrades({ env = {}, chain = "", pairAddress = "", tokenAddress = "", quoteAddress = "" } = {}) {
@@ -11935,7 +11955,7 @@ async function routeApi(request, env, executionContext = null) {
       return json(unavailable.payload, { status: unavailable.status });
     }
     try {
-      const projection = await fetchGeckoPoolTrades({ env, chain, pairAddress, tokenAddress, quoteAddress });
+      const projection = await fetchOnchainMarketTrades({ env, chain, pairAddress, tokenAddress, quoteAddress });
       await rememberPublicMarketWallets(env, projection, executionContext);
       return json(projection, {
         headers: {
