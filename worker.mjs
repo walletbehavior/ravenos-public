@@ -3725,7 +3725,7 @@ async function participationSnapshot(env, executionContext, { refreshOnly = fals
 }
 
 async function existingProviderDiscovery({ env, chains, retained = [], duration, fetchedAt }) {
-  if (env.RAVENOS_MARKET_PROVIDER_FALLBACKS_ENABLED !== '1') return [];
+  if (env.RAVENOS_MARKET_PROVIDER_FALLBACKS_ENABLED !== '1' || !chains.length) return [];
   const seeds = new Map(chains.map(chain => [chain, new Set()]));
   // Known Raven markets are the first candidates, across every requested chain.
   for (const row of retained) {
@@ -4340,6 +4340,14 @@ async function onchainMarketPulse({ env = {}, request = null, chains = [], durat
   const cacheKey = `${runtime.provider_tier}:${chains.join(",")}:${duration}:jupiter-${jupiterConfigured ? "on" : "off"}:dexch-${dexchRuntime.state}:fallback-${env.RAVENOS_MARKET_PROVIDER_FALLBACKS_ENABLED || '0'}`;
   const cached = cacheGet(onchainPulseCache, cacheKey);
   if (cached) return cached;
+  // Browse the shared collector's qualified snapshots before starting another
+  // generic market-discovery scan. Lifecycle enrichment still runs separately;
+  // missing/thin chains can recover through the existing provider fallback.
+  const participation = env.RAVENOS_PARTICIPATION_UNIVERSE_ENABLED === '1' && env.RAVENOS_CUSTOMER_DB?.prepare
+    ? await createParticipationSnapshotStore(env.RAVENOS_CUSTOMER_DB).read().catch(() => null) : null;
+  const cachedUniverseRows = cachedDiscoverCandidates(participation?.payload?.rows || [], chains);
+  const cachedQualified = qualifyDiscoverCandidates(cachedUniverseRows);
+  const snapshotChains = new Set(chains.filter(chain => cachedQualified.filter(row => row.chain_id === chain).length >= 25));
   const registryHistoryPromise = request ? discoverRegistryHistory(env, request) : Promise.resolve(new Map());
   const fetchedAt = new Date().toISOString();
   const loadGecko = (covered = new Set()) => providerAvailable ? Promise.allSettled(chains.map(async (chain) => {
@@ -4406,10 +4414,10 @@ async function onchainMarketPulse({ env = {}, request = null, chains = [], durat
     health: dexchDiscoveryProvider.healthSnapshot(),
   }));
   const registryHistory = await registryHistoryPromise;
-  const existingPromise = existingProviderDiscovery({ env, chains, retained: [...registryHistory.values()], duration, fetchedAt }).catch(() => []);
+  const existingPromise = existingProviderDiscovery({ env, chains: chains.filter(chain => !snapshotChains.has(chain)), retained: [...registryHistory.values()], duration, fetchedAt }).catch(() => []);
   const [jupiterRows, dexchDiscovery, existingRows] = await Promise.all([jupiterPromise, dexchPromise, existingPromise]);
   const covered = env.RAVENOS_MARKET_PROVIDER_FALLBACKS_ENABLED === '1'
-    ? new Set([...jupiterRows, ...(dexchDiscovery.rows || []), ...existingRows].map(row => row.chain_id)) : new Set();
+    ? new Set([...snapshotChains, ...[...jupiterRows, ...(dexchDiscovery.rows || []), ...existingRows].map(row => row.chain_id)]) : new Set(snapshotChains);
   const settled = await loadGecko(covered);
   const providerRows = [];
   const providerCoverage = [];
@@ -4433,11 +4441,6 @@ async function onchainMarketPulse({ env = {}, request = null, chains = [], durat
     dexchDiscoveryTokenKey(token.chain, token.address),
     token,
   ]));
-  // Reuse the independent, cached market universe for older-token scans. This
-  // does not trigger collection, RPC fan-out, or refresh observation timestamps.
-  const participation = env.RAVENOS_PARTICIPATION_UNIVERSE_ENABLED === '1' && env.RAVENOS_CUSTOMER_DB?.prepare
-    ? await createParticipationSnapshotStore(env.RAVENOS_CUSTOMER_DB).read().catch(() => null) : null;
-  const cachedUniverseRows = cachedDiscoverCandidates(participation?.payload?.rows || [], chains);
   const currentRows = [...jupiterRows, ...providerRows, ...existingRows, ...cachedUniverseRows].map((row) => {
     const token = dexchByToken.get(dexchDiscoveryTokenKey(row.chain_id || row.chain, row.token_address));
     // Holder census is token-wide and may be absent from the pool-price source.

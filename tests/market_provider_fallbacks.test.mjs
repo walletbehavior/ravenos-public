@@ -69,7 +69,12 @@ test('optional discovery rate limits do not disable market prices; market limits
   assert.equal((await reader.read('https://api.dexscreener.com/latest/dex/search?q=ETH')).ok, true);
   marketFails = true;
   await assert.rejects(reader.read('https://api.dexscreener.com/tokens/v1/base/0xabc'), /429/);
-  await assert.rejects(reader.read('https://api.dexscreener.com/latest/dex/pairs/base/0xdef'), /backoff/);
+  await assert.rejects(reader.read('https://api.dexscreener.com/latest/dex/pairs/base/0xdef'), error => {
+    assert.equal(error.code, 'market_provider_backoff');
+    assert.equal(error.provider_failure_code, 'market_provider_http_429');
+    assert.equal(error.retry_after_ms, 60000);
+    return true;
+  });
   await assert.rejects(reader.read('https://api.dexscreener.com/token-pairs/v1/base/0xabc'), /backoff/);
   assert.equal(calls, 3);
 });

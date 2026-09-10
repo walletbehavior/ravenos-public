@@ -87,6 +87,18 @@ test('one durable lease serves concurrent visitors and failed refresh preserves 
   db.raw.close();
 });
 
+test('collector records bounded backoff causes without retaining provider error bodies', async () => {
+  const result = await collectParticipationUniverse({ dexchEnabled: false, now: () => NOW,
+    readKnownMarkets: async () => [{ chain: 'base', token_address: addr(1) }],
+    readPairs: async () => { throw Object.assign(new Error('sensitive upstream diagnostic'), {
+      code: 'market_provider_backoff', provider_failure_code: 'market_provider_http_429',
+    }); },
+  });
+  assert.deepEqual(result.coverage.pair_failure_codes, { market_provider_backoff: 1 });
+  assert.deepEqual(result.coverage.pair_backoff_causes, { market_provider_http_429: 1 });
+  assert.equal(JSON.stringify(result).includes('sensitive'), false);
+});
+
 test('expired lease cannot overwrite a newer snapshot', async () => {
   const db = database(), store = createParticipationSnapshotStore(db);
   assert.equal(await store.claim('old', 100), true); assert.equal(await store.claim('new', 191), true);
@@ -207,6 +219,7 @@ test('Discover reads hundreds of qualified cached tokens before the old 240-row 
   try {
     const response = await worker.fetch(new Request('https://ravenos.xyz/api/onchain/trending?chains=base&duration=5m'), {
       RAVENOS_PARTICIPATION_UNIVERSE_ENABLED: '1', RAVENOS_CUSTOMER_DB: db, RAVENOS_COINGECKO_ENABLED: '0',
+      RAVENOS_MARKET_PROVIDER_FALLBACKS_ENABLED: '1',
     });
     assert.equal(response.status, 200);
     const body = await response.json();
@@ -216,6 +229,37 @@ test('Discover reads hundreds of qualified cached tokens before the old 240-row 
     assert.equal(body.universe.delivery_limited, false);
     assert.equal(body.rows.some(row => row.market.holder_count === 1 || row.market.liquidity_usd < 5000), false);
     assert.equal(requests, 0);
+  } finally { globalThis.fetch = previousFetch; db.raw.close(); }
+});
+
+test('recent qualified cache suppresses duplicate discovery while a thin chain still recovers', async () => {
+  const db = database(), store = createParticipationSnapshotStore(db), now = Math.floor(Date.now() / 1000);
+  const data = await collectParticipationUniverse({ dexchEnabled: false,
+    readPairs: async (chain, addresses) => ({ value: addresses.map(address => pair(chain, address)), observed_at: new Date().toISOString() }),
+    readKnownMarkets: async () => Array.from({ length: 60 }, (_, i) => ({ chain: 'base', token_address: addr(1001 + i) })),
+  });
+  for (const row of data.rows) row.observed_at = new Date((now - 180) * 1000).toISOString();
+  await store.claim('snapshot-browse', now); await store.finish('snapshot-browse', data, now);
+  const previousFetch = globalThis.fetch, requests = [];
+  globalThis.fetch = async input => {
+    const url = new URL(String(input)); requests.push(url);
+    assert.equal(url.hostname, 'api.dexscreener.com');
+    if (url.pathname.startsWith('/tokens/v1/ethereum/')) return Response.json([pair('ethereum', addr(9000))]);
+    return Response.json(url.pathname.includes('/search') ? { pairs: [] } : []);
+  };
+  try {
+    const response = await worker.fetch(new Request('https://ravenos.xyz/api/onchain/trending?chains=base,ethereum&duration=5m'), {
+      RAVENOS_PARTICIPATION_UNIVERSE_ENABLED: '1', RAVENOS_CUSTOMER_DB: db,
+      RAVENOS_COINGECKO_ENABLED: '0', RAVENOS_MARKET_PROVIDER_FALLBACKS_ENABLED: '1',
+    });
+    const body = await response.json();
+    assert.equal(response.status, 200);
+    assert.equal(body.rows.filter(row => row.chain_id === 'base').length, 60);
+    assert.equal(body.rows.filter(row => row.chain_id === 'ethereum').length, 1);
+    assert.equal(requests.some(url => url.pathname.startsWith('/tokens/v1/base/')), false);
+    assert.equal(requests.some(url => url.pathname.startsWith('/tokens/v1/ethereum/')), true);
+    assert(body.rows.filter(row => row.chain_id === 'base').every(row =>
+      row.observed_at === data.rows[0].observed_at && row.context_state === 'delayed' && row.execution_available === false));
   } finally { globalThis.fetch = previousFetch; db.raw.close(); }
 });
 
