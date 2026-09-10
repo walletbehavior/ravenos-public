@@ -79,6 +79,23 @@ test('optional discovery rate limits do not disable market prices; market limits
   assert.equal(calls, 3);
 });
 
+test('provider Retry-After seconds and dates suppress early market retries and preserve the cause', async () => {
+  for (const retryAfter of ['120', new Date(NOW + 120000).toUTCString()]) {
+    let now = NOW, calls = 0;
+    const reader = new MarketProviderReader({ now: () => now, cache: () => null, fetchFn: async () => {
+      calls++;
+      return calls === 1 ? new Response('', { status: 429, headers: { 'retry-after': retryAfter } }) : json({ ok: true });
+    } });
+    await assert.rejects(reader.read('https://api.dexscreener.com/tokens/v1/base/0xabc'), error => error.code === 'market_provider_http_429' && error.retry_after_ms === 120000);
+    now += 61000;
+    await assert.rejects(reader.read('https://api.dexscreener.com/latest/dex/pairs/base/0xdef'), error => error.code === 'market_provider_backoff' && error.provider_failure_code === 'market_provider_http_429' && error.retry_after_ms === 59000);
+    assert.equal(calls, 1);
+    now += 60000;
+    assert.equal((await reader.read('https://api.dexscreener.com/latest/dex/pairs/base/0xdef')).ok, true);
+    assert.equal(calls, 2);
+  }
+});
+
 test('provider readers reject unexpected origins, query secrets, oversized streaming bodies and invalid JSON', async () => {
   let calls = 0;
   const reader = new MarketProviderReader({ cache: () => null, fetchFn: async () => { calls++; return json({ body: 'x'.repeat(100) }); } });

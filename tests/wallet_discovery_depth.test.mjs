@@ -248,7 +248,7 @@ test('25,010 retained Solana events remain pageable past 10,000 without loading 
  const page=await store.listSourceEventPage(id.source_wallet_id,{limit:12,cursor:{order_time:NOW-24000,event_id:'swe_0000000000000000000000000000000000000000'}});
  assert.equal(page.matching_event_count,25010);assert.equal(page.events.length,12);assert.equal(page.has_more,true);
  assert(page.events.every(e=>e.chain_evidence.slot<76000));
- assert.equal((await store.listSourceEvents(id.source_wallet_id,WalletHistoryPolicy.solana_analysis_events)).length,2000);
+ assert.equal((await store.listSourceEvents(id.source_wallet_id,WalletHistoryPolicy.solana_analysis_events)).length,10000);
  assert.equal(db.raw.prepare('SELECT count(*) n FROM ravenos_customer_wallet_copy_watches').get().n,0);
 });
 

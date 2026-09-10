@@ -12,16 +12,25 @@ const pair = (chain, token) => ({ chainId: chain, pairAddress: address(Number.pa
   priceUsd: '1', marketCap: 500000, liquidity: { usd: 10000 }, volume: { h24: 20000 }, priceChange: { h6: 5 }, txns: { h24: { buys: 30, sells: 20 } } });
 const readPairs = async (chain, addresses) => ({ observed_at: new Date(NOW).toISOString(), value: addresses.map(a => pair(chain, a)) });
 
-test('50,000 retained identities fit bounded chain records and refresh fairly within 140 batches', () => {
+test('50,000 retained identities fit bounded chain records and refresh fairly within 90 batches', () => {
   const f = openMarketFrontier({}, NOW);
   for (const chain of MARKET_FRONTIER_CHAINS) rememberFrontierTokens(f, Array.from({ length: 10000 }, (_, n) => ({ chain, token_address: chain === 'solana' ? mint(n + 1) : address(n + 1) })), NOW);
   const packed = packMarketFrontier(f);
   assert.equal(Object.values(packed).reduce((n, x) => n + x.tokens.length, 0), 50000);
   for (const data of Object.values(packed)) assert(gzipSync(JSON.stringify(data)).length * 4 / 3 < 1000000);
   const jobs = planFrontierRefresh(openMarketFrontier(packed, NOW), NOW);
-  assert.equal(jobs.length, 140);
-  for (const chain of MARKET_FRONTIER_CHAINS) assert.equal(jobs.filter(j => j.chain === chain).length, 28);
+  assert.equal(jobs.length, 90);
+  for (const chain of MARKET_FRONTIER_CHAINS) assert.equal(jobs.filter(j => j.chain === chain).length, 18);
   assert(jobs.every(j => j.addresses.length <= 30));
+});
+
+test('provider retry deadlines survive a collector restart without retrying early', async () => {
+  const known = [{ chain: 'base', token_address: address(1) }];
+  const first = await collectParticipationUniverse({ dexchEnabled: false, readKnownMarkets: async () => known, now: () => NOW,
+    readPairs: async () => { throw Object.assign(new Error('market_provider_http_429'), { code: 'market_provider_http_429', retry_after_ms: 120000 }); } });
+  assert.equal(planFrontierRefresh(openMarketFrontier(first.frontier, NOW + 61000), NOW + 61000).length, 0);
+  const later = planFrontierRefresh(openMarketFrontier(first.frontier, NOW + 120001), NOW + 120001);
+  assert.deepEqual(later, [{ chain: 'base', addresses: [address(1)] }]);
 });
 
 test('cold tokens rotate into refresh while known hot tokens and small chains retain coverage', () => {

@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import bs58 from "bs58";
+import { persistSourceWalletProfile } from '../lib/customer_wallet_copy.mjs';
+import { normalizeSourceWalletChainIdentity } from '../lib/customer_trade/source_wallet_chain_identity.mjs';
 
 import {
   SOLANA_CANONICAL_USDC_MINT,
@@ -80,6 +82,79 @@ function normalize(tx, suffix = "a", overrides = {}) {
     ...overrides,
   });
 }
+
+function retainedEvent(template, index, at = 1777000000) {
+  const bytes = Buffer.alloc(64, 7); bytes.writeUInt32BE(index, 60);
+  return { ...template, event_id: 'swe_' + index.toString(16).padStart(40, '0'),
+    chain_evidence: { ...template.chain_evidence, signature: bs58.encode(bytes), slot: 100 + index,
+      block_time: new Date((at + index) * 1000).toISOString() } };
+}
+
+test('deep retained analysis restores older entry basis without another history read', async () => {
+  const at = 1777000000;
+  const buy = normalize(transaction({ blockTime: at,
+    pre: [balance(WALLET, SOLANA_CANONICAL_USDC_MINT, 100000000, 6)],
+    post: [balance(WALLET, SOLANA_CANONICAL_USDC_MINT, 69999999, 6), balance(WALLET, TOKEN, 3000000, 6)] }), 'A');
+  const sell = normalize(transaction({ blockTime: at + 3001,
+    pre: [balance(WALLET, SOLANA_CANONICAL_USDC_MINT, 69999999, 6), balance(WALLET, TOKEN, 3000000, 6)],
+    post: [balance(WALLET, SOLANA_CANONICAL_USDC_MINT, 84999999, 6), balance(WALLET, TOKEN, 2000000, 6)] }), 'B');
+  const idle = normalize(transaction({ logs: [], programId: '11111111111111111111111111111111' }), 'C');
+  const events = [buy, ...Array.from({length:3000},(_,i)=>retainedEvent(idle,i+1)), sell].reverse();
+  const sourceId = normalizeSourceWalletChainIdentity({chain:'solana',network:'mainnet',address:WALLET}).source_wallet_id;
+  let saved = null;
+  const store = { listSourceEvents: () => { throw Error('duplicate retained history read'); },
+    latestProfile: async () => null, recordProfile: async (id, profile) => { assert.equal(id,sourceId); saved=profile; } };
+  const profile = await persistSourceWalletProfile(store,sourceId,at+3002,{transactions_decoded:3002},null,null,events);
+  assert.equal(profile,saved);
+  assert.equal(profile.coverage.normalized_events,3002);
+  assert.equal(profile.coverage.first_observed_at,new Date(at*1000).toISOString());
+  assert.equal(profile.data_quality.analysis_event_limit,10000);
+  assert.equal(profile.data_quality.analysis_truncated,false);
+  assert.equal(profile.source_performance.closed_lots,1);
+  assert.equal(profile.trading_record.tokens[0].by_basis.usdc.matched_cost,'10.000000');
+  assert.equal(profile.trading_record.tokens[0].by_basis.usdc.realized_pnl,'5.000000');
+  await assert.rejects(persistSourceWalletProfile(store,
+    normalizeSourceWalletChainIdentity({chain:'solana',network:'mainnet',address:bs58.encode(Buffer.alloc(32,8))}).source_wallet_id,
+    at+3002,null,null,null,events), /wallet_profile_chain_mixed/);
+});
+
+test('analysis retains the newest 10,000 events and exposes truncation without a complete-history claim', () => {
+  const idle = normalize(transaction({ logs: [], programId: '11111111111111111111111111111111' }), 'D');
+  const events = Array.from({length:10005},(_,i)=>retainedEvent(idle,i));
+  const profile = buildSolanaWalletProfile(events,{history:{source_history_verified_complete:true,history_exhausted:true}});
+  assert.equal(profile.coverage.normalized_events,10000);
+  assert.equal(profile.data_quality.analysis_events,10000);
+  assert.equal(profile.data_quality.analysis_event_limit,10000);
+  assert.equal(profile.data_quality.analysis_truncated,true);
+  assert.equal(profile.coverage.source_history_complete,false);
+  assert.equal(profile.coverage.first_observed_at,events[5].chain_evidence.block_time);
+  assert.equal(profile.coverage.last_observed_at,events.at(-1).chain_evidence.block_time);
+  assert.equal(events[0].chain_evidence.slot,100,'does not reorder the caller archive');
+  assert.throws(()=>buildSolanaWalletProfile([{...events[0],source_wallet:{...events[0].source_wallet,address:TOKEN}},...events.slice(1)]),/owner_mismatch/);
+});
+
+test('10,000 events across 5,000 tokens retain exact totals with bounded profile output', t => {
+  const buy = normalize(transaction({ pre:[balance(WALLET,SOLANA_CANONICAL_USDC_MINT,100000000,6)],
+    post:[balance(WALLET,SOLANA_CANONICAL_USDC_MINT,69999999,6),balance(WALLET,TOKEN,3000000,6)] }),'E');
+  const sell = normalize(transaction({ pre:[balance(WALLET,SOLANA_CANONICAL_USDC_MINT,69999999,6),balance(WALLET,TOKEN,3000000,6)],
+    post:[balance(WALLET,SOLANA_CANONICAL_USDC_MINT,114999999,6),balance(WALLET,TOKEN,0,6)] }),'F');
+  const events = Array.from({length:5000},(_,i)=>{
+    const bytes=Buffer.alloc(32,9);bytes.writeUInt32BE(i,28);const mint=bs58.encode(bytes);
+    return [retainedEvent({...buy,economic:{...buy.economic,destination_asset:{...buy.economic.destination_asset,mint}}},i*2),
+      retainedEvent({...sell,economic:{...sell.economic,source_asset:{...sell.economic.source_asset,mint}}},i*2+1)];
+  }).flat();
+  const start=performance.now();
+  const profile=buildSolanaWalletProfile(events,{generated_at:new Date(1777020000000).toISOString()});
+  const bytes=Buffer.byteLength(JSON.stringify(profile));
+  assert.equal(profile.coverage.normalized_events,10000);
+  assert.equal(profile.source_performance.closed_lots,5000);
+  assert.equal(profile.source_performance.realized_pnl_usdc,74999.995);
+  assert.equal(profile.trading_record.token_count,5000);
+  assert.equal(profile.trading_record.tokens.length,100);
+  assert.equal(profile.trading_record.tokens_truncated,true);
+  assert(bytes<1048576,'retained profile must fit the existing storage bound');
+  t.diagnostic(JSON.stringify({analyzed_events:10000,tokens:5000,elapsed_ms:Math.round(performance.now()-start),profile_bytes:bytes}));
+});
 
 test("Solana wallet addresses require an exact 32-byte base58 public key", () => {
   assert.equal(normalizeSolanaWalletAddress(WALLET), WALLET);
@@ -289,7 +364,7 @@ test("FIFO accounting keeps native-SOL returns useful without inventing historic
   }), "l", { observation_mode: "historical_backfill" });
   const profile = buildSolanaWalletProfile([sell, buy], { generated_at: "2026-08-29T12:00:00.000Z" });
   assert.equal(buy.economic.cost_basis_state, "known_native_sol");
-  assert.equal(profile.profile_version, 6);
+  assert.equal(profile.profile_version, 7);
   assert.equal(profile.coverage.known_cost_basis_pct, 100);
   assert.equal(profile.coverage.known_sol_cost_basis_pct, 100);
   assert.equal(profile.source_performance.realized_pnl_sol, 0.2);
@@ -358,7 +433,7 @@ test("profile v5 separates USDC and SOL buy notionals and counts exact traded as
     { generated_at: "2026-08-29T12:00:00.000Z" },
   );
 
-  assert.equal(profile.profile_version, 6);
+  assert.equal(profile.profile_version, 7);
   assert.equal(profile.behavior.first_trade_at, new Date(1_777_100_000_000).toISOString());
   assert.equal(profile.behavior.last_trade_at, new Date(1_777_186_500_000).toISOString());
   assert.equal(profile.behavior.active_days, 2);

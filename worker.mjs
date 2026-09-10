@@ -12143,7 +12143,14 @@ export async function runWalletHistoryIngestion(env) {
             for(const job of candidates)profileResults.push(...await Promise.allSettled([(async()=>{
               const events=await walletStore.listSourceEvents(job.source_wallet_id,job.source_wallet.chain==='solana'?WalletHistoryPolicy.solana_analysis_events:WalletHistoryPolicy.evm_analysis_events);
               const historicalPrices=await loadWalletHistoricalPrices(env,env.RAVENOS_CUSTOMER_DB,events).catch(()=>[]);
-              return persistSourceWalletProfile(walletStore, job.source_wallet_id, now, {...sourceWalletBackfillHistoryEvidence(job),historical_prices:env.RAVENOS_WALLET_HISTORICAL_USD_ENABLED === "1" ? historicalPrices : null,opening_balances:job.provider_cursor?.opening_balances,window_start_block:job.provider_cursor?.from_block ? Number(BigInt(job.provider_cursor.from_block)) : null,window_end_block:job.provider_cursor?.verified_through_block ? Number(BigInt(job.provider_cursor.verified_through_block)) : null,verified_through_at:job.provider_cursor?.verified_through_at || null});
+              return persistSourceWalletProfile(walletStore, job.source_wallet_id, now, {
+                ...sourceWalletBackfillHistoryEvidence(job),
+                historical_prices:env.RAVENOS_WALLET_HISTORICAL_USD_ENABLED === "1" ? historicalPrices : null,
+                opening_balances:job.provider_cursor?.opening_balances,
+                window_start_block:job.provider_cursor?.from_block ? Number(BigInt(job.provider_cursor.from_block)) : null,
+                window_end_block:job.provider_cursor?.verified_through_block ? Number(BigInt(job.provider_cursor.verified_through_block)) : null,
+                verified_through_at:job.provider_cursor?.verified_through_at || null,
+              }, null, null, events);
             })()]));
             return {
               ...run,
