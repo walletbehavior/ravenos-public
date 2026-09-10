@@ -4,10 +4,13 @@ function result() {
   const at=new Date().toISOString();
   return {ok:true,state:'complete',wallet:{wallet_reference:reference},buying_power:{chain:'solana',state:'available',observed_at:at,assets:[{symbol:'SOL',asset_id:'native',decimals:9,amount:'1.234567890',spendable_before_network_fees:'1.234567890'},{symbol:'USDC',canonical_usdc:true,decimals:6,amount:'28.000001',spendable_before_network_fees:'25.000001'}]},summary:{state:'available',marked_value_state:'current',marked_portfolio_value_minor:'100000000',executable_value_minor:'97000000',unresolved_unknown_value_count:0},economic_exposure:{assets:[{identity:'solana:SOL',marked_value_minor:'72000000'},{identity:'solana:USDC',marked_value_minor:'28000000'}]},holdings:{observed_position_count:2,rows:[{instrument:{label:'Solana'},amount_base_units:'1234567890',decimals:9,marked_value_minor:'72000000',executable_value_minor:'69000000'},{instrument:{label:'USD Coin'},amount_base_units:'28000001',decimals:6,marked_value_minor:'28000000',executable_value_minor:'28000000'}]},diagnostics:{observation_state:'complete',observed_position_count:2,resolved_position_count:2},boundaries:{read_only:true,customer_assets_can_move:false,transaction_material_created:false}};
 }
-async function fixture(page,{authenticated=true}={}) {
-  const state={authenticated,mode:'current',calls:[],release:null};
+async function fixture(page,{authenticated=true,authFailures=0,shellAuth=false}={}) {
+  const state={authenticated,authFailures,authCalls:0,mode:'current',calls:[],release:null};
   await page.route('**/api/**',r=>r.fulfill({status:503,json:{ok:false}}));
-  await page.route('**/api/v1/auth/session',r=>r.fulfill({json:{ok:true,authenticated:state.authenticated,csrf_token:state.authenticated?'csrf_capital_fixture':null}}));
+  if(shellAuth)await page.route('**/api/v1/auth/config',r=>r.fulfill({json:{ok:true,available:true,on_authenticated_origin:true}}));
+  await page.route('**/api/v1/auth/session',r=>++state.authCalls<=state.authFailures
+    ? r.fulfill({status:503,headers:{'retry-after':'1'},json:{ok:false,authenticated:false,error:'account_service_unavailable'}})
+    : r.fulfill({json:{ok:true,authenticated:state.authenticated,csrf_token:state.authenticated?'csrf_capital_fixture':null,account:{username:'fixture'}}}));
   await page.route('**/api/v1/portfolio/preview',async r=>{
     if(r.request().method()==='GET')return r.fulfill({json:{ok:true,wallets:[{wallet_reference:reference,label:'Raven Solana wallet'}]}});
     state.calls.push(r.request().postDataJSON());expect(r.request().headers()['x-ravenos-csrf']).toBe('csrf_capital_fixture');
@@ -58,4 +61,30 @@ test('unavailable valuation aggregates are not displayed as a zero-dollar wallet
  const state=await fixture(page);state.mode='no_values';await page.goto('/portfolio/');await expect(page.locator('#capitalResults')).toBeVisible();
  await expect(page.locator('#capitalMarked')).toHaveText('Unavailable');await expect(page.locator('#capitalExitValue')).toHaveText('Unavailable');
  await expect(page.locator('#capitalBalanceSOL')).toHaveText('1.234567890');
+});
+
+for(const width of [390,1440])test(`temporary account failure restores Portfolio and the shell automatically at ${width}px`,async({page})=>{
+  await page.setViewportSize({width,height:900});const state=await fixture(page,{authFailures:1,shellAuth:true});
+  await page.goto('/portfolio/');
+  await expect(page.locator('#capitalStatus')).toContainText('Retrying automatically');
+  await expect(page.locator('#capitalStatus')).not.toContainText('Sign in');
+  await expect(page.locator('#capitalResults')).toBeVisible();
+  await expect(page.locator('#rosProfileTrigger')).toHaveAttribute('data-account-state','authenticated');
+  await expect(page.locator('#capitalBalanceSOL')).toHaveText('1.234567890');
+  expect(state.authCalls).toBe(2);expect(state.calls).toHaveLength(1);
+});
+test('sustained account failure does not manufacture sign-out and manual refresh can recover',async({page})=>{
+  const state=await fixture(page,{authFailures:99,shellAuth:true});await page.goto('/portfolio/');
+  await expect(page.locator('#capitalStatus')).toContainText('could not be checked');
+  await expect(page.locator('#capitalResults')).toBeHidden();expect(state.authCalls).toBe(2);expect(state.calls).toEqual([]);
+  await page.locator('#rosProfileTrigger').click();await expect(page.locator('#rosUtilityContent')).toContainText('Account check temporarily unavailable');
+  await expect(page.locator('#rosUtilityContent')).not.toContainText('Create account or sign in');await page.keyboard.press('Escape');
+  state.authFailures=0;await page.getByRole('button',{name:'Refresh wallet',exact:true}).click();await expect(page.locator('#capitalResults')).toBeVisible();
+});
+test('actual sign-out during a shared retry keeps Portfolio and the shell signed out',async({page})=>{
+  const state=await fixture(page,{authFailures:1,shellAuth:true});await page.goto('/portfolio/');
+  await expect(page.locator('#capitalStatus')).toContainText('Retrying automatically');state.authenticated=false;
+  await page.evaluate(()=>window.dispatchEvent(new CustomEvent('ravenos:accountstate',{detail:{authenticated:false}})));
+  await expect(page.locator('#capitalStatus')).toContainText('Sign in');await expect(page.locator('#capitalResults')).toBeHidden();
+  await expect(page.locator('#rosProfileTrigger')).toHaveAttribute('data-account-state','available');expect(state.calls).toEqual([]);
 });

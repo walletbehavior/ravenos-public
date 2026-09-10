@@ -4,12 +4,16 @@ import {evmEconomicPreview} from "../../lib/customer_trade/evm_economic_preview.
 import {EVM_CHAIN_PROFILES} from "../../lib/customer_trade/evm_chain_profiles.mjs";
 test.afterEach(async ({page}) => { await page.unrouteAll({behavior:"wait"}); });
 const WALLET="0x3333333333333333333333333333333333333333", TOKEN="0x1111111111111111111111111111111111111111", POOL="0x2222222222222222222222222222222222222222";
-async function setup(page,baseURL,chain,{needsApproval=false,native=false,holdNetwork=false,embedded=false,impactBps=null,fundingError=null,previewMismatch=false,economicMinimum="49000000"}={}) {
-  const profile=EVM_CHAIN_PROFILES[chain];const prepared=[],reported=[];const controls={fundingError,previewMismatch};
+async function setup(page,baseURL,chain,{needsApproval=false,native=false,holdNetwork=false,embedded=false,impactBps=null,fundingError=null,previewMismatch=false,economicMinimum="49000000",authFailures=0,holdAuth=false}={}) {
+  const profile=EVM_CHAIN_PROFILES[chain];const prepared=[],reported=[];const controls={fundingError,previewMismatch,authFailures,authCalls:0,releaseAuth:null,holdAuth};
   await page.route("https://app.ravenos.xyz/**",async route=>{const url=new URL(route.request().url());await route.fulfill({response:await page.request.fetch(`${baseURL}${url.pathname}${url.search}`)});});
   await mockTerminalLiveApis(page,{spotQuotePreview:true,spotQuoteChains:[chain,"solana"]});
   await page.route("**/api/dexscreener/pair**",route=>route.fulfill({json:{ok:true,results:[{chainId:chain,dexId:"uniswap",pairAddress:POOL,tokenAddress:TOKEN,quoteTokenAddress:profile.wrapped_native_token_address,symbol:"TKN",quoteSymbol:"WETH",name:"Token",priceUsd:1,liquidityUsd:1000000,volume24h:300000,lastUpdated:new Date().toISOString()}]}}));
-  await page.route("**/api/v1/auth/session",route=>route.fulfill({json:{ok:true,authenticated:true,csrf_token:"fixturecsrf"}}));
+  await page.route("**/api/v1/auth/session",async route=>{
+    if(++controls.authCalls<=controls.authFailures)return route.fulfill({status:503,headers:{"retry-after":"1"},json:{ok:false,authenticated:false,error:"account_service_unavailable"}});
+    if(controls.holdAuth)await new Promise(resolve=>{const timeout=setTimeout(resolve,6000);controls.releaseAuth=()=>{clearTimeout(timeout);resolve();};});
+    return route.fulfill({json:{ok:true,authenticated:true,csrf_token:"fixturecsrf"}});
+  });
   await page.route("**/api/trade/live/session",route=>route.fulfill({json:{ok:true,gate:{configured:true,chains:{[chain]:{available_to_principal:true}}}}}));
   await page.route("**/api/v1/wallets/privy",route=>route.fulfill({json:embedded?{ok:true,available:true,app_id:"fixture",capabilities:{evm:true,manual_signing:true},wallets:[{ecosystem:"evm",address:WALLET}]}:{ok:true,available:false}}));
   await page.route("**/api/v1/wallets/privy/session",route=>route.fulfill({json:{ok:true,token:"fixture-auth"}}));
@@ -128,4 +132,26 @@ test("funding recovery still respects the minimum shown in the previous estimate
   await expect(page.locator("#terminalSpotLiveMessage")).toContainText("price moved beyond your displayed minimum");
   expect(h.reported).toHaveLength(0);
   expect(await page.evaluate(()=>window.tradeCalls.sign)).toBe(0);
+});
+
+for(const chain of Object.keys(EVM_CHAIN_PROFILES))test(`${chain} account outage recovers into one Buy without signing in or connecting again`,async({page,baseURL})=>{
+  await page.setViewportSize({width:390,height:844});
+  const h=await setup(page,baseURL,chain,{embedded:true,authFailures:1,holdAuth:true});
+  await expect.poll(()=>Boolean(h.controls.releaseAuth)).toBe(true);
+  await expect(page.locator('#terminalSpotLiveState')).toHaveText('Checking account');
+  await expect(page.locator('#terminalSpotLiveLink')).toBeHidden();expect(h.prepared).toHaveLength(0);
+  h.controls.holdAuth=false;h.controls.releaseAuth();
+  await expect(page.locator('#terminalSpotQuoteAction')).toHaveText('Buy TKN');
+  await page.locator('#terminalSpotAmount').fill('25');await expect(page.locator('#terminalSpotEstimateOutput')).toContainText('50 TKN');
+  expect(await page.evaluate(()=>window.tradeCalls.sign)).toBe(0);
+  await page.locator('#terminalSpotQuoteAction').click();await expect(page.locator('#terminalSpotLiveState')).toHaveText('Trade confirmed');
+  expect(h.controls.authCalls).toBe(2);expect(h.reported).toHaveLength(1);await expect(page.locator('#terminalWalletChooser')).toHaveCount(0);
+  // Returning to the tab during a later outage must retain the submitted result.
+  h.controls.authFailures=99;await page.clock.setFixedTime(new Date(Date.now()+61000));
+  await page.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));
+  await expect.poll(()=>h.controls.authCalls).toBe(3);
+  await expect(page.locator('#terminalSpotLiveState')).toHaveText('Trade confirmed');
+  await expect.poll(()=>h.controls.authCalls).toBe(4);
+  await expect(page.locator('#terminalSpotLiveState')).toHaveText('Trade confirmed');
+  expect(h.reported).toHaveLength(1);expect(await page.evaluate(()=>window.tradeCalls.sign)).toBe(1);
 });

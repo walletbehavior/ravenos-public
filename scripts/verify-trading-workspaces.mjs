@@ -41,6 +41,12 @@ for (const page of ['discover', 'terminal', 'perps', 'atlas', 'account', 'portfo
     checkedAssets.add(expected.url);
   }
 }
+// This module is imported by the workspaces rather than listed in their HTML.
+const accountSessionAsset = manifest.assets['ravenos-account-session.js'];
+assert.ok(accountSessionAsset, 'Shared account reader missing from the release manifest');
+const accountSessionResponse = await read(app + accountSessionAsset.url);
+assert.equal(createHash('sha256').update(Buffer.from(await accountSessionResponse.arrayBuffer())).digest('hex'), accountSessionAsset.sha256);
+checkedAssets.add(accountSessionAsset.url);
 const config = await (await read(app + '/api/v1/auth/config')).json();
 assert.equal(config.on_authenticated_origin, true);
 assert.equal(config.available, true);

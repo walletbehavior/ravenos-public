@@ -1,4 +1,5 @@
 import { mountWalletBalances } from "./ravenos-wallet-balances.js";
+import { readAccountSession, invalidateAccountSession } from './ravenos-account-session.js';
 import { walletLaunchHref } from "./ravenos-wallet-connect.js";
 import { requestLegalAcceptance } from "./ravenos-legal-client.js";
 import { getPreference, setPreference, resetPreferences, accountReturnPath } from "./ravenos-preferences.js";
@@ -1384,7 +1385,7 @@ async function logout() {
     headers: { "content-type": "application/json", "x-ravenos-csrf": state.csrf },
     body: "{}",
   });
-  if (response.ok) location.assign("/account/");
+  if (response.ok) { invalidateAccountSession(); location.assign("/account/"); }
   else button.disabled = false;
 }
 
@@ -1508,7 +1509,7 @@ async function initialize() {
   if (!payload.available) return renderActivationPending();
   page.dataset.accountState = "available";
   serviceState.textContent = state.intent === "sign_up" ? "Ready to create your account" : "Ready to sign in";
-  actions.hidden = false;
+  actions.hidden = payload.on_authenticated_origin === true;
   activation.hidden = true;
   if (payload.legal?.account_creation_acceptance_required) {
     const legal = await getJson(payload.legal.documents_endpoint || "/api/v1/legal/documents");
@@ -1518,13 +1519,21 @@ async function initialize() {
   renderLegalAssent();
   if (!payload.on_authenticated_origin) return;
 
-  const session = await getJson("/api/v1/auth/session");
-  if (session.response.ok && session.payload?.authenticated) {
+  actions.hidden = true;
+  serviceState.textContent = 'Checking your account…';
+  const session = await readAccountSession({ onRetry: () => { serviceState.textContent = 'Account check delayed. Retrying automatically…'; } });
+  if (session.state === 'authenticated') {
     renderAuthenticated(session.payload);
     if (query.has("ref")) {
       query.delete("ref");
       history.replaceState({}, "", `${location.pathname}${query.toString() ? `?${query}` : ""}`);
     }
+  } else if (session.state === 'signed_out') {
+    actions.hidden = false;
+    serviceState.textContent = state.intent === 'sign_up' ? 'Ready to create your account' : 'Ready to sign in';
+  } else {
+    serviceState.textContent = 'Account check temporarily unavailable';
+    authStatus.textContent = 'Your account could not be checked. Reload this page to retry.';
   }
 }
 

@@ -1,4 +1,5 @@
 import { planShieldedCapital } from "../lib/customer_trade/shielded_capital_planner.mjs";
+import { readAccountSession } from '/ravenos-account-session.js';
 const $ = id => document.getElementById(id);
 const api = "/api/v1/portfolio/shielded";
 const state = { csrf: "", config: null, action: "SHIELDED_DEPLOY", quote: null, abort: null, generation: 0, excess: null };
@@ -151,9 +152,13 @@ async function boot() {
     $("reserveAccount").href = "https://app.ravenos.xyz/portfolio/#shielded-reserve"; text("reserveAccount", "Open capital helper →"); $("reserveAccount").hidden = false; return;
   }
   try {
-    const session = await fetch("/api/v1/auth/session", { credentials: "same-origin", cache: "no-store" }).then(r => r.json());
-    if (!session.authenticated || !session.csrf_token) throw Error("authentication_required");
-    state.csrf = session.csrf_token;
+    const session = await readAccountSession({ onRetry: () => text('reserveAccess', 'Account check delayed. Retrying automatically…') });
+    if (session.state === 'unavailable') {
+      text('reserveAccess', 'Your account could not be checked. Reload to retry.');
+      return;
+    }
+    if (session.state === 'signed_out') throw Error("authentication_required");
+    state.csrf = session.payload.csrf_token;
     const r = await fetch(api, { credentials: "same-origin", cache: "no-store" }); const config = await r.json();
     if (!r.ok || !config.ok) throw Error(config.error);
     state.config = config; const select = $("reserveNetwork"); select.replaceChildren();

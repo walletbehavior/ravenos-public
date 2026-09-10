@@ -479,3 +479,20 @@ test("an inactive authenticated origin never turns the global account link into 
   await page.locator("#rosProfileTrigger").click();
   await expect(page.getByRole("link", { name: /Create account or sign in/ })).toHaveAttribute("href", "/account/");
 });
+
+for(const recovers of [true,false])test(`account service failure ${recovers?'recovers automatically':'stays unavailable without offering another login'}`,async({page,baseURL})=>{
+  let calls=0,release;const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.route('**/api/**',r=>r.fulfill({status:503,json:{ok:false}}));
+  await page.route('**/api/v1/auth/config',r=>r.fulfill({json:configPayload(baseURL)}));
+  await page.route('**/api/v1/auth/session',async r=>{
+    calls++;if(calls===1)return r.fulfill({status:503,headers:{'retry-after':'1'},json:{ok:false,authenticated:false,error:'account_service_unavailable'}});
+    await new Promise(resolve=>{release=resolve;});
+    return r.fulfill(recovers?{json:{ok:true,authenticated:true,csrf_token:'csrf_session_fixture',account:{username:'fixture',username_required:false},wallet_links:[]}}:{status:503,json:{ok:false,error:'account_service_unavailable'}});
+  });
+  await page.setViewportSize({width:390,height:844});await page.goto('/account/');
+  await expect(page.locator('#accountServiceState')).toContainText('Retrying automatically');
+  await expect(page.locator('#accountAuthActions')).toBeHidden();await expect.poll(()=>Boolean(release)).toBe(true);release();
+  if(recovers)await expect(page.locator('.account-page')).toHaveAttribute('data-account-state','authenticated');
+  else await expect(page.locator('#accountServiceState')).toHaveText('Account check temporarily unavailable');
+  await expect(page.locator('#accountAuthActions')).toBeHidden();expect(calls).toBe(2);expect(errors).toEqual([]);
+});

@@ -9,6 +9,7 @@ import {
 } from "/ravenos-intelligence-contract.js";
 import { ravenOSContext } from "/ravenos-context-store.js";
 import { setPreference } from "/ravenos-preferences.js";
+import { readAccountSession } from '/ravenos-account-session.js';
 import { resolveChartCapability } from "/ravenos-chart-data-plane.js";
 import { resolveTradingViewChart } from "/ravenos-tradingview-adapter.js";
 import { openIntelligenceLayer, closeIntelligenceLayers, intelligenceLayerOpen } from '/ravenos-intelligence-layers.js';
@@ -41,6 +42,7 @@ let customerAccountState = Object.freeze({
   authenticated: false,
   canonicalOrigin: "",
   username: "",
+  checkState: 'checking',
 });
 
 function spotChartRequestSupported(row = {}, timeframe = "1h") {
@@ -639,10 +641,11 @@ function utilityMarkup(kind, context) {
   const accountHref = customerAccountState.available && customerAccountState.canonicalOrigin
     ? `${customerAccountState.canonicalOrigin}/account/`
     : "/account/";
-  const accountLabel = customerAccountState.authenticated ? "Account & security" : "Create account or sign in";
+  const accountLabel = customerAccountState.authenticated ? "Account & security" : customerAccountState.checkState === 'signed_out' ? "Create account or sign in" : "Account";
   const accountDetail = customerAccountState.authenticated
     ? `Signed in${customerAccountState.username ? ` · @${escapeHtml(customerAccountState.username)}` : " · choose a username"}`
-    : customerAccountState.available ? "Google, email, password, or code" : "Sign-in temporarily unavailable";
+    : customerAccountState.checkState === 'unavailable' ? "Account check temporarily unavailable"
+      : customerAccountState.checkState === 'checking' ? "Checking your account…" : customerAccountState.available ? "Google, email, password, or code" : "Sign-in temporarily unavailable";
   const copyHref = customerAccountState.available && customerAccountState.canonicalOrigin
     ? `${customerAccountState.canonicalOrigin}/account/copy/`
     : "https://app.ravenos.xyz/account/copy/";
@@ -828,35 +831,42 @@ export function mountRavenOSShell(options = {}) {
       authenticated: next.authenticated === true,
       canonicalOrigin: String(next.canonicalOrigin || ""),
       username,
+      checkState: next.checkState || (next.authenticated === true ? 'authenticated' : 'checking'),
     });
     const trigger = document.getElementById("rosProfileTrigger");
     trigger.textContent = customerAccountState.authenticated
       ? (customerAccountState.username.charAt(0).toUpperCase() || "R")
       : "R";
-    trigger.dataset.accountState = customerAccountState.authenticated ? "authenticated" : customerAccountState.available ? "available" : "pending";
+    trigger.dataset.accountState = customerAccountState.authenticated ? "authenticated" : customerAccountState.checkState === 'signed_out' ? "available" : "pending";
     trigger.setAttribute("aria-label", customerAccountState.authenticated ? "Open account and security" : "Open account");
   }
 
+  let accountStateGeneration = 0;
   async function hydrateCustomerAccountState() {
+    const generation = accountStateGeneration;
     try {
       const configResult = await fetchJson("/api/v1/auth/config");
       const config = configResult.payload || {};
+      if (!configResult.response.ok) throw Error('account_config_unavailable');
       const next = {
         available: config.available === true,
         authenticated: false,
         canonicalOrigin: config.canonical_origin || "",
         username: "",
+        checkState: 'signed_out',
       };
       if (config.available === true && config.on_authenticated_origin === true) {
-        const sessionResult = await fetchJson("/api/v1/auth/session");
-        if (sessionResult.payload?.authenticated === true) {
+        const sessionResult = await readAccountSession();
+        if (sessionResult.state === 'unavailable') throw Error('account_service_unavailable');
+        next.checkState = sessionResult.state;
+        if (sessionResult.state === 'authenticated') {
           next.authenticated = true;
           next.username = sessionResult.payload.account?.username || "";
         }
       }
-      renderCustomerAccountState(next);
+      if (generation === accountStateGeneration) renderCustomerAccountState(next);
     } catch {
-      renderCustomerAccountState();
+      if (generation === accountStateGeneration) renderCustomerAccountState({ ...customerAccountState, checkState: 'unavailable' });
     }
   }
 
@@ -1294,11 +1304,16 @@ export function mountRavenOSShell(options = {}) {
   document.getElementById("rosUtilityClose").addEventListener("click", closeDrawers);
   document.getElementById("rosDrawerScrim").addEventListener("click", closeDrawers);
   document.getElementById("rosProfileTrigger").addEventListener("click", () => openUtility("more"));
-  window.addEventListener("ravenos:accountstate", (event) => renderCustomerAccountState({
+  window.addEventListener("ravenos:accountstate", (event) => {
+    if (typeof event.detail?.authenticated !== 'boolean') return;
+    accountStateGeneration++;
+    renderCustomerAccountState({
     ...customerAccountState,
     authenticated: event.detail?.authenticated === true,
+    checkState: event.detail?.authenticated === true ? 'authenticated' : event.detail?.authenticated === false ? 'signed_out' : customerAccountState.checkState,
     username: event.detail?.username || "",
-  }));
+    });
+  });
   document.querySelectorAll("[data-ros-utility]").forEach((button) => button.addEventListener("click", () => openUtility(button.dataset.rosUtility)));
   document.getElementById("rosUtilityContent").addEventListener("click", (event) => {
     const button = event.target.closest("[data-ros-utility]");

@@ -1,4 +1,5 @@
 import { calculateCapitalPlan, unitsLabel } from './ravenos-capital-plan.js';
+import { readAccountSession } from './ravenos-account-session.js';
 
 const endpoint = '/api/v1/portfolio/preview';
 const integer = value => /^-?\d+$/.test(String(value ?? ''));
@@ -86,10 +87,13 @@ export function mountCapitalHelper(root) {
     for (const input of Object.values(targets)) input.value = '';
     text(root,'capitalStatus','Loading your Raven wallet…');
     try {
-      const session = await read('/api/v1/auth/session');
+      const session = await readAccountSession({ signal: controller.signal, onRetry: () => {
+        if (version === generation) text(root,'capitalStatus','Account check delayed. Retrying automatically…');
+      } });
       if (version !== generation) return;
-      if (!session.response.ok || !session.body.authenticated || !session.body.csrf_token) { text(root,'capitalStatus','Sign in to inspect your Raven wallet.'); return; }
-      csrf = session.body.csrf_token;
+      if (session.state === 'unavailable') throw Error('account_service_unavailable');
+      if (session.state === 'signed_out') { text(root,'capitalStatus','Sign in to inspect your Raven wallet.'); return; }
+      csrf = session.payload.csrf_token;
       const capability = await read(endpoint);
       if (version !== generation) return;
       if (!capability.response.ok || !capability.body.ok) throw Error('unavailable');

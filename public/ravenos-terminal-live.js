@@ -1,5 +1,6 @@
 import { DEFAULT_SPOT_SLIPPAGE_BPS, MIN_SPOT_SLIPPAGE_BPS, MAX_SPOT_SLIPPAGE_BPS, spotPriceWarnings } from "./ravenos-spot-trade-policy.js";
 import { mountWalletBalances } from "./ravenos-wallet-balances.js";
+import { readAccountSession } from './ravenos-account-session.js';
 import { walletLaunchHref } from "./ravenos-wallet-connect.js";
 import { createTerminalDesk, deskFeeLabel, deskPercentFromBps } from "./ravenos-terminal-desk.js";
 import { ravenOSContext, contextSearchParams, savedMonitorHandoffHref } from "./ravenos-context-store.js";
@@ -189,6 +190,7 @@ const state = {
   spotStatusTimer: null,
   spotLiveResult: null,
   liveAuth: null,
+  liveSessionLoading: location.hostname.toLowerCase() === 'app.ravenos.xyz',
   liveSessionError: null,
   liveSessionCheckedAt: 0,
   liveSession: null,
@@ -1660,11 +1662,12 @@ function renderSpotPrimaryAction() {
   const run = state.spotSubmitRun;
   const busy = Boolean(run || state.spotLivePending);
   const pending = Boolean(state.spotUnresolvedSubmission);
+  const checkingAccount = authenticatedTerminalOrigin() && state.liveSessionLoading;
   const labels = { opening_wallet: "Opening Raven Wallet…", connecting: "Connecting wallet…", network: "Selecting network…", routing: "Finding your route…", preparing: "Preparing trade…", approval: "Approve token in wallet…", wallet: "Confirm in wallet…", submitting: "Sending trade…" };
   action.textContent = pending ? "Transaction pending" : run ? labels[run.phase] || "Working…"
-    : busy ? "Finding your route…" : !qualified ? `${chainDisplayName(currentSpotChain())} route pending`
+    : busy ? "Finding your route…" : checkingAccount ? "Checking account…" : !qualified ? `${chainDisplayName(currentSpotChain())} route pending`
       : live ? `${side} ${symbol}` : `Preview ${side.toLowerCase()}`;
-  action.disabled = !qualified || busy || pending;
+  action.disabled = !qualified || busy || pending || checkingAccount;
   action.dataset.mode = live ? "trade" : "preview";
   action.setAttribute("aria-busy", String(busy));
   const preview = document.getElementById("terminalSpotPreviewAction");
@@ -1725,6 +1728,9 @@ function renderSpotLiveExecution() {
   } else if (state.spotQuoteFailure) {
     label = state.spotQuoteFailure.title;
     message = state.spotQuoteFailure.message;
+  } else if (state.liveSessionLoading && authenticatedTerminalOrigin()) {
+    label = "Checking account";
+    message = "Restoring your trading access automatically…";
   } else if (state.liveSessionError && authenticatedTerminalOrigin()) {
     label = "Trading connection interrupted";
     message = "Raven could not check trading access. Retry the connection to continue.";
@@ -1813,6 +1819,25 @@ function renderLiveExecution() {
     setText("terminalLiveExecutionMessage", "Wallet-signed orders open in the secure workspace.");
     return;
   }
+  // Keep the outcome of the user's existing order visible during a service
+  // interruption. A retry of the account GET must never invite another order.
+  if (state.liveAuth?.authenticated === true && state.liveExecutionPending) {
+    setText("terminalLiveExecutionState", "Working");
+    setText("terminalLiveExecutionMessage", "Keep this tab open and confirm only the order shown in your wallet.");
+    return;
+  }
+  if (state.liveAuth?.authenticated === true && state.liveExecutionResult?.ok === true) {
+    setText("terminalLiveExecutionState", state.liveExecutionResult.reconciliation?.state === "provider_confirmed" ? "Confirmed" : "Submitted");
+    setText("terminalLiveExecutionMessage", state.liveExecutionResult.reconciliation?.state === "provider_confirmed"
+      ? "Hyperliquid confirmed the exact order."
+      : "The wallet reported the order; provider reconciliation is still indeterminate.");
+    return;
+  }
+  if (state.liveSessionLoading || state.liveSessionError) {
+    setText("terminalLiveExecutionState", state.liveSessionLoading ? "Checking account" : "Account check unavailable");
+    setText("terminalLiveExecutionMessage", state.liveSessionLoading ? "Restoring your trading access automatically…" : "Your account could not be checked. Reload to retry.");
+    return;
+  }
   if (state.liveAuth?.authenticated !== true) {
     setText("terminalLiveExecutionState", "Sign in");
     link.hidden = false;
@@ -1831,18 +1856,6 @@ function renderLiveExecution() {
     return;
   }
   host.dataset.state = state.liveExecutionResult?.ok === false ? "error" : "ready";
-  if (state.liveExecutionPending) {
-    setText("terminalLiveExecutionState", "Working");
-    setText("terminalLiveExecutionMessage", "Keep this tab open and confirm only the order shown in your wallet.");
-    return;
-  }
-  if (state.liveExecutionResult?.ok === true) {
-    setText("terminalLiveExecutionState", state.liveExecutionResult.reconciliation?.state === "provider_confirmed" ? "Confirmed" : "Submitted");
-    setText("terminalLiveExecutionMessage", state.liveExecutionResult.reconciliation?.state === "provider_confirmed"
-      ? "Hyperliquid confirmed the exact order."
-      : "The wallet reported the order; provider reconciliation is still indeterminate.");
-    return;
-  }
   if (state.liveExecutionResult?.ok === false) {
     state.liveTicket = null;
     setText("terminalLiveExecutionState", "Not sent");
@@ -1921,32 +1934,44 @@ function renderLiveExecution() {
   updateWalletShellCapability();
 }
 
-async function loadLiveExecutionSession() {
+let liveSessionTask = null;
+function loadLiveExecutionSession() {
   if (!authenticatedTerminalOrigin()) {
     renderLiveExecution();
-    return;
+    return Promise.resolve();
   }
+  if (liveSessionTask) return liveSessionTask;
+  liveSessionTask = refreshLiveExecutionSession().finally(() => { liveSessionTask = null; });
+  return liveSessionTask;
+}
+async function refreshLiveExecutionSession() {
+  state.liveSessionLoading = true;
+  renderSpotLiveExecution(); renderLiveExecution();
   try {
     state.liveSessionError = null;
-    const auth = await fetchJson("/api/v1/auth/session");
-    if (!auth.response.ok) throw new Error("account_service_unavailable");
-    state.liveAuth = auth.response.ok && auth.payload?.authenticated === true ? auth.payload : { authenticated: false };
+    const auth = await readAccountSession();
+    if (auth.state === 'unavailable') throw new Error("account_service_unavailable");
+    state.liveAuth = auth.state === 'authenticated' ? auth.payload : { authenticated: false };
     if (state.liveAuth.authenticated !== true) {
       state.liveSession = null;
-      updateQuoteBoundary();
       return;
     }
     const live = await fetchJson("/api/trade/live/session");
     state.liveSession = live.response.ok ? live.payload : null;
     if (!live.response.ok) state.liveSessionError = live.payload?.error || "trading_session_unavailable";
-    if (live.response.status === 401) state.liveAuth = { authenticated: false };
+    if (live.response.status === 401) {
+      state.liveAuth = { authenticated: false };
+      if (live.payload?.error === 'authentication_required') state.liveSessionError = null;
+    }
     if (state.liveAuth.authenticated === true) await restoreRavenTradingWallets();
   } catch {
     state.liveSessionError = "trading_session_unavailable";
     state.liveSession = null;
+  } finally {
+    state.liveSessionLoading = false;
+    state.liveSessionCheckedAt = Date.now();
+    updateQuoteBoundary();
   }
-  state.liveSessionCheckedAt = Date.now();
-  updateQuoteBoundary();
 }
 
 async function ensureWalletExecutionBundle() {
@@ -6875,7 +6900,7 @@ function setSpotTicketExitSummary(summaryState = "idle", label = "Not reviewed",
   if (root) root.title = note;
 }
 
-function clearSpotQuoteResult(message = "Enter an amount. Raven updates the route automatically.", { invalidate = true, stopFollowing = false } = {}) {
+function clearSpotQuoteResult(message = "Enter an amount. Raven updates the route automatically.", { invalidate = true, stopFollowing = false, preserveExecution = false } = {}) {
   if (invalidate) {
     state.spotQuoteGeneration += 1;
     if (state.spotSubmitRun) state.spotSubmitRun.cancelled = true;
@@ -6892,7 +6917,7 @@ function clearSpotQuoteResult(message = "Enter an amount. Raven updates the rout
   state.spotLiveTicket = null;
   state.spotLiveUnsignedTransaction = null;
   state.spotLiveProviderQuote = null;
-  state.spotLiveResult = null;
+  if (!preserveExecution) state.spotLiveResult = null;
   clearTimeout(state.spotQuoteExpiryTimer);
   state.spotQuoteExpiryTimer = null;
   clearSpotQuoteRefresh();
@@ -7816,6 +7841,11 @@ async function loadSpotQuote({ automatic = false, expectedFingerprint = "", trad
   const evmProfile = evmSpotProfile(chain);
   const wallet = currentSpotWallet();
   const action = document.getElementById("terminalSpotQuoteAction");
+  if (evmProfile && authenticatedTerminalOrigin() && (state.liveSessionLoading || state.liveSessionError)) {
+    clearSpotQuoteResult(state.liveSessionLoading ? 'Checking your account automatically…' : 'Account check unavailable. Retry when the connection recovers.', { invalidate: false, preserveExecution: true });
+    setText('terminalSpotQuoteState', state.liveSessionLoading ? 'Checking account' : 'Account check unavailable');
+    return;
+  }
   if (evmProfile && (!authenticatedTerminalOrigin() || state.liveAuth?.authenticated !== true)) {
     clearSpotQuoteResult("Sign in to the secure workspace before preparing a wallet route.");
     setText("terminalSpotQuoteState", "Sign in");
@@ -7847,7 +7877,7 @@ async function loadSpotQuote({ automatic = false, expectedFingerprint = "", trad
   state.spotLiveTicket = null;
   state.spotLiveUnsignedTransaction = null;
   state.spotLiveProviderQuote = null;
-  state.spotLiveResult = null;
+  if (!automatic) state.spotLiveResult = null;
   state.spotQuoteStatus = automatic ? "refreshing" : "quoting";
   state.spotQuoteFailure = null;
   state.spotQuoteFingerprint = fingerprint;
@@ -8795,7 +8825,8 @@ async function loadTradeFlags() {
     state.flags = null;
   }
   updateQuoteBoundary();
-  await loadLiveExecutionSession();
+  // Public charts must keep loading while account restoration backs off.
+  void loadLiveExecutionSession();
 }
 
 function perpChartRequest(row, timeframe = state.timeframe) {
