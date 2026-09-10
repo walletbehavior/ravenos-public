@@ -1,4 +1,5 @@
 import { calculateCapitalPlan, unitsLabel } from './ravenos-capital-plan.js';
+import { mountTradeJournal } from './ravenos-trade-journal.js';
 import { readAccountSession } from './ravenos-account-session.js';
 
 const endpoint = '/api/v1/portfolio/preview';
@@ -10,6 +11,7 @@ const observed = value => Number.isFinite(Date.parse(value)) ? new Date(value).t
 
 export function mountCapitalHelper(root) {
   if (!root) return;
+  const journal = mountTradeJournal(document.querySelector('#trade-history'));
   const wallet = root.querySelector('#capitalWallet'), refresh = root.querySelector('#capitalRefresh');
   const controls = root.querySelector('#capitalControls'), results = root.querySelector('#capitalResults');
   const targets = Object.fromEntries(['usdc', 'sol', 'concentration'].map(key => [key, root.querySelector(`[data-capital-target="${key}"]`)]));
@@ -91,6 +93,7 @@ export function mountCapitalHelper(root) {
         if (version === generation) text(root,'capitalStatus','Account check delayed. Retrying automatically…');
       } });
       if (version !== generation) return;
+      void journal.setAccountSession(session);
       if (session.state === 'unavailable') throw Error('account_service_unavailable');
       if (session.state === 'signed_out') { text(root,'capitalStatus','Sign in to inspect your Raven wallet.'); return; }
       csrf = session.payload.csrf_token;

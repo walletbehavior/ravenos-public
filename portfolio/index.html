@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="/ravenos-workspace.css" />
   <link rel="stylesheet" href="/ravenos-reserve.css" />
   <link rel="stylesheet" href="/ravenos-capital-helper.css" />
+  <link rel="stylesheet" href="/ravenos-trade-journal.css" />
 </head>
 <body>
   <main class="workspace-page portfolio-page" data-route-slug="portfolio">
@@ -24,7 +25,7 @@
     </header>
 
     <div id="portfolioWalletFunds"></div>
-    <nav class="reserve-section-nav" aria-label="Portfolio sections"><a href="#capital-helper">Capital helper</a><a href="#shielded-reserve">Shielded Reserve</a><a href="#portfolioPositions">Positions &amp; risk</a></nav>
+    <nav class="reserve-section-nav" aria-label="Portfolio sections"><a href="#capital-helper">Capital helper</a><a href="#trade-history">Trade history</a><a href="#shielded-reserve">Shielded Reserve</a><a href="#portfolioPositions">Positions &amp; risk</a></nav>
     <section class="capital-helper" id="capital-helper" aria-labelledby="capitalTitle">
       <header><div><span class="workspace-label">Your Raven wallet · Solana</span><h2 id="capitalTitle">Capital helper</h2></div><button id="capitalRefresh" type="button">Refresh wallet</button></header>
       <p id="capitalStatus" role="status">Loading your Raven wallet…</p>
@@ -53,6 +54,14 @@
         </details>
       </div>
       <p><a href="https://app.ravenos.xyz/account/#accountPrivyPanel">Manage your Raven wallets →</a></p>
+    </section>
+    <section class="trade-journal" id="trade-history" aria-labelledby="journalTitle">
+      <header><div><span class="workspace-label">Your Raven trades</span><h2 id="journalTitle">Trade history</h2></div><button id="journalRefresh" type="button">Refresh history</button></header>
+      <p id="journalStatus" role="status">Checking account…</p>
+      <div class="trade-journal-scroll" id="journalTable" role="region" aria-label="Trade history, scroll for receipt details" tabindex="0" hidden>
+        <table><colgroup><col style="width:13%"><col style="width:18%"><col style="width:9%"><col style="width:18%"><col style="width:20%"><col style="width:22%"></colgroup><thead><tr><th scope="col">Time</th><th scope="col">Market</th><th scope="col">Side</th><th scope="col">Status</th><th scope="col">Raven fee</th><th scope="col">Receipt</th></tr></thead><tbody id="journalRows"></tbody></table>
+      </div>
+      <button id="journalMore" type="button" hidden>Load more</button>
     </section>
     <section class="reserve-workspace" id="shielded-reserve" aria-labelledby="reserveTitle">
       <header class="reserve-hero">

@@ -10,8 +10,8 @@ const manifest = JSON.parse(readFileSync(join(bundle, 'assets/ravenos_asset_mani
 const app = 'https://app.ravenos.xyz', publicOrigin = 'https://ravenos.xyz';
 const assets = new Map(Object.values(manifest.assets).map(asset => [asset.url, asset]));
 const checkedAssets = new Set(), checks = [];
-async function read(url, status = 200) {
-  const response = await fetch(url, { redirect: 'manual', headers: { 'cache-control': 'no-cache' }, signal: AbortSignal.timeout(15_000) });
+async function read(url, status = 200, headers = {}) {
+  const response = await fetch(url, { redirect: 'manual', headers: { 'cache-control': 'no-cache', ...headers }, signal: AbortSignal.timeout(15_000) });
   assert.equal(response.status, status, url);
   assert.equal(response.headers.get('x-ravenos-release-id'), release.release_id, url);
   checks.push(new URL(url).host + new URL(url).pathname);
@@ -42,13 +42,21 @@ for (const page of workspacePages) {
     checkedAssets.add(expected.url);
   }
 }
-// This module is imported by the workspaces rather than listed in their HTML.
-const accountSessionAsset = manifest.assets['ravenos-account-session.js'];
-assert.ok(accountSessionAsset, 'Shared account reader missing from the release manifest');
-const accountSessionResponse = await read(app + accountSessionAsset.url);
-assert.equal(createHash('sha256').update(Buffer.from(await accountSessionResponse.arrayBuffer())).digest('hex'), accountSessionAsset.sha256);
-checkedAssets.add(accountSessionAsset.url);
+// Imported workspace modules also have to match the deployed release.
+for (const name of ['ravenos-account-session.js', 'ravenos-trade-journal.js']) {
+  const asset = manifest.assets[name];
+  assert.ok(asset, `Workspace module ${name} missing from the release manifest`);
+  const response = await read(app + asset.url);
+  assert.equal(createHash('sha256').update(Buffer.from(await response.arrayBuffer())).digest('hex'), asset.sha256);
+  checkedAssets.add(asset.url);
+}
 const config = await (await read(app + '/api/v1/auth/config')).json();
+const privateHistory = await read(app + '/api/v1/portfolio/trades', 401, { 'sec-fetch-site': 'same-origin' });
+assert.match(privateHistory.headers.get('cache-control'), /no-store/);
+assert.equal((await privateHistory.json()).error, 'authentication_required');
+const publicHistory = await read(publicOrigin + '/api/v1/portfolio/trades', 409);
+assert.match(publicHistory.headers.get('cache-control'), /private.*no-store/);
+assert.equal((await publicHistory.json()).error, 'authenticated_origin_required');
 assert.equal(config.on_authenticated_origin, true);
 assert.equal(config.available, true);
 const flags = await (await read(app + '/api/trade/flags')).json();

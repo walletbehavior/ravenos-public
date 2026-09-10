@@ -108,6 +108,7 @@ const checks = [
     kind: "orders",
   }],
   ["GET", "/api/access"],
+  ["GET", "/api/v1/portfolio/trades"],
   ["GET", "/api/not-a-route"],
   ["POST", "/api/trade/quote", {}],
   ["POST", "/api/trade/inspect", {}],

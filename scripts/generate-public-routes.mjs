@@ -199,6 +199,8 @@ for (const asset of [
   "ravenos-capital-helper.js",
   "ravenos-capital-plan.js",
   "ravenos-capital-helper.css",
+  "ravenos-trade-journal.js",
+  "ravenos-trade-journal.css",
   "ravenos-reserve.js",
   "ravenos-reserve.css",
   "ravenos-atlas.js",

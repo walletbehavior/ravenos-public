@@ -3,6 +3,7 @@ import { DEFAULT_SPOT_SLIPPAGE_BPS, MIN_SPOT_SLIPPAGE_BPS, MAX_SPOT_SLIPPAGE_BPS
 import { dexscreenerChartSurface } from './ravenos-chart-data-plane.js';
 import { resolveReleaseFlags } from './lib/runtime_release_flags.mjs';
 import { readExecutionStatusContext } from "./lib/customer_trade/live_execution_status.mjs";
+import { routeTradeJournal } from './lib/customer_trade/trade_journal.mjs';
 import { evmTokenApprovalContext } from "./lib/customer_trade/evm_token_approval.mjs";
 import { evmEconomicPreview, evmPreparationErrorStatus } from "./lib/customer_trade/evm_economic_preview.mjs";
 import { enrichHolderWalletContext } from './lib/customer_trade/holder_wallet_context.mjs';
@@ -11590,6 +11591,8 @@ async function routeApi(request, env, executionContext = null) {
   if (legalResponse) return legalResponse;
   const walletBalanceResponse = await routeCustomerWalletBalances(request, env);
   if (walletBalanceResponse) return walletBalanceResponse;
+  const tradeJournalResponse = await routeTradeJournal(request, env);
+  if (tradeJournalResponse) return tradeJournalResponse;
   const privyWalletResponse = await routeCustomerPrivyWallets(request, env);
   if (privyWalletResponse) return privyWalletResponse;
   const communityResponse = await routeCustomerCommunity(request, env);
