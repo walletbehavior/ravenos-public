@@ -2038,3 +2038,7 @@ body .terminal-market-evidence summary { font-family: -apple-system, BlinkMacSys
   .terminal-spot-estimate-meta { margin-top: 4px; }
   .terminal-spot-estimate small { margin-top: 2px; }
 }
+
+.terminal-ticket-shortcuts { display:flex; gap:6px; min-width:0; margin:8px 0; }
+.terminal-ticket-shortcuts button { min-width:0; min-height:36px; padding:6px 8px; border:1px solid #293640; border-radius:8px; background:#111a20; color:#bdd4cc; font:inherit; font-size:12px; }
+.terminal-ticket-shortcuts #terminalSpotStrategyShortcut { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }

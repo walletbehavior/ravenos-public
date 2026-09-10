@@ -43,7 +43,7 @@ for (const page of workspacePages) {
   }
 }
 // Imported workspace modules also have to match the deployed release.
-for (const name of ['ravenos-account-session.js', 'ravenos-trade-journal.js']) {
+for (const name of ['ravenos-account-session.js', 'ravenos-trade-journal.js', 'ravenos-trading-settings.js', 'ravenos-trading-strategy.js']) {
   const asset = manifest.assets[name];
   assert.ok(asset, `Workspace module ${name} missing from the release manifest`);
   const response = await read(app + asset.url);
@@ -65,7 +65,7 @@ assert.equal((await privateEvidence.json()).error, 'authentication_required');
 const publicEvidence = await read(publicOrigin + evidencePath, 403);
 assert.match(publicEvidence.headers.get('cache-control'), /\bno-store\b/);
 assert.equal((await publicEvidence.json()).error, 'request_not_allowed');
-for (const path of ['/api/v1/monitor-alerts', '/api/v1/monitor-alerts/rules', '/api/v1/monitor-alerts/notifications']) {
+for (const path of ['/api/v1/monitor-alerts', '/api/v1/monitor-alerts/rules', '/api/v1/monitor-alerts/notifications', '/api/v1/trading-settings']) {
   const response = await read(app + path, 401, { 'sec-fetch-site': 'same-origin' });
   assert.match(response.headers.get('cache-control'), /\bno-store\b/);
   assert.equal((await response.json()).error, 'authentication_required');

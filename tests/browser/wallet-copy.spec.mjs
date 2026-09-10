@@ -1,3 +1,7 @@
+const publicPayload = value => JSON.stringify(publicWalletResponse(value, { copySetup: true }));
+import { publicWalletResponse } from '../../lib/customer_trade/wallet_public_delivery.mjs';
+import { mockTradingSettings } from './trading-settings-fixtures.mjs';
+import { defaultTradingSettings } from '../../ravenos-trading-strategy.js';
 import { expect, test } from "@playwright/test";
 import { join } from "node:path";
 import { normalizeSourceWalletChainIdentity } from "../../lib/customer_trade/source_wallet_chain_identity.mjs";
@@ -593,12 +597,13 @@ async function install(page, shared, { authenticated = true, entitled = true, ma
     body: JSON.stringify(session(authenticated)),
   }));
   await page.route("**/api/v1/wallet-copy**", async (route) => {
+    const fulfill = args => route.fulfill({ ...args, body: JSON.stringify(publicWalletResponse(JSON.parse(args.body), { copySetup: true })) });
     const request = route.request();
     const url = new URL(request.url());
     const record = { method: request.method(), path: url.pathname, search: url.search, body: request.postData(), headers: request.headers() };
     shared.requests.push(record);
     if (url.pathname === "/api/v1/wallet-copy" && request.method() === "GET") {
-      return route.fulfill({
+      return fulfill({
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
@@ -614,8 +619,9 @@ async function install(page, shared, { authenticated = true, entitled = true, ma
     if (url.pathname.endsWith("/screener") && request.method() === "POST") {
       const screenerBody = JSON.parse(request.postData() || "{}");
       const robinhood = screenerBody.chain === "robinhood";
-      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({
+      return fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({
         ok: true,
+        schema_version: "ravenos.wallet_screener.v1",
         state: robinhood ? "empty" : "available",
         scope: { chain: screenerBody.chain || "solana", chains: screenerBody.chain === "all" ? ["solana", "robinhood"] : [screenerBody.chain || "solana"], claim: "bounded_raven_index_only", comprehensive_chain_index: false },
         rows: robinhood ? [] : [screenedWallet()],
@@ -624,7 +630,7 @@ async function install(page, shared, { authenticated = true, entitled = true, ma
     }
     if (url.pathname === `/api/v1/wallet-copy/wallets/${SOURCE_ID}` && request.method() === "GET") {
       const activity = activityPage([event("SWAP_BUY"), event("TRANSFER_IN", 1)], { total: 26, hasMore: true, nextCursor: `123~swe_${"a".repeat(40)}` });
-      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, state: "available", source_wallet_id: SOURCE_ID, profile: profile(), prospective_copyability: prospectiveCopyability(), recent_events: activity.events, activity, deep_history: deepHistory(), provider_request_performed: false }) });
+      return fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, state: "available", source_wallet_id: SOURCE_ID, profile: profile(), prospective_copyability: prospectiveCopyability(), recent_events: activity.events, activity, deep_history: deepHistory(), provider_request_performed: false }) });
     }
     if (url.pathname === `/api/v1/wallet-copy/wallets/${SOURCE_ID}/events` && request.method() === "GET") {
       const filter = url.searchParams.get("filter") || "all";
@@ -640,58 +646,58 @@ async function install(page, shared, { authenticated = true, entitled = true, ma
         hasMore: filter === "all" && !cursor,
         nextCursor: `123~swe_${"a".repeat(40)}`,
       });
-      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, state: rows.length ? "available" : "empty", source_wallet_id: SOURCE_ID, ...activity }) });
+      return fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, state: rows.length ? "available" : "empty", source_wallet_id: SOURCE_ID, ...activity }) });
     }
     if (url.pathname.endsWith("/saved-wallets") && request.method() === "GET") {
-      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, state: shared.saved?.length ? "available" : "empty", saves: shared.saved || [], lists: [] }) });
+      return fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, state: shared.saved?.length ? "available" : "empty", saves: shared.saved || [], lists: [] }) });
     }
     if (url.pathname.endsWith("/saved-wallets") && request.method() === "POST") {
       const body = JSON.parse(request.postData() || "{}");
       const existing = (shared.saved || []).find((row) => row.source_wallet_id === body.source_wallet_id && row.list_name === body.list_name);
       const save = existing || { save_id: `wrs_${"s".repeat(40)}`, source_wallet_id: body.source_wallet_id, list_name: body.list_name, label: body.label, source_wallet: { chain: "solana", network: "mainnet", address: WALLET }, created_at: "2026-08-29T12:00:00.000Z", updated_at: "2026-08-29T12:00:00.000Z", revision: 1, shadow_monitoring_started: false, execution_authorized: false };
       shared.saved = existing ? shared.saved : [...(shared.saved || []), save];
-      return route.fulfill({ status: existing ? 200 : 201, contentType: "application/json", body: JSON.stringify({ ok: true, created: !existing, save }) });
+      return fulfill({ status: existing ? 200 : 201, contentType: "application/json", body: JSON.stringify({ ok: true, created: !existing, save }) });
     }
     if (url.pathname.includes("/saved-wallets/") && request.method() === "DELETE") {
       const saveId = url.pathname.split("/").pop();
       const before = (shared.saved || []).length;
       shared.saved = (shared.saved || []).filter((row) => row.save_id !== saveId);
-      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, deleted: shared.saved.length < before }) });
+      return fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, deleted: shared.saved.length < before }) });
     }
     if (url.pathname.endsWith("/inspect") && request.method() === "POST") {
       const inspectBody = JSON.parse(request.postData() || "{}");
       if (inspectBody.chain && inspectBody.chain !== "solana") {
         const transfer = evmTransfer();
         const activity = { ...activityPage([transfer]), scope: { on_demand_only: true, evidence_mode: "bounded_blockscout_index", provider_request_performed: true, history_complete_claimed: false, current_balance_claimed: false } };
-        return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, state: "available", source_wallet_id: EVM_SOURCE_ID, profile: evmProfile(), recent_events: [transfer], activity, transaction_decode_candidates: [evmTransactionContext()], prospective_copyability: null, deep_history: { state: "not_enabled", history_complete_claimed: false }, persistence: { state: "on_demand_only", saved_to_raven_index: false, copy_eligible: false } }) });
+        return fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, state: "available", source_wallet_id: EVM_SOURCE_ID, profile: evmProfile(), recent_events: [transfer], activity, transaction_decode_candidates: [evmTransactionContext()], prospective_copyability: null, deep_history: { state: "not_enabled", history_complete_claimed: false }, persistence: { state: "on_demand_only", saved_to_raven_index: false, copy_eligible: false } }) });
       }
       const activity = activityPage([event("SWAP_BUY"), event("TRANSFER_IN", 1)], { total: 26, hasMore: true, nextCursor: `123~swe_${"a".repeat(40)}` });
-      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, state: "available", source_wallet_id: SOURCE_ID, profile: profile(), prospective_copyability: prospectiveCopyability(), recent_events: activity.events, activity, deep_history: deepHistory() }) });
+      return fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, state: "available", source_wallet_id: SOURCE_ID, profile: profile(), prospective_copyability: prospectiveCopyability(), recent_events: activity.events, activity, deep_history: deepHistory() }) });
     }
     if (url.pathname.endsWith("/watches") && request.method() === "GET") {
-      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, state: shared.watch ? "available" : "empty", watches: shared.watch ? [shared.watch] : [] }) });
+      return fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, state: shared.watch ? "available" : "empty", watches: shared.watch ? [shared.watch] : [] }) });
     }
     if (url.pathname.endsWith("/watches") && request.method() === "POST") {
       shared.watch = watch(false);
-      return route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify({ ok: true, created: true, watch: shared.watch }) });
+      return fulfill({ status: 201, contentType: "application/json", body: JSON.stringify({ ok: true, created: true, watch: shared.watch }) });
     }
     if (url.pathname === `/api/v1/wallet-copy/watches/${WATCH_ID}/refresh` && request.method() === "POST") {
       shared.watch = watch(true);
-      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, state: "baseline_established", decisions: [], profile: profile() }) });
+      return fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, state: "baseline_established", decisions: [], profile: profile() }) });
     }
     if (url.pathname === `/api/v1/wallet-copy/watches/${WATCH_ID}` && request.method() === "DELETE") {
       shared.watch = null;
-      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, deleted: true }) });
+      return fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, deleted: true }) });
     }
     if (url.pathname.endsWith("/decisions") && request.method() === "GET") {
       const sampleCount = shared.decision ? 1 : 0;
       const exitCount = shared.exitDecision ? 1 : 0;
-      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, state: sampleCount || exitCount ? "available" : "empty", decisions: shared.decision ? [shared.decision] : [], exit_decisions: shared.exitDecision ? [shared.exitDecision] : [], copyability: shared.watch ? [{ watch_id: WATCH_ID, snapshot: { state: "insufficient_evidence", score: null, prospective_sample_count: sampleCount, components: { policy_pass_pct: 0, entry_executable_pct: 100, exit_executable_pct: 0, median_entry_degradation_bps: 42 } }, by_size: [25, 100, 500, 1000, 5000].map((size) => ({ order_size_usdc: size, state: "insufficient_evidence", score: null, prospective_sample_count: size === 100 ? sampleCount : 0, components: {} })) }] : [] }) });
+      return fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, state: sampleCount || exitCount ? "available" : "empty", decisions: shared.decision ? [shared.decision] : [], exit_decisions: shared.exitDecision ? [shared.exitDecision] : [], copyability: shared.watch ? [{ watch_id: WATCH_ID, snapshot: { state: "insufficient_evidence", score: null, prospective_sample_count: sampleCount, components: { policy_pass_pct: 0, entry_executable_pct: 100, exit_executable_pct: 0, median_entry_degradation_bps: 42 } }, by_size: [25, 100, 500, 1000, 5000].map((size) => ({ order_size_usdc: size, state: "insufficient_evidence", score: null, prospective_sample_count: size === 100 ? sampleCount : 0, components: {} })) }] : [] }) });
     }
     if (url.pathname.endsWith("/positions") && request.method() === "GET") {
-      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, state: shared.position ? "available" : "empty", positions: shared.position ? [shared.position] : [] }) });
+      return fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, state: shared.position ? "available" : "empty", positions: shared.position ? [shared.position] : [] }) });
     }
-    return route.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ ok: false, error: "not_found" }) });
+    return fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ ok: false, error: "not_found" }) });
   });
 }
 
@@ -754,7 +760,7 @@ test("Pro user inspects source evidence, saves a private policy, and establishes
   await page.getByLabel("Paste an address").fill(WALLET);
   await page.getByRole("button", { name: "Analyze wallet" }).click();
   await expect(page.getByText("Source performance", { exact: true })).toBeVisible();
-  await expect(page.locator("#copyProfile").getByText("Follower reality", { exact: true })).toBeVisible();
+  await expect(page.locator("#copyProfile").getByText("Follower reality", { exact: true })).toHaveCount(0);
   await expect(page.locator("#copySourcePnl")).toHaveText("+$428 realized");
   await expect(page.getByText("Indexing older activity", { exact: true })).toBeVisible();
   await expect(page.getByText("700 transaction references · 694 decoded · 7 pages", { exact: true })).toBeVisible();
@@ -806,16 +812,9 @@ test("BNB lookup renders provider balances and transfer evidence without pretend
   await expect(page.locator("#copyProfileCoverage")).toContainText("123 tx reported · trades not decoded");
   await expect(page.locator("#copySourceMetrics")).toContainText("Recent transfers");
   await expect(page.locator("#copySourceMetrics")).toContainText("Provider tx count");
-  await expect(page.locator("#copyBehaviorMetrics")).toContainText("Inbound transfers");
-  await expect(page.locator("#copyBehaviorMetrics")).toContainText("Trade interpretation");
-  await expect(page.locator("#copyBehaviorMetrics")).toContainText("Not decoded");
-  await expect(page.locator("#copyBehaviorMetrics")).toContainText("Route-decode candidates");
-  await expect(page.locator("#copyEvmTransactionContext")).toBeVisible();
-  await expect(page.locator("#copyEvmContextCount")).toHaveText("1 of 1 inspected");
-  await expect(page.locator("#copyEvmContextRows")).toContainText("Provider method: swapExactTokensForTokens");
-  await expect(page.locator("#copyEvmContextRows")).toContainText("Raven trade verdict");
-  await expect(page.locator("#copyEvmContextRows")).toContainText("Unresolved");
-  await expect(page.getByRole("button", { name: "No copy signal" })).toBeDisabled();
+  await expect(page.locator("#copySourceMetrics")).toContainText("Inbound transfers");
+  await expect(page.locator("#copyEvmTransactionContext")).toBeHidden();
+  await expect(page.getByText("Raven trade verdict", { exact: true })).toHaveCount(0);
   await expect(page.locator("#copyCapitalMetrics")).toContainText("Visible provider mark");
   await expect(page.locator("#copyCapitalMetrics")).toContainText("$2.50");
   await expect(page.locator("#copyCapitalMetrics")).toContainText("100.00% · USDC");
@@ -827,7 +826,7 @@ test("BNB lookup renders provider balances and transfer evidence without pretend
   await expect(page.locator("#copyOpenPositions")).toContainText("2.5 held · $1.00 provider mark · basis unavailable");
   await expect(page.getByText("Transfer In", { exact: true })).toBeVisible();
   await expect(page.locator("#copyRecentEvents").getByText("2.5 USDC", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Route proof pending" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Copy unavailable on this chain" })).toBeDisabled();
   const inspectRequest = shared.requests.find((row) => row.path.endsWith("/inspect"));
   expect(JSON.parse(inspectRequest.body)).toEqual({ address: EVM_WALLET, chain: "bsc" });
   const overflow = await page.evaluate(() => [...document.querySelectorAll("body *")]
@@ -836,19 +835,14 @@ test("BNB lookup renders provider balances and transfer evidence without pretend
   expect(overflow).toEqual([]);
 });
 
-test("Raven-indexed screener exposes honest evidence and opens a retained profile without another live lookup", async ({ page }) => {
+test("Raven-indexed screener keeps proprietary research private and opens a retained profile without another live lookup", async ({ page }) => {
   const shared = { watch: null, decision: null, position: null, requests: [] };
   await install(page, shared);
   await page.goto("/account/copy/");
-  await expect(page.getByRole("heading", { name: "Find reconstructable edge." })).toBeVisible();
-  await expect(page.getByText("Broad source profits · intraday", { exact: true })).toBeVisible();
-  await expect(page.getByText(/Watch: Only 71.4% of observed trade cost basis is known/)).toBeVisible();
-  await expect(page.getByText("Follower $100", { exact: true })).toBeVisible();
-  await expect(page.getByText("+4.82% at +1h · 83.33% routed", { exact: true })).toBeVisible();
-  await expect(page.getByText("Alpha retained · +1h", { exact: true })).toBeVisible();
-  await expect(page.getByText("58.40% · 11 positive-source samples", { exact: true })).toBeVisible();
-  await expect(page.getByText("At Raven detection", { exact: true })).toBeVisible();
-  await expect(page.getByText("$750K cap · $125K liq · 1h pair", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Find your next wallet to follow." })).toBeVisible();
+  await expect(page.locator('.copy-screener-card')).toContainText(WALLET);
+  await expect(page.locator('.copy-screener-card')).toContainText('62.50%');
+  await expect(page.locator('.copy-screener-card')).not.toContainText(/reconstruction|alpha retained|policy pass|Watch:/i);
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.locator("#copySavedWallets").getByText(WALLET, { exact: true })).toBeVisible();
   const saveRequest = shared.requests.find((row) => row.method === "POST" && row.path.endsWith("/saved-wallets"));
@@ -856,41 +850,11 @@ test("Raven-indexed screener exposes honest evidence and opens a retained profil
   expect(JSON.parse(saveRequest.body)).toEqual({ source_wallet_id: SOURCE_ID, list_name: "Research", label: WALLET });
   expect(shared.watch).toBeNull();
   await captureVisual(page, "wallet-copy-screener-desktop-1440");
-  await page.getByRole("button", { name: "Open analysis" }).click();
-  await expect(page.getByText("Raven research thesis", { exact: true })).toBeVisible();
-  const thesis = page.getByLabel("Raven wallet research thesis");
-  await expect(thesis.getByText("What supports it", { exact: true })).toBeVisible();
-  await expect(thesis.getByText("What could mislead", { exact: true })).toBeVisible();
-  await expect(thesis.getByText("What Raven needs next", { exact: true })).toBeVisible();
-  await expect(page.getByText("25 USDC", { exact: true })).toBeVisible();
-  await expect(page.getByText("How returns were made", { exact: true })).toBeVisible();
-  await expect(page.getByText("How much Raven knows", { exact: true })).toBeVisible();
-  await expect(page.getByText("Last observed, never implied current", { exact: true })).toBeVisible();
-  await expect(page.locator("#copyFollowerHeadline")).toHaveText("24 wallet trades · 120 exact follower routes · 18 +1h outcomes");
-  await expect(page.locator("#copyPlaybookState")).toHaveText("Size-sensitive");
-  await expect(page.locator("#copyPlaybookHeadline")).toHaveText("Routes weaken above $500");
-  await expect(page.locator("#copyPlaybookSummary")).toContainText("66.67% pass · 24 buys · $100");
-  await expect(page.locator("#copyPlaybookSize")).toHaveText("$25–$500 majority-pass");
-  await expect(page.locator("#copyPlaybookMarket")).toHaveText("$200K–$750K cap");
-  await expect(page.locator("#copyPlaybookPersistence")).toHaveText("83.33% still routable");
-  await expect(page.locator("#copyPlaybookConstraint")).toHaveText("Reverse Exit Unavailable");
-  await expect(page.locator("#copyPlaybook")).toContainText("Not financial advice");
-  await expect(page.locator("#copyFollowerMetrics").getByText("Route still available · +1h", { exact: true })).toBeVisible();
-  await expect(page.locator("#copyFollowerMetrics").getByText("+4.82%", { exact: true })).toBeVisible();
-  await expect(page.locator("#copyFollowerMetrics").getByText("58.40%", { exact: true })).toBeVisible();
-  await expect(page.locator("#copyCapacityRail").getByText("24 routes · 18 +1h", { exact: true }).first()).toBeVisible();
-  await expect(page.locator("#copyRefusalLabel")).toHaveText("Leading blocker · $100");
-  await expect(page.locator("#copyRefusalHeadline")).toHaveText("Reverse Exit Unavailable");
-  await expect(page.locator("#copyRefusalDetail")).toContainText("5/24 routes");
-  await expect(page.locator("#copySizeStressHeadline")).toHaveText("Majority drops at $1,000");
-  await expect(page.locator("#copySizeStressDetail")).toContainText("24/24 signals · five sizes · isolated quotes");
-  await expect(page.locator("#copyCrowdingStressHeadline")).toHaveText("71% held under load");
-  await expect(page.locator("#copyCrowdingStressDetail")).toContainText("24 signals");
-  await expect(page.locator("#copyCrowdingStressDetail")).toContainText("demand private");
-  await expect(page.locator("#copyMarketFit").getByText("Where the route survives", { exact: true })).toBeVisible();
-  await expect(page.locator("#copyMarketFit").getByText("$200K–$750K", { exact: true })).toBeVisible();
-  await expect(page.locator("#copyMarketFit").getByText("$100K–$500K", { exact: true })).toBeVisible();
-  await expect(page.locator("#copyMarketFit").getByText("1h–24h", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "View wallet" }).click();
+  await expect(page.locator('#copyProfileAddress')).toHaveText(WALLET);
+  await expect(page.locator('#copySourcePnl')).toHaveText('+$428 realized');
+  await expect(page.getByText('25 USDC', { exact: true })).toBeVisible();
+  await expect(page.locator('#copyProfile')).not.toContainText(/What supports it|What Raven needs next|Follower reality|How much Raven knows|Routes weaken above/);
   await expect(page.getByRole("button", { name: "Save wallet" })).toBeVisible();
   await expect(page.locator("#copyEventCount")).toHaveText("2 of 26 retained");
   await page.getByRole("button", { name: "Load older" }).click();
@@ -909,11 +873,11 @@ test("Raven-indexed screener exposes honest evidence and opens a retained profil
   expect(shared.requests.filter((row) => row.path.endsWith("/inspect"))).toHaveLength(0);
   const screenerRequest = shared.requests.find((row) => row.path.endsWith("/screener"));
   expect(screenerRequest.headers["x-ravenos-csrf"]).toBe("csrf_wallet_copy");
-  expect(JSON.parse(screenerRequest.body).filters.min_known_cost_basis_pct).toBeNull();
-  await page.getByRole("button", { name: /Consistent winners/ }).click();
+  expect(screenerRequest.body).not.toMatch(/reconstruction|copyability|follower_|known_cost_basis/);
+  await page.getByRole("button", { name: /Recorded profits/ }).click();
   const presetRequest = [...shared.requests].reverse().find((row) => row.path.endsWith("/screener"));
-  expect(JSON.parse(presetRequest.body).preset).toBe("consistent_winners");
-  expect(new URL(page.url()).searchParams.get("screen")).toBe("consistent_winners");
+  expect(JSON.parse(presetRequest.body).preset).toBe("recorded_profits");
+  expect(new URL(page.url()).searchParams.get("screen")).toBe("recorded_profits");
 });
 
 test("wallet screener switches to a bounded Robinhood index without turning unavailable evidence into zero", async ({ page }) => {
@@ -923,7 +887,7 @@ test("wallet screener switches to a bounded Robinhood index without turning unav
   await page.getByRole("button", { name: "Robinhood", exact: true }).click();
   await expect(page.locator("#copyScreenerCount")).toHaveText("0 matches");
   await expect(page.locator("#copyScreenerStatus")).toContainText("No matching wallet in Robinhood Chain.");
-  await expect(page.getByText("Adjust filters or inspect an address. Only retained evidence is included.")).toBeVisible();
+  await expect(page.getByText("Adjust the filters or inspect a wallet address.")).toBeVisible();
   const request = [...shared.requests].reverse().find((row) => row.path.endsWith("/screener"));
   expect(JSON.parse(request.body)).toMatchObject({ chain: "robinhood", network: "mainnet" });
   expect(new URL(page.url()).searchParams.get("chain")).toBe("robinhood");
@@ -935,7 +899,7 @@ test("wallet screener can query all supported indexes without merging wallet ide
   await page.goto("/account/copy/");
   await expect(page.getByRole("button", { name: "All chains", exact: true })).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator("#copyScreenerStatus")).toContainText("All indexed chains");
-  await expect(page.getByText("Broad source profits · intraday", { exact: true })).toBeVisible();
+  await expect(page.locator(".copy-screener-card")).toContainText(WALLET);
   const request = [...shared.requests].reverse().find((row) => row.path.endsWith("/screener"));
   expect(JSON.parse(request.body)).toMatchObject({ chain: "all", network: "mainnet" });
   expect(new URL(page.url()).searchParams.get("chain")).toBeNull();
@@ -965,7 +929,7 @@ test("seen wallets populate across chains without starting provider lookups and 
   await expect(page.locator("#copyPresetRail")).toBeHidden();
   expect(queries[0].chain).toBe("all");
   expect(shared.requests.some(row => row.path.endsWith("/inspect"))).toBe(false);
-  await expect(page.locator("#copySeenWallets")).toContainText("do not prove profitability or copyability");
+  await expect(page.locator("#copySeenWallets")).toContainText("Browse wallets by chain");
   await page.getByRole("button", { name: "Base", exact: true }).click();
   await expect(page.locator("#copySeenResults .copy-seen-wallet")).toHaveCount(1);
   await expect(page.locator("#copySeenResults")).toContainText("Base");
@@ -1002,7 +966,7 @@ test("the shared wallet universe exposes hundreds of pages without triggering an
   await expect(page.locator("#copyScreenerFilters")).toBeVisible();
   await expect(page.locator("#copyScreenerCount")).toHaveText("0 matches");
   await expect(page.locator("#copyScreenerPages")).toBeHidden();
-  await expect(page.locator("#copyScreenerResults")).toContainText("No matching wallet evidence");
+  await expect(page.locator("#copyScreenerResults")).toContainText("No matching wallets");
   await page.getByRole("button", { name: "Observed wallets", exact: true }).click();
   await expect(page.locator("#copyScreenPage")).toHaveText("Page 1 of 500");
   await expect(page.locator("#copyScreenerCount")).toHaveText("6,000 observed");
@@ -1024,10 +988,10 @@ test("mobile wallet screener keeps filters, source evidence, and analysis contro
   const shared = { watch: null, decision: null, position: null, requests: [] };
   await install(page, shared);
   await page.goto("/account/copy/");
-  await expect(page.getByRole("heading", { name: "Find reconstructable edge." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Find your next wallet to follow." })).toBeVisible();
   await page.getByLabel("Sort").selectOption("trade_count_desc");
   await page.getByRole("button", { name: "Apply filters" }).click();
-  await expect(page.getByRole("button", { name: "Open analysis" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "View wallet" })).toBeVisible();
   const overflow = await page.evaluate(() => [...document.querySelectorAll("body *")]
     .filter((node) => node.getBoundingClientRect().right > innerWidth + 1)
     .map((node) => `${node.tagName.toLowerCase()}.${node.className || ""}`));
@@ -1035,7 +999,7 @@ test("mobile wallet screener keeps filters, source evidence, and analysis contro
   const latest = [...shared.requests].reverse().find((row) => row.path.endsWith("/screener"));
   expect(JSON.parse(latest.body).sort).toBe("trade_count_desc");
   await captureVisual(page, "wallet-copy-screener-mobile-390");
-  await page.getByRole("button", { name: "Open analysis" }).click();
+  await page.getByRole("button", { name: "View wallet" }).click();
   await expect(page.getByText("How the wallet trades", { exact: true })).toBeVisible();
   const profileOverflow = await page.evaluate(() => [...document.querySelectorAll("#copyProfile *")]
     .filter((node) => node.getBoundingClientRect().right > innerWidth + 1)
@@ -1167,12 +1131,12 @@ test("a late inspection cannot replace the wallet opened from discovery or its c
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ profile: profile(), source_wallet_id: SOURCE_ID }) });
   });
   const secondAddress = "So11111111111111111111111111111111111111112";
-  await page.route(`**/api/v1/wallet-copy/wallets/${SOURCE_ID}`, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ source_wallet_id: SOURCE_ID, profile: { ...profile(), source_wallet: { chain: "solana", network: "mainnet", address: secondAddress } } }) }));
+  await page.route(`**/api/v1/wallet-copy/wallets/${SOURCE_ID}`, (route) => route.fulfill({ status: 200, contentType: "application/json", body: publicPayload({ source_wallet_id: SOURCE_ID, profile: { ...profile(), source_wallet: { chain: "solana", network: "mainnet", address: secondAddress } } }) }));
   await page.goto("/account/copy/");
   await page.getByLabel("Paste an address").fill(WALLET);
   await page.getByRole("button", { name: "Analyze wallet", exact: true }).click();
   await expect.poll(() => typeof release).toBe("function");
-  await page.getByRole("button", { name: "Open analysis", exact: true }).first().click();
+  await page.getByRole("button", { name: "View wallet", exact: true }).first().click();
   await expect(page.getByLabel("Paste an address")).toHaveValue(secondAddress);
   release();
   await expect(page.getByRole("button", { name: "Analyze wallet", exact: true })).toBeEnabled();
@@ -1231,7 +1195,7 @@ test('Solana token metadata labels activity and marks without manufacturing unre
   enriched.token_metadata={rows:[{mint:TOKEN,symbol:'EXAMPLE',decimals:6}],price_cache_seconds:600};
   enriched.holdings_snapshot={address:WALLET,chain:'solana',state:'available',observed_at:'2026-08-29T12:00:00Z',native:{amount:1},
     provider_balance_summary:{visible_provider_mark_value_usd:'0.000202'},tokens:[{mint:TOKEN,symbol:'EXAMPLE',balance_display:'81',provider_mark_price_usd:'0.0000025',provider_mark_value_usd:'0.000202'}]};
-  await page.route('**/api/v1/wallet-copy/inspect',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,source_wallet_id:SOURCE_ID,profile:enriched,recent_events:[event()]})}));
+  await page.route('**/api/v1/wallet-copy/inspect',route=>route.fulfill({status:200,contentType:'application/json',body:publicPayload({ok:true,source_wallet_id:SOURCE_ID,profile:enriched,recent_events:[event()]})}));
   await page.goto(`/account/copy/?wallet=${WALLET}&chain=solana`);
   await expect(page.locator('#copyHoldingsTable')).toContainText('EXAMPLE');
   await expect(page.locator('#copyHoldingsTable')).toContainText('$0.0000025');
@@ -1240,13 +1204,13 @@ test('Solana token metadata labels activity and marks without manufacturing unre
   await expect(page.locator('#copyHoldingsScope')).toContainText('Cached indicative marks, not exit quotes');
 });
 
-test("observed-wallet context filters cached samples, links exact markets and stays contained on mobile", async ({page}) => {
+test("observed-wallet filters preserve browsing while private pool samples stay hidden", async ({page}) => {
   const shared={watch:null,decision:null,position:null,requests:[]},queries=[];
   await install(page,shared,{marketEvidence:true});await observedEvidenceFixture(page,queries);
   await page.goto("/account/copy/?wallets=observed");
   await expect(page.locator("#copyObservedSignal")).toBeVisible();
-  await expect(page.locator("#copySeenResults")).toContainText("Busiest pool · transactions");
-  await expect(page.locator("#copySeenResults")).toContainText("This does not mean the wallet was inactive.");
+  await expect(page.locator("#copySeenResults")).toContainText(EVM_WALLET);
+  await expect(page.locator("#copySeenResults")).not.toContainText("Busiest pool · transactions");
   await page.locator("#copyScreenNext").click();await expect(page.locator("#copyScreenPage")).toHaveText("Page 2 of 2");
   await page.getByLabel("Pool activity · Pro").selectOption("two_sided");
   await page.getByLabel("Seen within").selectOption("24");
@@ -1257,12 +1221,8 @@ test("observed-wallet context filters cached samples, links exact markets and st
   expect(queries.at(-1).filters).toBeUndefined();
   expect(shared.requests.some(row=>row.path.endsWith("/inspect"))).toBe(false);
   await page.reload();await expect(page.getByLabel("Pool activity · Pro")).toHaveValue("two_sided");
-  await page.getByText("Inspect pool samples",{exact:true}).click();
-  await expect(page.locator(".copy-observed-evidence")).toContainText("$149.12");
-  const href=await page.locator(".copy-observed-evidence a").getAttribute("href"),url=new URL(href,"https://ravenos.xyz");
-  expect(url.pathname).toBe("/terminal/");expect(url.searchParams.get("token_address")).toBe(EVM_TOKEN);
-  expect(url.searchParams.get("pair_address")).toBe(`0x${"ab".repeat(20)}`);expect(url.searchParams.get("chain")).toBe("base");
-  expect(url.searchParams.has("copy_review")).toBe(false);
+  await expect(page.getByText("Inspect pool samples",{exact:true})).toHaveCount(0);
+  await expect(page.locator(".copy-observed-evidence")).toHaveCount(0);
   await page.setViewportSize({width:1440,height:1000});await page.locator("#copySeenWallets").scrollIntoViewIfNeeded();
   await captureVisual(page,"wallet-market-context-desktop");
   await page.setViewportSize({width:390,height:844});await page.locator("#copySeenWallets").scrollIntoViewIfNeeded();
@@ -1296,7 +1256,7 @@ test('source lists filter cached wallets, preserve full addresses and restore ac
   await page.goto('/account/copy/?wallets=observed');
   await expect(page.locator('#copySeenResults')).toContainText(WALLET);
   await expect(page.locator('#copySeenResults')).not.toContainText(/kolscan/i);
-  await expect(page.locator('#copySeenResults')).toContainText('KOL list');
+  await expect(page.locator('#copySeenResults')).not.toContainText('KOL list');
   await expect(page.locator('#copySeenResults')).not.toContainText('#3');
   await page.getByLabel('Source list').selectOption('kol');
   await page.getByRole('button',{name:'Filter wallets',exact:true}).click();
@@ -1313,7 +1273,7 @@ test('source lists filter cached wallets, preserve full addresses and restore ac
 test('observed wallets save privately and cached research survives refresh and removal failures', async ({page}) => {
   const shared = {requests:[]};
   await install(page, shared);
-  await page.route('**/api/v1/wallet-copy/screener',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,rows:[],scope:{chain:'all'},pagination:{page:1,page_size:12},seen_wallets:{total:1,rows:[{source_wallet_id:SOURCE_ID,source_wallet:{chain:'solana',address:WALLET},history_available:true,last_observed_at:'2026-09-07T12:00:00Z'}]}})}));
+  await page.route('**/api/v1/wallet-copy/screener',route=>route.fulfill({status:200,contentType:'application/json',body:publicPayload({ok:true,rows:[],scope:{chain:'all'},pagination:{page:1,page_size:12},seen_wallets:{total:1,rows:[{source_wallet_id:SOURCE_ID,source_wallet:{chain:'solana',address:WALLET},history_available:true,last_observed_at:'2026-09-07T12:00:00Z'}]}})}));
   await page.goto('/account/copy/');
   await page.locator('#copySaveListName').fill('Shortlist');
   await page.locator('.copy-seen-wallet').getByRole('button',{name:'Save',exact:true}).click();
@@ -1340,7 +1300,7 @@ test('opening Solana analysis after EVM lookup restores server-backed activity f
   const shared = {requests:[]}; await install(page,shared);
   await page.goto(`/account/copy/?wallet=${EVM_WALLET}&chain=bsc`);
   await expect(page.locator('#copyProfile')).toBeVisible();
-  await page.getByRole('button',{name:'Open analysis',exact:true}).click();
+  await page.getByRole('button',{name:'View wallet',exact:true}).click();
   await expect(page.locator('#copyWalletAddress')).toHaveValue(WALLET);
   await page.locator('#copyActivityFilter').selectOption('unresolved');
   await expect.poll(()=>shared.requests.some(row=>row.path.endsWith('/events')&&row.search.includes('unresolved'))).toBe(true);
@@ -1359,7 +1319,7 @@ test('a late activity page cannot overwrite a newly opened profile', async ({pag
   await expect(page.locator('#copyProfile')).toBeVisible();
   await page.locator('#copyActivityFilter').selectOption('unresolved');
   await expect.poll(()=>typeof release).toBe('function');
-  await page.getByRole('button',{name:'Open analysis',exact:true}).click();
+  await page.getByRole('button',{name:'View wallet',exact:true}).click();
   await expect(page.locator('#copyEventCount')).toHaveText('2 of 26 retained');
   release();
   await page.waitForResponse(response=>response.url().includes('/events?'));
@@ -1374,10 +1334,10 @@ test('wallet overview uses cached period records, full identities and token cost
     d30:{...record.source_performance.windows.d30,buy_count:14,sell_count:8,win_rate_pct:62.5,average_hold_seconds:2100,distribution:[{label:'0% to 100%',count:8}]},
     d7:{...record.source_performance.windows.d7,buy_count:6,sell_count:5,win_rate_pct:60,average_hold_seconds:1200,distribution:[{label:'0% to 100%',count:5}]},
   },tokens:[{mint:TOKEN,buy_count:4,sell_count:2,last_trade_at:'2026-08-29T11:59:58.000Z',by_basis:{usdc:{matched_cost:'25.000000',matched_proceeds:'30.000000',realized_pnl:'5.000000',remaining_cost:12},sol:{}}}]};
-  await page.route(`**/api/v1/wallet-copy/wallets/${SOURCE_ID}`,route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,source_wallet_id:SOURCE_ID,profile:record,recent_events:[event()],provider_request_performed:false})}));
+  await page.route(`**/api/v1/wallet-copy/wallets/${SOURCE_ID}`,route=>route.fulfill({status:200,contentType:'application/json',body:publicPayload({ok:true,source_wallet_id:SOURCE_ID,profile:record,recent_events:[event()],provider_request_performed:false})}));
   await page.setViewportSize({width:390,height:844});
   await page.goto('/account/copy/');
-  await page.getByRole('button',{name:'Open analysis',exact:true}).click();
+  await page.getByRole('button',{name:'View wallet',exact:true}).click();
   await expect(page.locator('#copyProfileAddress')).toHaveText(WALLET);
   await expect(page.locator('#copyProfileExplorer')).toHaveAttribute('href',`https://solscan.io/account/${WALLET}`);
   await expect(page.locator('#copyOverviewMetrics')).toContainText('14 / 8');
@@ -1404,13 +1364,13 @@ test('wallet overview uses cached period records, full identities and token cost
 test('missing provider transaction count is never shown as zero and advanced EVM panels start collapsed',async({page})=>{
   const shared={requests:[]};await install(page,shared);
   const snapshot=evmProfile();snapshot.positions.provider_reported_token_balances[0].provider_mark_price_usd=0.0000025;snapshot.coverage.transactions_reported_by_provider=null;snapshot.coverage.transactions_observed=0;
-  await page.route('**/api/v1/wallet-copy/inspect',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,source_wallet_id:EVM_SOURCE_ID,profile:snapshot,recent_events:[],persistence:{state:'on_demand_only'}})}));
+  await page.route('**/api/v1/wallet-copy/inspect',route=>route.fulfill({status:200,contentType:'application/json',body:publicPayload({ok:true,source_wallet_id:EVM_SOURCE_ID,profile:snapshot,recent_events:[],persistence:{state:'on_demand_only'}})}));
   await page.goto(`/account/copy/?wallet=${EVM_WALLET}&chain=bsc`);
   await expect(page.locator('#copyProfileAddress')).toHaveText(EVM_WALLET);
   await expect(page.locator('#copyProfileCoverage')).toContainText('1 transfers observed');
   await expect(page.locator('#copyProfileCoverage')).not.toContainText('0 tx');
   await expect(page.locator('#copyRavenEvidence')).not.toHaveAttribute('open');
-  await page.getByRole('link', { name: 'Raven signals · Pro', exact: true }).click();
+  await page.getByRole('link', { name: 'Wallet profile · Pro', exact: true }).click();
   await expect(page.locator('#copyRavenEvidence')).toHaveAttribute('open', '');
   await expect(page.locator('#copyOverviewScope')).toContainText('swaps and cost basis are not reconstructed');
   await expect(page.locator('#copyHoldingsTable')).toContainText(EVM_TOKEN);
@@ -1423,7 +1383,7 @@ test('background EVM history without a balance snapshot never displays a fresh b
  snapshot.capital_observations.native={symbol:'BNB',amount:null,amount_raw:null,observed_at:null,state:'unavailable'};
  snapshot.positions.provider_reported_token_balances=[];
  snapshot.provider_balance_summary={visible_balance_rows:0,visible_priced_rows:0,visible_unpriced_rows:0,visible_provider_mark_value_usd:null};
- await page.route('**/api/v1/wallet-copy/inspect',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,source_wallet_id:EVM_SOURCE_ID,profile:snapshot,recent_events:[],persistence:{state:'shared_raven_profile'}})}));
+ await page.route('**/api/v1/wallet-copy/inspect',route=>route.fulfill({status:200,contentType:'application/json',body:publicPayload({ok:true,source_wallet_id:EVM_SOURCE_ID,profile:snapshot,recent_events:[],persistence:{state:'shared_raven_profile'}})}));
  await page.goto(`/account/copy/?wallet=${EVM_WALLET}&chain=bsc`);
  await expect(page.locator('#copyProfileAddress')).toHaveText(EVM_WALLET);
  await expect(page.locator('#copyOverviewScope')).toContainText('Balances have not been indexed.');
@@ -1437,7 +1397,7 @@ test('EVM receipt gaps stay explicit on desktop and mobile without a false full-
  const shared={requests:[]};await install(page,shared);
  const snapshot=evmProfile();snapshot.durable_history={state:'bounded_partial',unresolved_references:2};
  const deep_history={state:'bounded_partial',chain:'bsc',unresolved_references:2,signatures_indexed:48,transactions_decoded:46,maximum_signatures:10000,pages_indexed:8};
- await page.route('**/api/v1/wallet-copy/inspect',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,source_wallet_id:EVM_SOURCE_ID,profile:snapshot,recent_events:[],deep_history})}));
+ await page.route('**/api/v1/wallet-copy/inspect',route=>route.fulfill({status:200,contentType:'application/json',body:publicPayload({ok:true,source_wallet_id:EVM_SOURCE_ID,profile:snapshot,recent_events:[],deep_history})}));
  await page.goto(`/account/copy/?wallet=${EVM_WALLET}&chain=bsc`);
  await expect(page.locator('#copyOverviewScope')).toContainText('2 transaction receipts remain unresolved');
  await expect(page.locator('#copyDeepHistoryHeadline')).toHaveText('History retained with gaps');
@@ -1454,9 +1414,10 @@ test('verified EVM results show separate currencies and the coverage of unrealiz
  snapshot.trading_record={token_count:1,basis_labels:{usdg:'USDG',eth:'ETH'},periods:{d30:period,d7:period},unrealized_summary:{value_usd:'50',covered_tokens:1,visible_holdings:2},tokens:[{mint:EVM_TOKEN,buy_count:2,sell_count:2,unrealized_pnl_usd:'50',by_basis:{usdg:{matched_cost:'100',matched_proceeds:'125',realized_pnl:'25',remaining_cost:'50'}}}]};
  snapshot.trading_record.usd={priced_trades:2,eligible_trades:4,periods:{d30:{realized_pnl:{usd:'12.345'},observed_network_fee_usd:'0.013'}}};
  snapshot.balances_observed_at='2026-09-07T12:00:00Z';
- await page.route('**/api/v1/wallet-copy/inspect',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,source_wallet_id:EVM_SOURCE_ID,profile:snapshot,recent_events:[],persistence:{state:'shared_raven_profile'}})}));
+ await page.route('**/api/v1/wallet-copy/inspect',route=>route.fulfill({status:200,contentType:'application/json',body:publicPayload({ok:true,source_wallet_id:EVM_SOURCE_ID,profile:snapshot,recent_events:[],persistence:{state:'shared_raven_profile'}})}));
  await page.goto(`/account/copy/?wallet=${EVM_WALLET}&chain=bsc`);
- await expect(page.locator('#copyOverviewMetrics')).toContainText('+25 USDG · +0.004 ETH');
+ await expect(page.locator('#copyOverviewMetrics')).toContainText('+25 USDG');
+ await expect(page.locator('#copyOverviewMetrics')).toContainText('+0.004 ETH');
  await expect(page.locator('#copyOverviewMetrics')).toContainText('2 / 4 retained trades');
  await expect(page.locator('#copyOverviewScope')).toContainText('historical five-minute');
  await expect(page.locator('#copyOverviewMetrics')).toContainText('$50.00 · 1/2 tokens');
@@ -1483,7 +1444,7 @@ test('wallet valuation shows screened missing marks and uses reconciled historic
   ];
   snapshot.mark_coverage={unavailable:[{contract:EVM_TOKEN_TWO,reason:'thin_liquidity'}]};
   snapshot.trading_record={periods:{},tokens:[],usd:{priced_trades:1,eligible_trades:1,periods:{d30:{}},unrealized_summary:{value_usd:'37',covered_tokens:1,visible_holdings:2},tokens:[{mint:EVM_TOKEN,unrealized_pnl_usd:'37'}]}};
-  await page.route('**/api/v1/wallet-copy/inspect',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,source_wallet_id:EVM_SOURCE_ID,profile:snapshot,recent_events:[]})}));
+  await page.route('**/api/v1/wallet-copy/inspect',route=>route.fulfill({status:200,contentType:'application/json',body:publicPayload({ok:true,source_wallet_id:EVM_SOURCE_ID,profile:snapshot,recent_events:[]})}));
   await page.goto(`/account/copy/?wallet=${EVM_WALLET}&chain=bsc`);
   await expect(page.locator('#copyOverviewMetrics')).toContainText('1 priced · 1 unpriced');
   await expect(page.locator('#copyOverviewMetrics')).toContainText('$37.00 · 1/2 tokens');
@@ -1503,7 +1464,7 @@ function cardSummary(overrides={}) {
     pnl:{usdc:'-123.45',sol:null,as_of:'2026-09-08T12:00:00Z',history_complete:false},...overrides};
 }
 async function installCardPage(page, summary=cardSummary(), cached=false) {
-  await page.route('**/api/v1/wallet-copy/screener',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,rows:[],scope:{chain:'all'},pagination:{page:1,page_size:12},seen_wallets:{total:1,rows:[{
+  await page.route('**/api/v1/wallet-copy/screener',route=>route.fulfill({status:200,contentType:'application/json',body:publicPayload({ok:true,rows:[],scope:{chain:'all'},pagination:{page:1,page_size:12},seen_wallets:{total:1,rows:[{
     source_wallet_id:SOURCE_ID,source_wallet:{chain:'solana',address:WALLET},history_available:cached,last_observed_at:'2026-09-08T12:00:00Z',cached_summary:summary,
     discovery_sources:[{kind:'kol',label:'KOL list',provider:'kolscan_public_daily',rank:1},{kind:'kol',label:'KOL list',provider:'kolscan_public_weekly',rank:2}],
   }]}})}));
@@ -1517,7 +1478,7 @@ test('wallet cards surface cached age, P&L and 1/7/30d unique transaction counts
   for(const [label,value] of [['1d','21 seen'],['7d','145 seen'],['30d','1,082 seen']]) {
     await expect(card.locator('.copy-card-metrics > div').filter({hasText:`Transactions · ${label}`})).toContainText(value);
   }
-  await expect(card.locator('.copy-observed-source')).toHaveCount(1);await expect(card).not.toContainText(/kolscan/i);
+  await expect(card.locator('.copy-observed-source')).toHaveCount(0);await expect(card).not.toContainText(/kolscan/i);
   await expect(card).toContainText('age is a lower bound');
   for (const width of [1440,390]) {
     await page.setViewportSize({width,height:1000});await card.scrollIntoViewIfNeeded();
@@ -1565,7 +1526,7 @@ test('inspection network failure has a visible inline retry explanation and succ
   const card=page.locator('.copy-seen-wallet');await card.getByRole('button',{name:'Inspect wallet',exact:true}).click();
   await expect(card.locator('.copy-card-status')).toContainText('could not finish');
   await expect(card.getByRole('button',{name:'Inspect wallet',exact:true})).toBeEnabled();await expect(page.locator('#copySignIn')).toBeHidden();
-  await page.route('**/api/v1/wallet-copy/inspect',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,source_wallet_id:SOURCE_ID,profile:profile(),cached_summary:cardSummary(),recent_events:[]})}));
+  await page.route('**/api/v1/wallet-copy/inspect',route=>route.fulfill({status:200,contentType:'application/json',body:publicPayload({ok:true,source_wallet_id:SOURCE_ID,profile:profile(),cached_summary:cardSummary(),recent_events:[]})}));
   await card.getByRole('button',{name:'Inspect wallet',exact:true}).click();await expect(page.locator('#copyProfile')).toBeVisible();
   await expect(card).toContainText('1,082 seen');await expect(card.getByRole('button',{name:'Open cached',exact:true})).toBeVisible();
 });
@@ -1578,7 +1539,7 @@ test('stored analysis retries one temporary read failure and opens without fresh
   return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,source_wallet_id:SOURCE_ID,profile:profile(),recent_events:[]})});
  });
  await page.setViewportSize({width:390,height:844});await page.goto('/account/copy/');
- await page.getByRole('button',{name:'Open analysis',exact:true}).click();
+ await page.getByRole('button',{name:'View wallet',exact:true}).click();
  await expect(page.locator('#copyProfile')).toBeVisible();await expect(page.locator('#copyProfileAddress')).toHaveText(WALLET);
  await expect(page.locator('#copyWalletAddress')).toHaveValue(WALLET);
  await expect(page.locator('.copy-card-status')).toHaveCount(0);
@@ -1592,7 +1553,7 @@ for(const chain of ['base','ethereum','bsc','robinhood'])for(const observed of [
  const cachedProfile=evmProfile();cachedProfile.source_wallet=sourceWallet;
  cachedProfile.capital_observations.native.symbol=chain==='bsc'?'BNB':'ETH';
  const row={...screenedWallet(),source_wallet_id:identity.source_wallet_id,source_wallet:sourceWallet};
- await page.route('**/api/v1/wallet-copy/screener',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({
+ await page.route('**/api/v1/wallet-copy/screener',route=>route.fulfill({status:200,contentType:'application/json',body:publicPayload({
   ok:true,rows:observed?[]:[row],scope:{chain},pagination:{page:1,page_size:12},seen_wallets:{total:observed?1:0,rows:observed?[{
    source_wallet_id:identity.source_wallet_id,source_wallet:sourceWallet,history_available:true,last_observed_at:'2026-09-08T12:00:00Z',cached_summary:cardSummary(),
   }]:[]},
@@ -1606,7 +1567,7 @@ for(const chain of ['base','ethereum','bsc','robinhood'])for(const observed of [
  });
  await page.setViewportSize({width:390,height:844});
  await page.goto(`/account/copy/?chain=${chain}&wallets=${observed?'observed':'analyzed'}`);
- await page.getByRole('button',{name:observed?'Open cached':'Open analysis',exact:true}).click();
+ await page.getByRole('button',{name:observed?'Open cached':'View wallet',exact:true}).click();
  await expect(page.locator('#copyProfile')).toBeVisible();await expect(page.locator('#copyProfileAddress')).toHaveText(EVM_WALLET);
  await expect(page.locator('#copyWalletChain')).toHaveValue(chain);await expect(page.locator('#copyWalletAddress')).toHaveValue(EVM_WALLET);
  await expect(page.locator('.copy-card-status')).toHaveCount(0);expect(reads).toBe(2);
@@ -1622,7 +1583,7 @@ test('repeated cached-read network failure keeps cached retry instead of changin
  await expect(card.getByRole('button',{name:'Open cached',exact:true})).toBeEnabled();
  expect(reads).toBe(2);await expect(card).not.toContainText('Stored analysis is unavailable');
  expect(shared.requests.some(row=>row.path.endsWith('/inspect'))).toBe(false);
- await page.route(`**/api/v1/wallet-copy/wallets/${SOURCE_ID}`,route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,source_wallet_id:SOURCE_ID,profile:profile(),recent_events:[]})}));
+ await page.route(`**/api/v1/wallet-copy/wallets/${SOURCE_ID}`,route=>route.fulfill({status:200,contentType:'application/json',body:publicPayload({ok:true,source_wallet_id:SOURCE_ID,profile:profile(),recent_events:[]})}));
  await card.getByRole('button',{name:'Open cached',exact:true}).click();await expect(page.locator('#copyProfile')).toBeVisible();
  await expect(card.locator('.copy-card-status')).toHaveCount(0);
 });
@@ -1630,7 +1591,7 @@ test('repeated cached-read network failure keeps cached retry instead of changin
 for(const [status,message] of [[403,'current access'],[404,'no longer available'],[429,'Too many requests']])test(`stored-analysis ${status} does not retry or launch a provider scan`,async({page})=>{
  const shared={requests:[]};await install(page,shared);let reads=0;
  await page.route(`**/api/v1/wallet-copy/wallets/${SOURCE_ID}`,route=>{reads++;return route.fulfill({status,contentType:'application/json',body:'{"ok":false}'});});
- await page.goto('/account/copy/');await page.getByRole('button',{name:'Open analysis',exact:true}).click();
+ await page.goto('/account/copy/');await page.getByRole('button',{name:'View wallet',exact:true}).click();
  await expect(page.locator('.copy-card-status')).toContainText(message);expect(reads).toBe(1);
  await expect(page.locator('#copyWalletAddress')).toHaveValue(WALLET);await expect(page.locator('#copyProfile')).toBeHidden();
  expect(shared.requests.some(row=>row.path.endsWith('/inspect'))).toBe(false);
@@ -1638,10 +1599,10 @@ for(const [status,message] of [[403,'current access'],[404,'no longer available'
 
 test('coverage distinguishes Raven discovery from analyzed profiles and chain-wide wallet totals',async({page})=>{
  const shared={requests:[]};await install(page,shared);
- await page.route('**/api/v1/wallet-copy/screener',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,rows:[],scope:{chain:'solana'},index_coverage:{chains:[{chain:'solana',seen_wallets:1800,indexed_wallets:30}]},pagination:{page:1,page_size:12},seen_wallets:{total:0,rows:[]}})}));
+ await page.route('**/api/v1/wallet-copy/screener',route=>route.fulfill({status:200,contentType:'application/json',body:publicPayload({ok:true,rows:[],scope:{chain:'solana'},index_coverage:{chains:[{chain:'solana',seen_wallets:1800,indexed_wallets:30}]},pagination:{page:1,page_size:12},seen_wallets:{total:0,rows:[]}})}));
  await page.goto('/account/copy/?chain=solana');
  await expect(page.locator('#copyScreenerCoverage')).toContainText('1,800 wallets discovered by Raven in Solana · 30 analyzed profiles');
- await expect(page.locator('#copyScreenerCoverage')).toContainText('not the chain’s total wallet count');
+ await expect(page.locator('#copyScreenerCoverage')).not.toContainText('1,800 analyzed profiles');
  expect(shared.requests.some(row=>row.path.endsWith('/inspect'))).toBe(false);
 });
 
@@ -1744,4 +1705,35 @@ for (const chain of ['solana', 'base']) test(`${chain} loads all retained holdin
   await expect(page.locator('#copyHoldingsTable tbody tr')).toHaveCount(120);
   await expect(page.getByRole('button', { name: 'Load more holdings', exact: true })).toHaveCount(0);
   expect(requests).toHaveLength(3);
+});
+
+test('Copy uses the shared named strategy and pins each wallet until explicitly reapplied',async({page})=>{
+ const shared={watch:null,decision:null,position:null,requests:[]};await install(page,shared);
+ const initial=defaultTradingSettings();initial.strategies=[{id:'shared_exits',name:'Scale out',version:1,rules:[
+  {id:'first',kind:'take_profit',trigger_pct:80,sell_pct:50},{id:'second',kind:'take_profit',trigger_pct:150,sell_pct:50},
+  {id:'stop',kind:'stop_loss',trigger_pct:25,sell_pct:100}]}];initial.selected_strategy_id='shared_exits';
+ const library=await mockTradingSettings(page,{initial,revision:1});
+ await page.route('**/api/v1/wallet-copy/watches',async route=>{
+  if(route.request().method()==='POST'){
+   const body=route.request().postDataJSON();shared.watch=watch();shared.watch.policy.exit_strategy=body.policy.exit_strategy;
+   return route.fulfill({status:201,json:{ok:true,watch:shared.watch}});
+  }
+  return route.fallback();
+ });
+ const applied=[];await page.route(`**/api/v1/wallet-copy/watches/${WATCH_ID}`,route=>{
+  if(route.request().method()!=='PATCH')return route.fallback();
+  const body=route.request().postDataJSON();applied.push(body);
+  if(body.expected_revision!==shared.watch.revision)return route.fulfill({status:409,json:{ok:false}});
+  shared.watch.policy=body.policy;shared.watch.revision++;return route.fulfill({json:{ok:true,watch:shared.watch}});
+ });
+ await page.goto('/account/copy/');await page.locator('.copy-screener-card').getByRole('button',{name:'Copy',exact:true}).click();
+ await expect(page.locator('#copyPolicyExitStrategy')).toHaveValue('shared_exits');
+ await page.getByRole('button',{name:'Start Raven Copy',exact:true}).click();await expect(page.locator('#copyWatches')).toContainText('Scale out · v1');
+ expect(shared.watch.policy.exit_strategy.rules).toHaveLength(3);
+ library.settings.strategies[0].version=2;library.settings.strategies[0].name='Revised exits';library.revision=2;
+ await page.reload();await page.locator('[data-copy-view="watching"]').click();
+ await expect(page.locator('#copyWatches')).toContainText('Scale out · v1');expect(applied).toEqual([]);
+ await page.getByRole('button',{name:'Apply strategy',exact:true}).click();
+ await expect(page.locator('#copyWatches')).toContainText('Revised exits · v2');expect(applied).toHaveLength(1);
+ expect(applied[0].policy.exit_strategy.version).toBe(2);expect(shared.requests.some(r=>/execute|sign|submit/.test(r.path))).toBe(false);
 });

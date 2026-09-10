@@ -241,7 +241,10 @@ function memoryStore() {
     },
     async listWatches(userId) { return [...watches.values()].filter((row) => row.user_id === userId).map(watchRow); },
     async getWatchOwned(userId, watchId) { const row = watches.get(watchId); return row?.user_id === userId ? watchRow(row) : null; },
-    async updateWatch() { throw new Error("not_needed"); },
+    async updateWatch(userId, id, update) {
+      const row=watches.get(id); if (!row || row.user_id!==userId || row.revision!==update.expected_revision) return null;
+      Object.assign(row,{state:update.state,label:update.label,policy_json:JSON.stringify(update.policy),revision:row.revision+1,updated_at:update.now});return watchRow(row);
+    },
     async advanceWatchCursor(userId, watchId, { signature, slot, backfill_complete, now }) {
       const row = watches.get(watchId);
       if (!row || row.user_id !== userId) return false;
@@ -520,9 +523,9 @@ test("free wallet lookup exposes headline facts but withholds deep intelligence 
   assert.equal(payload.profile.coverage.transactions_observed, 1);
   assert.equal(payload.profile.behavior.trade_count, 1);
   assert.equal(payload.profile.source_performance.profit_factor, null);
-  assert.equal(payload.profile.profit_quality, null);
-  assert.equal(payload.profile.research_thesis, null);
-  assert.equal(payload.prospective_copyability, null);
+  assert.equal(payload.profile.profit_quality, undefined);
+  assert.equal(payload.profile.research_thesis, undefined);
+  assert.equal(payload.prospective_copyability, undefined);
   assert.equal(payload.deep_history.state, "pro_required");
   assert.equal(backfillCalls, 0);
 });
@@ -558,10 +561,9 @@ test("inspect builds evidence-bound source performance without creating a watch"
   assert.equal(payload.profile.source_wallet.address, WALLET);
   assert.equal(payload.profile.coverage.transactions_observed, 1);
   assert.equal(payload.profile.source_performance.realized_pnl_usdc, null);
-  assert.equal(payload.prospective_copyability.schema_version, "ravenos.source_wallet_copyability_matrix.v1");
-  assert.equal(payload.prospective_copyability.state, "insufficient_evidence");
-  assert.equal(payload.prospective_copyability.prospective_signal_count, 0);
-  assert.equal(payload.prospective_copyability.probe_observation_count, 0);
+  assert.equal(payload.prospective_copyability, undefined);
+  assert.equal(payload.profile.public_summary.schema_version, 1);
+  assert.ok(store.profiles.get(payload.source_wallet_id).research_thesis);
   assert.equal(store.watches.size, 0);
 });
 
@@ -595,8 +597,7 @@ test("inspect queues one shared deep-history job and source detail reports its h
   const detail = await routeCustomerWalletCopy(request(`/api/v1/wallet-copy/wallets/${inspectedPayload.source_wallet_id}`), activeEnv, d);
   const detailPayload = await json(detail);
   assert.equal(detailPayload.deep_history.state, "queued");
-  assert.equal(detailPayload.prospective_copyability.schema_version, "ravenos.source_wallet_copyability_matrix.v1");
-  assert.equal(detailPayload.prospective_copyability.state, "insufficient_evidence");
+  assert.equal(detailPayload.prospective_copyability, undefined);
   assert.equal(detailPayload.provider_request_performed, false);
   assert.equal(enqueueCount, 1);
   assert.equal(enqueueInput.demand_class, "interactive_lookup");
@@ -622,7 +623,7 @@ test("repeat address lookup shares retained evidence across accounts without his
   const cached = await json(cachedResponse);
   assert.equal(calls, 3);
   assert.equal(cached.provider_request_performed, false);
-  assert.equal(cached.evidence_mode, "retained_raven_index");
+  assert.equal(cached.evidence_mode, undefined);
   assert.deepEqual(cached.profile.holdings_snapshot, first.profile.holdings_snapshot);
   assert.deepEqual(cached.profile.token_metadata, first.profile.token_metadata);
   const rebuilt = await persistSourceWalletProfile(store, first.source_wallet_id, NOW + 60);
@@ -791,7 +792,8 @@ test("Raven-indexed screener is separately gated, bounded, and opens retained ev
   assert.equal(screenedPayload.scope.comprehensive_chain_index, false);
   assert.equal(screenedPayload.rows.length, 1);
   assert.equal(screenedPayload.rows[0].source_wallet.address, WALLET);
-  assert.equal(screenedPayload.rows[0].follower_reality.state, "not_sampled");
+  assert.equal(screenedPayload.rows[0].follower_reality, undefined);
+  assert.equal(screenedPayload.query, undefined);
   assert.equal(screenedPayload.rows[0].source_performance.realized_pnl.combined, null);
 
   const sourceId = screenedPayload.rows[0].source_wallet_id;
@@ -831,8 +833,8 @@ test("wallet activity explorer pages retained evidence deterministically without
   assert.equal(firstPayload.scope.provider_request_performed, false);
   assert.equal(firstPayload.scope.history_complete_claimed, false);
   assert.equal(firstPayload.events[0].schema_version, "ravenos.wallet_activity_event.v1");
-  assert.equal(firstPayload.events[0].evidence_boundary.provider_payload_included, false);
-  assert.equal(firstPayload.events[0].evidence_boundary.transaction_material_included, false);
+  assert.equal(firstPayload.events[0].evidence_boundary, undefined);
+  assert.equal(firstPayload.events[0].timing, undefined);
   assert.equal("deltas" in firstPayload.events[0].economic, false);
   assert.equal(firstPayload.events[0].chain_evidence.evidence_reference, `solana:signature:${firstPayload.events[0].chain_evidence.signature}`);
 
@@ -981,10 +983,8 @@ test("first refresh establishes a baseline and only a later source trade can pro
   assert.equal(store.positions[0].live_assets_held, false);
   const decisionResponse = await routeCustomerWalletCopy(request("/api/v1/wallet-copy/decisions"), env(), d);
   const decisionPayload = await json(decisionResponse);
-  assert.deepEqual(decisionPayload.copyability[0].by_size.map((row) => row.order_size_usdc), [25, 100, 500, 1_000, 5_000]);
-  assert.equal(decisionPayload.copyability[0].by_size.find((row) => row.order_size_usdc === 100).prospective_sample_count, 1);
-  assert.equal(decisionPayload.copyability[0].by_size.find((row) => row.order_size_usdc === 500).prospective_sample_count, 0);
-  assert.equal(decisionPayload.copyability[0].by_size.find((row) => row.order_size_usdc === 500).score, null);
+  assert.equal(decisionPayload.copyability, undefined);
+  assert.equal(store.decisions.length, 1);
   assert.equal(refresh, 1);
 });
 
@@ -1213,4 +1213,26 @@ test("basic EVM profiles use the same balance continuation as Pro without return
   assert.equal((await json(continuation)).tokens.length, 50);
   const invalid = await routeCustomerWalletCopy(request(`/api/v1/wallet-copy/wallets/${sourceId}/holdings?cursor=bad`), activeEnv, deps(store, null, []));
   assert.equal(invalid.status, 400);
+});
+
+test('Copy applies an owned saved strategy version and library edits cannot silently change a watch', async () => {
+  const store = memoryStore();
+  const strategy = {schema_version:'ravenos.exit_strategy.v1',id:'mine',name:'My exits',version:1,rules:[{id:'tp',kind:'take_profit',trigger_pct:80,sell_pct:50},{id:'sl',kind:'stop_loss',trigger_pct:20,sell_pct:100}]};
+  let library = {settings_json:JSON.stringify({strategies:[strategy]})};
+  const d = {...deps(store,null),settingsStore:{get:async user=>user===USER?library:null}};
+  const created=await routeCustomerWalletCopy(request('/api/v1/wallet-copy/watches',{method:'POST',body:{address:WALLET,policy:{exit_strategy:strategy}}}),env(),d);
+  assert.equal(created.status,201);const watch=(await json(created)).watch;
+  assert.equal(watch.policy.exit_strategy.version,1);
+  library={settings_json:JSON.stringify({strategies:[{...strategy,name:'Changed in library',version:2}]})};
+  const listed=await json(await routeCustomerWalletCopy(request('/api/v1/wallet-copy/watches'),env(),d));
+  assert.equal(listed.watches[0].policy.exit_strategy.name,'My exits');
+  const forged={...strategy,name:'Not saved'};
+  const bad=await routeCustomerWalletCopy(request(`/api/v1/wallet-copy/watches/${watch.watch_id}`,{method:'PATCH',body:{expected_revision:watch.revision,policy:{...watch.policy,exit_strategy:forged}}}),env(),d);
+  assert.equal(bad.status,409);
+  const update=await routeCustomerWalletCopy(request(`/api/v1/wallet-copy/watches/${watch.watch_id}`,{method:'PATCH',body:{expected_revision:watch.revision,policy:{...watch.policy,exit_strategy:{...strategy,name:'Changed in library',version:2}}}}),env(),d);
+  assert.equal(update.status,200);assert.equal((await json(update)).watch.policy.exit_strategy.version,2);
+  library=null;
+  const unchanged=await json(await routeCustomerWalletCopy(request('/api/v1/wallet-copy/watches'),env(),d));
+  assert.equal(unchanged.watches[0].policy.exit_strategy.version,2);
+  assert.equal(unchanged.watches[0].policy.execution_boundary.live_copy_available,false);
 });

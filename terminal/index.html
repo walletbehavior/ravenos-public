@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="/ravenos-price-workspace.css" />
   <link rel="stylesheet" href="/ravenos-terminal-live.css" />
   <link rel="stylesheet" href="/ravenos-terminal-desk.css" />
+  <link rel="stylesheet" href="/ravenos-trading-settings.css" />
 </head>
 <body>
   <main class="terminal-live" data-route-slug="terminal" data-terminal-pane="chart">
@@ -672,6 +673,11 @@
             <button type="button" data-spot-sell-pct="75" disabled>75%</button>
             <button type="button" data-spot-sell-pct="100" disabled>100%</button>
           </div>
+          <div class="terminal-ticket-shortcuts" aria-label="Ticket settings">
+            <button type="button" id="terminalSpotEditAmounts">Edit amounts</button>
+            <button type="button" id="terminalSpotStrategyShortcut">TP/SL not set</button>
+            <button type="button" id="terminalSpotSlippageShortcut">3.00% slippage</button>
+          </div>
 
           <div class="terminal-spot-fee-compact" id="terminalSpotFeeSummary">
             <span>Raven fee</span>
@@ -756,35 +762,20 @@
                 <button type="button" id="terminalSpotWalletConnect">Connect</button>
               </div>
 
-              <details class="terminal-bracket terminal-quick-size-settings" id="terminalSpotQuickSizeSettings">
-                <summary><span id="terminalSpotQuickSizeLabel">Customize USDC sizes</span><strong>Saved here</strong></summary>
-                <div class="terminal-quick-size-editor" id="terminalSpotQuickSizeEditor">
-                  <label><span>1</span><input type="number" min="1" max="100000" step="1" inputmode="decimal" data-spot-buy-size-index="0" /></label>
-                  <label><span>2</span><input type="number" min="1" max="100000" step="1" inputmode="decimal" data-spot-buy-size-index="1" /></label>
-                  <label><span>3</span><input type="number" min="1" max="100000" step="1" inputmode="decimal" data-spot-buy-size-index="2" /></label>
-                  <label><span>4</span><input type="number" min="1" max="100000" step="1" inputmode="decimal" data-spot-buy-size-index="3" /></label>
-                </div>
-              </details>
+              <button type="button" id="terminalSpotQuickSizeSettings">Edit buy amounts and sell percentages</button>
 
               <div class="terminal-plan-source" id="terminalSpotPlanSource">
                 <span>Exit plan</span>
                 <div role="group" aria-label="Exit plan source">
                   <button type="button" data-spot-plan-source="raven_exact_market" aria-pressed="false" disabled>Raven</button>
-                  <button type="button" class="active" data-spot-plan-source="user_preset" aria-pressed="true">My preset</button>
+                  <button type="button" class="active" data-spot-plan-source="user_preset" aria-pressed="true">My strategies</button>
                   <button type="button" data-spot-plan-source="custom" aria-pressed="false">Custom</button>
                 </div>
-                <p id="terminalSpotPlanSourceNote">Preset ≠ Raven plan.</p>
+                <p id="terminalSpotPlanSourceNote">Choose your saved exit strategy.</p>
               </div>
 
               <div class="terminal-preview-inputs terminal-spot-plan-inputs" id="terminalSpotPresetInputs">
-                <label>
-                  <span>Take profit</span>
-                  <span class="terminal-input-shell"><input id="terminalSpotTakeProfitPct" type="number" min="0.1" max="1000" step="0.1" value="25" inputmode="decimal" /><b>%</b></span>
-                </label>
-                <label>
-                  <span>Stop loss</span>
-                  <span class="terminal-input-shell"><input id="terminalSpotStopLossPct" type="number" min="0.1" max="99" step="0.1" value="12" inputmode="decimal" /><b>%</b></span>
-                </label>
+                <button type="button" id="terminalSpotManageStrategies">Manage TP/SL strategies</button>
               </div>
               <div class="terminal-preview-inputs terminal-spot-plan-inputs" id="terminalSpotCustomInputs" hidden>
                 <label>

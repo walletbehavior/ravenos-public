@@ -1,0 +1,135 @@
+{
+  "schema_version": "ravenos.onchain_reads_market_pages.production_proof.v1",
+  "recorded_at": "2026-09-10",
+  "release_id": "ravenos-f3b8790e4d42-d502f8e6e8344554",
+  "source_commit": "f3b8790e4d42244d19b1aea3360518103d96b8d8",
+  "worker_version_id": "58a2d2b7-a839-4d18-83c9-cde24fd799f1",
+  "prior_delivery_release": "ravenos-f9d18a240f9d-0036cf692ccacd95",
+  "production_traffic_percent": 100,
+  "archive_sha256": "a02e7b2d981c9a43ab0d40868d6c36267809db690968ebd54808737156d9a847",
+  "content_sha256": "812c53fced353774520509b87874705b57b9009feab584f93f3924f8be79f592",
+  "production_checks": {
+    "ok": true,
+    "release_id": "ravenos-f3b8790e4d42-d502f8e6e8344554",
+    "checks": 62,
+    "verified_assets": 36,
+    "authenticated_workspaces": 11,
+    "transactions_submitted": 0
+  },
+  "qualification": {
+    "reads_backend": 118,
+    "reads_chromium": 21,
+    "reads_webkit": 13,
+    "overlay_chromium": 7,
+    "overlay_webkit": 15,
+    "build_security_public_response_checks": 41
+  },
+  "population": {
+    "observed_at": "2026-09-10T12:56:55Z",
+    "windows": {
+      "5m": {
+        "delivered_tokens": 3100,
+        "pages": 7,
+        "by_chain": {
+          "solana": 1636,
+          "robinhood": 793,
+          "bsc": 501,
+          "ethereum": 89,
+          "base": 81
+        },
+        "qualified_tokens": 3100,
+        "delivery_limited": false,
+        "shared_sample": 4476,
+        "retained_index": 6563,
+        "excluded_candidates": 1496,
+        "reads": {
+          "observed_markets": 4478,
+          "qualified_reads": 43,
+          "chain_counts": {
+            "solana": 20,
+            "robinhood": 16,
+            "base": 2,
+            "bsc": 5,
+            "ethereum": 0
+          }
+        },
+        "read_snapshot_at": "2026-09-10T12:56:59.478Z"
+      },
+      "1h": {
+        "delivered_tokens": 3099,
+        "pages": 7,
+        "by_chain": {
+          "solana": 1635,
+          "bsc": 501,
+          "robinhood": 793,
+          "ethereum": 89,
+          "base": 81
+        },
+        "qualified_tokens": 3099,
+        "delivery_limited": false,
+        "shared_sample": 4478,
+        "retained_index": 6564,
+        "excluded_candidates": 1503,
+        "reads": {
+          "observed_markets": 4478,
+          "qualified_reads": 163,
+          "chain_counts": {
+            "solana": 81,
+            "robinhood": 56,
+            "base": 8,
+            "bsc": 10,
+            "ethereum": 8
+          }
+        },
+        "read_snapshot_at": "2026-09-10T12:56:59.478Z"
+      },
+      "24h": {
+        "delivered_tokens": 3099,
+        "pages": 7,
+        "by_chain": {
+          "solana": 1634,
+          "bsc": 501,
+          "robinhood": 794,
+          "ethereum": 89,
+          "base": 81
+        },
+        "qualified_tokens": 3099,
+        "delivery_limited": false,
+        "shared_sample": 4478,
+        "retained_index": 6564,
+        "excluded_candidates": 1499,
+        "reads": {
+          "observed_markets": 4478,
+          "qualified_reads": 176,
+          "chain_counts": {
+            "solana": 64,
+            "robinhood": 45,
+            "base": 6,
+            "bsc": 51,
+            "ethereum": 10
+          }
+        },
+        "read_snapshot_at": "2026-09-10T12:56:59.478Z"
+      }
+    },
+    "transactions_submitted": 0
+  },
+  "signed_in_browser": {
+    "viewport": [
+      1525,
+      857
+    ],
+    "onchain_reads_populated": true,
+    "discovery_1h_qualified_tokens_observed": 2699,
+    "discovery_1h_exact_contracts_observed": 3008,
+    "new_release_terminal_current_read_visibly_verified": false,
+    "terminal_limit": "The exact selected pool had no current qualified Read during the last live overlay check. Controlled empty-to-current tests pass.",
+    "live_mobile_certified": false
+  },
+  "verification_retries": {
+    "staging": "Same staged version passed after transient Atlas 503; no checks relaxed.",
+    "production": "Read-only retry passed after the prior release remained briefly visible during propagation; no duplicate promotion."
+  },
+  "transactions_submitted": 0,
+  "parent_goal_complete": false
+}

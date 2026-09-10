@@ -347,3 +347,12 @@ test("the contract module is browser-safe and exposes the reviewed hard limits",
   assert.equal(SolanaSpotQuoteReviewLimits.maximum_priority_fee_lamports, 50_000);
   assert.equal(SolanaSpotQuoteReviewLimits.maximum_configured_fee_bps, 255);
 });
+
+test('saved multi-leg strategies preserve all TP and SL allocations in a quote plan without order authority', () => {
+  const levels={entries:['2'],take_profits:[{price:'3.6',allocation_bps:5000},{price:'5',allocation_bps:2500},{price:'8',allocation_bps:2500}],stop_losses:[{price:'1.6',allocation_bps:2500},{price:'1',allocation_bps:7500}],stop_loss:null};
+  const plan=createSolanaSpotPlanSource({source:'user_preset',preset_id:'scale_out',preset_version:2,levels},{instrument_id:INSTRUMENT});
+  assert.equal(plan.original_levels.take_profits.length,3);assert.equal(plan.original_levels.stop_losses.length,2);
+  assert.equal(plan.original_levels.allocation_basis,'initial_position_capped_by_remaining');
+  assert.throws(()=>createSolanaSpotPlanSource({source:'user_preset',preset_id:'scale_out',preset_version:2,levels:{...levels,stop_loss:'1'}},{instrument_id:INSTRUMENT}),/allocation_out_of_bounds/);
+  assert.throws(()=>createSolanaSpotPlanSource({source:'user_preset',preset_id:'scale_out',preset_version:2,levels:{...levels,stop_losses:[{price:'1',allocation_bps:10001}]}},{instrument_id:INSTRUMENT}));
+});

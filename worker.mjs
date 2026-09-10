@@ -13,6 +13,8 @@ import { loadWalletHistoricalPrices } from './lib/customer_trade/wallet_historic
 import { WalletIngestionPolicy, walletIngestionPolicy, reserveEvmHistoryRequests, settleEvmHistoryRequests } from './lib/customer_trade/wallet_ingestion_policy.mjs';
 import { EvmWalletBackfillPolicy, loadEvmWalletBackfillPage } from './lib/customer_trade/evm_wallet_backfill.mjs';
 import { createWalletUniverseStore, runWalletUniverse } from "./lib/customer_trade/wallet_universe.mjs";
+import { CUSTOMER_TRADING_SETTINGS_ROUTE, routeCustomerTradingSettings } from './lib/customer_trading_settings.mjs';
+import { exitStrategyLevels } from './ravenos-trading-strategy.js';
 import { WalletHistoryPolicy, heliusBackfillPolicy, reserveHeliusBackfillCredits } from './lib/customer_trade/wallet_history_policy.mjs';
 import { queuePriorityWalletWarmups } from './lib/customer_trade/wallet_discovery_sources.mjs';
 import { refreshPublicWalletList } from './lib/customer_trade/public_wallet_lists.mjs';
@@ -511,7 +513,7 @@ function authenticatedAppBoundary(request) {
     || url.pathname === "/api/v1/wallets/privy/link";
   const portfolioPreviewApi = url.pathname === PORTFOLIO_GOVERNOR_PREVIEW_ROUTE || url.pathname === TRADE_JOURNAL_ROUTE || url.pathname === CUSTOMER_SHIELDED_ROUTE || url.pathname.startsWith(`${CUSTOMER_SHIELDED_ROUTE}/`);
   const portfolioPath = ["/portfolio", "/portfolio/", "/portfolio/index.html"].includes(url.pathname);
-  const researchStateApi = url.pathname === CUSTOMER_RESEARCH_STATE_ROUTE
+  const researchStateApi = url.pathname === CUSTOMER_TRADING_SETTINGS_ROUTE || url.pathname === CUSTOMER_RESEARCH_STATE_ROUTE
     || url.pathname === `${CUSTOMER_RESEARCH_STATE_ROUTE}/watch-items`
     || url.pathname.startsWith(`${CUSTOMER_RESEARCH_STATE_ROUTE}/watch-items/`);
   const entitlementApi = url.pathname === CUSTOMER_ENTITLEMENT_ROUTE
@@ -6141,6 +6143,14 @@ function positivePlanPrice(value) {
 function serverSpotPlanInput(body = {}, exact = {}) {
   const source = String(body?.plan?.source || "custom").trim().toLowerCase();
   const price = optionalFiniteNumber(exact?.priceUsd);
+  if (source === 'user_preset' && body.plan.strategy) {
+    const plan = exitStrategyLevels(body.plan.strategy, price);
+    return { source: 'user_preset', preset_id: plan.strategy.id, preset_version: plan.strategy.version,
+      levels: { entries: [positivePlanPrice(price)],
+        take_profits: plan.rules.filter(row => row.kind === 'take_profit').map(row => ({ price: positivePlanPrice(row.price), allocation_bps: row.allocation_bps })),
+        stop_losses: plan.rules.filter(row => row.kind === 'stop_loss').map(row => ({ price: positivePlanPrice(row.price), allocation_bps: row.allocation_bps })),
+        stop_loss: null }, user_modifications: [] };
+  }
   if (source === "user_preset" && price > 0) {
     const takeProfitPct = optionalFiniteNumber(body?.plan?.take_profit_pct);
     const stopLossPct = optionalFiniteNumber(body?.plan?.stop_loss_pct);
@@ -11650,6 +11660,8 @@ async function routeApi(request, env, executionContext = null) {
     loadProjection: (key) => readPublicProjection(env, request, key),
   });
   if (entitlementResponse) return entitlementResponse;
+  const settingsResponse = await routeCustomerTradingSettings(request, env);
+  if (settingsResponse) return settingsResponse;
   const researchStateResponse = await routeCustomerResearchState(request, env, {
     resolveMarketAvailability: (market) => resolveSavedMarketAvailability(env, market),
   });

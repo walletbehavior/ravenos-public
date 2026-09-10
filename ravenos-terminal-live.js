@@ -1,6 +1,8 @@
 import { DEFAULT_SPOT_SLIPPAGE_BPS, MIN_SPOT_SLIPPAGE_BPS, MAX_SPOT_SLIPPAGE_BPS, spotPriceWarnings } from "./ravenos-spot-trade-policy.js";
 import { mountWalletBalances } from "./ravenos-wallet-balances.js";
 import { readAccountSession } from './ravenos-account-session.js';
+import { currentTradingSettings, loadTradingSettings, subscribeTradingSettings, openTradingSettings } from './ravenos-trading-settings.js';
+import { defaultTradingSettings, normalizeTradingSettings } from './ravenos-trading-strategy.js';
 import { walletLaunchHref } from "./ravenos-wallet-connect.js";
 import { createTerminalDesk, deskFeeLabel, deskPercentFromBps } from "./ravenos-terminal-desk.js";
 import { ravenOSContext, contextSearchParams, savedMonitorHandoffHref } from "./ravenos-context-store.js";
@@ -6859,9 +6861,13 @@ function selectedSpotAssetKind(side = state.spotTicketSide) {
 function activeSpotBuySizeConfig() {
   const native = selectedSpotAssetKind("buy") === "native";
   const preferences = loadSpotTicketPreferences();
+  const saved = currentTradingSettings();
+  const chain = currentProjectIdentity()?.chain || 'solana';
   return {
     key: native ? "buy_sizes_native" : "buy_sizes_usdc",
-    values: native ? preferences.buy_sizes_native : preferences.buy_sizes_usdc,
+    values: saved?.revision > 0
+      ? (native ? saved.settings.quick_buy_native[chain] : saved.settings.quick_buy_usdc)
+      : native ? preferences.buy_sizes_native : preferences.buy_sizes_usdc,
     defaults: native ? DEFAULT_SPOT_NATIVE_BUY_SIZES : DEFAULT_SPOT_BUY_SIZES,
     symbol: native ? nativeCurrencyForChain(currentProjectIdentity()?.chain) : spotAccountingSymbol(),
     native,
@@ -6990,6 +6996,7 @@ function syncSpotAdvancedSummary() {
   const slippage = finite(document.getElementById("terminalSpotSlippage")?.value) ?? loadSpotTicketPreferences().slippage_bps;
   setText("terminalSpotAdvancedState", `${source} · ${(slippage / 100).toFixed(2)}% slippage`);
   setText("terminalSpotEstimateSlippage", `Slippage ${(slippage / 100).toFixed(2)}%`);
+  setText('terminalSpotSlippageShortcut', `${(slippage / 100).toFixed(2)}% slippage`);
   setText("terminalSpotRoutingSummary", `${(slippage / 100).toFixed(2)}% slippage · ${document.getElementById("terminalSpotPriorityMode")?.value || "standard"} priority`);
 }
 
@@ -7014,6 +7021,14 @@ function renderSpotPriceWarning(priceImpactBps = null, evidence = null) {
 function renderSpotQuickSizes() {
   const preferences = loadSpotTicketPreferences();
   const sizeConfig = activeSpotBuySizeConfig();
+  const saved = currentTradingSettings();
+  const strategy = saved?.settings.strategies.find(row => row.id === saved.settings.selected_strategy_id);
+  setText('terminalSpotStrategyShortcut', strategy ? `${strategy.name} · ${strategy.rules.length} rules` : 'TP/SL not set');
+  document.querySelectorAll('[data-spot-sell-pct]').forEach((button, index) => {
+    const pct = saved?.settings.quick_sell_pct[index] ?? [25, 50, 75, 100][index];
+    button.dataset.spotSellPct = String(pct); button.textContent = `${pct}%`;
+    button.classList.toggle('active', state.spotSellPercent === pct);
+  });
   const host = document.getElementById("terminalSpotBuyPresets");
   if (host) {
     host.replaceChildren(...sizeConfig.values.map((amount) => {
@@ -7084,7 +7099,7 @@ function syncSpotPlanSource() {
   }
   const notes = {
     raven_exact_market: "Raven's original exact-market levels remain visible even if you later switch to your own plan.",
-    user_preset: "Your percentages are stored only on this device and stay separate from Raven research.",
+    user_preset: "Your saved strategy supplies exit levels for review. Saving it does not place protective orders.",
     custom: "Your exact prices are local ticket inputs. RavenOS will never relabel them as a Raven suggestion.",
   };
   setText("terminalSpotPlanSourceNote", notes[state.spotTicketPlanSource]);
@@ -7124,14 +7139,10 @@ function spotPlanRequest() {
       authorizes_transaction: false,
     };
   }
-  return {
-    source: "user_preset",
-    preset_id: "local_default",
-    preset_version: 1,
-    take_profit_pct: finite(document.getElementById("terminalSpotTakeProfitPct")?.value),
-    stop_loss_pct: finite(document.getElementById("terminalSpotStopLossPct")?.value),
-    authorizes_transaction: false,
-  };
+  const saved = currentTradingSettings()?.settings;
+  const strategy = saved?.strategies.find(row => row.id === saved.selected_strategy_id);
+  return strategy ? { source: 'user_preset', strategy, authorizes_transaction: false }
+    : { source: 'custom', take_profit_price: null, stop_loss_price: null, authorizes_transaction: false };
 }
 
 function spotTicketSnapshot() {
@@ -9759,6 +9770,34 @@ function bindControls() {
     }
   });
   initializeWalletAddressControl();
+  const editTradingSettings = (tab) => {
+    const chain = currentProjectIdentity()?.chain || 'solana';
+    const seed = defaultTradingSettings(), preferences = loadSpotTicketPreferences();
+    seed.quick_buy_usdc = [...preferences.buy_sizes_usdc];
+    seed.quick_buy_native[chain] = [...preferences.buy_sizes_native];
+    seed.slippage_bps = preferences.slippage_bps;
+    // Older device shortcuts were not required to be ordered. Do not let them
+    // prevent opening the account editor.
+    let validSeed; try { validSeed = normalizeTradingSettings(seed); } catch { validSeed = defaultTradingSettings(); }
+    void openTradingSettings({ tab, chain, symbol: nativeCurrencyForChain(chain), seed: validSeed,
+      onApplied: (_next, applied) => { if (applied.tab === 'strategies') setSpotPlanSource('user_preset'); } });
+  };
+  for (const id of ['terminalSpotEditAmounts', 'terminalSpotQuickSizeSettings']) {
+    document.getElementById(id)?.addEventListener('click', () => editTradingSettings('quick'));
+  }
+  for (const id of ['terminalSpotStrategyShortcut', 'terminalSpotManageStrategies']) {
+    document.getElementById(id)?.addEventListener('click', () => editTradingSettings('strategies'));
+  }
+  document.getElementById('terminalSpotSlippageShortcut')?.addEventListener('click', () => editTradingSettings('slippage'));
+  subscribeTradingSettings(saved => {
+    if (saved?.revision > 0) {
+      const bps = saved.settings.slippage_bps, select = document.getElementById('terminalSpotSlippage');
+      if (select && ![...select.options].some(row => Number(row.value) === bps)) select.add(new Option(`${(bps / 100).toFixed(2)}%`, String(bps)));
+      saveSpotTicketPreferences({ slippage_bps: bps });
+    }
+    renderSpotQuickSizes(); syncSpotPlanSource(); clearSpotQuoteResult('Trading settings updated.');
+  });
+  void loadTradingSettings().catch(() => {});
   renderSpotQuickSizes();
   syncSpotTicketControls();
   document.getElementById("terminalModeSelect").addEventListener("change", (event) => setLane(event.target.value));

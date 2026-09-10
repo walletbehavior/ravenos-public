@@ -1,6 +1,7 @@
 const API = "/api/v1/wallet-copy";
 import { getPreference, setPreference } from "./ravenos-preferences.js";
 import { readAccountSession } from './ravenos-account-session.js';
+import { currentTradingSettings, loadTradingSettings, openTradingSettings, subscribeTradingSettings } from './ravenos-trading-settings.js';
 
 const page = document.querySelector(".copy-page");
 let embeddedActive = page?.dataset.embedded !== 'true';
@@ -30,7 +31,6 @@ const state = {
   address: "",
   source_wallet_id: null,
   profile: null,
-  prospective_copyability: null,
   deep_history: null,
   deep_poll_token: 0,
   deep_poll_attempts: 0,
@@ -42,11 +42,10 @@ const state = {
   decisions: [],
   exit_decisions: [],
   positions: [],
-  copyability: [],
   saved: [],
   screener_request: 0,
   screener: { chain: getPreference("walletChain", "all"), page: 1, total_pages: 0, total: 0, wallets: [], preset: null, view: null },
-  robinhood_intelligence: { activity: [], clusters: [], relationships: [] },
+  robinhood_intelligence: { activity: [] },
 };
 
 const FREE_SCREENER_SORTS = new Set(["last_trade_desc", "trade_count_desc", "active_days_desc"]);
@@ -62,16 +61,15 @@ function applyAccess(access = {}) {
   setText("copyAccessLabel", pro ? "Raven Pro active" : "Included with every account");
   setText("copyAccessHeadline", pro ? "Full Wallet Intelligence + Raven Copy" : "Wallet lookup + Raven Copy");
   setText("copyAccessDetail", pro
-    ? "Cohorts, behavior, profit quality, deep history, and copyability are unlocked."
-    : "Headline wallet screening and Raven Copy are free. Advanced cohorts and behavior require Pro.");
-  setText("copyScreenerHeadline", pro ? "Find reconstructable edge." : "Find active wallets.");
+    ? "Wallet profiles, trading history and saved lists are unlocked."
+    : "Headline wallet screening and Raven Copy are free. Advanced wallet profiles require Pro.");
+  setText("copyScreenerHeadline", pro ? "Find your next wallet to follow." : "Find active wallets.");
   if (!pro) {
     state.screener.preset = null;
     document.querySelectorAll("[data-screen-preset]").forEach((button) => button.setAttribute("aria-pressed", "false"));
     const sort = document.getElementById("copyScreenSort");
     [...sort.options].forEach((option) => { option.hidden = !FREE_SCREENER_SORTS.has(option.value); });
     if (!FREE_SCREENER_SORTS.has(sort.value)) sort.value = "last_trade_desc";
-    document.getElementById("copyScreenBasis").value = "";
     document.getElementById("copyScreenEvidence").value = "any";
   }
 }
@@ -382,31 +380,10 @@ function eventCard(event) {
   head.append(kind, time);
   const details = document.createElement("dl");
   details.append(
-    fact("Evidence", readable(event.classification?.confidence)),
     fact("Cost basis", readable(event.economic?.cost_basis_state)),
     fact("Paid", exactAssetAmount(event.economic?.source_asset)),
     fact("Received", exactAssetAmount(event.economic?.destination_asset)),
   );
-  const evidence = document.createElement("p");
-  const provider = readable(event.chain_evidence?.provider || event.chain_evidence?.providers?.join(" · ") || "provider unavailable");
-  const finality = readable(event.chain_evidence?.finality || "finality unavailable");
-  evidence.textContent = `${provider} · ${finality}${event.chain_evidence?.slot === null || event.chain_evidence?.slot === undefined ? "" : ` · slot ${event.chain_evidence.slot}`}`;
-  const disclosure = document.createElement("details");
-  disclosure.className = "copy-event-evidence";
-  const summary = document.createElement("summary");
-  summary.textContent = "Evidence details";
-  const proof = document.createElement("dl");
-  const reasons = Array.isArray(event.classification?.reasons) ? event.classification.reasons.map(readable).join(" · ") : "Unavailable";
-  const programs = Array.isArray(event.route_evidence?.program_ids) ? event.route_evidence.program_ids.map(shortAddress).join(" · ") : "Unavailable";
-  proof.append(
-    fact("Classification basis", reasons || "Unavailable"),
-    fact("Observation", readable(event.timing?.observation_mode)),
-    fact("Route", readable(event.route_evidence?.route_shape)),
-    fact("Programs", programs || "Unavailable"),
-    fact("Network fee", event.economic?.transaction_fee_lamports === null || event.economic?.transaction_fee_lamports === undefined ? "Unavailable" : `${Number(event.economic.transaction_fee_lamports).toLocaleString()} lamports`),
-    fact("Detection", duration(event.timing?.detection_delay_ms)),
-  );
-  disclosure.append(summary, proof);
   const transactionReference = event.chain_evidence?.transaction_reference || event.chain_evidence?.signature;
   const transaction = event.source_wallet?.chain === "solana" ? document.createElement("a") : document.createElement("span");
   transaction.className = "copy-event-transaction";
@@ -418,59 +395,8 @@ function eventCard(event) {
   } else {
     transaction.textContent = `Transaction · ${shortAddress(transactionReference)}`;
   }
-  card.append(head, details, evidence, disclosure, transaction);
+  card.append(head, details, transaction);
   return card;
-}
-
-function transactionContextAssetList(rows) {
-  const assets = Array.isArray(rows) ? rows.slice(0, 4) : [];
-  return assets.length ? assets.map(exactAssetAmount).join(" · ") : "Unavailable";
-}
-
-function transactionContextCard(candidate) {
-  const card = document.createElement("article");
-  card.className = "copy-card";
-  card.dataset.transactionContextState = candidate?.state || "provider_context_unavailable";
-  const main = document.createElement("div");
-  main.className = "copy-card-main";
-  const label = document.createElement("span");
-  const title = document.createElement("strong");
-  const detail = document.createElement("p");
-  label.textContent = candidate?.context_available ? "Context loaded · trade unresolved" : "Context unavailable";
-  title.textContent = shortAddress(candidate?.transaction_reference);
-  detail.textContent = candidate?.provider_transaction?.method
-    ? `Provider method: ${candidate.provider_transaction.method}`
-    : readable(candidate?.state || "provider_context_unavailable");
-  main.append(label, title, detail);
-  const shape = candidate?.wallet_transfer_shape || {};
-  const provider = candidate?.provider_transaction || {};
-  const facts = document.createElement("dl");
-  facts.append(
-    fact("Paid shape", transactionContextAssetList(shape.outbound_assets)),
-    fact("Received shape", transactionContextAssetList(shape.inbound_assets)),
-    fact("Transaction status", readable(provider.status || "unavailable")),
-    fact("Wallet sent txn", provider.wallet_is_sender === true ? "Yes" : provider.wallet_is_sender === false ? "No" : "Unavailable"),
-    fact("Confirmations", provider.confirmations ?? "Unavailable"),
-    fact("Raven trade verdict", "Unresolved"),
-  );
-  const boundary = document.createElement("div");
-  boundary.className = "copy-watch-actions";
-  const warning = document.createElement("button");
-  warning.type = "button";
-  warning.disabled = true;
-  warning.textContent = "No copy signal";
-  warning.title = "Router or trace evidence and complete wallet net deltas are still required.";
-  boundary.append(warning);
-  card.append(main, facts, boundary);
-  return card;
-}
-
-function renderEvmTransactionContexts(profileChain, candidates) {
-  const section = document.getElementById("copyEvmTransactionContext");
-  const rows = Array.isArray(candidates) ? candidates.slice(0, 3) : [];
-  section.hidden = profileChain === "solana" || rows.length === 0;
-  setText("copyEvmContextCount", `${rows.filter((row) => row?.context_available).length} of ${rows.length} inspected`);
-  document.getElementById("copyEvmContextRows").replaceChildren(...rows.map(transactionContextCard));
 }
 
 function renderWalletActivity(activity, { append = false } = {}) {
@@ -551,234 +477,6 @@ async function loadWalletActivity({ append = false } = {}) {
     return;
   }
   renderWalletActivity(result.payload, { append });
-}
-
-function activeCopyability() {
-  const watch = state.watches.find((row) => row.source_wallet?.address === state.address);
-  return watch ? state.copyability.find((row) => row.watch_id === watch.watch_id) || null : null;
-}
-
-function renderFollowerReality() {
-  const personal = activeCopyability();
-  const shared = state.prospective_copyability;
-  const sharedAvailable = Number(shared?.probe_observation_count || 0) > 0;
-  const record = sharedAvailable ? shared : personal;
-  const overall = record?.snapshot || null;
-  const marketContext = shared?.detection_market_context || null;
-  const outcomes = shared?.prospective_outcomes || null;
-  const diagnosis = shared?.copy_diagnosis || null;
-  const sizeStress = shared?.size_stress || null;
-  const crowding = shared?.crowding || null;
-  const marketRegimes = shared?.market_regimes || null;
-  const playbook = shared?.copy_playbook || null;
-  const outcomeReference = outcomes?.reference || null;
-  const rail = Array.isArray(record?.by_size) ? record.by_size : [25, 100, 500, 1_000, 5_000].map((size) => ({ order_size_usdc: size, state: "insufficient_evidence", score: null, prospective_sample_count: 0, components: {} }));
-  const playbookNode = document.getElementById("copyPlaybook");
-  playbookNode.hidden = !playbook;
-  if (playbook) {
-    const sizeWindow = playbook.size_window || {};
-    const marketFit = playbook.strongest_observed_market_fit || {};
-    const persistence = playbook.route_persistence || {};
-    const constraint = playbook.leading_constraint || {};
-    const code = String(playbook.headline_code || "NEEDS_MORE_ROUTE_SAMPLES");
-    const majoritySize = Number(sizeWindow.largest_contiguous_majority_pass_size_usdc);
-    const firstWeakSize = Number(sizeWindow.first_below_majority_size_usdc);
-    const smallestSize = Number(sizeWindow.smallest_sampled_size_usdc);
-    const status = playbook.state === "constrained"
-      ? "Constrained"
-      : playbook.state === "available"
-        ? code === "ROUTES_WEAKEN_ABOVE_SIZE"
-          ? "Size-sensitive"
-          : code === "ROUTE_EVIDENCE_MIXED"
-            ? "Mixed evidence"
-            : "Observed fit"
-        : playbook.state === "forming"
-          ? "Evidence forming"
-          : "No sample";
-    const headline = code === "ROUTES_WEAKEN_ABOVE_SIZE"
-      ? `Routes weaken above ${money(majoritySize).replace(".00", "")}`
-      : code === "CONSTRAINED_AT_SMALLEST_TESTED"
-        ? `Even ${money(firstWeakSize || smallestSize).replace(".00", "")} misses most policy checks`
-        : code === "ROUTE_EVIDENCE_MIXED"
-          ? "Route quality changes unevenly with size"
-          : code === "ROUTES_SURVIVE_THROUGH_LARGEST_TESTED"
-            ? `Routes held through ${money(majoritySize).replace(".00", "")}`
-            : code === "NO_PROSPECTIVE_EVIDENCE"
-              ? "No prospective routes yet"
-              : "More route samples needed";
-    const referencePass = playbook.reference_policy_pass_pct === null || playbook.reference_policy_pass_pct === undefined
-      ? null
-      : Number(playbook.reference_policy_pass_pct);
-    setText("copyPlaybookState", status);
-    setText("copyPlaybookHeadline", headline);
-    setText("copyPlaybookSummary", Number.isFinite(referencePass)
-      ? `${pct(referencePass)} pass · ${playbook.prospective_signal_count || 0} buys · ${money(playbook.reference_order_size_usdc || 100).replace(".00", "")}`
-      : `${playbook.prospective_signal_count || 0} buys · ${playbook.minimum_prospective_sample_count || 20} needed per size`);
-
-    if (Number.isFinite(majoritySize) && majoritySize > 0) {
-      const range = Number.isFinite(smallestSize) && smallestSize > 0 && smallestSize !== majoritySize
-        ? `${money(smallestSize).replace(".00", "")}–${money(majoritySize).replace(".00", "")}`
-        : money(majoritySize).replace(".00", "");
-      setText("copyPlaybookSize", `${range} majority-pass`);
-      setText("copyPlaybookSizeDetail", Number.isFinite(firstWeakSize) && firstWeakSize > 0
-        ? `${money(firstWeakSize).replace(".00", "")} · ${pct(sizeWindow.policy_pass_pct_at_first_below_majority_size)} pass`
-        : `${pct(sizeWindow.policy_pass_pct_at_largest_majority_size)} pass · exact quotes`);
-    } else {
-      setText("copyPlaybookSize", playbook.state === "forming" ? "Threshold forming" : "No majority-pass size");
-      setText("copyPlaybookSizeDetail", `${sizeWindow.evidence_qualified_size_count || 0}/5 sizes qualified`);
-    }
-
-    if (marketFit.state === "available") {
-      const marketSuffix = marketFit.dimension === "market_cap_usd"
-        ? " cap"
-        : marketFit.dimension === "liquidity_usd"
-          ? " liquidity"
-          : " pair age";
-      setText("copyPlaybookMarket", `${marketFit.bucket_label}${marketSuffix}`);
-      setText("copyPlaybookMarketDetail", `${pct(marketFit.policy_pass_pct)} pass · ${marketFit.prospective_sample_count || 0} signals · ${money(playbook.reference_order_size_usdc || 100).replace(".00", "")}`);
-    } else {
-      setText("copyPlaybookMarket", marketFit.state === "forming" ? "Segment evidence forming" : "Not sampled");
-      setText("copyPlaybookMarketDetail", `${playbook.minimum_prospective_sample_count || 20} signals needed`);
-    }
-
-    if (Number(persistence.checkpoint_count || 0) > 0 && Number.isFinite(Number(persistence.route_persistence_pct))) {
-      setText("copyPlaybookPersistence", `${pct(persistence.route_persistence_pct)} still routable`);
-      const followerReturn = persistence.median_follower_return_pct !== null
-        && persistence.median_follower_return_pct !== undefined
-        && Number.isFinite(Number(persistence.median_follower_return_pct))
-        ? ` · median ${signedPct(persistence.median_follower_return_pct)}`
-        : "";
-      setText("copyPlaybookPersistenceDetail", `${persistence.checkpoint_count} exact-quantity checks${followerReturn}${persistence.state === "forming" ? " · forming" : ""}.`);
-    } else {
-      setText("copyPlaybookPersistence", "Not sampled");
-      setText("copyPlaybookPersistenceDetail", "+1h exit check pending.");
-    }
-
-    if (constraint.state === "observed" && constraint.reason_code) {
-      setText("copyPlaybookConstraint", readable(constraint.reason_code));
-      const constraintPct = constraint.pct_of_signals === null || constraint.pct_of_signals === undefined
-        ? null
-        : Number(constraint.pct_of_signals);
-      const constraintSize = Number(constraint.order_size_usdc);
-      setText("copyPlaybookConstraintDetail", `${constraint.observation_count || 0} observations${Number.isFinite(constraintSize) && constraintSize > 0 ? ` · ${money(constraintSize).replace(".00", "")}` : ""}${Number.isFinite(constraintPct) ? ` · ${pct(constraintPct)}` : ""}`);
-    } else {
-      setText("copyPlaybookConstraint", constraint.state === "insufficient_evidence" ? "Not sampled" : "No dominant blocker");
-      setText("copyPlaybookConstraintDetail", "No dominant refusal.");
-    }
-    playbookNode.dataset.playbookState = playbook.state;
-  }
-  setText("copyFollowerHeadline", sharedAvailable
-    ? `${Number(shared.prospective_signal_count || 0)} wallet trade${Number(shared.prospective_signal_count || 0) === 1 ? "" : "s"} · ${Number(shared.probe_observation_count || 0)} exact follower routes${Number(outcomeReference?.checkpoint_count || 0) ? ` · ${Number(outcomeReference.checkpoint_count)} +1h outcomes` : ""}`
-    : overall?.prospective_sample_count
-      ? `${overall.prospective_sample_count} private policy test${overall.prospective_sample_count === 1 ? "" : "s"} · ${overall.state === "available" ? `copyability ${overall.score}/100` : "score forming"}`
-      : "Prospective copy evidence is still forming");
-  const metrics = document.getElementById("copyFollowerMetrics");
-  const metricRows = [
-    fact("Executable copies", overall?.components?.policy_pass_pct === null || overall?.components?.policy_pass_pct === undefined ? "Not sampled" : pct(overall.components.policy_pass_pct)),
-    fact("Entry available", overall?.components?.entry_executable_pct === null || overall?.components?.entry_executable_pct === undefined ? "Not sampled" : pct(overall.components.entry_executable_pct)),
-    fact("Exit available", overall?.components?.exit_executable_pct === null || overall?.components?.exit_executable_pct === undefined ? "Not sampled" : pct(overall.components.exit_executable_pct)),
-    fact("Entry degradation", overall?.components?.median_entry_degradation_bps === null || overall?.components?.median_entry_degradation_bps === undefined ? "Not sampled" : bpsAsPercent(overall.components.median_entry_degradation_bps)),
-  ];
-  if (Number(outcomeReference?.checkpoint_count || 0) > 0) metricRows.push(
-    fact("Route still available · +1h", pct(outcomeReference.route_persistence_pct)),
-    fact("Follower return · +1h", signedPct(outcomeReference.median_follower_return_pct)),
-    fact("Source alpha retained · +1h", outcomeReference.median_follower_capture_ratio_pct === null || outcomeReference.median_follower_capture_ratio_pct === undefined
-      ? "Needs positive source samples"
-      : pct(outcomeReference.median_follower_capture_ratio_pct)),
-  );
-  if (Number(marketContext?.context_observation_count || 0) > 0) metricRows.push(
-    fact("Detected market cap", money(marketContext.median_detected_market_cap_usd)),
-    fact("Detected liquidity", money(marketContext.median_detected_liquidity_usd)),
-  );
-  metrics.replaceChildren(...metricRows);
-  const capacity = document.getElementById("copyCapacityRail");
-  capacity.replaceChildren(...rail.map((row) => {
-    const item = document.createElement("div");
-    const size = document.createElement("span");
-    const result = document.createElement("strong");
-    const sample = document.createElement("small");
-    size.textContent = money(row.order_size_usdc).replace(".00", "");
-    const sampled = Number(row.prospective_sample_count || 0);
-    const outcome = Array.isArray(outcomes?.by_size)
-      ? outcomes.by_size.find((candidate) => Number(candidate.order_size_usdc) === Number(row.order_size_usdc))
-      : null;
-    const pass = row.components?.policy_pass_pct;
-    result.textContent = row.state === "available" && row.score !== null
-      ? `${row.score}/100`
-      : sampled && pass !== null && pass !== undefined
-        ? `${Number(pass).toFixed(0)}% pass`
-        : "Not sampled";
-    sample.textContent = Number(outcome?.checkpoint_count || 0)
-      ? `${sampled} routes · ${outcome.checkpoint_count} +1h`
-      : `${sampled} route${sampled === 1 ? "" : "s"}`;
-    item.append(size, result, sample);
-    return item;
-  }));
-  const refusal = diagnosis?.reference_dominant_refusal || overall?.dominant_refusal || null;
-  const refusalNode = document.getElementById("copyRefusalDiagnosis");
-  refusalNode.hidden = !sharedAvailable || !refusal;
-  if (sharedAvailable && refusal) {
-    setText("copyRefusalLabel", `Leading blocker · ${money(diagnosis?.reference_order_size_usdc || shared?.reference_order_size_usdc || 100).replace(".00", "")}`);
-    setText("copyRefusalHeadline", readable(refusal.reason_code));
-    setText("copyRefusalDetail", `${refusal.count}/${overall?.prospective_sample_count || 0} routes · ${pct(refusal.pct_of_signals)} · refusals retained`);
-  }
-  const sizeStressNode = document.getElementById("copySizeStress");
-  sizeStressNode.hidden = !sharedAvailable || !sizeStress || sizeStress.state === "insufficient_evidence";
-  if (!sizeStressNode.hidden) {
-    const majoritySize = sizeStress.largest_contiguous_size_with_majority_policy_pass_usdc;
-    const firstWeakSize = sizeStress.first_qualified_size_below_majority_policy_pass_usdc;
-    const headline = sizeStress.state === "resilient_through_largest_tested"
-      ? `Majority-pass through ${money(majoritySize).replace(".00", "")}`
-      : sizeStress.state === "size_sensitive"
-        ? `Majority drops at ${money(firstWeakSize).replace(".00", "")}`
-        : sizeStress.state === "constrained_at_smallest_tested"
-          ? `Below majority at ${money(firstWeakSize).replace(".00", "")}`
-          : sizeStress.state === "mixed_evidence"
-            ? "Non-linear route evidence"
-            : "Size evidence forming";
-    setText("copySizeStressHeadline", headline);
-    setText("copySizeStressDetail", `${sizeStress.full_ladder_signal_count || 0}/${sizeStress.prospective_signal_count || 0} signals · five sizes · isolated quotes`);
-    sizeStressNode.dataset.stressState = sizeStress.state;
-  }
-  const crowdingNode = document.getElementById("copyCrowdingStress");
-  crowdingNode.hidden = !sharedAvailable || !crowding || !new Set(["forming", "available"]).has(crowding.state);
-  if (!crowdingNode.hidden) {
-    const available = Number(crowding.aggregate_route_available_pct);
-    setText("copyCrowdingStressHeadline", crowding.state === "available" && Number.isFinite(available)
-      ? `${available.toFixed(0)}% held under load`
-      : "Aggregate evidence forming");
-    const blocker = crowding.dominant_constraint?.reason_code
-      ? ` · blocker: ${readable(crowding.dominant_constraint.reason_code)}`
-      : "";
-    setText("copyCrowdingStressDetail", `${crowding.eligible_signal_sample_count || 0} signals${blocker} · demand private`);
-    crowdingNode.dataset.crowdingState = crowding.state;
-  }
-  const marketFit = document.getElementById("copyMarketFit");
-  const marketDimensions = Array.isArray(marketRegimes?.dimensions)
-    ? marketRegimes.dimensions.filter((row) => row?.representative_bucket)
-    : [];
-  marketFit.hidden = !sharedAvailable || !marketDimensions.length;
-  if (sharedAvailable && marketDimensions.length) {
-    setText("copyMarketFitScope", `${money(marketRegimes.reference_order_size_usdc || 100).replace(".00", "")} routes · ${marketRegimes.minimum_prospective_sample_count || 20} signals to qualify`);
-    document.getElementById("copyMarketFitGrid").replaceChildren(...marketDimensions.map((dimension) => {
-      const bucket = dimension.representative_bucket;
-      const card = document.createElement("article");
-      const label = document.createElement("span");
-      const headline = document.createElement("strong");
-      const detail = document.createElement("p");
-      label.textContent = dimension.label;
-      headline.textContent = bucket.bucket_label;
-      const pass = bucket.policy_pass_pct === null || bucket.policy_pass_pct === undefined ? "pass rate forming" : `${pct(bucket.policy_pass_pct)} passed`;
-      const blocker = bucket.dominant_refusal ? ` · blocker: ${readable(bucket.dominant_refusal.reason_code)}` : "";
-      detail.textContent = `${bucket.prospective_sample_count} signal${bucket.prospective_sample_count === 1 ? "" : "s"} · ${pass}${blocker}`;
-      card.append(label, headline, detail);
-      return card;
-    }));
-  }
-  const feeScenarios = Array.isArray(shared?.hypothetical_raven_fee_scenarios_bps) ? shared.hypothetical_raven_fee_scenarios_bps : [];
-  setText("copyFollowerLimit", sharedAvailable
-    ? `Pre-positioned Solana USDC${feeScenarios.length ? ` · fees ${feeScenarios.map((value) => `${value} bps`).join("/")}` : ""} · source ≠ follower`
-    : "Source ≠ follower. Unavailable stays unavailable.");
 }
 
 function renderDeepHistory(history) {
@@ -966,10 +664,6 @@ function renderWalletRecord() {
     fact("Total buy cost", recordBasis(row.buy_notional_by_basis, "total")),
     fact("Total sell proceeds", recordBasis(row.sell_notional_by_basis, "total")),
   ];
-  const risk=profile.discovery_metrics;
-  if(risk){metrics.push(fact("Matched losses ≥75%",pct(risk.loss_75_pct)),fact("Matched holds <15 seconds",risk.under_15_seconds_count??"—"),fact("Tokens with ≥15 buys",risk.tokens_15_plus_buys??"—"));}
-  const incoming=record?.incoming_transfers?.[0];
-  if(incoming?.from){metrics.push(fact("Earliest retained incoming transfer",`${incoming.from} · ${when(incoming.observed_at)}`));}
   document.getElementById("copyOverviewMetrics").replaceChildren(...metrics);
   const decoded = profile.coverage?.trade_events != null;
   const fxScope = record?.usd ? " USD values use historical five-minute native-asset price references and canonical USDC equivalents; network fees remain separate. " : " ";
@@ -1028,7 +722,6 @@ function renderProfile(payload, { scroll = true, from_poll: fromPoll = false } =
   const previousHoldings = state.profile?.source_wallet?.address === payload.profile?.source_wallet?.address
     && state.profile?.source_wallet?.chain === payload.profile?.source_wallet?.chain ? state.profile?.holdings_snapshot : null;
   state.profile = fromPoll && previousHoldings ? { ...payload.profile, holdings_snapshot: previousHoldings, holdings_page: state.profile.holdings_page } : payload.profile;
-  state.prospective_copyability = payload.prospective_copyability || null;
   state.address = payload.profile?.source_wallet?.address || state.address;
   state.source_wallet_id = payload.source_wallet_id || state.source_wallet_id;
   if (payload.cached_summary && state.source_wallet_id) {
@@ -1054,10 +747,10 @@ function renderProfile(payload, { scroll = true, from_poll: fromPoll = false } =
   const shadowButton = document.getElementById("copyStartSetup");
   const shadowAvailable = state.activation.shadow_copy === true && profileChain === "solana";
   shadowButton.disabled = !shadowAvailable;
-  shadowButton.textContent = shadowAvailable ? "Copy this wallet" : state.activation.shadow_copy ? "Route proof pending" : "Raven Copy opening soon";
+  shadowButton.textContent = shadowAvailable ? "Copy this wallet" : state.activation.shadow_copy ? "Copy unavailable on this chain" : "Raven Copy opening soon";
   shadowButton.title = shadowAvailable
     ? "Create a Raven Copy policy"
-    : state.activation.shadow_copy ? "Exact entry + exit routing required." : "Copy is free; live shadow activation remains safety-gated.";
+    : state.activation.shadow_copy ? "Copy setup is available for Solana wallets." : "Copy setup is not available yet.";
   const saveButton = document.getElementById("copySaveProfile");
   saveButton.disabled = false;
   saveButton.dataset.action = onDemandOnly ? "refresh" : "save";
@@ -1082,18 +775,17 @@ function renderProfile(payload, { scroll = true, from_poll: fromPoll = false } =
   const reportedTransactions = profile.coverage.transactions_reported_by_provider;
   const transactionLabel = reportedTransactions != null ? `${reportedTransactions} tx reported` : profile.schema_version === "ravenos.evm_wallet_basic_profile.v2" ? `${profile.coverage.token_transfers_observed ?? "Unknown"} transfers observed` : `${profile.coverage.transactions_observed ?? "Unknown"} tx observed`;
   const tradeLabel = profile.coverage.trade_events === null || profile.coverage.trade_events === undefined ? "trades not decoded" : `${profile.coverage.trade_events} trades`;
-  setText("copyProfileCoverage", `${transactionLabel} · ${tradeLabel} · ${profile.coverage.known_cost_basis_pct === null ? "basis unresolved" : `${profile.coverage.known_cost_basis_pct.toFixed(1)}% basis`} · ${historyLabel}`);
-  const thesis = profile.research_thesis;
-  const thesisNode = document.getElementById("copyProfileThesis");
-  thesisNode.hidden = !thesis;
-  if (thesis) {
-    thesisNode.dataset.thesisState = text(thesis.state, "insufficient_evidence");
-    setText("copyThesisState", thesis.evidence_strength?.label || readable(thesis.state));
-    setText("copyThesisHeadline", thesis.headline || "Source record still forming");
-    setText("copyThesisSummary", thesis.summary || "More known-cost closes needed.");
-    document.getElementById("copyThesisStrengths").replaceChildren(...findingItems(thesis.strengths, "No durable edge yet."));
-    document.getElementById("copyThesisWatchouts").replaceChildren(...findingItems(thesis.watchouts, "No additional watch-out."));
-    document.getElementById("copyThesisNext").replaceChildren(...findingItems(thesis.next_evidence, "Keep observing."));
+  setText("copyProfileCoverage", `${transactionLabel} · ${tradeLabel} · ${historyLabel}`);
+  const summary = profile.public_summary;
+  const thesisNode = document.getElementById('copyProfileThesis');
+  thesisNode.hidden = !summary;
+  if (summary) {
+    setText('copyThesisState', {current:'Current',recent:'Recent',historical:'Historical',limited:'Limited history'}[summary.data_status] || 'Limited history');
+    setText('copyThesisHeadline', summary.categories.join(' · ') || 'Wallet profile');
+    setText('copyThesisSummary', summary.summary);
+    for (const id of ['copyThesisStrengths','copyThesisWatchouts','copyThesisNext']) {
+      const node = document.getElementById(id); if (node) { node.replaceChildren(); node.parentElement.hidden = true; }
+    }
   }
   const performance = profile.source_performance;
   setText("copySourcePnl", profile.trading_record ? recordPnl(performance.realized_pnl_by_basis || {usdc:performance.realized_pnl_usdc,sol:performance.realized_pnl_sol}) : realizedPerformance(performance));
@@ -1108,7 +800,7 @@ function renderProfile(payload, { scroll = true, from_poll: fromPoll = false } =
     fact("Last trade", when(profile.behavior.last_trade_at)),
   ] : [
     fact("Trades", "Not decoded"),
-    fact("Txn context", profile.provider_activity?.transaction_context_candidates_available ?? "Unavailable"),
+    fact("Inbound transfers", profile.provider_activity?.inbound_transfer_rows ?? "Unavailable"),
     fact("Recent transfers", profile.coverage.token_transfers_observed ?? "Unavailable"),
     fact("Provider tx count", profile.coverage.transactions_reported_by_provider ?? "Unavailable"),
     fact("Tokens held", profile.behavior.token_assets_observed ?? "Unavailable"),
@@ -1116,9 +808,7 @@ function renderProfile(payload, { scroll = true, from_poll: fromPoll = false } =
     fact("Last transfer", when(profile.coverage.last_observed_at)),
   ];
   const advancedMetrics = [
-    fact("Profit factor", decimal(performance.profit_factor)),
     fact("Median hold", humanDuration(profile.behavior.median_hold_seconds)),
-    fact("Known basis", pct(profile.coverage.known_cost_basis_pct)),
     fact("Avg buy", basisNotional(profile.behavior, "average")),
     fact("Total buys", basisNotional(profile.behavior, "total")),
     fact("Trade rate", profile.behavior.trade_rate_per_active_day === null || profile.behavior.trade_rate_per_active_day === undefined ? "Unavailable" : `${profile.behavior.trade_rate_per_active_day}/day`),
@@ -1137,59 +827,16 @@ function renderProfile(payload, { scroll = true, from_poll: fromPoll = false } =
     item.append(name, result, sample);
     return item;
   }));
-  const usdcQuality = profile.profit_quality?.by_basis?.usdc || {};
-  const solQuality = profile.profit_quality?.by_basis?.sol || {};
-  document.getElementById("copyProfitQuality").replaceChildren(
-    fact("Top-1 · USDC", pct(usdcQuality.top_1_profit_concentration_pct)),
-    fact("Top-1 · SOL", pct(solQuality.top_1_profit_concentration_pct)),
-    fact("Top-5 · USDC", pct(usdcQuality.top_5_profit_concentration_pct)),
-    fact("Top-5 · SOL", pct(solQuality.top_5_profit_concentration_pct)),
-    fact("Profitable closes · USDC", usdcQuality.profitable_observations ?? "Unavailable"),
-    fact("Profitable closes · SOL", solQuality.profitable_observations ?? "Unavailable"),
-    fact("Profitable weeks · USDC", pct(usdcQuality.weekly_consistency?.profitable_period_pct)),
-    fact("Profitable weeks · SOL", pct(solQuality.weekly_consistency?.profitable_period_pct)),
+  for (const id of ['copyProfitQuality', 'copyEvidenceMetrics']) {
+    const node = document.getElementById(id); if (node) { node.replaceChildren(); node.closest('article').hidden = true; }
+  }
+  document.getElementById('copyBehaviorMetrics').replaceChildren(
+    fact('Median hold', humanDuration(profile.behavior?.median_hold_seconds)),
+    fact('Trades', profile.behavior?.trade_count ?? 'Unavailable'),
+    fact('Active days', profile.behavior?.active_days ?? 'Unavailable'),
+    fact('Latest trade', when(profile.behavior?.last_trade_at)),
   );
-  const patterns = profile.behavior?.mechanical_pattern_evidence || {};
-  const providerActivity = profile.provider_activity || {};
-  const behaviorMetrics = profileChain === "solana" ? [
-    fact("Median hold", humanDuration(profile.behavior?.median_hold_seconds)),
-    fact("Trade rate", profile.behavior?.trade_rate_per_active_day === null || profile.behavior?.trade_rate_per_active_day === undefined ? "Unavailable" : `${decimal(profile.behavior.trade_rate_per_active_day)}/day`),
-    fact("Repeat-token rate", pct(profile.behavior?.repeat_token_rate_pct)),
-    fact("Tokens with an exit", pct(profile.behavior?.observed_token_exit_coverage_pct ?? profile.behavior?.observed_trade_completion_pct)),
-    fact("Scaled in", pct(profile.behavior?.scaled_into_token_pct)),
-    fact("Scaled out", pct(profile.behavior?.scaled_out_token_pct)),
-    fact("Mechanical patterns", readable(patterns.state || "insufficient_evidence")),
-    fact("Rapid intervals", pct(patterns.rapid_under_30_seconds_pct)),
-  ] : [
-    fact("Observed transfers", providerActivity.observed_transfer_rows ?? "Unavailable"),
-    fact("Inbound transfers", providerActivity.inbound_transfer_rows ?? "Unavailable"),
-    fact("Outbound transfers", providerActivity.outbound_transfer_rows ?? "Unavailable"),
-    fact("Internal movements", providerActivity.internal_movement_rows ?? "Unavailable"),
-    fact("Token contracts", providerActivity.unique_token_contracts ?? "Unavailable"),
-    fact("Route-decode candidates", providerActivity.route_decode_candidate_transactions ?? "Unavailable"),
-    fact("Txn context available", providerActivity.transaction_context_candidates_available ?? "Unavailable"),
-    fact("Most recent", when(providerActivity.most_recent_transfer_at)),
-    fact("Trade interpretation", "Not decoded"),
-    fact("Economic flow", "Not claimed"),
-  ];
-  document.getElementById("copyBehaviorMetrics").replaceChildren(...behaviorMetrics);
-  const quality = profile.data_quality || {};
-  document.getElementById("copyEvidenceMetrics").replaceChildren(
-    fact("History scope", readable(quality.history_scope || "bounded_partial_history")),
-    fact("Provider window", quality.provider_history_exhausted ? "Exhausted" : "More history may exist"),
-    fact("Cost basis", pct(quality.cost_basis_coverage_pct ?? profile.coverage?.known_cost_basis_pct)),
-    fact("Transaction decode", pct(quality.trade_decode_coverage_pct)),
-    fact("Txn context coverage", pct(quality.transaction_context_coverage_pct)),
-    fact("Classification", pct(quality.classification_coverage_pct)),
-    fact("Reconstruction", pct(quality.reconstruction_confidence_pct)),
-    fact("Profile events", quality.analysis_events === null || quality.analysis_events === undefined ? "Unavailable" : compactNumber(quality.analysis_events)),
-    fact("Analysis scope", readable(quality.analysis_scope || "all_retained_normalized_events")),
-    fact("Historical pricing", pct(quality.historical_price_evidence_coverage_pct)),
-    fact("Full confidence", pct(quality.full_data_confidence_pct)),
-  );
-  setText("copyEvidenceLimit", quality.analysis_truncated
-    ? `${compactNumber(quality.analysis_events)} recent events analyzed · older evidence retained`
-    : "Full confidence needs historical price + liquidity.");
+  setText('copyBehaviorLimit', 'Activity covers the available history.');
   const capital = profile.capital_observations || {};
   const openPositions = Array.isArray(profile.positions?.known_cost_open_positions) ? profile.positions.known_cost_open_positions : [];
   const providerBalances = Array.isArray(profile.positions?.provider_reported_token_balances) ? profile.positions.provider_reported_token_balances : [];
@@ -1246,8 +893,6 @@ function renderProfile(payload, { scroll = true, from_poll: fromPoll = false } =
     row.append(identity, detail);
     return row;
   }) : [empty("No known-cost open positions", "Unknown inventory excluded.")]));
-  renderFollowerReality();
-  renderEvmTransactionContexts(profileChain, payload.transaction_decode_candidates);
   setText("copySourceLimits", performance.limitations?.join(" ") || "No material limitations reported.");
   if (!fromPoll || !state.events.length) {
     renderWalletActivity(payload.activity || {
@@ -1262,6 +907,16 @@ function renderProfile(payload, { scroll = true, from_poll: fromPoll = false } =
   }
   scheduleDeepHistoryPoll(state.deep_poll_token);
   if (scroll) profileNode.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function exitStrategyOptions(select, selected = '') {
+  if (!select) return;
+  select.replaceChildren(new Option('No exit strategy', ''));
+  for (const strategy of currentTradingSettings()?.settings.strategies || []) {
+    select.add(new Option(`${strategy.name} · ${strategy.rules.length} rules`, strategy.id));
+  }
+  select.value = selected;
+  if (select.selectedIndex < 0) select.value = '';
 }
 
 function policyPayload() {
@@ -1291,6 +946,7 @@ function policyPayload() {
     },
     funding_assumption: "PREPOSITIONED_SOLANA_USDC_SHADOW",
     hypothetical_raven_fee_bps: feeBps,
+    exit_strategy: currentTradingSettings()?.settings.strategies.find(row => row.id === document.getElementById('copyPolicyExitStrategy')?.value) || null,
   };
 }
 
@@ -1321,6 +977,7 @@ function watchCard(watch) {
     fact("Order", `${money(watch.policy.sizing.fixed_usdc)} USDC`),
     fact("Round trip max", pct(watch.policy.execution_quality.maximum_round_trip_friction_pct)),
     fact("Last observed", when(watch.source_state.last_observed_at)),
+    fact('Exit strategy', watch.policy.exit_strategy ? `${watch.policy.exit_strategy.name} · v${watch.policy.exit_strategy.version}` : 'None'),
   );
   const actions = document.createElement("div");
   actions.className = "copy-watch-actions";
@@ -1347,7 +1004,24 @@ function watchCard(watch) {
     await api(`${API}/watches/${encodeURIComponent(watch.watch_id)}`, { method: "DELETE", body: JSON.stringify({ confirm: "delete_wallet_watch" }) });
     await loadWorkspace();
   });
-  actions.append(refresh, remove);
+  const strategyLabel = document.createElement('label'), strategySelect = document.createElement('select');
+  strategyLabel.textContent = 'Exit strategy'; strategySelect.setAttribute('aria-label', `Exit strategy for ${watch.label}`);
+  exitStrategyOptions(strategySelect, watch.policy.exit_strategy?.id);
+  strategyLabel.append(strategySelect);
+  const apply = document.createElement('button'), note = document.createElement('p');
+  apply.type = 'button'; apply.textContent = 'Apply strategy'; note.setAttribute('aria-live', 'polite');
+  apply.addEventListener('click', async () => {
+    apply.disabled = true;
+    try {
+      const strategy = currentTradingSettings()?.settings.strategies.find(row => row.id === strategySelect.value) || null;
+      const result = await api(`${API}/watches/${encodeURIComponent(watch.watch_id)}`, { method: 'PATCH', body: JSON.stringify({
+        expected_revision: watch.revision, policy: { ...watch.policy, exit_strategy: strategy } }) });
+      if (!result.response.ok) { note.textContent = 'The wallet or strategy changed. Refresh and try again.'; return; }
+      await loadWorkspace();
+    } catch { note.textContent = 'The strategy could not be applied. Try again.'; }
+    finally { apply.disabled = false; }
+  });
+  actions.append(strategyLabel, apply, refresh, remove, note);
   card.append(main, details, actions);
   return card;
 }
@@ -1500,21 +1174,6 @@ function screenerRequest() {
     if (value !== null) clauses.push({ field, operator, value });
   };
   clause("profit_factor", "gte", "copyScreenProfitFactor");
-  clause("top_1_profit_concentration_pct", "lte", "copyScreenTopOne");
-  clause("reconstruction_confidence_pct", "gte", "copyScreenReconstruction");
-  clause("copyability_sample_count", "gte", "copyScreenCopySample");
-  clause("exit_executable_pct", "gte", "copyScreenExitRate");
-  clause("policy_pass_pct", "gte", "copyScreenPassRate");
-  clause("median_round_trip_friction_pct", "lte", "copyScreenFriction");
-  clause("outcome_checkpoint_count", "gte", "copyScreenOutcomeSample");
-  clause("follower_route_persistence_pct", "gte", "copyScreenRoutePersistence");
-  clause("median_follower_return_pct", "gte", "copyScreenFollowerReturn");
-  clause("follower_capture_ratio_pct", "gte", "copyScreenFollowerCapture");
-  clause("detection_context_sample_count", "gte", "copyScreenContextSample");
-  clause("median_detected_liquidity_usd", "gte", "copyScreenDetectedLiquidity");
-  clause("median_detected_market_cap_usd", "gte", "copyScreenMarketCapMin");
-  clause("median_detected_market_cap_usd", "lte", "copyScreenMarketCapMax");
-  clause("median_source_trade_liquidity_pct", "lte", "copyScreenSourceFootprint");
   if (state.access.advanced_wallet_intelligence) document.querySelectorAll("[data-discovery-field]").forEach((input) => {
     if (input.value !== "") clauses.push({ field: input.dataset.discoveryField, operator: input.dataset.discoveryOperator, value: Number(input.value) });
   });
@@ -1523,8 +1182,6 @@ function screenerRequest() {
   if (holdMinimum !== null && holdMaximum !== null) clauses.push({ field: "median_hold_seconds", operator: "between", value: [holdMinimum, holdMaximum] });
   else if (holdMinimum !== null) clauses.push({ field: "median_hold_seconds", operator: "gte", value: holdMinimum });
   else if (holdMaximum !== null) clauses.push({ field: "median_hold_seconds", operator: "lte", value: holdMaximum });
-  const mechanical = document.getElementById("copyScreenMechanical").value;
-  if (mechanical) clauses.push({ field: "mechanical_pattern_state", operator: "eq", value: mechanical });
   return {
     chain: state.screener.chain,
     view: state.screener.view || "combined",
@@ -1534,7 +1191,6 @@ function screenerRequest() {
       active_within_hours: optionalNumber("copyScreenActive"),
       min_trade_count: optionalNumber("copyScreenTrades"),
       min_active_days: optionalNumber("copyScreenDays"),
-      min_known_cost_basis_pct: optionalNumber("copyScreenBasis"),
       min_closed_lots: optionalNumber("copyScreenClosed"),
       min_win_rate_pct: optionalNumber("copyScreenWin"),
       min_roi_pct: optionalNumber("copyScreenRoi"),
@@ -1562,31 +1218,14 @@ function syncScreenerUrl() {
     active: document.getElementById("copyScreenActive").value,
     trades: document.getElementById("copyScreenTrades").value,
     days: document.getElementById("copyScreenDays").value,
-    basis: document.getElementById("copyScreenBasis").value,
     evidence: document.getElementById("copyScreenEvidence").value,
     sort: document.getElementById("copyScreenSort").value,
     closed: document.getElementById("copyScreenClosed").value,
     win: document.getElementById("copyScreenWin").value,
     roi: document.getElementById("copyScreenRoi").value,
     pf: document.getElementById("copyScreenProfitFactor").value,
-    top1: document.getElementById("copyScreenTopOne").value,
-    recon: document.getElementById("copyScreenReconstruction").value,
     hold_min: document.getElementById("copyScreenHoldMin").value,
     hold_max: document.getElementById("copyScreenHoldMax").value,
-    pattern: document.getElementById("copyScreenMechanical").value,
-    copy_sample: document.getElementById("copyScreenCopySample").value,
-    exit_rate: document.getElementById("copyScreenExitRate").value,
-    pass_rate: document.getElementById("copyScreenPassRate").value,
-    friction: document.getElementById("copyScreenFriction").value,
-    outcome_sample: document.getElementById("copyScreenOutcomeSample").value,
-    route_persistence: document.getElementById("copyScreenRoutePersistence").value,
-    follower_return: document.getElementById("copyScreenFollowerReturn").value,
-    follower_capture: document.getElementById("copyScreenFollowerCapture").value,
-    context_sample: document.getElementById("copyScreenContextSample").value,
-    detected_liq: document.getElementById("copyScreenDetectedLiquidity").value,
-    mcap_min: document.getElementById("copyScreenMarketCapMin").value,
-    mcap_max: document.getElementById("copyScreenMarketCapMax").value,
-    source_footprint: document.getElementById("copyScreenSourceFootprint").value,
   };
   document.querySelectorAll("[data-discovery-key]").forEach((input) => { fields[`df_${input.dataset.discoveryKey}`] = input.value; });
   for (const [key, value] of Object.entries(fields)) {
@@ -1615,15 +1254,9 @@ function hydrateScreenerFromUrl() {
   const preset = params.get("screen");
   if (preset && [...document.querySelectorAll("[data-screen-preset]")].some((button) => button.dataset.screenPreset === preset)) state.screener.preset = preset;
   const mappings = {
-    active: "copyScreenActive", trades: "copyScreenTrades", days: "copyScreenDays", basis: "copyScreenBasis",
+    active: "copyScreenActive", trades: "copyScreenTrades", days: "copyScreenDays",
     evidence: "copyScreenEvidence", sort: "copyScreenSort", closed: "copyScreenClosed", win: "copyScreenWin",
-    roi: "copyScreenRoi", pf: "copyScreenProfitFactor", top1: "copyScreenTopOne", recon: "copyScreenReconstruction",
-    hold_min: "copyScreenHoldMin", hold_max: "copyScreenHoldMax", pattern: "copyScreenMechanical",
-    copy_sample: "copyScreenCopySample", exit_rate: "copyScreenExitRate", pass_rate: "copyScreenPassRate", friction: "copyScreenFriction",
-    outcome_sample: "copyScreenOutcomeSample", route_persistence: "copyScreenRoutePersistence",
-    follower_return: "copyScreenFollowerReturn", follower_capture: "copyScreenFollowerCapture",
-    context_sample: "copyScreenContextSample", detected_liq: "copyScreenDetectedLiquidity",
-    mcap_min: "copyScreenMarketCapMin", mcap_max: "copyScreenMarketCapMax", source_footprint: "copyScreenSourceFootprint",
+    roi: "copyScreenRoi", pf: "copyScreenProfitFactor", hold_min: "copyScreenHoldMin", hold_max: "copyScreenHoldMax",
   };
   for (const [parameter, id] of Object.entries(mappings)) {
     const value = params.get(parameter);
@@ -1642,7 +1275,6 @@ async function loadStoredWallet(sourceWalletId, button) {
   state.activity_request += 1;
   state.source_wallet_id = null;
   state.profile = null;
-  state.prospective_copyability = null;
   state.deep_history = null;
   state.events = [];
   state.activity = { filter: "all", next_cursor: null, has_more: false, provider_has_more: false, matching_event_count: 0, loading: false, on_demand_only: false };
@@ -1783,58 +1415,12 @@ function robinhoodActivityRow(event) {
   const save = document.createElement("button");
   action.textContent = String(event.action || "swap").toUpperCase();
   token.textContent = event.token?.symbol || shortAddress(event.token?.contract || event.token?.asset_id);
-  const confirmed = event.chain_evidence?.independently_confirmed ? "confirmed" : "single source";
-  detail.textContent = `${walletAddress(event.trader?.address)} · ${when(event.observed_at)} · ${confirmed}`;
+  detail.textContent = `${walletAddress(event.trader?.address)} · ${when(event.observed_at)}`;
   save.type = "button";
   save.textContent = "Watch";
   save.addEventListener("click", () => saveResearchWallet(event.trader?.source_wallet_id, walletAddress(event.trader?.address), save));
   identity.append(token, detail);
   row.append(action, identity, save);
-  return row;
-}
-
-function robinhoodClusterRow(cluster) {
-  const row = document.createElement("div");
-  row.className = "copy-rh-row";
-  row.dataset.action = "buy";
-  const count = document.createElement("span");
-  const identity = document.createElement("div");
-  const token = document.createElement("strong");
-  const detail = document.createElement("small");
-  count.textContent = `${cluster.qualifying_wallet_count || 0} wallets`;
-  token.textContent = cluster.token?.symbol || shortAddress(cluster.token?.contract || cluster.token?.asset_id);
-  detail.textContent = `Latest ${when(cluster.latest_entry_at)} · coordination not claimed`;
-  identity.append(token, detail);
-  const href = robinhoodTerminalHref(cluster.token?.contract);
-  const action = href ? document.createElement("a") : document.createElement("span");
-  if (href) {
-    action.href = href;
-    action.textContent = "Terminal";
-  } else action.textContent = "No route";
-  row.append(count, identity, action);
-  return row;
-}
-
-function robinhoodRelationshipRow(relationship) {
-  const row = document.createElement("div");
-  row.className = "copy-rh-row";
-  const rate = document.createElement("span");
-  const identity = document.createElement("div");
-  const wallets = document.createElement("strong");
-  const detail = document.createElement("small");
-  const save = document.createElement("button");
-  rate.textContent = `${Number(relationship.lead_rate_pct || 0).toFixed(0)}%`;
-  wallets.textContent = `${walletAddress(relationship.leading_wallet)} → ${walletAddress(relationship.following_wallet)}`;
-  detail.textContent = `${relationship.independent_token_sample || 0} tokens · median ${humanDuration(relationship.median_lead_seconds)}`;
-  save.type = "button";
-  save.textContent = "Research";
-  save.addEventListener("click", () => {
-    const input = document.getElementById("copyWalletAddress");
-    input.value = relationship.leading_wallet || "";
-    input.focus();
-  });
-  identity.append(wallets, detail);
-  row.append(rate, identity, save);
   return row;
 }
 
@@ -1844,8 +1430,6 @@ function renderRobinhoodIntelligence() {
   section.hidden = !visible;
   if (!visible) return;
   const activity = state.robinhood_intelligence.activity;
-  const clusters = state.robinhood_intelligence.clusters;
-  const relationships = state.robinhood_intelligence.relationships;
   const render = (id, rows, mapper, headline, detail) => {
     const host = document.getElementById(id);
     if (!rows.length) {
@@ -1858,10 +1442,6 @@ function renderRobinhoodIntelligence() {
     host.replaceChildren(list);
   };
   render("copyRhActivity", activity, robinhoodActivityRow, "No qualifying activity", "The bounded RH index has no matching event in this window.");
-  render("copyRhClusters", clusters, robinhoodClusterRow, "No cluster yet", "Distinct-wallet entries will appear here.");
-  if (state.access.advanced_wallet_intelligence) {
-    render("copyRhRelationships", relationships, robinhoodRelationshipRow, "Not enough repeated ordering", "Lead / lag needs at least two independent shared tokens.");
-  }
   setText("copyRhStatus", activity.length
     ? `${activity.length} recent normalized events · indexed wallets only`
     : "RH index is available; qualifying activity is forming.");
@@ -1875,104 +1455,48 @@ async function loadRobinhoodIntelligence() {
   }
   section.hidden = false;
   setText("copyRhStatus", "Loading indexed RH activity…");
-  const requests = [
-    api(`${API}/robinhood/activity?hours=24&limit=12&action=all`),
-    state.access.advanced_wallet_intelligence ? api(`${API}/robinhood/clusters?hours=24&limit=100&min_wallets=2`) : Promise.resolve({ response: { ok: false }, payload: {} }),
-    state.access.advanced_wallet_intelligence
-      ? api(`${API}/robinhood/relationships?hours=720&limit=100&min_shared_entries=2&maximum_lag_seconds=3600`)
-      : Promise.resolve({ response: { ok: false }, payload: {} }),
-  ];
-  const [activity, clusters, relationships] = await Promise.all(requests);
-  state.robinhood_intelligence = {
-    activity: activity.response.ok && Array.isArray(activity.payload?.events) ? activity.payload.events : [],
-    clusters: clusters.response.ok && Array.isArray(clusters.payload?.clusters) ? clusters.payload.clusters : [],
-    relationships: relationships.response.ok && Array.isArray(relationships.payload?.relationships) ? relationships.payload.relationships : [],
-  };
+  const activity = await api(`${API}/robinhood/activity?hours=24&limit=12&action=all`);
+  state.robinhood_intelligence = { activity: activity.response.ok && Array.isArray(activity.payload?.events) ? activity.payload.events : [] };
   renderRobinhoodIntelligence();
 }
 
 function screenerCard(wallet) {
-  const card = document.createElement("article");
-  card.className = "copy-screener-card";
-  const identity = document.createElement("div");
-  const stateLabel = document.createElement("span");
-  const address = document.createElement("strong");
-  const observed = document.createElement("p");
-  const thesis = wallet.research_thesis;
-  stateLabel.textContent = thesis?.evidence_strength?.label || readable(wallet.source_performance?.state || "insufficient_evidence");
-  address.textContent = walletAddress(wallet.source_wallet?.address);
-  observed.textContent = `Last trade ${when(wallet.behavior?.last_trade_at || wallet.coverage?.last_observed_at)} · exact ${chainLabel(wallet.source_wallet?.chain)} address`;
-  identity.append(stateLabel, address, observed);
-  const follower = wallet.follower_reality || {};
-  const followerLabel = Number(follower.outcome_checkpoint_count || 0) > 0
-    ? `${signedPct(follower.median_follower_return_pct)} at +1h · ${pct(follower.route_persistence_pct)} routed`
-    : follower.state === "not_sampled"
-    ? "Not sampled"
-    : follower.copyability_score !== null && follower.copyability_score !== undefined
-      ? `${follower.copyability_score}/100 · ${follower.prospective_sample_size || 0} tests`
-      : `${follower.prospective_sample_size || 0} tests · ${follower.policy_pass_rate_pct === null || follower.policy_pass_rate_pct === undefined ? "pass forming" : `${pct(follower.policy_pass_rate_pct)} pass`}`;
-  const metrics = document.createElement("dl");
-  const basicMetrics = [
-    ...walletActivityFacts(wallet.cached_summary),
-    fact("Realized P&L", realizedPerformance({
-      realized_pnl_usdc: wallet.source_performance?.realized_pnl?.usdc,
-      realized_pnl_sol: wallet.source_performance?.realized_pnl?.sol,
-    }, { precise: true })),
-    fact("Win rate", pct(wallet.source_performance?.win_rate_pct)),
-    fact("Trades", wallet.behavior?.trade_count ?? 0),
-    fact("Active days", wallet.behavior?.active_days ?? "Unavailable"),
-  ];
-  const advancedMetrics = [
-    fact("Profit factor", decimal(wallet.source_performance?.profit_factor)),
-    fact("Top-1 profit", pct(wallet.profit_quality?.top_1_profit_concentration_pct)),
-    fact("Reconstruction", pct(wallet.coverage?.reconstruction_confidence_pct)),
-    fact("Median hold", humanDuration(wallet.behavior?.median_hold_seconds)),
-    fact("Known basis", pct(wallet.coverage?.known_cost_basis_pct)),
-    fact("Follower $100", followerLabel),
-  ];
-  metrics.append(...basicMetrics, ...(state.access.advanced_wallet_intelligence ? advancedMetrics : []));
-  if (Number(follower.follower_capture_sample_count || 0) > 0) {
-    metrics.append(fact("Alpha retained · +1h", `${pct(follower.follower_capture_ratio_pct)} · ${follower.follower_capture_sample_count} positive-source sample${follower.follower_capture_sample_count === 1 ? "" : "s"}`));
-  }
-  const marketContext = wallet.detected_market_context || {};
-  const marketContextParts = [];
-  if (marketContext.median_market_cap_usd !== null && marketContext.median_market_cap_usd !== undefined) marketContextParts.push(`$${compactNumber(marketContext.median_market_cap_usd)} cap`);
-  if (marketContext.median_liquidity_usd !== null && marketContext.median_liquidity_usd !== undefined) marketContextParts.push(`$${compactNumber(marketContext.median_liquidity_usd)} liq`);
-  if (marketContext.median_selected_pair_age_seconds !== null && marketContext.median_selected_pair_age_seconds !== undefined) marketContextParts.push(`${humanDuration(marketContext.median_selected_pair_age_seconds)} pair`);
-  if (marketContextParts.length) metrics.append(fact("At Raven detection", marketContextParts.join(" · ")));
-  const why = document.createElement("div");
-  why.className = "copy-screener-thesis";
-  why.dataset.edgeState = text(thesis?.source_edge?.state, "unavailable");
-  const whyLabel = document.createElement("span");
-  const whyHeadline = document.createElement("strong");
-  const whyText = document.createElement("p");
-  whyLabel.textContent = thesis ? "Raven thesis" : "Why surfaced";
-  whyHeadline.textContent = thesis?.headline || "Evidence match";
-  const firstWatchout = Array.isArray(thesis?.watchouts) ? thesis.watchouts.find((item) => item?.label)?.label : null;
-  whyText.textContent = thesis?.summary
-    ? `${thesis.summary}${firstWatchout ? ` Watch: ${firstWatchout}` : ""}`
-    : Array.isArray(wallet.why_surfaced) && wallet.why_surfaced.length
-      ? wallet.why_surfaced.map((reason) => reason.label).filter(Boolean).join(" · ")
-      : "Matches the current evidence filters.";
-  why.append(whyLabel, whyHeadline, whyText);
-  const actions = document.createElement("div");
-  actions.className = "copy-screener-card-actions";
-  const save = document.createElement("button");
-  const analyze = document.createElement("button");
-  save.type = "button";
-  analyze.type = "button";
-  save.textContent = "Save";
-  analyze.textContent = "Open analysis";
-  save.addEventListener("click", () => saveResearchWallet(wallet.source_wallet_id, walletAddress(wallet.source_wallet?.address), save));
-  analyze.addEventListener("click", () => {
-    state.address = wallet.source_wallet.address;
-    document.getElementById("copyWalletAddress").value = state.address;
-    setInspectChain(wallet.source_wallet.chain, { announce: false });
-    return loadStoredWallet(wallet.source_wallet_id, analyze);
+  const card = document.createElement('article'); card.className = 'copy-screener-card';
+  const identity = document.createElement('div'), address = document.createElement('strong'), observed = document.createElement('p');
+  const summary = wallet.public_summary;
+  address.textContent = `${walletAddress(wallet.source_wallet.address)} · ${chainLabel(wallet.source_wallet.chain)}`;
+  observed.textContent = `Last trade ${when(wallet.behavior?.last_trade_at)}`;
+  identity.append(address, observed);
+  const metrics = document.createElement('dl');
+  metrics.append(...walletActivityFacts(wallet.cached_summary),
+    fact('Realized P&L', realizedPerformance({realized_pnl_usdc:wallet.source_performance?.realized_pnl?.usdc, realized_pnl_sol:wallet.source_performance?.realized_pnl?.sol}, {precise:true})),
+    fact('Win rate', pct(wallet.source_performance?.win_rate_pct)),
+    fact('Trades', wallet.behavior?.trade_count ?? 'Unavailable'),
+    fact('Median hold', humanDuration(wallet.behavior?.median_hold_seconds)));
+  const description = document.createElement('div'); description.className = 'copy-screener-thesis';
+  const labels = document.createElement('strong'), detail = document.createElement('p'), freshness = document.createElement('span');
+  labels.textContent = summary?.categories?.join(' · ') || 'Wallet profile';
+  detail.textContent = summary?.summary || 'The available history is still being reviewed.';
+  freshness.textContent = {current:'Current',recent:'Recent',historical:'Historical',limited:'Limited history'}[summary?.data_status] || 'Limited history';
+  description.append(freshness, labels, detail);
+  const actions = document.createElement('div'); actions.className = 'copy-screener-card-actions';
+  const open = document.createElement('button'), save = document.createElement('button'), copy = document.createElement('button');
+  open.type = save.type = copy.type = 'button'; open.textContent = 'View wallet'; save.textContent = 'Save'; copy.textContent = 'Copy';
+  const inspect = async button => {
+    state.address = wallet.source_wallet.address; document.getElementById('copyWalletAddress').value = state.address;
+    setInspectChain(wallet.source_wallet.chain, {announce:false});
+    return loadStoredWallet(wallet.source_wallet_id, button);
+  };
+  open.addEventListener('click', () => inspect(open));
+  save.addEventListener('click', () => saveResearchWallet(wallet.source_wallet_id,walletAddress(wallet.source_wallet.address),save));
+  copy.addEventListener('click', async () => {
+    copy.disabled = true;
+    try { await inspect(copy); if (state.profile?.source_wallet?.address === wallet.source_wallet.address && state.profile?.source_wallet?.chain === wallet.source_wallet.chain) document.getElementById('copyStartSetup').click(); }
+    finally { copy.disabled = false; copy.textContent = 'Copy'; }
   });
-  actions.append(save, analyze);
-  card.append(identity, metrics, why, actions);
-  return card;
+  actions.append(open, save);
+  if (wallet.source_wallet.chain === 'solana' && state.activation.shadow_copy) actions.append(copy);
+  card.append(identity, metrics, description, actions); return card;
 }
 
 function sampledUsd(micros) {
@@ -2017,17 +1541,6 @@ function seenWalletCard(wallet) {
   address.title = wallet.source_wallet.address;
   detail.textContent = `Observed ${when(wallet.last_observed_at)} · ${wallet.history_available ? "bounded history cached" : "history not analyzed"}`;
   identity.append(address, detail);
-  const sourceLabels = { kol: "KOL list", smart_money: "Smart-money list", top_holder: "Top holder", top_trader: "Top trader list", active_trader: "Active pool trader" };
-  const seenKinds = new Set();
-  for(const source of (wallet.discovery_sources||[])) {
-    if (!sourceLabels[source.kind] || seenKinds.has(source.kind)) continue;
-    seenKinds.add(source.kind);
-    const provenance=document.createElement('p');
-    provenance.className='copy-observed-source';
-    provenance.textContent = sourceLabels[source.kind];
-    provenance.title=`List observed ${when(source.observed_at)}. A source label, not verified identity or a Raven performance rating.`;
-    identity.append(provenance);
-  }
   const actions = document.createElement("div"); actions.className = "copy-seen-actions";
   const save = document.createElement("button"); save.type = "button"; save.textContent = "Save";
   save.addEventListener("click", () => saveResearchWallet(wallet.source_wallet_id, walletAddress(wallet.source_wallet.address), save));
@@ -2046,32 +1559,6 @@ function seenWalletCard(wallet) {
   actions.append(save, inspect);
   card.dataset.sourceWalletId = wallet.source_wallet_id;
   card.append(identity, actions, observedCardMetrics(wallet.cached_summary));
-  const evidence = wallet.market_evidence;
-  if (evidence?.state === "available") {
-    const facts = document.createElement("dl"); facts.className = "copy-observed-facts";
-    facts.append(fact("Pools seen · 24h", evidence.observed_market_count), fact("Busiest pool · transactions", evidence.busiest_pool_transactions),
-      fact("Buy + sell in same pool", evidence.two_sided_pool_observed ? "Observed" : "Not in sample"));
-    const details = document.createElement("details"), summary = document.createElement("summary");
-    details.className = "copy-observed-evidence"; summary.textContent = "Inspect pool samples"; details.append(summary);
-    for (const sample of (evidence.samples || []).slice(0, 3)) {
-      const row = document.createElement("div"), link = document.createElement("a"), description = document.createElement("p");
-      const market = sample.market || {}, url = new URL("/terminal/", location.origin);
-      for (const [key, value] of Object.entries({chain:market.chain,market:"spot",instrument_type:"exact_pool",instrument_scope:"exact_pool",
-        instrument_id:market.instrument_id,pair_address:market.pool_address,token_address:market.token_address,quote_address:market.quote_token_address,panel:"txns"})) {
-        if (typeof value === "string") url.searchParams.set(key, value);
-      }
-      link.href = url.pathname + url.search; link.textContent = `Pool ${shortAddress(market.pool_address)} →`;
-      description.textContent = `${sample.unique_transactions} transactions · ${sample.buy_transactions} buy / ${sample.sell_transactions} sell · largest sampled swap ${sampledUsd(sample.largest_sampled_swap_usd_micros)} · ${when(sample.window?.last_observed_at)}`;
-      row.append(link, description); details.append(row);
-    }
-    const note = document.createElement("p");
-    note.textContent = `Latest ${Math.min(3, evidence.samples?.length || 0)} of ${evidence.observed_market_count} observed pools. Multi-pool activity is not summed into wallet volume. A transaction can contain both a buy and a sell.`;
-    details.append(note); card.append(facts, details);
-  } else if (evidence) {
-    const note = document.createElement("p"); note.className = "copy-observed-missing";
-    note.textContent = "No retained pool-trade sample from the last 24 hours. This does not mean the wallet was inactive.";
-    card.append(note);
-  }
   return card;
 }
 
@@ -2102,19 +1589,19 @@ function renderScreener(payload) {
   const indexEmpty = Array.isArray(coverage?.chains) && indexed === 0;
   setText("copyScreenerCount", observed ? `${seenTotal.toLocaleString()} observed` : `${state.screener.total.toLocaleString()} match${state.screener.total === 1 ? "" : "es"}`);
   setText("copyScreenerCoverage", coverage
-    ? `${seen.toLocaleString()} wallets discovered by Raven in ${scopeLabel} · ${indexed.toLocaleString()} analyzed profiles. This is Raven’s growing index, not the chain’s total wallet count. Browsing reuses cached evidence.`
-    : "Browse Raven’s stored wallet observations across supported chains. Address lookup fills missing evidence.");
+    ? `${seen.toLocaleString()} wallets discovered by Raven in ${scopeLabel} · ${indexed.toLocaleString()} analyzed profiles. Browse the available profiles or inspect a wallet for more history.`
+    : "Browse wallets across supported chains, or look up an address.");
   setText("copyScreenerStatus", observed
     ? `${seenTotal.toLocaleString()} observed in ${scopeLabel}. Choose a wallet to analyze.`
     : wallets.length
-    ? `${wallets.length} ${scopeLabel} wallet${wallets.length === 1 ? "" : "s"} · source ≠ follower`
+    ? `${wallets.length} ${scopeLabel} wallet${wallets.length === 1 ? "" : "s"} · available trading history`
       : indexEmpty ? "Wallet profiles are still being indexed."
       : `No matching wallet in ${scopeLabel}.`);
   const host = document.getElementById("copyScreenerResults");
   host.hidden = observed;
-  host.replaceChildren(...(wallets.length ? wallets.map(screenerCard) : [empty(indexEmpty ? "No completed profiles yet" : "No matching wallet evidence", indexEmpty
-    ? "Raven has no completed wallet profiles for this chain selection yet. Inspect an address to request its history; changing performance filters will not create evidence."
-    : "Adjust filters or inspect an address. Only retained evidence is included.")]));
+  host.replaceChildren(...(wallets.length ? wallets.map(screenerCard) : [empty(indexEmpty ? "No completed profiles yet" : "No matching wallets", indexEmpty
+    ? "Profiles for this chain are being prepared. You can inspect a wallet address now."
+    : "Adjust the filters or inspect a wallet address.")]));
   if(!observed && !wallets.length && seen > 0) {
     const browse=document.createElement("button");browse.type="button";browse.className="raven-button";
     browse.textContent=`Browse ${seen.toLocaleString()} discovered wallets`;
@@ -2194,9 +1681,7 @@ async function loadWorkspace() {
   state.decisions = decisions.response.ok ? decisions.payload.decisions || [] : [];
   state.exit_decisions = decisions.response.ok ? decisions.payload.exit_decisions || [] : [];
   state.positions = positions.response.ok ? positions.payload.positions || [] : [];
-  state.copyability = decisions.response.ok ? decisions.payload.copyability || [] : [];
   renderCollections();
-  if (state.profile) renderFollowerReality();
 }
 
 async function inspectWalletAddress(address, button, { refresh = false } = {}) {
@@ -2209,7 +1694,6 @@ async function inspectWalletAddress(address, button, { refresh = false } = {}) {
   if (!sameWallet) {
     state.source_wallet_id = null;
     state.profile = null;
-    state.prospective_copyability = null;
     state.deep_history = null;
     state.events = [];
     state.activity = { filter: "all", next_cursor: null, has_more: false, provider_has_more: false, matching_event_count: 0, loading: false, on_demand_only: false };
@@ -2242,7 +1726,7 @@ async function inspectWalletAddress(address, button, { refresh = false } = {}) {
     }
     return;
   }
-  setText("copySearchStatus", result.payload?.evidence_mode === "retained_raven_index"
+  setText("copySearchStatus", result.payload?.provider_request_performed === false
     ? `Stored analysis · ${when(result.payload.freshness?.observed_at)}. ${result.payload.refresh_state === "provider_unavailable" ? "Refresh unavailable; previous evidence retained." : "Shared scan reused."}`
     : result.payload?.persistence?.state === "on_demand_only" ? "On-demand evidence ready. Trade P&L is not inferred." : "Analysis ready.");
   inspectionFeedback(button, document.getElementById("copySearchStatus").textContent);
@@ -2319,6 +1803,7 @@ async function boot(checkedSession) {
     return;
   }
   state.csrf = session.payload.csrf_token || "";
+  await loadTradingSettings().catch(() => {});
   const username = String(session.payload.account?.username || "").trim().toLowerCase();
   setText("copyWorkspaceIdentity", /^[a-z][a-z0-9_]{2,23}$/.test(username) ? `@${username}` : "Signed in");
   const summary = await api(API);
@@ -2400,6 +1885,7 @@ document.getElementById("copyStartSetup").addEventListener("click", () => {
   const source = state.profile?.source_wallet;
   if (!source || source.chain !== "solana" || !state.activation.shadow_copy) return;
   state.policy_source = { chain: source.chain, address: source.address };
+  exitStrategyOptions(document.getElementById('copyPolicyExitStrategy'), currentTradingSettings()?.settings.selected_strategy_id);
   setText("copyPolicySource", `${chainLabel(source.chain)} · ${source.address}`);
   setText("copyPolicyStatus", "");
   policyNode.hidden = false;
@@ -2408,6 +1894,14 @@ document.getElementById("copyStartSetup").addEventListener("click", () => {
 });
 document.getElementById("copyCancelSetup").addEventListener("click", () => { policyNode.hidden = true; });
 document.getElementById("copyPolicy").addEventListener("submit", savePolicy);
+document.getElementById('copyManageStrategies')?.addEventListener('click', () => {
+  void openTradingSettings({ tab: 'strategies', chain: 'solana', symbol: 'SOL' });
+});
+subscribeTradingSettings(() => {
+  const select = document.getElementById('copyPolicyExitStrategy');
+  exitStrategyOptions(select, select?.value);
+  document.querySelectorAll('[data-watch-id] select').forEach(select => exitStrategyOptions(select, select.value));
+});
 document.querySelectorAll("[data-wallet-view]").forEach(button => button.addEventListener("click", async () => {
   if (button.dataset.walletView === state.screener.view) return;
   state.screener.view = button.dataset.walletView;
@@ -2438,7 +1932,7 @@ document.getElementById("copyScreenReset").addEventListener("click", async () =>
 document.querySelectorAll("[data-screen-preset]").forEach((button) => button.addEventListener("click", async () => {
   state.screener.preset = state.screener.preset === button.dataset.screenPreset ? null : button.dataset.screenPreset;
   document.querySelectorAll("[data-screen-preset]").forEach((candidate) => candidate.setAttribute("aria-pressed", String(candidate.dataset.screenPreset === state.screener.preset)));
-  if (state.screener.preset === "active_swing") document.getElementById("copyScreenActive").value = "168";
+  if (state.screener.preset === "swing_trades") document.getElementById("copyScreenActive").value = "168";
   state.screener.page = 1;
   syncScreenerUrl();
   await Promise.all([loadScreener(), loadRobinhoodIntelligence()]);
