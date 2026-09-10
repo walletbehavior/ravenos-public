@@ -1,0 +1,229 @@
+{
+  "schema_version": "ravenos.wallet_history_completion.production.v1",
+  "recorded_at": "2026-09-10T16:44:41.337389+00:00",
+  "source_commit": "43dc074e5463f77a06193ba9ae483cdedf66ae80",
+  "release_id": "ravenos-43dc074e5463-bb01578e4d8a2ca9",
+  "worker_version_id": "7a5f43b0-77f5-4170-84ac-75615870c197",
+  "archive_sha256": "cf03091ce0c0936f9307f3176cff85bcfb2ca0f37bfd69b497b6f4b7db982211",
+  "package_content_sha256": "9714805e0d62cd898549cefe001de6dbfef8d57a2e17032dd8fa50dcb05b867b",
+  "source_tree_state": "clean",
+  "production_traffic_percent": 100,
+  "production_origins": [
+    "https://ravenos.xyz",
+    "https://app.ravenos.xyz"
+  ],
+  "staged_at": "2026-09-10T16:34:57.364Z",
+  "staging_verified_at": "2026-09-10T16:35:34.589Z",
+  "qualification": {
+    "backend_tests_passed": 188,
+    "backend_tests_failed": 0,
+    "build_passed": true,
+    "security_and_public_response_checks_passed": true,
+    "public_worker_response_checks": 41,
+    "production_checks_passed": 66,
+    "verified_assets": 39,
+    "authenticated_workspaces": 11
+  },
+  "scheduled_ingestion": {
+    "cycles": [
+      {
+        "event": "wallet_history_ingestion",
+        "worker_version_id": "7a5f43b0-77f5-4170-84ac-75615870c197",
+        "event_at": 1789058251936,
+        "outcome": "ok",
+        "totals": {
+          "jobs_leased": 4,
+          "jobs_completed": 0,
+          "jobs_bounded": 0,
+          "jobs_retried": 0,
+          "jobs_dead_lettered": 0,
+          "pages_completed": 0,
+          "pages_partial": 0,
+          "signatures_seen": 0,
+          "transactions_decoded": 0,
+          "decode_failures": 0,
+          "jobs_budget_deferred": 4
+        },
+        "profiles_refreshed": 3,
+        "profile_refresh_failures": 0,
+        "state": null,
+        "event_at_utc": "2026-09-10T16:37:31.936000+00:00"
+      },
+      {
+        "event": "wallet_history_ingestion",
+        "worker_version_id": "7a5f43b0-77f5-4170-84ac-75615870c197",
+        "event_at": 1789058311937,
+        "outcome": "ok",
+        "totals": {
+          "jobs_leased": 4,
+          "jobs_completed": 0,
+          "jobs_bounded": 0,
+          "jobs_retried": 0,
+          "jobs_dead_lettered": 0,
+          "pages_completed": 0,
+          "pages_partial": 0,
+          "signatures_seen": 0,
+          "transactions_decoded": 0,
+          "decode_failures": 0,
+          "jobs_budget_deferred": 4
+        },
+        "profiles_refreshed": 3,
+        "profile_refresh_failures": 0,
+        "state": null,
+        "event_at_utc": "2026-09-10T16:38:31.937000+00:00"
+      }
+    ],
+    "trace_completed": true,
+    "history_pages_completed_in_observed_cycles": 0,
+    "history_jobs_completed_in_observed_cycles": 0,
+    "limit": "Both observed runs deferred all four leased jobs under the existing provider budgets; profile refreshes are not new completed histories."
+  },
+  "postflight_query": {
+    "captured_at": "2026-09-10T16:41:47.904779+00:00",
+    "queries": [
+      {
+        "success": true,
+        "results": [
+          {
+            "chain": "base",
+            "jobs": 281,
+            "unfinished": 260,
+            "complete": 21,
+            "bounded_partial": 0,
+            "dead_letter": 0,
+            "profiled": 262,
+            "trading_profiles": 30,
+            "matched_profiles": 0,
+            "unfinished_profiled": 260,
+            "unfinished_trading": 30,
+            "due_trading": 29,
+            "oldest_trading_update": "2026-09-10 04:14:48"
+          },
+          {
+            "chain": "bsc",
+            "jobs": 2728,
+            "unfinished": 2727,
+            "complete": 1,
+            "bounded_partial": 0,
+            "dead_letter": 0,
+            "profiled": 264,
+            "trading_profiles": 24,
+            "matched_profiles": 0,
+            "unfinished_profiled": 263,
+            "unfinished_trading": 24,
+            "due_trading": 23,
+            "oldest_trading_update": "2026-09-10 05:34:50"
+          },
+          {
+            "chain": "ethereum",
+            "jobs": 178,
+            "unfinished": 143,
+            "complete": 32,
+            "bounded_partial": 0,
+            "dead_letter": 3,
+            "profiled": 162,
+            "trading_profiles": 58,
+            "matched_profiles": 0,
+            "unfinished_profiled": 143,
+            "unfinished_trading": 55,
+            "due_trading": 53,
+            "oldest_trading_update": "2026-09-10 07:39:23"
+          },
+          {
+            "chain": "robinhood",
+            "jobs": 3130,
+            "unfinished": 3125,
+            "complete": 5,
+            "bounded_partial": 0,
+            "dead_letter": 0,
+            "profiled": 457,
+            "trading_profiles": 53,
+            "matched_profiles": 0,
+            "unfinished_profiled": 452,
+            "unfinished_trading": 52,
+            "due_trading": 51,
+            "oldest_trading_update": "2026-09-10 00:49:50"
+          },
+          {
+            "chain": "solana",
+            "jobs": 618,
+            "unfinished": 576,
+            "complete": 10,
+            "bounded_partial": 30,
+            "dead_letter": 2,
+            "profiled": 235,
+            "trading_profiles": 197,
+            "matched_profiles": 152,
+            "unfinished_profiled": 198,
+            "unfinished_trading": 166,
+            "due_trading": 156,
+            "oldest_trading_update": "2026-09-10 06:24:23"
+          }
+        ],
+        "rows_read": 46904,
+        "rows_written": 0,
+        "duration_ms": 45.738
+      },
+      {
+        "success": true,
+        "results": [
+          {
+            "hour": "2026-09-10 16:00:00",
+            "reserved_requests": 5934,
+            "unsettled_reservations": 0,
+            "reservations": 103
+          },
+          {
+            "hour": "2026-09-10 15:00:00",
+            "reserved_requests": 5956,
+            "unsettled_reservations": 1,
+            "reservations": 164
+          },
+          {
+            "hour": "2026-09-10 14:00:00",
+            "reserved_requests": 2194,
+            "unsettled_reservations": 0,
+            "reservations": 179
+          }
+        ],
+        "rows_read": 447,
+        "rows_written": 0,
+        "duration_ms": 2.9805
+      }
+    ],
+    "queries_read_only": true,
+    "counts_are_qualified_categories": false,
+    "causal_improvement_claimed": false
+  },
+  "signed_in_desktop_reads": {
+    "viewport": {
+      "width": 1525,
+      "height": 857,
+      "document_width": 1525
+    },
+    "discover_reads_count": 97,
+    "selected_market": "SQUIRE/SOL",
+    "chain": "solana",
+    "pair_address": "4CPVihvjKUUsXq3HFrS8wniUKffbpDqz2h6jHKjeXoYD",
+    "token_address": "EN2nnxrg8uUi6x2sJkzNPd2eT6rB9rdSoQNNaENA4RZA",
+    "terminal_raven_status": "Current",
+    "read_dialog_heading": "SQUIRE \u00b7 Buy activity lacks price follow-through",
+    "dialog_opened_and_closed": true,
+    "chart_status": "Available",
+    "transaction_status": "Unavailable",
+    "holder_status": "Measured low",
+    "scope": "One exact-pool handoff is verified. Other chains, mobile, transaction availability and market-quality reconciliation remain open. A transient browser evaluation timeout recovered after selecting the existing tab.",
+    "observed_after": "2026-09-10T16:42:08Z",
+    "recorded_at": "2026-09-10T16:44:41.337389+00:00"
+  },
+  "wallet_group_feature_enabled": false,
+  "qualified_group_counts_measured": false,
+  "live_group_rotation_verified": false,
+  "provider_limit_changed": false,
+  "migrations_applied": false,
+  "execution_flags_changed": false,
+  "transactions_submitted": 0,
+  "personal_alerts_created": 0,
+  "full_roadmap_packages_signed_off": 0,
+  "goal_complete": false
+}
