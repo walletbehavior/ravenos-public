@@ -1,0 +1,13 @@
+# Remove wallet scheduling contention from account reads
+
+The diagnostic release `5a900732b3a3` passed staging and all 53 production checks and is deployed at 100% on both domains. A bounded, sanitized trace reproduced HTTP 503 at the session **lookup** operation with **database_busy**, both for the account session and balance authorization. Earlier account checks succeeded in 83 milliseconds. The client recovered the existing account after retry; neither session expiry nor wallet disconnection caused this captured failure.
+
+One-hour D1 query insights identify the dominant database workload: the reserved first-profile scheduler averages 47,313,223 rows read and 23,553.6 milliseconds per query. Across 72 runs it consumed 1,695,859 milliseconds of database execution. The reserved depth scheduler averages 9,745,751 rows and 4,424.2 milliseconds across 25 runs. Both recompute a correlated chain-service aggregate once per candidate. These observations support query contention as the principal cause; instrumentation alone is not an availability fix.
+
+D1 processes a database's queries serially and overloads when its queue fills. Cloudflare recommends reducing query duration and spreading work rather than treating repeated retries as a capacity fix. [D1 limits](https://developers.cloudflare.com/d1/platform/limits/), [D1 debugging](https://developers.cloudflare.com/d1/observability/debug-d1/).
+
+The scheduler now groups prior service by chain once and joins it to the eligible candidates. It preserves both lane predicates, chain ordering, explicit customer-demand capacity, idle lane lending, cooldowns and atomic leases. It includes prior completed/deferred attempts in fairness exactly as before. No authentication, collection-budget, signing or execution rules change. No migration or provider request is added.
+
+A read-only production probe of the candidate first-profile query returned two jobs after reading 78,068 rows in 70.36 milliseconds. Depth returned one job after 54,894 rows in 31.49 milliseconds. Both production query plans materialize the service aggregate once and have no correlated scan. This compares historical one-hour averages with one candidate sample, not identical before/after snapshots. The probes made no writes and did not lease jobs.
+
+All 150 wallet-history tests pass. A new query-plan regression first reproduced the correlated scan; another case checks fairness using completed work, deferred attempts, never-served chains and customer demand. Existing tests cover concurrent leases, cooldowns, empty lane lending, continuation, receipt reuse and provider budgets. Build, deployment and account checks through subsequent ingestion cycles follow. [Sanitized evidence](2026-09-10-account-database-contention-proof.json).

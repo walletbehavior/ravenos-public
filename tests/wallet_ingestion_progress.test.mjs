@@ -66,6 +66,43 @@ test('unused reserved lanes lend their capacity and retry cooldowns remain intac
   const next=await backfill.leaseJobs({...options,now:NOW+2000});assert.equal(next.length,1);
 });
 
+test('reserved history lanes do not rescan every job for every candidate',async t=>{
+  const {db,backfill,add}=await setup(t);
+  await add(1); await add(2,{chain:'ethereum',profile:true});
+  const plans=[];
+  const prepare=db.prepare.bind(db);
+  db.prepare=sql=>{
+    if(sql.includes('PARTITION BY s.chain ORDER BY j.next_attempt_at')) {
+      plans.push(db.raw.prepare('EXPLAIN QUERY PLAN '+sql).all(NOW/1000,NOW/1000,1));
+    }
+    return prepare(sql);
+  };
+  await backfill.leaseJobs({worker_id:'query_plan',now:NOW,limit:4,lease_seconds:180,breadth_slots:2,depth_slots:1});
+  assert.equal(plans.length,2);
+  for(const plan of plans) assert(!plan.some(row=>/CORRELATED/.test(row.detail)),
+    'Chain service history must be grouped once, not rescanned for each eligible wallet.');
+});
+
+test('reserved lanes retain chain fairness from completed and deferred work',async t=>{
+  const {db,backfill,add}=await setup(t);
+  const fresh=[];
+  for(const [i,chain] of ['base','ethereum','bsc','robinhood'].entries()) fresh.push(await add(i+1,{chain}));
+  const base=await add(11,{chain:'base',profile:true});
+  const eth=await add(12,{chain:'ethereum',profile:true});
+  const neverServed=await add(13,{chain:'robinhood',profile:true});
+  const urgent=await add(14,{chain:'base',profile:true,demand:'customer_watch'});
+  db.raw.prepare("UPDATE ravenos_source_wallet_backfill_jobs SET state='complete',updated_at=? WHERE job_id=?")
+    .run(NOW/1000+200,base.job_id);
+  db.raw.prepare("UPDATE ravenos_source_wallet_backfill_jobs SET state='retry_wait',next_attempt_at=?,updated_at=?,page_count=0,attempt_count=1 WHERE job_id=?")
+    .run(NOW/1000+600,NOW/1000+100,eth.job_id);
+  db.raw.prepare("UPDATE ravenos_source_wallet_backfill_jobs SET state='complete',updated_at=?,page_count=0,attempt_count=0 WHERE job_id=?")
+    .run(NOW/1000+250,neverServed.job_id);
+  const batch=await backfill.leaseJobs({worker_id:'service_fairness',now:NOW+300000,limit:4,lease_seconds:180,breadth_slots:3});
+  assert.deepEqual(new Set(batch.slice(0,2).map(job=>job.source_wallet.chain)),new Set(['bsc','robinhood']));
+  assert.equal(batch[2].job_id,fresh[1].job_id,'An older deferred attempt ranks before recently served Base.');
+  assert.equal(batch[3].job_id,urgent.job_id,'The customer demand slot remains available.');
+});
+
 test('EVM provider budget is shared, crash conservative, and settlement is idempotent',async t=>{
   const {db}=await setup(t);
   const results=await Promise.allSettled(Array.from({length:4},()=>reserveEvmHistoryRequests(db,{limit:100,budget:200,now:NOW})));

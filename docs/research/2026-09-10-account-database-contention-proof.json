@@ -1,0 +1,286 @@
+{
+  "recorded_at": "2026-09-10T09:05:43.027989+00:00",
+  "state": "scheduler_fix_qualified_pending_deployment",
+  "diagnostic_release": {
+    "release_id": "ravenos-5a900732b3a3-5b1f1211be79f795",
+    "source_commit": "5a900732b3a3cb79da4e0e0ff92b64b6da815147",
+    "worker_version_id": "5484be7a-e572-4dba-b268-8789dacdf0da",
+    "traffic_percent": 100,
+    "staging_verified_at": "2026-09-10T08:53:32.620Z",
+    "production_checks": 53,
+    "verified_assets": 34,
+    "workspace_entrypoints": 11,
+    "reader_identity_tests": 54,
+    "security_privy_tests": 23
+  },
+  "sanitized_trace": [
+    {
+      "time": 1789030675805,
+      "path": "/api/v1/auth/config",
+      "status": 200,
+      "outcome": "ok",
+      "cpu_ms": 7,
+      "wall_ms": 39,
+      "diagnostics": []
+    },
+    {
+      "time": 1789030678520,
+      "path": "/api/v1/auth/config",
+      "status": 200,
+      "outcome": "ok",
+      "cpu_ms": 2,
+      "wall_ms": 17,
+      "diagnostics": []
+    },
+    {
+      "time": 1789030678519,
+      "path": "/api/v1/auth/session",
+      "status": 200,
+      "outcome": "ok",
+      "cpu_ms": 9,
+      "wall_ms": 83,
+      "diagnostics": []
+    },
+    {
+      "time": 1789030678520,
+      "path": "/api/v1/wallets/balances",
+      "status": 200,
+      "outcome": "ok",
+      "cpu_ms": 16,
+      "wall_ms": 525,
+      "diagnostics": []
+    },
+    {
+      "time": 1789030678830,
+      "path": "/api/v1/portfolio/preview",
+      "status": 200,
+      "outcome": "ok",
+      "cpu_ms": 13,
+      "wall_ms": 215,
+      "diagnostics": []
+    },
+    {
+      "time": 1789030679118,
+      "path": "/api/v1/portfolio/preview",
+      "status": 200,
+      "outcome": "ok",
+      "cpu_ms": 49,
+      "wall_ms": 855,
+      "diagnostics": []
+    },
+    {
+      "time": 1789030695269,
+      "path": "/api/v1/auth/config",
+      "status": 200,
+      "outcome": "ok",
+      "cpu_ms": 3,
+      "wall_ms": 33,
+      "diagnostics": []
+    },
+    {
+      "time": 1789030695259,
+      "path": "/api/v1/auth/session",
+      "status": 200,
+      "outcome": "ok",
+      "cpu_ms": 3,
+      "wall_ms": 83,
+      "diagnostics": []
+    },
+    {
+      "time": 1789030708519,
+      "path": "/api/v1/wallets/balances",
+      "status": null,
+      "outcome": "canceled",
+      "cpu_ms": 1,
+      "wall_ms": 9999,
+      "diagnostics": []
+    },
+    {
+      "time": 1789030719171,
+      "path": "/api/v1/wallets/balances",
+      "status": 503,
+      "outcome": "ok",
+      "cpu_ms": 3,
+      "wall_ms": 70,
+      "diagnostics": [
+        {
+          "surface": "authorization",
+          "stage": "lookup",
+          "reason": "database_busy"
+        }
+      ]
+    },
+    {
+      "time": 1789030719315,
+      "path": "/api/v1/auth/session",
+      "status": 503,
+      "outcome": "ok",
+      "cpu_ms": 2,
+      "wall_ms": 29,
+      "diagnostics": [
+        {
+          "surface": "session",
+          "stage": "lookup",
+          "reason": "database_busy"
+        }
+      ]
+    },
+    {
+      "time": 1789030738523,
+      "path": "/api/v1/wallets/balances",
+      "status": 200,
+      "outcome": "ok",
+      "cpu_ms": 9,
+      "wall_ms": 500,
+      "diagnostics": []
+    },
+    {
+      "tail_complete": true,
+      "code": null,
+      "signal": "SIGTERM"
+    }
+  ],
+  "diagnosis": {
+    "server_stage": "lookup",
+    "server_reason": "database_busy",
+    "authentication_bypass": false,
+    "session_invalidation_observed": false
+  },
+  "baseline_insights": {
+    "window": "1h",
+    "sort": "total_query_time",
+    "queries": [
+      {
+        "lane": "breadth",
+        "avgRowsRead": 47313223,
+        "totalRowsRead": 3406552090,
+        "avgRowsWritten": 0,
+        "totalRowsWritten": 0,
+        "avgDurationMs": 23553.6006625,
+        "totalDurationMs": 1695859.2477000002,
+        "numberOfTimesRun": 72,
+        "queryEfficiency": 4.2271480850078635e-08
+      },
+      {
+        "lane": "depth",
+        "avgRowsRead": 9745751,
+        "totalRowsRead": 243643790,
+        "avgRowsWritten": 0,
+        "totalRowsWritten": 0,
+        "avgDurationMs": 4424.150304000001,
+        "totalDurationMs": 110603.75760000001,
+        "numberOfTimesRun": 25,
+        "queryEfficiency": 1.0260881896120679e-07
+      }
+    ]
+  },
+  "candidate_read_only_probes": [
+    {
+      "ok": true,
+      "lane": "breadth",
+      "explain": true,
+      "query_sha256": "dfcbd196faa5e7012d2f1c1dd3788e9b7e43a6223b4670bfca29d2e7cbc48ea8",
+      "at": "2026-09-10T09:04:08.481Z",
+      "rows_read": 0,
+      "rows_written": 0,
+      "duration_ms": 0.9785,
+      "sql_duration_ms": 0.9785,
+      "result_count": 17,
+      "plan": [
+        "CO-ROUTINE ranked",
+        "CO-ROUTINE (subquery-4)",
+        "MATERIALIZE service",
+        "SCAN w USING COVERING INDEX ravenos_source_wallet_recency_idx",
+        "SEARCH q USING INDEX sqlite_autoindex_ravenos_source_wallet_backfill_jobs_2 (source_wallet_id=?)",
+        "MULTI-INDEX OR",
+        "INDEX 1",
+        "SEARCH j USING INDEX ravenos_source_wallet_backfill_lease_idx (state=?)",
+        "INDEX 2",
+        "SEARCH j USING INDEX ravenos_source_wallet_backfill_lease_idx (state=? AND lease_expires_at<?)",
+        "SEARCH s USING INDEX sqlite_autoindex_ravenos_source_wallets_1 (source_wallet_id=?)",
+        "SEARCH service USING AUTOMATIC COVERING INDEX (chain=?) LEFT-JOIN",
+        "SEARCH c USING COVERING INDEX sqlite_autoindex_ravenos_source_wallet_current_profiles_1 (source_wallet_id=?) LEFT-JOIN",
+        "USE TEMP B-TREE FOR ORDER BY",
+        "SCAN (subquery-4)",
+        "SCAN ranked",
+        "USE TEMP B-TREE FOR ORDER BY"
+      ]
+    },
+    {
+      "ok": true,
+      "lane": "breadth",
+      "explain": false,
+      "query_sha256": "dfcbd196faa5e7012d2f1c1dd3788e9b7e43a6223b4670bfca29d2e7cbc48ea8",
+      "at": "2026-09-10T09:04:08.839Z",
+      "rows_read": 78068,
+      "rows_written": 0,
+      "duration_ms": 70.3579,
+      "sql_duration_ms": 70.3579,
+      "result_count": 2
+    },
+    {
+      "ok": true,
+      "lane": "depth",
+      "explain": true,
+      "query_sha256": "8d89575fd384c42691a85db05bdb76823329f89f46082790b592d2c5fdd6eea7",
+      "at": "2026-09-10T09:04:09.190Z",
+      "rows_read": 0,
+      "rows_written": 0,
+      "duration_ms": 0.6647,
+      "sql_duration_ms": 0.6647,
+      "result_count": 17,
+      "plan": [
+        "CO-ROUTINE ranked",
+        "CO-ROUTINE (subquery-4)",
+        "MATERIALIZE service",
+        "SCAN w USING COVERING INDEX ravenos_source_wallet_recency_idx",
+        "SEARCH q USING INDEX sqlite_autoindex_ravenos_source_wallet_backfill_jobs_2 (source_wallet_id=?)",
+        "MULTI-INDEX OR",
+        "INDEX 1",
+        "SEARCH j USING INDEX ravenos_source_wallet_backfill_due_priority_idx (state=? AND demand_priority<?)",
+        "INDEX 2",
+        "SEARCH j USING INDEX ravenos_source_wallet_backfill_lease_idx (state=? AND lease_expires_at<?)",
+        "SEARCH s USING INDEX sqlite_autoindex_ravenos_source_wallets_1 (source_wallet_id=?)",
+        "SEARCH c USING COVERING INDEX sqlite_autoindex_ravenos_source_wallet_current_profiles_1 (source_wallet_id=?)",
+        "SEARCH service USING AUTOMATIC COVERING INDEX (chain=?) LEFT-JOIN",
+        "USE TEMP B-TREE FOR ORDER BY",
+        "SCAN (subquery-4)",
+        "SCAN ranked",
+        "USE TEMP B-TREE FOR ORDER BY"
+      ]
+    },
+    {
+      "ok": true,
+      "lane": "depth",
+      "explain": false,
+      "query_sha256": "8d89575fd384c42691a85db05bdb76823329f89f46082790b592d2c5fdd6eea7",
+      "at": "2026-09-10T09:04:09.507Z",
+      "rows_read": 54894,
+      "rows_written": 0,
+      "duration_ms": 31.4911,
+      "sql_duration_ms": 31.4911,
+      "result_count": 1
+    }
+  ],
+  "comparability": "Historical one-hour averages versus one read-only candidate sample per lane; no same-snapshot old/new timing claim.",
+  "qualification": {
+    "wallet_history_tests": 150,
+    "query_plan_regression_reproduced_before_fix": true,
+    "chain_fairness_lease_budget_behavior_passed": true,
+    "database_migrations": 0,
+    "rows_written_by_probes": 0,
+    "real_transactions_submitted": 0
+  },
+  "browser": {
+    "new_live_mobile_claim": false,
+    "portfolio_authenticated": true,
+    "portfolio_wallet_count": 1,
+    "portfolio_holding_count": 1,
+    "community_following_recovered_automatically": true,
+    "community_following_empty": true
+  },
+  "remaining": [
+    "Deploy scheduler fix and measure signed-in account checks through subsequent ingestion cycles.",
+    "No real settlement or complete roadmap claim."
+  ]
+}
