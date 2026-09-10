@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { selectWalletTokenMark, loadWalletTokenMarks, rememberSeenWalletTokenMarks, applyWalletTokenMark, walletTokenMarkSummary } from '../lib/customer_trade/wallet_token_marks.mjs';
 import { createSolanaWalletProfileReads } from '../lib/customer_trade/solana_wallet_profile_provider.mjs';
 import { WALLET_TOKEN_PROGRAMS } from '../lib/customer_trade/solana_wallet_holdings.mjs';
+import { MarketProviderReader } from '../lib/market_provider_fallbacks.mjs';
 
 const T='0x'+'a1'.repeat(20),Q='0x'+'a2'.repeat(20),P='0x'+'a3'.repeat(20),NOW=1788876000;
 const SOL='So11111111111111111111111111111111111111112',USDC='EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',POOL='11111111111111111111111111111111';
@@ -37,6 +38,26 @@ test('token references share edge cache across wallets and worker instances, pre
   const again=await loadWalletTokenMarks({...input,now:NOW+1,priceCache:new Map()});
   assert.equal(again.request_count,0);assert.equal(calls,1);assert.equal(again.rows[0].sampled_at,NOW);
   await loadWalletTokenMarks({...input,now:NOW+301,priceCache:new Map()});assert.equal(calls,2);
+});
+
+test('wallet price requests honor the shared market cooldown for new tokens and chains',async()=>{
+  let calls=0;
+  const fetchImpl=async()=>{calls++;return new Response('',{status:429,headers:{'retry-after':'120'}});};
+  const providerReader=new MarketProviderReader({fetchFn:fetchImpl,now:()=>NOW*1000,cache:()=>null});
+  await assert.rejects(providerReader.read('https://api.dexscreener.com/tokens/v1/base/'+T),/429/);
+  const result=await loadWalletTokenMarks({chain:'robinhood',contracts:[T],now:NOW+1,priceCache:new Map(),providerReader,fetchImpl});
+  assert.equal(calls,1);
+  assert.equal(result.rows.length,0);assert.equal(result.request_count,0);
+});
+
+test('an existing market response supplies a wallet mark with its original observation time',async()=>{
+  let now=NOW,calls=0;
+  const fetchImpl=async()=>{calls++;return Response.json([pair()]);};
+  const providerReader=new MarketProviderReader({fetchFn:fetchImpl,now:()=>now*1000,cache:()=>null});
+  await providerReader.snapshot('https://api.dexscreener.com/tokens/v1/robinhood/'+T);
+  now+=20;
+  const result=await loadWalletTokenMarks({chain:'robinhood',contracts:[T],now,priceCache:new Map(),providerReader,fetchImpl});
+  assert.equal(calls,1);assert.equal(result.request_count,0);assert.equal(result.rows[0].sampled_at,NOW);
 });
 
 test('missing and provider-error observations are negatively cached and never expose response details',async()=>{

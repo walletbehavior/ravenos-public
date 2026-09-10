@@ -74,6 +74,23 @@ test('public cache serves another isolate but never stores authorization or API 
   assert(!JSON.stringify([...rows.keys()]).includes('secret'));
 });
 
+test('shared responses still honor each consumer response-size bound', async () => {
+  const rows = new Map(); let calls = 0;
+  const cache = { match: async key => rows.get(key.url)?.clone(), put: async (key, response) => rows.set(key.url, response) };
+  const options = { now: () => NOW, cache: () => cache, fetchFn: async () => { calls++; return json({ value: 'x'.repeat(1000) }); } };
+  const reader = new MarketProviderReader(options), url = 'https://api.dexscreener.com/tokens/v1/base/0xaaa';
+  await reader.read(url, { maxBytes: 2048 });
+  for (const consumer of [reader, new MarketProviderReader(options)]) {
+    await assert.rejects(consumer.read(url, { maxBytes: 256 }), /market_provider_response_too_large/);
+  }
+  assert.equal(calls, 1, 'an oversized cached response must not trigger another upstream request');
+  const concurrent = new MarketProviderReader({ ...options, cache: () => null });
+  const results = await Promise.allSettled([concurrent.read(url, { maxBytes: 2048 }), concurrent.read(url, { maxBytes: 256 })]);
+  assert.equal(results[0].status, 'fulfilled'); assert.equal(results[1].status, 'rejected');
+  assert.equal(results[1].reason.code, 'market_provider_response_too_large');
+  assert.equal(calls, 2, 'concurrent readers keep their bounds while sharing one request');
+});
+
 test('quota exhaustion backs off other requests to the same provider while alternatives continue', async () => {
   let now = NOW, calls = 0;
   const reader = new MarketProviderReader({ now: () => now, cache: () => null, fetchFn: async url => { calls++; return url.includes('coingecko') ? json({ status: { error_code: 10006 } },429) : json({ ok: true }); } });

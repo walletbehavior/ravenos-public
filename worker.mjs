@@ -163,7 +163,7 @@ import {
   resolveDexchDiscoveryRuntime,
 } from "./lib/dexch_discovery_provider.mjs";
 import { buildParticipationPayoffProjection } from "./lib/participation_payoff.mjs";
-import { MarketProviderReader, MarketProviderPolicy, normalizeDexScreenerActivity, dexchWalletCandidates } from "./lib/market_provider_fallbacks.mjs";
+import { sharedMarketProviderReader as marketProviderReader, MarketProviderPolicy, normalizeDexScreenerActivity, dexchWalletCandidates } from "./lib/market_provider_fallbacks.mjs";
 import { buildDexchChart } from './lib/dexch_chart.mjs';
 import { collectParticipationUniverse, createParticipationSnapshotStore, refreshParticipationSnapshot, PARTICIPATION_UNIVERSE_POLICY } from './lib/participation_universe.mjs';
 import { buildOnchainMonitorEvidence, onchainMonitorInstrumentIds } from './lib/customer_monitor_evidence.mjs';
@@ -592,7 +592,6 @@ const dexPaprikaCache = new Map();
 const geckoIdentityCache = new Map();
 const geckoMarketProfileCache = new Map();
 const geckoTradeCache = new Map();
-const marketProviderReader = new MarketProviderReader();
 const dexchDiscoveryProvider = new DexchDiscoveryProvider({
   // Resolve fetch at request time so Worker tests and local harnesses can install
   // an isolated transport without rebuilding the module singleton.
