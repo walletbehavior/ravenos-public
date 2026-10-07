@@ -12279,14 +12279,22 @@ export class HooklineExecutionService extends WorkerEntrypoint {
     const capability = selected.robinhood
       ? resolveRobinhoodZeroXCapability(this.env)
       : resolveEvmZeroXCapability(this.env, { profile: selected.profile });
+    const feeCollectionEnabled = capability.fee_collection_enabled === true;
+    const grossFeeBps = capability.fee_schedule?.free_fee_bps ?? 100;
+    const proFeeBps = capability.fee_schedule?.pro_fee_bps ?? 70;
+    const effectiveFeeBps = proFeeBps;
+    const cashbackSettlementEnabled = feeCollectionEnabled && proFeeBps === 70;
     return {
       chain_id: selected.chainId,
       state: capability.state,
       quote_review_enabled: capability.quote_review_enabled === true,
-      fee_collection_enabled: capability.fee_collection_enabled === true,
-      fee_bps: capability.fee_collection_enabled === true ? capability.fee_schedule?.free_fee_bps ?? null : 0,
-      cashback_bps: 30,
-      cashback_settlement_enabled: String(this.env.HOOKLINE_CASHBACK_ENABLED || "") === "1",
+      fee_collection_enabled: feeCollectionEnabled,
+      fee_bps: effectiveFeeBps,
+      effective_fee_bps: effectiveFeeBps,
+      gross_fee_bps: grossFeeBps,
+      cashback_bps: grossFeeBps - effectiveFeeBps,
+      cashback_mode: "instant_fee_rebate",
+      cashback_settlement_enabled: cashbackSettlementEnabled,
       wallet_signature_required: true,
       signing_available: false,
       submission_available: false,
@@ -12337,7 +12345,7 @@ export class HooklineExecutionService extends WorkerEntrypoint {
       chain_id: selected.chainId,
       ...(selected.profile ? { profile_id: selected.profile.profile_id } : {}),
     }, {
-      entitlement_tier: "free",
+      entitlement_tier: "pro",
       fee_enabled: true,
       fee_token_side: "sell",
     });
