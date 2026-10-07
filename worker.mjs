@@ -12295,8 +12295,12 @@ export class HooklineExecutionService extends WorkerEntrypoint {
       cashback_mode: "instant_fee_rebate",
       cashback_settlement_enabled: cashbackSettlementEnabled,
       wallet_signature_required: true,
-      signing_available: false,
-      submission_available: false,
+      signing_available: true,
+      submission_available: true,
+      signing_location: "user_wallet",
+      submission_location: "user_wallet",
+      server_signing_available: false,
+      server_submission_available: false,
     };
   }
 
