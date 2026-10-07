@@ -98,7 +98,7 @@ import {
   HYPERLIQUID_ACCOUNT_HISTORY_SCHEMA,
 } from "./lib/customer_trade/hyperliquid_account_history.mjs";
 import { getDirectSolanaQuote } from "./lib/customer_trade/quote_service.mjs";
-import { feePolicyFor } from "./lib/customer_trade/fee_policy.mjs";
+import { feePolicyFor, HOOKLINE_EXECUTION_FEE_BPS } from "./lib/customer_trade/fee_policy.mjs";
 import { buildShadowFeeScenarioMatrix } from "./lib/customer_trade/fee_architecture.mjs";
 import {
   SOLANA_SPOT_QUOTE_REVIEW_SCHEMA,
@@ -12281,9 +12281,8 @@ export class HooklineExecutionService extends WorkerEntrypoint {
       : resolveEvmZeroXCapability(this.env, { profile: selected.profile });
     const feeCollectionEnabled = capability.fee_collection_enabled === true;
     const grossFeeBps = capability.fee_schedule?.free_fee_bps ?? 100;
-    const proFeeBps = capability.fee_schedule?.pro_fee_bps ?? 70;
-    const effectiveFeeBps = proFeeBps;
-    const cashbackSettlementEnabled = feeCollectionEnabled && proFeeBps === 70;
+    const effectiveFeeBps = HOOKLINE_EXECUTION_FEE_BPS;
+    const cashbackSettlementEnabled = feeCollectionEnabled;
     return {
       chain_id: selected.chainId,
       state: capability.state,
@@ -12345,7 +12344,7 @@ export class HooklineExecutionService extends WorkerEntrypoint {
       chain_id: selected.chainId,
       ...(selected.profile ? { profile_id: selected.profile.profile_id } : {}),
     }, {
-      entitlement_tier: "pro",
+      entitlement_tier: "hookline",
       fee_enabled: true,
       fee_token_side: "sell",
     });

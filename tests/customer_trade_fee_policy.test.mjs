@@ -7,7 +7,7 @@ import {
   feePolicyFor,
 } from "../lib/customer_trade/fee_policy.mjs";
 
-test("Native fees are 100 bps for both tiers while Hyperliquid preserves its separate schedule", () => {
+test("Native fees are 100 bps for customer tiers while Hookline has a sealed 70 bps route", () => {
   const schedule = customerTradeFeeSchedule();
   assert.deepEqual(schedule["hyperliquid:perpetual"], {
     provider: "hyperliquid",
@@ -28,6 +28,7 @@ test("Native fees are 100 bps for both tiers while Hyperliquid preserves its sep
     fee_kind: "integrator_fee",
     free_fee_bps: 100,
     pro_fee_bps: 100,
+    hookline_fee_bps: 70,
   });
   for (const row of Object.values(schedule)) if(row.provider!=="hyperliquid") assert.equal(row.pro_fee_bps,row.free_fee_bps);
 });
@@ -54,6 +55,16 @@ test("0x EVM spot fees are server-selected and require a nonzero collector", () 
   });
   assert.equal(pro.enabled, true);
   assert.equal(pro.fee_bps, 100);
+  const hookline = feePolicyFor({
+    provider: "0x",
+    trade_type: "spot",
+    access_tier: "hookline",
+    enabled: true,
+    fee_recipient: recipient,
+  });
+  assert.equal(hookline.enabled, true);
+  assert.equal(hookline.fee_bps, 70);
+  assert.equal(hookline.cashback_percent, 0);
   const zero = feePolicyFor({
     provider: "0x",
     trade_type: "spot",

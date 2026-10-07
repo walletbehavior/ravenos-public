@@ -176,7 +176,11 @@ test("quote request binds chain, taker, recipient, exact tokens, fee tier, and 0
   const pro = request({}, { access_tier: "pro" });
   assert.equal(pro.fee.fee_bps, 100);
   assert.equal(pro.fee.expected_fee_amount_base_units, "10000");
-  assert.deepEqual(RobinhoodZeroXFeeSchedule, { free: 100, pro: 100 });
+  const hookline = request({}, { access_tier: "hookline" });
+  assert.equal(hookline.fee.fee_bps, 70);
+  assert.equal(hookline.fee.expected_fee_amount_base_units, "7000");
+  assert.equal(hookline.provider_parameters.swapFeeBps, "70");
+  assert.deepEqual(RobinhoodZeroXFeeSchedule, { free: 100, pro: 100, hookline: 70 });
 });
 
 test("configured client requests an exact fee-bound firm quote without exposing its API key", async () => {
