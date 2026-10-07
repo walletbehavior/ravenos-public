@@ -1,3 +1,4 @@
+import { WorkerEntrypoint } from "cloudflare:workers";
 import { onchainMarketPages, validOnchainMarketCursor } from './lib/onchain_market_pages.mjs';
 import { buildOnchainRavenReads } from './lib/onchain_raven_reads.mjs';
 import { estimateEvmPriceImpact } from "./lib/customer_trade/price_impact.mjs";
@@ -255,6 +256,7 @@ import {
 import {
   BASE_EVM_CHAIN_PROFILE,
   BSC_EVM_CHAIN_PROFILE,
+  EVM_NATIVE_TOKEN_ADDRESS,
   ETHEREUM_EVM_CHAIN_PROFILE,
 } from "./lib/customer_trade/evm_chain_profiles.mjs";
 import {
@@ -8525,7 +8527,7 @@ const EVM_PUBLIC_RPC_URLS = Object.freeze({
 
 function createProfileReadOnlyRpcClient(env = {}, profile) {
   const prefix = `RAVENOS_${profile.chain_namespace.toUpperCase()}_RPC`;
-  const urls = [env[`${prefix}_URL`], env[`${prefix}_FALLBACK_URL`], EVM_PUBLIC_RPC_URLS[profile.chain_namespace]]
+  const urls = [env[`${prefix}_URL`], EVM_PUBLIC_RPC_URLS[profile.chain_namespace], env[`${prefix}_FALLBACK_URL`]]
     .map((value) => String(value || "").trim())
     .filter((value, index, rows) => value && rows.indexOf(value) === index)
     .slice(0, 2);
@@ -12247,6 +12249,99 @@ export async function runWalletHistoryIngestion(env) {
           });
         })()
       : Promise.resolve({ state: "disabled" });
+}
+
+const HOOKLINE_EXECUTION_PROFILES = Object.freeze({
+  1: ETHEREUM_EVM_CHAIN_PROFILE,
+  56: BSC_EVM_CHAIN_PROFILE,
+  8453: BASE_EVM_CHAIN_PROFILE,
+});
+
+function hooklineExecutionProfile(chainId) {
+  const id = Number(chainId);
+  if (id === 4663) return { chainId: id, robinhood: true, profile: null };
+  const profile = HOOKLINE_EXECUTION_PROFILES[id];
+  if (!profile) {
+    const error = new Error("hookline_execution_chain_not_supported");
+    error.code = "hookline_execution_chain_not_supported";
+    throw error;
+  }
+  return { chainId: id, robinhood: false, profile };
+}
+
+// Private service-binding entrypoint for products that reuse RavenOS quote
+// validation. It exposes capability and unsigned quote review only. The 0x
+// key and fee configuration stay sealed in this Worker, and no method signs,
+// submits, broadcasts, or accepts wallet secrets.
+export class HooklineExecutionService extends WorkerEntrypoint {
+  async capability(chainId) {
+    const selected = hooklineExecutionProfile(chainId);
+    const capability = selected.robinhood
+      ? resolveRobinhoodZeroXCapability(this.env)
+      : resolveEvmZeroXCapability(this.env, { profile: selected.profile });
+    return {
+      chain_id: selected.chainId,
+      state: capability.state,
+      quote_review_enabled: capability.quote_review_enabled === true,
+      fee_collection_enabled: capability.fee_collection_enabled === true,
+      fee_bps: capability.fee_collection_enabled === true ? capability.fee_schedule?.free_fee_bps ?? null : 0,
+      cashback_bps: 30,
+      cashback_settlement_enabled: String(this.env.HOOKLINE_CASHBACK_ENABLED || "") === "1",
+      wallet_signature_required: true,
+      signing_available: false,
+      submission_available: false,
+    };
+  }
+
+  async tokenMetadata(chainId, tokenAddress, walletAddress = null) {
+    const selected = hooklineExecutionProfile(chainId);
+    const token = String(tokenAddress || "").trim().toLowerCase();
+    if (token === EVM_NATIVE_TOKEN_ADDRESS) {
+      return {
+        chain_id: selected.chainId,
+        token_address: token,
+        decimals: 18,
+        native: true,
+        symbol: selected.robinhood ? "ETH" : selected.profile.native_symbol,
+        balance_base_units: null,
+      };
+    }
+    let evidence;
+    if (selected.robinhood) {
+      const runtime = resolveRobinhoodChainRuntime(this.env);
+      const rpc = createRobinhoodRpcFailoverClient(runtime);
+      await verifyRobinhoodRpcChain(rpc, runtime);
+      evidence = await currentRobinhoodTokenEvidence(rpc, token, walletAddress);
+    } else {
+      const rpc = createProfileReadOnlyRpcClient(this.env, selected.profile);
+      await verifyReadOnlyEvmRpcChain(rpc, selected.profile.chain_id);
+      evidence = await currentProfileTokenEvidence(rpc, selected.profile, token, walletAddress);
+    }
+    return {
+      chain_id: selected.chainId,
+      token_address: evidence.token_address,
+      decimals: evidence.decimals,
+      native: false,
+      symbol: null,
+      balance_base_units: evidence.balance_base_units,
+    };
+  }
+
+  async quote(order = {}) {
+    const selected = hooklineExecutionProfile(order?.chain_id ?? order?.chainId);
+    const client = selected.robinhood
+      ? createRobinhoodZeroXQuoteClient(this.env)
+      : createEvmZeroXQuoteClient(this.env, { profile: selected.profile });
+    return client.quote({
+      ...order,
+      chain_id: selected.chainId,
+      ...(selected.profile ? { profile_id: selected.profile.profile_id } : {}),
+    }, {
+      entitlement_tier: "free",
+      fee_enabled: true,
+      fee_token_side: "sell",
+    });
+  }
 }
 
 export default {
